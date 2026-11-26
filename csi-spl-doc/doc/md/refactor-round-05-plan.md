@@ -36,8 +36,8 @@ in a sibling file, leaving every log line, exit code, env var, and path byte-ide
 **Row 01:** the final single-line script cron installer matching `_spl_simple_cron_apply`
 — `orc:src/bash/run/spl-orch-rotate-install-cron.func.sh:54-88` (r04 section 7 #2) —
 carries the exact 35-line `check` / `DRY_RUN=1` / `remove` / `install` crontab state
-machine hosted in `_spl_simple_cron_apply` (`setup-box-stats-cron.func.sh:67-107`, which
-already accepts optional 11th arg `noun=""` after `r04-02` `b42d34d7b`). Lazy-sourcing
+machine hosted in `_spl_simple_cron_apply` (`setup-box-stats-cron.func.sh:64-107`, def at
+`:68-107`, which already accepts optional 11th arg `noun=""` after `r04-02` `b42d34d7b`). Lazy-sourcing
 `setup-box-stats-cron.func.sh` behind a `declare -F _spl_simple_cron_apply` guard inside
 `do_spl_orch_rotate_install_cron` and passing `""` as arg 11 completes the
 `_spl_simple_cron_apply` wave-1..4 consolidation (all 10 matching script cron installers
@@ -57,10 +57,14 @@ wave-1 siblings lazy-sourcing `spl-spawn-fill-install-cron.func.sh` behind a
 for `r06`+ so row 02 stays within rulebook 3.1's 5-file cap and off live `b48-01`).
 The rows share no file: both are batch 1.
 
-**Status: v0.1 draft (for cross-vendor panel review).** Editor: **a-891** (agy).
-Cross-vendor claude panel seat (`c002-refactor-round-05-claude-panel-seat`) is queued
-with this planner. Zero drift on all 12 row/test files from `b42d34d7b` to `origin/master`
-`0d5e0b252` (checked at 2026-11-26T03:33Z).
+**Status: v1.0 (W1, W2 and N1-N7 folded; ready for final panel signature).** Editor:
+**a-891** (agy). Cross-vendor claude panel seat **c-893** returned **PASS** on v0.1
+(`e97c0dcc55aae42f058b608f5f7a7beea06f0a84`, seat commit
+`94f7de00aafaa3e033408edddd71fb56b896b644` on `review/c002-refactor-round-05-claude-seat`,
+msg `78c4d74e` / `860e85fe`; `do_spl_review_line_check` rc 0, 7/7 tests in log, holder
+msg `739cc265`), contingent on folding W1 and W2 (no row change; all 7 fenced `bash`
+blocks byte-identical to v0.1). Zero drift on all 13 row/test/host files from `b42d34d7b`
+to `origin/master` `5dbcaec84` (re-checked at 2026-11-26T03:58Z).
 
 **One sha:** every count is measured on **`b42d34d7b`** (`b42d34d7b9e57704a26e1fde93ebb65e2813389f`,
 `origin/master` at 2026-11-26T03:08:53Z), n=1 per command unless stated. Reads are on
@@ -155,14 +159,30 @@ their own time.
   box only and not on the panel seat's box; 142 lines, 31,775 bytes, read 03:08Z):
   - Unchanged since r04 (`wc -l` 142, last section is b48 `spl-review-go.func.sh`
     false-hold, bug-shaped).
-  - Re-checked the remaining refactor-labelled entries on `b42d34d7b`:
-    - `reverse-tunnel-cron.sh:27` -> already uses `$SPL_VAR_APP_DIR/reverse-tunnel` (served).
-    - `spl-unanswered-sweep.func.sh:196` `send_to_peers_on` -> 0 hits in
-      `spl-unanswered-sweep.func.sh` (served).
-    - `spl-desk-reply.sh:9` usage kinds -> already lists all 12 kinds
+  - Re-checked all 9 refactor-labelled entries on `b42d34d7b` (6 served, 3 open out of
+    scope):
+    - line 1 (`spl-watchdog.func.sh:72,:1323`, `spl-lane-rotate.func.sh` literal `/var`
+      paths) -> 0 `/var/csi` literals; `spl-watchdog.func.sh` uses
+      `spl_claude_login_state_dir` (`<SPL_VAR_APP_DIR>/agent-login-check`) (served).
+    - line 25 (`reverse-tunnel-cron.sh:27`) -> already uses
+      `$SPL_VAR_APP_DIR/reverse-tunnel` (served).
+    - line 48 (`agent-boot-restore` dir in `spl-watchdog.func.sh:541` and
+      `spl-agent-boot-restore-install-cron.func.sh:60`) -> both sides call
+      `spl_var_app_subdir ... agent-boot-restore` (served).
+    - line 76 (`spl-desk-reply.sh:9` usage kinds) -> already lists all 12 kinds
       `note|result|reject|blocker|msg|feature|bug|alert|question|idea|decision|docs` (served).
-    - `spl-lane-mix.func.sh` `needs_agy_review` / `agy has the final word` -> 0 hits in
-      `csi-spl-orc/` (served).
+    - line 104 (`spl-lane-mix.func.sh` `needs_agy_review` / `agy has the final word`) ->
+      0 hits in `csi-spl-orc/` (served).
+    - line 133 (`spl-unanswered-sweep.func.sh:196` `send_to_peers_on`) -> 0 hits in
+      `spl-unanswered-sweep.func.sh` (served).
+    - line 113 (`_ppe_keys` exact-key matching in
+      `csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh:121-128`) -> open; gate-design
+      input (prefix matching adds +9 to every menu test; not a narrow refactor row).
+    - line 115 (`csi-spl-wui/i18n/i18n-lang-review-exempt.json:2` `_doc` still names
+      `'Lang-review: a-NNN <msg id>'` while the gate requires `gct`) -> open; 1-line JSON
+      doc comment (doc/bug-shaped, not a coding refactor row).
+    - line 125 (WUI entry-chunk headroom, `ci_initial_gzip_kb` ceiling 155 KB) -> open;
+      perf-shaped (belongs in a perf round, not a refactor round).
   - All other items are bug, perf, doc, test-hardening, or other-repo items, accounted for
     in section 7.
 - **(d) spec 011 tasks:**
@@ -178,8 +198,8 @@ their own time.
 - `orc:src/bash/run/spl-orch-rotate-install-cron.func.sh:54-88` (35 lines) carries the
   exact `current="$(spl_desk_cron_line "$tag")"` + `check` / `DRY_RUN=1` / `remove` /
   `install` crontab state machine hosted in `_spl_simple_cron_apply`
-  (`orc:src/bash/run/setup-box-stats-cron.func.sh:67-107`, which already supports
-  optional 11th arg `noun="${11- cron}"` after `r04-02` `b42d34d7b`): `diff -u` of
+  (`orc:src/bash/run/setup-box-stats-cron.func.sh:64-107`, def at `:68-107`, which already
+  supports optional 11th arg `noun="${11- cron}"` after `r04-02` `b42d34d7b`): `diff -u` of
   `spl-orch-rotate-install-cron.func.sh:54-88` against
   `setup-box-stats-cron.func.sh:71-105` -> 10 diff lines (the 4 log lines using `"$subj"`
   plus `local subj` and trailing `spl_desk_cron_say`, n=1).
@@ -189,11 +209,14 @@ their own time.
   `install` with **zero edits** to `setup-box-stats-cron.func.sh` or
   `box-stats-cron.tst.sh`.
 - Lazy-sourcing `setup-box-stats-cron.func.sh` behind a `declare -F _spl_simple_cron_apply`
-  guard inside `do_spl_orch_rotate_install_cron` adds zero top-level lines, keeps
-  `run-lazy-loader.tst.sh` and `run-eager-files.tst.sh` unchanged, and preserves
-  `tag="$SPL_ORG_APP:orch-rotate"` at `:41` (checked directly by
-  `iac:src/bash/tests/satellite-ansible.tst.sh:372`). The file handles no token,
-  credential, or secret (non-secret).
+  guard inside `do_spl_orch_rotate_install_cron` adds zero top-level lines (the sourced
+  file's own top-level guards are already `declare -F`-protected, same as r04-02; panel
+  N7), keeps `run-lazy-loader.tst.sh` and `run-eager-files.tst.sh` unchanged, and
+  preserves `tag="$SPL_ORG_APP:orch-rotate"` at `:41` (checked directly by
+  `iac:src/bash/tests/satellite-ansible.tst.sh:372`). Note (N6): `$(printf '%02d' "$min")`
+  is now evaluated before `_spl_simple_cron_apply` on every action rather than only on
+  `install`; output and exit codes are identical. The file handles no token, credential,
+  or secret (non-secret).
 - Line-cap check (`bash-cleancode.tst.sh`, cap 75): `do_spl_orch_rotate_install_cron`
   59 -> 29 lines. Neither edited file has any entry in `.shellcheck-warning-baseline.txt`,
   `no-literal-paths.baseline`, `action-header-tags-baseline.txt`, or
@@ -322,18 +345,23 @@ Shape (built as head2 of 1.5):
   `local` at `:31`; replace `:48-81` (dropping `spl_accepted_close_cron_check`) with
   lazy-source + `_spl_run_cron_apply`. 81 -> 54 lines (`+7 -34`).
 - `orc:src/bash/tests/spl-spawn-fill.tst.sh`: insert section `11` immediately before
-  `echo` / `(( fails == 0 ))` at `:387` (preceded and followed by one blank line):
+  `echo` / `(( fails == 0 ))` at `:387` (line `:386` is already blank, so adding section
+  `11` followed by one blank line leaves exactly one blank line before and after):
   1 direct `_spl_run_cron_apply` lifecycle check (check-missing, dry-run, install,
-  check-ok, check-bad-run, remove), 4 one-copy checks (host + 3 wave-1 installers), and
-  6 hermetic (`env -u`) standalone lazy-load checks (3 `check`-missing + 3 `DRY_RUN=0`
-  install `ok_msg` checks) against an isolated stub crontab `$T/crontab.s11`. 390 -> 486
-  lines (`+96 -0`). Total edited files: **5** (within rulebook 3.1's max 5; the other
-  three wave-1 test suites run unmodified in the test column).
+  check-ok, check-bad-run, remove; note N5: block 1 inherits caller env — unset in normal
+  runs; `env -u SPL_DESK_CRON_CREATE` is optional if a caller sets it), 4 one-copy checks
+  (host + 3 wave-1 installers), and 6 hermetic (`env -u`) standalone lazy-load checks (3
+  `check`-missing + 3 `DRY_RUN=0` install `ok_msg` checks) against an isolated stub
+  crontab `$T/crontab.s11`. 390 -> 485 lines (`+95 -0`). Total edited files: **5** (within
+  rulebook 3.1's max 5; the other three wave-1 test suites run unmodified in the test
+  column). Note (N6): `$(id -un)` in `desk-poll-ack` and `accepted-close` is now evaluated
+  before `_spl_run_cron_apply` on every action rather than only on `install`; output and
+  exit codes are identical.
 - head2's files, sha256 (12 chars): `spl-spawn-fill-install-cron.func.sh` `c71f5c44e8d4`,
   `spl-security-round-install-cron.func.sh` `727e2cc53868`,
   `spl-desk-poll-ack-install-cron.func.sh` `76f014422c8c`,
   `spl-accepted-close-install-cron.func.sh` `3510782ee880`,
-  `spl-spawn-fill.tst.sh` `f340304fde3a`.
+  `spl-spawn-fill.tst.sh` `1b29f5d84f85`.
 - Note for the row and its reviewer: build `gc2a`-`gc2c` and `m2a`-`m2c` in detached git
   worktrees, not single-file temp copies, because the lazy-source guard loads its sibling
   via `dirname "${BASH_SOURCE[0]}"`.
@@ -425,7 +453,7 @@ remove `current` from `local` at `:31`):
 ```
 
 `orc:src/bash/tests/spl-spawn-fill.tst.sh` section `11` (inserted immediately before
-`echo` / `(( fails == 0 ))` at `:387`, preceded and followed by one blank line):
+`echo` / `(( fails == 0 ))` at `:387`, followed by one blank line; `:386` is already blank):
 ```bash
 # --- 11. _spl_run_cron_apply and wave-1 delegation (r05-02 one copy) --------------
 printf '%s\n' '# keep me' >"$T/crontab.s11"
@@ -646,7 +674,7 @@ source text). No new test file is added, so `orc-shard-weights.txt` needs no lin
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r05-01-orc-orch-rotate-simple-cron-apply)` | one fact, one copy (developer guide 2.2.4) | `spl-orch-rotate-install-cron.func.sh:54-88` duplicates the exact 35-line `check`/`DRY_RUN=1`/`remove`/`install` crontab state machine hosted in `_spl_simple_cron_apply` (`setup-box-stats-cron.func.sh:67-107`, optional `noun=""` landed in `r04-02` `b42d34d7b`); last remaining matching script cron installer (1.3, r04 section 7 #2) | `orc:src/bash/run/spl-orch-rotate-install-cron.func.sh:40,54-88`<br>`orc:src/bash/tests/orch-rotate.tst.sh:948` | copies of the single-line script cron check/dry-run/remove/install state machine in `spl-orch-rotate-install-cron` 1 -> 0 own copy (delegated to `_spl_simple_cron_apply` with `noun=""`; completes 10/10 wave-1..4 consolidation; `setup-box-stats-cron.func.sh` untouched) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head's `orch-rotate.tst.sh` on parent FAILs 1 check (`rc1`, rc 1, 198 pass, 1 fail: `10c. r05-01 one copy` naming `:66`, `:73`, `:86`; standalone checks pass on base), then GREEN (`0/199/0`); guard control (`gc1`, `declare -F _spl_simple_cron_apply` deleted, built in worktree: rc 1, `192/7` with `_spl_simple_cron_apply: command not found`); mutations `m1a` (omit arg 11 `""`, rc 1 `199*/2`) and `m1b` (arg 10 `""`, rc 1 `198/1`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 3 new checks in `orch-rotate.tst.sh`. Tests: **`orc:.../orch-rotate.tst.sh`**, **`iac:.../satellite-ansible.tst.sh`**, `orc:.../box-stats-cron.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 2 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r05-01-orc-orch-rotate-simple-cron-apply)` | one fact, one copy (developer guide 2.2.4) | `spl-orch-rotate-install-cron.func.sh:54-88` duplicates the exact 35-line `check`/`DRY_RUN=1`/`remove`/`install` crontab state machine hosted in `_spl_simple_cron_apply` (`setup-box-stats-cron.func.sh:64-107`, def `:68-107`, optional `noun=""` landed in `r04-02` `b42d34d7b`); last remaining matching script cron installer (1.3, r04 section 7 #2) | `orc:src/bash/run/spl-orch-rotate-install-cron.func.sh:40,54-88`<br>`orc:src/bash/tests/orch-rotate.tst.sh:948` | copies of the single-line script cron check/dry-run/remove/install state machine in `spl-orch-rotate-install-cron` 1 -> 0 own copy (delegated to `_spl_simple_cron_apply` with `noun=""`; completes 10/10 wave-1..4 consolidation; `setup-box-stats-cron.func.sh` untouched) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head's `orch-rotate.tst.sh` on parent FAILs 1 check (`rc1`, rc 1, 198 pass, 1 fail: `10c. r05-01 one copy` naming `:66`, `:73`, `:86`; standalone checks pass on base), then GREEN (`0/199/0`); guard control (`gc1`, `declare -F _spl_simple_cron_apply` deleted, built in worktree: rc 1, `192/7` with `_spl_simple_cron_apply: command not found`); mutations `m1a` (omit arg 11 `""`, rc 1 `199*/2`) and `m1b` (arg 10 `""`, rc 1 `198/1`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 3 new checks in `orch-rotate.tst.sh`. Tests: **`orc:.../orch-rotate.tst.sh`**, **`iac:.../satellite-ansible.tst.sh`**, `orc:.../box-stats-cron.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 2 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 | 02 `refactor(r05-02-orc-run-cron-apply-wave1)` | one fact, one copy (developer guide 2.2.4) | `spl-spawn-fill-install-cron.func.sh:47-78`, `spl-security-round-install-cron.func.sh:51-82`, `spl-desk-poll-ack-install-cron.func.sh:48-81`, and `spl-accepted-close-install-cron.func.sh:48-81` duplicate the exact 32-34 line `./run` crontab `check` (`spl_*_cron_check`) / `DRY_RUN=1` / `remove` / `install` state machine (1.4) | `orc:src/bash/run/spl-spawn-fill-install-cron.func.sh:30,47-78`<br>`orc:src/bash/run/spl-security-round-install-cron.func.sh:35,51-82`<br>`orc:src/bash/run/spl-desk-poll-ack-install-cron.func.sh:31,48-81`<br>`orc:src/bash/run/spl-accepted-close-install-cron.func.sh:31,48-81`<br>`orc:src/bash/tests/spl-spawn-fill.tst.sh:387` | copies of the `./run` cron check/dry-run/remove/install state machine and `spl_*_cron_check` across these 4 installers 4 -> 1 (hosted in `spl-spawn-fill-install-cron.func.sh` as `_spl_run_cron_apply`; 3 siblings lazy-source and delegate) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `spl-spawn-fill.tst.sh` on parent FAILs 5 checks (`rc2`, rc 1, 49 pass, 6 fail lines = 5 `FAIL:` + `FAIL: 5`: helper lifecycle + 4 one-copy checks naming `:48`, `:52`, `:50`, `:50`; all 6 standalone checks pass on base), then GREEN (`0/55*/0`); guard controls (`gc2a`, `gc2b`, `gc2c`, `declare -F _spl_run_cron_apply` deleted in each wave-1 installer, built in worktrees: rc 1, `52/3` = 2 `FAIL:` + `FAIL: 2` each with `_spl_run_cron_apply: command not found`); mutations `m2a`/`m2b`/`m2c` (arg 10 `""` in each wave-1 installer: rc 1, `53/2` = 1 `FAIL:` + `FAIL: 1` each) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 11 new checks in `spl-spawn-fill.tst.sh`. Tests: **`orc:.../spl-spawn-fill.tst.sh`**, `orc:.../spl-security-round-queue.tst.sh`, `orc:.../spl-desk-poll-ack.tst.sh`, `orc:.../spl-accepted-close.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
@@ -704,18 +732,16 @@ and is intentionally NOT edited by either row):
 
 - **Lane map, every machine:** `lane-map.sh --check <all 10 paths> --agent a-891`, n=1, at
   2026-11-26T03:12:03Z: **exit 4** ("no live lane lists <the 10 paths>, but 16 live lane(s)
-  record no files"). Verified via `do_spl_lane_map` at 03:08:54Z — all 16 `unknown:` lanes
-  are on the other box: 13 channel/workspace/other-repo seats (`c-029`, `c-041`, `c-086`,
-  `c-146`, `c-187`, `c-398`, `c-407`, `c-416`, `c-474`, `c-535`, `c-728`, `c-927`,
-  `c-936`), spec 125 doc/R7 seats (`c-957`, `c-965`), and `c-823` (`b48-01`, whose signed
-  plan files in `bug-round-48-plan.md` are `spl-review-go.func.sh` and
-  `spl-review-go.tst.sh`, 0 overlap with the 10 paths; `spl-accepted-close.tst.sh` is
-  read-only in `b48-01`'s test column and not edited by `r05-02`). Live lanes on this box
-  (`a-891`, `a-852` r04 closing, `a-886` / `c-879` r04-02 closing, `a-846` b48 planner,
-  `c-298` Reporting Taxes tab, `a-826` / `c-722` SPL-6517 latency action 7) and other-box
-  `c-827` (`b48-03`, `tf-plan-pending.func.sh` + `env-order-gate.tst.sh`) / `c-838`
-  (`r04-01` closing) / `c-935` (gig doc set) touch none of the 10 paths. No live lane owns
-  any of the 10 paths; the holder re-reads at placement per R3.
+  record no files"); re-checked at 2026-11-26T03:58:11Z after `c-823` (`b48-01`) landed
+  (`61a325ebc`, panel N3): **exit 4**, 15 `unknown:` live lanes (all on the other box:
+  13 channel/workspace/other-repo seats `c-029`, `c-041`, `c-086`, `c-146`, `c-187`,
+  `c-398`, `c-407`, `c-416`, `c-474`, `c-535`, `c-728`, `c-927`, `c-936`, plus spec 125
+  doc/R7 seats `c-957`, `c-965`), 0 owned. Verified via `do_spl_lane_map` at 03:08:54Z —
+  live lanes on this box (`a-891`, `a-852` r04 closing, `a-886` / `c-879` r04-02 closing,
+  `a-846` b48 planner, `c-298` Reporting Taxes tab, `a-826` / `c-722` SPL-6517 latency
+  action 7) and other-box `c-827` (`b48-03`) / `c-838` (`r04-01` closing) / `c-935` (gig
+  doc set) touch none of the 10 paths. No live lane owns any of the 10 paths; the holder
+  re-reads at placement per R3.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, at 2026-11-26T03:08:57Z):
   2 queued, 0 placing:
   - `77c6180c` (`c002-refactor-round-05-claude-panel-seat`, refactor): this round's panel
@@ -763,9 +789,13 @@ and is intentionally NOT edited by either row):
 
 - Editor: **a-891** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
-  step 5; mistral sits on no review since 2026-11-25): claude panel seat
-  `c002-refactor-round-05-claude-panel-seat` (queued with this planner, POS 1/2 at
-  03:08Z). The seat reviews this plan only.
+  step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-893**
+  (live on this box, queued with this planner). Returned **PASS** on v0.1
+  (`e97c0dcc55aae42f058b608f5f7a7beea06f0a84`, seat commit
+  `94f7de00aafaa3e033408edddd71fb56b896b644` on `review/c002-refactor-round-05-claude-seat`,
+  msg `78c4d74e` / `860e85fe`; `do_spl_review_line_check` rc 0, 7/7 tests in log, holder
+  msg `739cc265`) contingent on folding W1 and W2; signs v1.0 once verified. The seat
+  reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T03:09:25Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -853,7 +883,7 @@ brief if the claude backup is used; never mistral; re-checked at placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of the single-line script cron check/dry-run/remove/install block in `spl-orch-rotate-install-cron` (1.3) | 1 on `b42d34d7b` -> 0 own copy (delegated to `_spl_simple_cron_apply`; 10/10 wave-1..4 consolidated) after row 01 |
 | copies of the `./run` cron check/dry-run/remove/install state machine and `spl_*_cron_check` across row 02's 4 installers (1.4) | 4 on `b42d34d7b` (`spl-spawn-fill`, `spl-security-round`, `spl-desk-poll-ack`, `spl-accepted-close`) -> 1 (`_spl_run_cron_apply` in `spl-spawn-fill-install-cron.func.sh`) after row 02 |
-| lines (`git diff --numstat` of each head) | row 01: `spl-orch-rotate-install-cron.func.sh` +6 -36, `orch-rotate.tst.sh` +31 -0; row 02: `spl-spawn-fill-install-cron.func.sh` +26 -15, `spl-security-round-install-cron.func.sh` +7 -32, `spl-desk-poll-ack-install-cron.func.sh` +7 -34, `spl-accepted-close-install-cron.func.sh` +7 -34, `spl-spawn-fill.tst.sh` +96 -0 |
+| lines (`git diff --numstat` of each head) | row 01: `spl-orch-rotate-install-cron.func.sh` +6 -36, `orch-rotate.tst.sh` +31 -0; row 02: `spl-spawn-fill-install-cron.func.sh` +26 -15, `spl-security-round-install-cron.func.sh` +7 -32, `spl-desk-poll-ack-install-cron.func.sh` +7 -34, `spl-accepted-close-install-cron.func.sh` +7 -34, `spl-spawn-fill.tst.sh` +95 -0 |
 | measured on | `b42d34d7b`; n=1 per command unless stated |
 
 ## 7. Left out, measured
@@ -867,7 +897,8 @@ brief if the claude backup is used; never mistral; re-checked at placement).
 | `orc:src/bash/tests/setup-gh-runner-cpu-budget-cron.tst.sh:83-91` section 4 vacuous red control (`r03-02` note / r04 section 7) | test-bug fix, not a refactor row (brief: "bug rows and test rows are not yours"); belongs in a bug round | r04 section 7 |
 | `orc:src/bash/run/spl-msg-dedup.func.sh:46-65` and `spl-msg-wipe.func.sh:36-55` (20-line tenant/dry-run/confirm/pin/backup preflight) | heavy PG R2 gate (`msg-dedup.tst.sh` and `msg-wipe.tst.sh` build `cmd/spool` against throwaway `postgres:16-alpine` containers) | r04 section 7 |
 | `iac:src/bash/run/gcp-{get-alert-incident,list-alert-incidents}.func.sh` (paged Monitoring v3 `timeSeries` curl loop) | passes `-K "${cfg}/auth.curl"` (Bearer access token file, secret-class); kept out per brief | r04 section 7 |
-| `orc:src/bash/run/spl-channel-agent-{add,add-op,remove-op}.func.sh`, `spl-{accepted-close,desk-poll-ack,review-go}.func.sh` action bodies, `spl-hub-box-band.func.sh`, `spl-wui-perf-report.func.sh`, `csi-spl-utl/**`, `iac:sec-*.func.sh`, `orc:scripts/*-cron.sh`, Go/WUI duplicates, spec 011 deferred/owner-decision tasks, and candidates-file non-refactor / already-served items | each pulls PostgreSQL or 30+ tests into R2, is secret-class, is served on `b42d34d7b` (`reverse-tunnel-cron.sh`, `spl-unanswered-sweep.func.sh`, `spl-desk-reply.sh`, `spl-lane-mix.func.sh`), or stays out for its r04/r03 section 7 reason | 1.2 (a), (c), (d); r04 section 7 |
+| Candidates-file open refactor-labelled items: `_ppe_keys` exact-key in `iac:src/bash/run/check-pre-push-e2e.func.sh:121-128` (line 113), `csi-spl-wui/i18n/i18n-lang-review-exempt.json:2` `_doc` saying `Lang-review: a-NNN` (line 115), and WUI entry-chunk `ci_initial_gzip_kb` headroom (line 125) | `_ppe_keys` is gate-design input (prefix matching adds +9 to every menu test; not a narrow refactor row); `i18n-lang-review-exempt.json:2` is a 1-line JSON doc comment (doc/bug-shaped); WUI entry-chunk headroom is perf-shaped (belongs in a perf round). Lines 1 (`spl-watchdog.func.sh:72,:1323`, `spl-lane-rotate.func.sh`), 25 (`reverse-tunnel-cron.sh:27`), 48 (`agent-boot-restore` in `spl-watchdog.func.sh:541` and `spl-agent-boot-restore-install-cron.func.sh:60`), 76 (`spl-desk-reply.sh:9`), 104 (`spl-lane-mix.func.sh`), and 133 (`spl-unanswered-sweep.func.sh`) are served on `b42d34d7b` | `git show` / `git grep` on `b42d34d7b` (1.2 (c), n=1) |
+| `orc:src/bash/run/spl-channel-agent-{add,add-op,remove-op}.func.sh`, `spl-{accepted-close,desk-poll-ack,review-go}.func.sh` action bodies, `spl-hub-box-band.func.sh`, `spl-wui-perf-report.func.sh`, `csi-spl-utl/**`, `iac:sec-*.func.sh`, `orc:scripts/*-cron.sh`, Go/WUI duplicates, spec 011 deferred/owner-decision tasks, and remaining non-refactor candidates-file items | each pulls PostgreSQL or 30+ tests into R2, is secret-class, or stays out for its r04/r03 section 7 reason | 1.2 (a), (c), (d); r04 section 7 |
 
 ## 8. Changes
 
@@ -876,14 +907,37 @@ brief if the claude backup is used; never mistral; re-checked at placement).
   `shellcheck 0.10.0 -S warning -x` and `do_sec_shellcheck` rc 0; all 6 red and guard
   controls (`rc1`, `gc1`, `rc2`, `gc2a`, `gc2b`, `gc2c`) and all 5 mutation checks
   (`m1a`, `m1b`, `m2a`, `m2b`, `m2c`) run on detached worktrees and verified RED; all
-  helper, caller, and test hunks included verbatim in 1.3 and 1.4.
+  helper, caller, and test hunks included verbatim in 1.3 and 1.4. Pushed to
+  `review/c002-refactor-round-05-planner` (`e97c0dcc5`).
+- v1.0 (a-891): folded cross-vendor claude panel (`c-893`, PASS on v0.1 `e97c0dcc5`,
+  seat commit `94f7de00a`, msg `78c4d74e` / `860e85fe`; `do_spl_review_line_check` rc 0,
+  holder msg `739cc265`) W1, W2, and N1-N7 (no row change; all 7 fenced `bash` blocks
+  **byte-identical** to v0.1 `e97c0dcc5`):
+  - **W1:** named and verified all 9 refactor-labelled entries from
+    `c002-next-round-candidates.md` in 1.2 (c) and section 7 (lines 1, 25, 48, 76, 104,
+    133 served on `b42d34d7b`; lines 113 `_ppe_keys`, 115 `i18n-lang-review-exempt.json:2`,
+    and 125 WUI entry-chunk headroom open and out of scope with dispositions).
+  - **W2:** aligned `spl-spawn-fill.tst.sh` prose, line count (`390 -> 485`, `+95 -0`),
+    and sha256 (`1b29f5d84f85`) to one blank line before and after section `11` (line
+    `:386` is already blank; verified matching `1b29f5d84f85` on `b42d34d7b`).
+  - **N1-N7:** corrected `setup-box-stats-cron.func.sh:64-107` (def `:68-107`, N1);
+    re-checked zero drift across all 13 row/test/host files `b42d34d7b..5dbcaec84` (N2);
+    updated `lane-map.sh` count after `c-823`/`b48-01` landed (`61a325ebc`: exit 4, 15
+    unknown on the other box, 0 owned, N3); noted N4 (sibling remove lines checked by
+    shared `$label`), N5 (section 11 block 1 inherits env; `env -u SPL_DESK_CRON_CREATE`
+    optional), N6 (`$(printf)` / `$(id -un)` evaluated before helper call, output same),
+    and N7 (lazy-source loads `setup-box-stats-cron.func.sh`'s guarded top level, same as
+    r04-02).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-891 (agy): v0.1 (draft, pending cross-vendor panel review).
-- Panel reviewer seat: `c002-refactor-round-05-claude-panel-seat` (claude, queued with
-  this planner): pending review.
+- Editor seat: a-891 (agy): v0.1 (`e97c0dcc5`), v1.0 (ready for final panel signature).
+- Panel reviewer seat: c-893 (claude, seat `94f7de00aafaa3e033408edddd71fb56b896b644` on
+  `review/c002-refactor-round-05-claude-seat`):
+  - v0.1 `e97c0dcc55aae42f058b608f5f7a7beea06f0a84`: **PASS** (folded W1, W2, N1-N7 into
+    v1.0; `do_spl_review_line_check` rc 0, 7/7 tests in log, holder msg `739cc265`).
+  - v1.0: pending final signature.
 - Row R7 seats: section 4; agy seat per row (claude waiver backup only while agy is out
   of quota under ruling `dc84300a`; never mistral).

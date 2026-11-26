@@ -141,3 +141,82 @@ func TestSearchOperatorsStatusDocFollowsStore(t *testing.T) {
 		}
 	}
 }
+
+// Grammar 1.8 (spec 187 row S2, D23): key: is exactly one issue, epic: the
+// issues and subtasks under a level-1 row (not the row itself), idle: /
+// changed: an issue's last change. CONTROLS: key:<P>-1 is not <P>-10 or
+// <P>-11; epic: never lists the epic; the other epic's issues stay out;
+// key: on topics is a 400 bad_query.
+func TestSearchIssuesKeyEpicIdle(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.SearchRatePerMin = 1000
+		o.Authorizer = rbac.Fixed(rbac.Developer)
+		o.SessionID = func(r *http.Request, _ string) (string, error) { return r.Header.Get("X-Test-Human"), nil }
+	})
+	ctx, now := context.Background(), time.Now().UTC()
+	ta, _ := e.tenant()
+	is := e.st.(store.Issues)
+	if _, err := is.CreateIssueLabel(ctx, store.IssueLabel{TenantID: ta, LabelID: store.IssueEpicLabel, Name: store.IssueEpicLabel, CreatedBy: "HUM-1"}, now); err != nil {
+		t.Fatal(err)
+	}
+	mk := func(parent int, at time.Time, labels ...string) store.Issue {
+		t.Helper()
+		it, err := is.CreateIssue(ctx, store.Issue{Discussions: []string{testDiscussion}, TenantID: ta, Title: "work", Labels: labels,
+			TaskID: uuidV4(), CreatedBy: "HUM-1", Parent: parent}, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return it
+	}
+	day := 24 * time.Hour
+	ep := mk(0, now, store.IssueEpicLabel) // #1
+	var under []store.Issue                // #2..#11
+	for range 10 {
+		under = append(under, mk(ep.Number, now))
+	}
+	sub := mk(under[0].Number, now)                      // #12, a subtask: its epic is still #1
+	ep2 := mk(0, now.Add(-31*day), store.IssueEpicLabel) // #13, not changed for 31 days
+	old := mk(ep2.Number, now.Add(-31*day))              // #14
+	if under[8].Number != 10 || sub.Number != 12 {
+		t.Fatalf("numbering: %d %d", under[8].Number, sub.Number)
+	}
+	keys := func(q string) []string {
+		t.Helper()
+		code, _, r, raw := searchGet(t, e, ta, q, "", "X-Test-Human", "HUM-3")
+		if code != http.StatusOK {
+			t.Fatalf("%q: %d %v", q, code, raw)
+		}
+		out := []string{}
+		for _, row := range r.Groups["issues"].Results {
+			out = append(out, row["key"].(string))
+		}
+		return out
+	}
+	var underKeys []string
+	for i := len(under) - 1; i >= 0; i-- { // newest number first
+		underKeys = append(underKeys, under[i].Key())
+	}
+	for q, want := range map[string][]string{
+		"key:" + ep.Key():                            {ep.Key()},
+		"key:" + strings.ToLower(under[0].Key()):     {under[0].Key()},
+		"epic:" + ep.Key():                           append([]string{sub.Key()}, underKeys...),
+		"epic:" + ep2.Key():                          {old.Key()},
+		"epic:" + ep2.Key() + " OR key:" + ep2.Key(): {old.Key(), ep2.Key()},
+		"type:issue idle:30d":                        {old.Key(), ep2.Key()},
+		"epic:" + ep.Key() + " idle:30d":             {},
+		"epic:" + ep2.Key() + " idle:30d":            {old.Key()},
+		"key:" + ep2.Key() + " changed:7d":           {},
+		"key:" + sub.Key() + " changed:7d":           {sub.Key()},
+	} {
+		if got := keys(q); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%q: %v, want %v", q, got, want)
+		}
+	}
+	// CONTROL: refused on a type they do not apply to
+	for _, q := range []string{"type:topic key:" + ep.Key(), "type:message epic:" + ep.Key(), "type:message idle:30d"} {
+		if code, _, _, raw := searchGet(t, e, ta, q, "", "X-Test-Human", "HUM-3"); code != http.StatusBadRequest || raw["error"] != "bad_query" {
+			t.Errorf("%q: %d %v, want 400 bad_query", q, code, raw)
+		}
+	}
+}

@@ -19,7 +19,9 @@ import (
 // type:file_line and in:file-streams, the box file stream lines. 1.6 (spec
 // 154 row B5, SPL-4197): type:contact, the reader's own contacts. 1.7 (spec
 // 100 section 15, SPL-6251): type:calendar, the workspace's calendar entries.
-const Version = "1.7"
+// 1.8 (spec 187 row S2, SPL-6568): idle: and changed: on topics and issues;
+// key: and epic: on issues (spec 187 D23).
+const Version = "1.8"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -145,6 +147,12 @@ const (
 	OpPriority = "priority"
 	OpAssignee = "assignee"
 	OpLabel    = "label"
+	// 1.8 (spec 187 7, row S2): idle: / changed: (a topic's last message, an
+	// issue's last change); key: / epic: bind one issue or an epic's issues.
+	OpIdle    = "idle"
+	OpChanged = "changed"
+	OpKey     = "key"
+	OpEpic    = "epic"
 )
 
 // IssueStatuses and IssuePriorityMax are the issue workflow's closed sets.
@@ -211,6 +219,10 @@ var Operators = []Operator{
 	{Name: OpPriority, Aliases: []string{"prio"}, Values: "priority", Applies: []Type{TypeIssue}, Example: "prio:1", Doc: "issue priority, a number (prio=1 works too)"},
 	{Name: OpAssignee, Values: "id", Applies: []Type{TypeIssue}, Example: "assignee:me", Doc: "issue assignee: a member or agent id, me, or none"},
 	{Name: OpLabel, Values: "text", Applies: []Type{TypeIssue}, Example: "label:bug", Doc: "issue label"},
+	{Name: OpIdle, Values: "age", Applies: []Type{TypeTopic, TypeIssue}, Example: "idle:30d", Doc: "nothing new for this long (24h, 7d, 2w): a topic with no message since, an issue not changed since"},
+	{Name: OpChanged, Values: "age", Applies: []Type{TypeTopic, TypeIssue}, Example: "changed:7d", Doc: "changed within this long (24h, 7d, 2w): a topic with a message since, an issue changed since; the inverse of idle:"},
+	{Name: OpKey, Values: "issue", Applies: []Type{TypeIssue}, Example: "key:SPL-7", Doc: "exactly this issue, by its key (key:SPL-7 is not SPL-70)"},
+	{Name: OpEpic, Values: "issue", Applies: []Type{TypeIssue}, Example: "epic:SPL-17", Doc: "the issues and subtasks under this level-1 row (an epic or feature), not the row itself (key: finds it)"},
 }
 
 var opByName = func() map[string]*Operator {

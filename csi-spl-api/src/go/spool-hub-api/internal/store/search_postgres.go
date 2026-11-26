@@ -294,7 +294,8 @@ func (c *sqlc) topicLeaf(t *search.Term) string {
 		return "t.parent = ''"
 	case search.OpTopic:
 		return "t.task_id = " + c.arg(t.Value)
-	case search.OpBefore, search.OpAfter, search.OpOn:
+	case search.OpBefore, search.OpAfter, search.OpOn, search.OpIdle, search.OpChanged:
+		// idle: is an Until (no message since), changed: a From (spec 187 S2)
 		return c.timeRange("t.last_at", t)
 	}
 	return "false"

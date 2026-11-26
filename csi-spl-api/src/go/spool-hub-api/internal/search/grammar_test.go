@@ -323,3 +323,84 @@ func TestParsePrefix(t *testing.T) {
 		t.Fatal("CONTROL: only the LAST word is a prefix")
 	}
 }
+
+// Grammar 1.8 (spec 187 row S2): idle: / changed: on topics and issues, key:
+// / epic: on issues. CONTROLS: a topic with a message 29 days ago is not
+// idle:30d, the one silent 31 days is (and changed:7d is the inverse);
+// key:SPL-7 is not SPL-70; epic:SPL-17 is its issues, never SPL-17 itself;
+// each operator is refused on a type it does not apply to.
+func TestIdleChangedKeyEpic(t *testing.T) {
+	old := Topic{TaskID: task1, Title: "old", LastAt: now.Add(-31 * 24 * time.Hour)}
+	recent := Topic{TaskID: task1, Title: "recent", LastAt: now.Add(-29 * 24 * time.Hour)}
+	fresh := Topic{TaskID: task1, Title: "fresh", LastAt: now.Add(-2 * 24 * time.Hour)}
+	topics := []struct {
+		q              string
+		old, rec, frsh bool
+	}{
+		{"idle:30d", true, false, false},
+		{"changed:30d", false, true, true},
+		{"changed:7d", false, false, true},
+		{"idle:7d", true, true, false},
+		{"-idle:30d", false, true, true},
+		{"idle:4w", true, true, false}, // 28 days: the 29-day topic too
+		{"idle:720h", true, false, false},
+	}
+	for _, c := range topics {
+		q, err := Parse(c.q, now)
+		if err != nil {
+			t.Fatalf("%q: %v", c.q, err)
+		}
+		if !reflect.DeepEqual(q.Types, []Type{TypeTopic}) {
+			t.Errorf("%q: types %v, want [topic]", c.q, q.Types)
+		}
+		if got := [3]bool{MatchTopic(q.Root, old), MatchTopic(q.Root, recent), MatchTopic(q.Root, fresh)}; got != [3]bool{c.old, c.rec, c.frsh} {
+			t.Errorf("%q: old/29d/2d = %v, want %v", c.q, got, [3]bool{c.old, c.rec, c.frsh})
+		}
+	}
+
+	ep := Entity{Type: TypeIssue, Key: "SPL-17", Changed: now.Add(-40 * 24 * time.Hour)}
+	i7 := Entity{Type: TypeIssue, Key: "SPL-7", Epic: "SPL-17", Changed: now.Add(-31 * 24 * time.Hour)}
+	i70 := Entity{Type: TypeIssue, Key: "SPL-70", Epic: "SPL-1", Changed: now.Add(-3 * 24 * time.Hour)}
+	sub := Entity{Type: TypeIssue, Key: "SPL-71", Epic: "SPL-17", Changed: now.Add(-time.Hour)} // a subtask: its level-1 row
+	never := Entity{Type: TypeIssue, Key: "SPL-72", Epic: "SPL-17"}                             // no change time: neither idle nor changed
+	issues := []struct {
+		q    string
+		want [5]bool // ep, i7, i70, sub, never
+	}{
+		{"key:SPL-7", [5]bool{false, true, false, false, false}},
+		{"key:spl-7", [5]bool{false, true, false, false, false}},
+		{"key:SPL-70", [5]bool{false, false, true, false, false}},
+		{"epic:SPL-17", [5]bool{false, true, false, true, true}},
+		{"epic:SPL-17 OR key:SPL-17", [5]bool{true, true, false, true, true}},
+		{"type:issue idle:30d", [5]bool{true, true, false, false, false}},
+		{"type:issue changed:30d", [5]bool{false, false, true, true, false}},
+		{"type:issue changed:7d", [5]bool{false, false, true, true, false}},
+		{"epic:SPL-17 idle:7d", [5]bool{false, true, false, false, false}},
+	}
+	for _, c := range issues {
+		q, err := Parse(c.q, now)
+		if err != nil {
+			t.Fatalf("%q: %v", c.q, err)
+		}
+		if !reflect.DeepEqual(q.Types, []Type{TypeIssue}) {
+			t.Errorf("%q: types %v, want [issue]", c.q, q.Types)
+		}
+		got := [5]bool{MatchEntity(q.Root, ep), MatchEntity(q.Root, i7), MatchEntity(q.Root, i70), MatchEntity(q.Root, sub), MatchEntity(q.Root, never)}
+		if got != c.want {
+			t.Errorf("%q: %v, want %v", c.q, got, c.want)
+		}
+	}
+	// idle: on issues alone, without type:, searches topics (a default type)
+	if q, _ := Parse("idle:30d", now); !reflect.DeepEqual(q.Types, []Type{TypeTopic}) {
+		t.Errorf("idle:30d: types %v", q.Types)
+	}
+
+	// CONTROLS: refused where they do not apply, and bad values
+	for _, bad := range []string{"type:topic key:SPL-7", "type:message epic:SPL-17", "type:robot key:SPL-7",
+		"type:message idle:30d", "type:file changed:7d", "in:#lobby key:SPL-7", "key:SPL", "key:7", "epic:SPL-x",
+		"key:SPL-7-1", "idle:30", "idle:0d", "idle:2026-01-01", "changed:month"} {
+		if _, err := Parse(bad, now); err == nil {
+			t.Errorf("%q: want a bad query", bad)
+		}
+	}
+}

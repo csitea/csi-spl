@@ -120,6 +120,13 @@ the **hub receive time** (`received_at`, the time cursors and view-v1 use):
 
 For a thread the time is its **last activity**.
 
+`idle:` / `changed:` (grammar 1.8, spec 187 row S2, SPL-6568) take only an
+age (`<n>h`, `<n>d`, `<n>w`, 1 ≤ n ≤ 3650) and apply to threads and issues:
+`idle:30d` = nothing new since `now − 30 d` (a thread: last message
+`< now − 30 d`; an issue: `updated_at < now − 30 d`), `changed:7d` = its
+inverse (`>= now − 7 d`). On a thread they are `before:` / `after:` of an
+age; an issue has no `before:` / `after:`.
+
 ### 2.4 Sizes
 
 `larger:` / `smaller:` take `<n>`, `<n>K`, `<n>M`, `<n>G` (bytes, ×1024 each
@@ -198,6 +205,10 @@ attachment without `bytes`, or a directory) matches neither.
 | `filename:` | text | file | the attachment `name` (substring) |
 | `ext:` | `[a-z0-9]{1,16}`, leading `.` allowed | file | `name` ends with `.<ext>` (case-insensitive) |
 | `larger:` `smaller:` | §2.4 | file | attachment `bytes` |
+| `idle:` | age (§2.3) | thread, issue | no message (an issue: no change) since `now − age` (grammar 1.8) |
+| `changed:` | age (§2.3) | thread, issue | a message (an issue: a change) since `now − age`; the inverse of `idle:` (grammar 1.8) |
+| `key:` | an issue key, `<PREFIX>-<n>` | issue | exactly that issue, case-insensitive (`key:SPL-7` is not `SPL-70`) (grammar 1.8, spec 187 D23) |
+| `epic:` | an issue key, `<PREFIX>-<n>` | issue | the issues and subtasks whose level-1 row (epic or feature) is that key; never the row itself, which `key:` reaches (grammar 1.8, spec 187 D23) |
 
 Agent-to-agent mail (`is:relay`, mostly the fleet's cross-box relay) is left
 out of the message, thread and file sections unless the query asks for it: a
@@ -225,6 +236,8 @@ ids), which are compared as given. An operator value may be a phrase:
 /search thread:<task-uuid> before:2026-09-01     one thread's messages before September
 /search type:channel,box a                       channels and boxes whose name contains "a"
 /search is:relay SPAWN REQUEST                   agent-to-agent mail, which a plain search leaves out
+/search type:topic idle:30d                      threads with no message for 30 days
+/search epic:SPL-17 changed:7d                   the issues under SPL-17 changed this week
 ```
 
 ## 4. Response `200`
@@ -462,7 +475,7 @@ autocomplete from it and never hard-codes the list):
 ```
 
 (`enum` abridged here.) `values` ∈ `text | id | box | enum | date | size |
-uuid | channel | ext | type`. Door and CORS as every `/v1/view/*` route; not
+uuid | channel | ext | type | status | priority | age | issue`. Door and CORS as every `/v1/view/*` route; not
 rate-limited beyond the edge limits.
 
 ## 7. Performance and budget
@@ -493,4 +506,4 @@ Saved searches, search inside file **contents**, per-language stemming,
 fuzzy (typo-tolerant) matching, `label:`, total counts, cross-tenant
 search (never).
 
-<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->
+<!-- version: 1.0.2 · updated: 2026-11-26 · last-edit: 2026-09-25T18:26:14Z -->

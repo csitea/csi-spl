@@ -827,11 +827,14 @@ func issueEntities(ctx context.Context, is store.Issues, tenant string, q *searc
 	if err != nil {
 		return err
 	}
+	get := getterOf(list)
 	for _, it := range list {
 		key := it.Key()
 		labels := append([]string{}, it.Labels...)
+		_, epic := treeKind(it, get) // epic: (spec 187 D23): the level-1 row above it
 		add(search.Entity{Name: key + " " + it.Title, Text: []string{key, it.Title, it.Description},
-			Status: it.Status, Priority: it.Priority, Assignee: it.Assignee, Labels: labels, Me: sq.Viewer},
+			Status: it.Status, Priority: it.Priority, Assignee: it.Assignee, Labels: labels, Me: sq.Viewer,
+			Key: key, Epic: epic, Changed: it.UpdatedAt},
 			map[string]any{"key": key, "number": it.Number, "title": hl{it.Title, q.HighlightSubstrings(it.Title)},
 				"status": it.Status, "priority": it.Priority, "assignee": strPtr(it.Assignee), "labels": labels,
 				"task_id": strPtr(it.TaskID), "updated_at": rfc(it.UpdatedAt)})

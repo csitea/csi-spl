@@ -19,6 +19,9 @@ var (
 	extRe    = regexp.MustCompile(`^[a-z0-9]{1,16}$`)
 	ageRe    = regexp.MustCompile(`^([0-9]{1,4})([hdw])$`)
 	sizeRe   = regexp.MustCompile(`^([0-9]{1,15})([kmg]?)$`)
+	// an issue key, lower-cased: the tenant's prefix (store's issuePrefixRe),
+	// '-', a number
+	issueKeyRe = regexp.MustCompile(`^[a-z][a-z0-9]{0,9}-[0-9]{1,9}$`)
 )
 
 // Channel aliases, as store.NormalizeChannel (channels-v1 C3).
@@ -82,6 +85,13 @@ func (p *parser) value(term *Term, o *Operator, v string, neg bool) string {
 		term.Value = lv
 	case OpLarger, OpSmaller:
 		return sizeValue(term, o.Name, lv)
+	case OpIdle, OpChanged:
+		return p.idleValue(term, o.Name, lv)
+	case OpKey, OpEpic:
+		if !issueKeyRe.MatchString(lv) {
+			return o.Name + ": must be an issue key like SPL-7"
+		}
+		term.Value = strings.ToUpper(lv)
 	}
 	return ""
 }
@@ -242,6 +252,27 @@ func sizeValue(term *Term, op, lv string) string {
 		return op + ": too large"
 	}
 	term.Size = n * mult
+	return ""
+}
+
+// idleValue: idle: / changed: take an age (24h, 7d, 2w). idle: sets Until
+// (the last change is before now - age), changed: sets From (on or after it).
+func (p *parser) idleValue(t *Term, op, lv string) string {
+	m := ageRe.FindStringSubmatch(lv)
+	if m == nil {
+		return op + ": must be an age like 24h, 7d, 2w"
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil || n < 1 || n > 3650 {
+		return op + ": age must be 1 to 3650"
+	}
+	unit := map[string]time.Duration{"h": time.Hour, "d": 24 * time.Hour, "w": 7 * 24 * time.Hour}[m[2]]
+	at := p.now.Add(-time.Duration(n) * unit)
+	if op == OpIdle {
+		t.Until = at
+	} else {
+		t.From = at
+	}
 	return ""
 }
 

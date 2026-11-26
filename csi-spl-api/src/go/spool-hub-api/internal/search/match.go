@@ -55,6 +55,11 @@ type Entity struct {
 	Assignee string
 	Labels   []string
 	Me       string
+	// 1.8 (spec 187 row S2): Key is the issue's key, Epic the key of its
+	// level-1 row ("" on a level-1 row), Changed its last change (idle: /
+	// changed:).
+	Key, Epic string
+	Changed   time.Time
 }
 
 // Eval evaluates n with leaf deciding each term; a nil n matches.
@@ -180,7 +185,7 @@ func MatchTopic(n *Node, th Topic) bool {
 			return t.Enum == "root" && th.Parent == ""
 		case OpTopic:
 			return th.TaskID == t.Value
-		case OpBefore, OpAfter, OpOn:
+		case OpBefore, OpAfter, OpOn, OpIdle, OpChanged:
 			return inRange(th.LastAt, t)
 		}
 		return false
@@ -206,6 +211,12 @@ func MatchEntity(n *Node, e Entity) bool {
 			return e.Box == t.Box
 		case OpBefore, OpAfter, OpOn:
 			return !e.At.IsZero() && inRange(e.At, t)
+		case OpIdle, OpChanged:
+			return !e.Changed.IsZero() && inRange(e.Changed, t)
+		case OpKey:
+			return e.Key != "" && strings.EqualFold(e.Key, t.Value)
+		case OpEpic:
+			return e.Epic != "" && strings.EqualFold(e.Epic, t.Value)
 		case OpStatus:
 			return e.Status == t.Enum
 		case OpPriority:

@@ -59,13 +59,12 @@ callers stay untouched and byte-identical) lets all three wave-3 installers lazy
 `setup-box-stats-cron.func.sh` and pass `""` as arg 11.
 The rows share no file: both are batch 1.
 
-**Status: v1.0 (panel PASS on v0.2 `84178fd66` with review-line check rc 0; awaiting
-final panel signature on v1.0 sha before landing).** Editor: **a-852** (agy).
-Cross-vendor claude panel seat **c-804** passed v0.2 (`84178fd66`, seat commit
-`ef74aaa7a`, `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`);
-v1.0 folds N7 (option a ruling) and notes N8 with all 12 fenced `bash` blocks
-byte-identical to v0.2, pushed to `review/c002-refactor-round-04-planner` for final
-signature.
+**Status: v1.0 signed (ready for batch-1 row placement).** Editor: **a-852** (agy).
+Cross-vendor claude panel seat **c-804** signed v1.0
+(`31060f1b86b749041c9838436fa1a7b954e23ce2`, seat commit `e65b5391e`, msg `8bf22b70` /
+`491eb1bc`; `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `90fe933e`;
+dispatch holder GO LAND `d3493542`). Zero drift on all 12 row/test files from
+`ffba81845` to `origin/master` `7e7962df5`.
 
 **One sha:** every count is measured on **`ffba81845`** (`ffba818456f9b6f171c0fac34a2d7c6d94918a02`,
 `origin/master` at 2026-11-26T00:47:49Z), n=1 per command unless stated. Reads are on
@@ -946,10 +945,11 @@ regression tests are read-only):
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-804**
   (live on the other box, queued with this planner). Returned FAIL on v0.1 (`4ded3bf46`,
-  seat commit `16df4c069`) for W1 and W2, then **PASS** on v0.2 (`84178fd66`, seat commit
-  `ef74aaa7a`; `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`).
-  Pending final panel signature on v1.0 (`review/c002-refactor-round-04-planner`). The seat
-  reviews this plan only.
+  seat commit `16df4c069`) for W1 and W2, **PASS** on v0.2 (`84178fd66`, seat commit
+  `ef74aaa7a`; `do_spl_review_line_check` rc 0, msg `b24acad9`), and final **PASS**
+  signature on v1.0 (`31060f1b8`, seat commit `e65b5391e`, msg `8bf22b70` / `491eb1bc`;
+  `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `90fe933e`; holder GO
+  LAND `d3493542`). The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T00:49:10Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -1105,19 +1105,29 @@ placement).
     local files on its own box.
   - All 12 fenced `bash` blocks (and all row sites, sha256s, test counts, controls, and
     mutations) are **byte-identical** to v0.2 (`84178fd66`). Pushed fast-forward to
-    `review/c002-refactor-round-04-planner` for final panel signature before landing.
+    `review/c002-refactor-round-04-planner` (`31060f1b8`).
+- v1.0 signed (a-852): recorded final panel **PASS** signature by `c-804` (claude) on
+  v1.0 `31060f1b86b749041c9838436fa1a7b954e23ce2` (seat commit
+  `e65b5391e937d9f756c445fbf29f318b72949607`, msg `8bf22b70` / `491eb1bc`;
+  `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `90fe933e`; holder GO
+  LAND `d3493542`). Zero change to any row, site, batch, test hunk, sha256, or vendor
+  (12/12 fenced `bash` blocks byte-identical); zero drift on all 12 row/test files from
+  `ffba81845` to `origin/master` `7e7962df5`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2 (`84178fd66`), v1.0.
-- Panel reviewer seat: c-804 (claude):
+- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2 (`84178fd66`), v1.0 (`31060f1b8`, signed).
+- Panel reviewer seat: c-804 (claude, seat `e65b5391e937d9f756c445fbf29f318b72949607` on
+  `review/c002-refactor-round-04-claude-seat`):
   - v0.1 `4ded3bf46a50baf4ace5e7919ea9720857af5db7`: **FAIL** (W1, W2; seat commit `16df4c069`).
   - v0.2 `84178fd66cb774ff2b05402815cc7da78f880833`: **PASS** (seat commit
     `ef74aaa7ab078ff0eb71307e644994f29a597484`, msg `6e9e8fe8` / `ad38e6e0`;
-    `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`; zero open
-    W; N7 option (a) ruling folded, N8 noted).
-  - v1.0: pending final signature on `review/c002-refactor-round-04-planner`.
+    `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`).
+  - v1.0 `31060f1b86b749041c9838436fa1a7b954e23ce2`: **PASS** (seat commit
+    `e65b5391e937d9f756c445fbf29f318b72949607`, msg `8bf22b70` / `491eb1bc`;
+    `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `90fe933e`; holder GO
+    LAND `d3493542`; 12/12 fenced `bash` blocks byte-identical, zero open W).
 - Row R7 seats: section 4; agy seat per row (claude waiver backup only while agy is out
   of quota under ruling `dc84300a`; never mistral).

@@ -1,4 +1,4 @@
-// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6586, 6592): the
+// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6586, 6589, 6592): the
 // Discussion loops dialog after the owner's changes, in Chrome on the mock.
 //
 //   1  1440 px: the dialog is 70% of the viewport wide and its top is 10%
@@ -6,6 +6,7 @@
 //   2  Add loop: the triggers are ONE radio group, none picked; each pick is
 //      the form's title at once, with its parameter, and only one stays
 //      checked (changes 1 and 3, msgs 543a5bde, a04bba37, febf1db4)
+//   2b "Every day at" is a 24-hour HH:MM text field (change 10, e4cb57a6)
 //   3  the prompt is left and Run it right (change 11, msg 534340d9); the
 //      prompt box is about 17% of the screen high and still resizable
 //      (change 7, msg ae3a2d5c)
@@ -151,6 +152,17 @@ try {
   ok('2 a post that contains names its word', (await text(p, '[data-testid=topic-loops-form-title]')) === 'A post that contains “deploy”')
   const checked = await p.evaluate(() => [...document.querySelectorAll('[data-testid^=topic-loops-trigger-]')].filter((e) => e.checked).map((e) => e.value))
   ok('2 only the last pick stays checked', checked.length === 1 && checked[0] === 'post_has_keyword', checked)
+
+  /* ---- 2b. "Every day at" is a 24-hour HH:MM field (SPL-6589) ------------ */
+  await clickTrigger(p, 'daily_at')
+  await sleep(100)
+  const at = await p.evaluate(() => { const e = document.querySelector('[data-testid=topic-loops-daily-at]'); return e && { type: e.type, value: e.value, ph: e.placeholder } })
+  ok('2b the time is a text field, 09:00 by default, HH:MM hint', at && at.type === 'text' && at.value === '09:00' && at.ph === 'HH:MM', at)
+  await p.evaluate(() => { const e = document.querySelector('[data-testid=topic-loops-daily-at]'); e.focus(); e.select() })
+  await p.type('[data-testid=topic-loops-daily-at]', '21:30')
+  await sleep(100)
+  const dt = await text(p, '[data-testid=topic-loops-form-title]')
+  ok('2b 21:30 stays 21:30 in the title, no AM/PM', /^every day at 21:30\b/i.test(dt ?? '') && !/[AP]M/.test(dt ?? ''), dt)
 
   /* ---- 3. two columns; the prompt box size --------------------------------- */
   const prompt = await rect(p, '[data-testid=topic-loops-prompt]')

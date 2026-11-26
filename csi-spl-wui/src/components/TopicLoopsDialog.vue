@@ -68,7 +68,18 @@
               data-testid="topic-loops-keyword"
             >
             <template v-if="k === LOOP_DAILY">
-              <input v-model="form.dailyAt" type="time" :aria-label="t('feed.topic_loops.daily_time')" data-testid="topic-loops-daily-at">
+              <!-- SPL-6589: a 24-hour HH:MM field, never the locale's AM/PM; loopFormError checks it -->
+              <input
+                v-model.trim="form.dailyAt"
+                class="topic-loops__time"
+                type="text"
+                inputmode="numeric"
+                maxlength="5"
+                pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
+                placeholder="HH:MM"
+                :aria-label="t('feed.topic_loops.daily_time')"
+                data-testid="topic-loops-daily-at"
+              >
               <input
                 v-model="form.dailyTz"
                 class="topic-loops__zone"
@@ -272,6 +283,7 @@ onUnmounted(() => offFrame())
 .topic-loops__interval { width: 6em; }
 .topic-loops__keyword { flex: 1 1 10em; min-width: 0; }
 .topic-loops__zone { flex: 1 1 12em; min-width: 0; }
+.topic-loops__time { flex: 0 0 auto; width: 6ch; font-variant-numeric: tabular-nums; }
 .topic-loops__note { flex-basis: 100%; padding-left: 24px; font-size: 0.8125rem; color: var(--color-muted); }
 .topic-loops__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .topic-loops__row { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px; }

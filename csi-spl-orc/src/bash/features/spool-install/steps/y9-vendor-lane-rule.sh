@@ -59,22 +59,25 @@ spool_install_vendor_lane_rule() {
 
 # _y9_qwen PARTS - every part into a staging copy of QWEN.md, then the copy
 # over QWEN.md with ONE backup of the old file; nothing changed, nothing written.
+# A part that fails has its whole output forwarded; a passing part only its notices.
 _y9_qwen() {
-  local q="$HOME/.qwen/QWEN.md" stage part bak k=1 rc=0 msg
+  local q="$HOME/.qwen/QWEN.md" stage part bak="" rc=0 prc msg
   stage="$(mktemp -d "$HOME/.qwen/.y9-stage.XXXXXX")" || return 1
   [ -f "$q" ] && cp -p "$q" "$stage/QWEN.md"
   for part in $1; do
-    msg="$(_y9_one "$part" "$stage/QWEN.md" 2>&1; echo "rc=$rc")"
-    case "${msg##*rc=}" in 0) ;; *) rc=1 ;; esac
+    msg="$(rc=0; _y9_one "$part" "$stage/QWEN.md" 2>&1; echo "rc=$rc")"
+    prc="${msg##*rc=}"
     msg="${msg%rc=*}"; msg="${msg//"$stage/QWEN.md"/$q}"
-    case "$msg" in *"edited by hand"* | *FATAL* | *"no such part"* | *"has no value"*) printf '%s' "$msg" >&2 ;; esac
+    if [ "$prc" != 0 ]; then
+      rc=1
+      [ -n "$msg" ] && printf '%s' "$msg" >&2
+    else
+      case "$msg" in *"edited by hand"* | *FATAL* | *"no such part"* | *"has no value"*) printf '%s' "$msg" >&2 ;; esac
+    fi
   done
   if [ "$rc" = 0 ] && [ -f "$stage/QWEN.md" ] && ! cmp -s "$stage/QWEN.md" "$q"; then
     if [ -f "$q" ]; then
-      bak="$q.bak-spool-install-$(date -u +%Y%m%dT%H%M%SZ)"
-      while [ -e "$bak$([ "$k" = 1 ] || echo "-$k")" ]; do k=$((k + 1)); done
-      bak="$bak$([ "$k" = 1 ] || echo "-$k")"
-      cp -p "$q" "$bak" || rc=1
+      bak="$(_y9_qwen_backup "$q")" || rc=1
     fi
     if [ "$rc" = 0 ] && mv -f "$stage/QWEN.md" "$q"; then
       echo "spool-install: vibe-agents: $q: the fleet rule parts rendered${bak:+, the old file kept as $bak}" >&2
@@ -86,4 +89,21 @@ _y9_qwen() {
   fi
   rm -rf "${stage:?}"
   return "$rc"
+}
+
+# _y9_qwen_backup Q - the whole old Q to Q.bak-spool-install-<UTC stamp>[-k],
+# created exclusively (noclobber = O_EXCL, mode 0600) for k = 1..99 and printed;
+# all 99 taken: refuse, nothing replaced. y8-vibe-agents.py's backup_stamped, in bash.
+_y9_qwen_backup() {
+  local q="$1" stamp cand k
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  for (( k = 1; k < 100; k++ )); do
+    cand="$q.bak-spool-install-$stamp$([ "$k" = 1 ] || echo "-$k")"
+    if (umask 077; set -C; cat <"$q" >"$cand") 2>/dev/null; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done
+  echo "spool-install: vibe-agents: $q: no free backup name for $stamp: nothing replaced" >&2
+  return 1
 }

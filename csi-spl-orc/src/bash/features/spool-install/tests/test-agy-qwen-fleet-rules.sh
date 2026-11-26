@@ -13,7 +13,13 @@
 #   5. DRY=1 writes nothing
 #   6. every part in claude-md/ is in exactly one of Y9_PARTS / Y9_SKIP, and
 #      both lists name only parts that exist
-# Control: on the tree before SPL-6533 (y9 renders 25 only), 1 and 3 FAIL.
+#   7. a part that fails with an error y9 does not know (a QWEN.md that is not
+#      UTF-8): rc != 0, the error reaches stderr, QWEN.md unchanged, no staging dir
+#   8. all 99 backup names of one UTC second taken: rc != 0, "no free backup
+#      name", no -100 backup, QWEN.md unchanged
+# Control: on the tree before SPL-6533 (y9 renders 25 only), 1 and 3 FAIL;
+# before SPL-6556 (stderr kept only on 4 known texts, an uncapped backup loop),
+# 7 and 8 FAIL.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2016,SC2015  # the bash -c body expands in the child; pass || fail
 set -uo pipefail
@@ -95,6 +101,27 @@ named=$(echo "${lists//|/ }" | tr ' ' '\n' | grep . | sort | tr '\n' ' ')
 dups=$(echo "${lists//|/ }" | tr ' ' '\n' | grep . | sort | uniq -d)
 [ "$named" = "$have" ] && [ -z "$dups" ] && pass "6: every part is in exactly one of Y9_PARTS / Y9_SKIP" ||
   fail "6: put each new part in Y9_PARTS (agy + qwen get it) or Y9_SKIP (with its reason): have '$have', named '$named', dups '$dups'"
+
+# ── 7. an unexpected part error reaches stderr ───────────────────────────────
+H="$T/h7"; mkdir -p "$H/.qwen"; Q="$H/.qwen/QWEN.md"
+printf '\xff\xfe not utf-8\n' >"$Q"
+before=$(sha256sum <"$Q")
+y9 "$H" 2>"$T/err7"; rc=$?
+[ "$rc" != 0 ] && grep -q 'UnicodeDecodeError' "$T/err7" && [ "$(sha256sum <"$Q")" = "$before" ] &&
+  [ -z "$(find "$H/.qwen" -mindepth 1 -maxdepth 1 -name '.y9-stage.*')" ] &&
+  pass "7: an unexpected part error fails, reaches stderr, QWEN.md kept, no staging dir" || { fail "7: rc=$rc"; cat "$T/err7"; }
+
+# ── 8. every backup name taken ────────────────────────────────────────────────
+H="$T/h8"; mkdir -p "$H/.qwen" "$T/bin8"; Q="$H/.qwen/QWEN.md"
+printf '#!/bin/sh\necho 20261126T000000Z\n' >"$T/bin8/date"; chmod +x "$T/bin8/date"
+printf 'keep original\n' >"$Q"
+before=$(sha256sum <"$Q")
+: >"$Q.bak-spool-install-20261126T000000Z"
+for (( k = 2; k < 100; k++ )); do : >"$Q.bak-spool-install-20261126T000000Z-$k"; done
+y9 "$H" PATH="$T/bin8:$PATH" 2>"$T/err8"; rc=$?
+[ "$rc" != 0 ] && grep -q 'no free backup name' "$T/err8" && [ ! -e "$Q.bak-spool-install-20261126T000000Z-100" ] &&
+  [ "$(sha256sum <"$Q")" = "$before" ] &&
+  pass "8: all 99 backup names taken: refused, no -100, QWEN.md kept" || { fail "8: rc=$rc"; cat "$T/err8"; }
 
 echo "== y9 agy + qwen fleet rules: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

@@ -37,6 +37,15 @@ export default defineNuxtPlugin(() => {
   const roster = useRosterStore()
   const live = useLive()
   const router = useRouter()
+  /* spec 186 M12: topic_select and multicast_check ride the socket's request
+     half. Set here, before any component reads canTopicSelect(), so Select by
+     title (M3) is offered on live; the socket dials on the first request. */
+  type Requester = (frame: { type: string, req_id?: string } & Record<string, unknown>) => Promise<Record<string, unknown>>
+  ;(api as unknown as { setRequester: (fn: Requester) => void }).setRequester((frame) => {
+    const client = live.ensure()
+    if (!client) return Promise.reject(Object.assign(new Error('no WUI socket'), { status: 0, token: 'no_socket' }))
+    return client.request(frame)
+  })
   let started = false
 
   /** The follow itself: one socket, one `all`, one first read. Once per tab. */

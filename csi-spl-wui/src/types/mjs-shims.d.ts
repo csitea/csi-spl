@@ -312,6 +312,8 @@ declare module '~/utils/live-ws.mjs' {
     /** bug B: the hub revision serving new requests (GET /v1/wui/revision), '' when unknown */
     fetchRevision?: () => Promise<string>
     ackTimeoutMs?: number
+    /** spec 186 M12: how long a request frame waits for its answer */
+    requestTimeoutMs?: number
     probeTimeoutMs?: number
   }): {
     readonly state: string
@@ -333,6 +335,8 @@ declare module '~/utils/live-ws.mjs' {
     requestToken(): Promise<Record<string, unknown>>
     redialForToken(): Promise<Record<string, unknown>>
     send(opts: import('./spool').SendFrame): Promise<import('./spool').AckFrame>
+    /** spec 186 M12: `topic_select` / `multicast_check` → the answer frame with the same req_id */
+    request(frame: { type: string, req_id?: string } & Record<string, unknown>): Promise<Record<string, unknown>>
   }
   export const REVISION_CHECK_MS: number
   export function watchLive(client: { checkRevision(): Promise<boolean>, wake(): void }, opts?: {

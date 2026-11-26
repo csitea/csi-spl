@@ -153,6 +153,7 @@ or claude reviewer. No same-vendor line.
 | M9 | docs: 005 FR-022, wui-live-ws section 4, user help | specs_and_docs | agy, backup claude | grok or claude (cross to the author) | none (writes 7.1) | 1 |
 | M2 | hub: send-time multicast checks + store `mc_id` | complex_coding | claude | grok | M1, M4 landed | 2 |
 | M11 | WUI: the Multicast action and dialog | complex_coding | claude | grok | M3 landed | 2 |
+| M12 | WUI: the live socket's request half (`live-ws` `request` into spool-client `setRequester`, so `topic_select` and `multicast_check` reach the hub on live; M3's Select by title then shows on live). Not in v1.0: ruled by c-001 (c04d54cc, 2026-11-26) on M11's finding 579017e1 | complex_coding | claude | agy | M3, M4 landed | 2 |
 | M7 | e2e on the mock | tests | claude | grok | M3, M4, M11 landed | 3 |
 | M8 | i18n: the 18 non-en locales, language check | i18n | agy, backup claude | claude or grok | M3, M11 landed | 3 |
 | M10 | rdb + hub + WUI: the multicast loop | complex_coding | claude | grok | M2, M3, M4, M8 landed (182 L1-L3 on master) | 4 |

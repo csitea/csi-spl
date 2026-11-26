@@ -23,7 +23,7 @@
  */
 
 /** The calls a real client answers with a promise: they wait for the load. */
-const ASYNC_CALLS = ['checkRevision', 'requestToken', 'redialForToken', 'send']
+const ASYNC_CALLS = ['checkRevision', 'requestToken', 'redialForToken', 'send', 'request']
 
 /** The calls kept and replayed in order. */
 const SYNC_CALLS = [

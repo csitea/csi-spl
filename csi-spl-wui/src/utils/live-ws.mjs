@@ -238,6 +238,8 @@ function liveOptions(opts) {
     setTimer: (fn, ms) => setTimeout(fn, ms),
     clearTimer: (t) => clearTimeout(t),
     ackTimeoutMs: 10000,
+    /** spec 186 M12: a request (`topic_select`, `multicast_check`) waits this long for its answer frame. */
+    requestTimeoutMs: 30000,
     /** wake(): an open socket that answers nothing within this is re-dialled. */
     probeTimeoutMs: 5000,
     /** M8's clock (performance.now in the browser). */
@@ -270,6 +272,8 @@ function liveContext(opts) {
     peerSubs: new Set(),
     queue: [],
     pending: new Map(),
+    /* spec 186 M12: the request half; req_id -> { type, resolve, reject, timer } */
+    requests: new Map(),
     /* Each waiter is { resolve, reject, timer }: a fresh upload token is asked
        for over the socket (requestToken) or by redialling onto the live revision
        (redialForToken, CLE-77795); both time out rather than hang a stuck tab. */
@@ -424,6 +428,8 @@ function rejectPending(c) {
     p.reject(Object.assign(new Error('socket closed'), { token: 'closed' }))
   }
   c.pending.clear()
+  /* spec 186 M12: the hub drops a closed socket's requests, so none is answered */
+  for (const reqId of [...c.requests.keys()]) dropRequest(c, reqId, 'closed', 'socket closed')
 }
 
 /**
@@ -582,7 +588,7 @@ function handle(c, f) {
     case FRAMES.error:
       onErrorFrame(c, f)
       return
-    default:
+    default: answerRequest(c, f) // spec 186 M12: topic_selected / multicast_checked
   }
 }
 
@@ -698,6 +704,50 @@ function ackTimedOut(c, msgId, reject) {
   reject(Object.assign(new Error('send timed out'), { token: 'timeout' }))
 }
 
+/**
+ * Spec 186 M12 (7.1.2): the socket's request half. `topic_select` and
+ * `multicast_check` are read-only frames the hub answers with
+ * `topic_selected` / `multicast_checked`, matched by req_id. The hub runs one
+ * frame of each type per socket and cancels the older one unanswered
+ * (wui_multicast.go bulkRuns), so a newer request of the same type fails the
+ * older one here at once ('superseded'), as do a close ('closed') and no
+ * answer within requestTimeoutMs ('timeout').
+ */
+function request(c, frame) {
+  const type = String(frame?.type || '')
+  const req_id = frame?.req_id ? String(frame.req_id) : newId()
+  for (const [id, r] of c.requests) {
+    if (r.type === type) dropRequest(c, id, 'superseded', `${type} superseded`)
+  }
+  return new Promise((resolve, reject) => {
+    const timer = c.o.setTimer(() => dropRequest(c, req_id, 'timeout', `${type} timed out`), c.o.requestTimeoutMs)
+    c.requests.set(req_id, { type, resolve, reject, timer })
+    rawOrQueue(c, { ...frame, type, req_id })
+  })
+}
+
+/** Fail one waiting request with `token`, and take its frame out of the queue so it is never sent late. */
+function dropRequest(c, reqId, token, detail) {
+  const r = c.requests.get(reqId)
+  if (!r) return
+  c.requests.delete(reqId)
+  c.o.clearTimer(r.timer)
+  c.queue = c.queue.filter((f) => f.req_id !== reqId)
+  r.reject(Object.assign(new Error(detail), { token }))
+}
+
+/** The answer frame type of each request frame type (hub wui_multicast.go). */
+const ANSWER_OF = { topic_select: 'topic_selected', multicast_check: 'multicast_checked' }
+
+/** An answer frame settles the request waiting on its req_id; an answer nobody waits for is dropped. */
+function answerRequest(c, f) {
+  const r = c.requests.get(String(f.req_id || ''))
+  if (!r || f.type !== ANSWER_OF[r.type]) return
+  c.requests.delete(String(f.req_id))
+  c.o.clearTimer(r.timer)
+  r.resolve(f)
+}
+
 /** A subscription kind (task / channel / peer): `key` reads the id, `field` names it on the frame. */
 function subscriber(c, set, key, field) {
   return {
@@ -759,6 +809,8 @@ export function createLiveClient(opts = {}) {
     requestToken: () => awaitToken(c, () => rawOrQueue(c, { type: FRAMES.token })),
     redialForToken: () => redialForToken(c),
     send: (args) => send(c, args),
+    /** spec 186 M12: a read-only request frame → its answer frame (same req_id). */
+    request: (frame) => request(c, frame),
   }
   return Object.assign(api, subscriptionApi(c))
 }

@@ -233,3 +233,28 @@ Not run by me: `spl-spawn-queue.tst.sh`, `gcloud-account-pinned.tst.sh`,
 - **N3:** on this box the row tests are slow under load: one `spl-spawn-fill.tst.sh`
   run took more than 2 minutes. A row lane should not run the column in a 120 s
   foreground call.
+
+## 5. v1.0 signature
+
+**PASS on v1.0 `badeda0c8175aa02bea32df5f5a92baa9655b5b5`** (parent `9c39b5d2f`, the v0.1
+I reviewed above). Each line ran once (n=1), on my box, by me:
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-06-planner` ->
+  `badeda0c8175aa02bea32df5f5a92baa9655b5b5`.
+- `git diff --stat 9c39b5d2f badeda0c8` -> only `csi-spl-doc/doc/md/refactor-round-06-plan.md`,
+  35 insertions, 8 deletions. Read the whole diff: status line, section 1.4 count, section 4
+  panel line, section 6 lines row, section 8 v1.0 entry, section 9 consensus.
+- W1 folded: `git show badeda0c8:<plan> | sed -n 474p` -> `... 70 -> 123 lines (+53 -0).`;
+  line 937 (section 6 lines row) carries `cron-tagged-line.tst.sh +53 -0`.
+- No row change: the 10 fenced `bash` blocks, concatenated, hash the same on both shas
+  (sha256 first 12 `c8d19dc3d871` on `9c39b5d2f` and on `badeda0c8`; 10 blocks counted on v1.0).
+- No drift: `git diff --name-only f9521a941 origin/master -- csi-spl-orc` filtered to the
+  row files -> empty (origin/master `551b3c601`).
+- N1 as recorded: `git grep -nE '^#\s+(10|11|12)\.' f9521a941 -- '*spl-spawn-fill.tst.sh'`
+  -> header lists up to section 10 (line 37), no 11; `cron-tagged-line.tst.sh:6-11` lists 1-6.
+- Hygiene: `do_check_dist_hygiene` in a worktree of `badeda0c8` ->
+  `INFO distribution-hygiene: clean ...`, exit 0.
+
+New defects: none. N1-N3 are recorded in plan section 8 as I wrote them. The plan text
+still says "pending full review-line check and final v1.0 signature" (status, sections 4
+and 9); this signature is that final step, and the editor may leave or drop the words.

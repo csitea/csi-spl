@@ -45,6 +45,12 @@
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
+# AF_UNIX paths stop at 107 bytes: the CI runner's T_TMP
+# (/home/runner/work/_temp/tmp.X) plus the desk layout made 112, every bind
+# failed and sections 5, 7 and 8 went red only in CI. The sandbox HOMEs
+# live under a short /tmp dir instead.
+T_SH="$(mktemp -d /tmp/la.XXXXXX)"
+trap 'rm -rf "$T_SH"; t_cleanup' EXIT
 SENDER="$T_SCRIPTS/spool-live-ack.sh"
 STUB="$T_TMP/spool-stub"
 ARGS="$T_TMP/args"
@@ -134,10 +140,12 @@ chmod +x "$T_TMP/pathbin/spool"
 export PATH="$T_TMP/pathbin:$PATH"
 check "5. CONTROL: the spool on PATH is the recording stub" test "$(command -v spool)" = "$T_TMP/pathbin/spool"
 : > "$SPOOL_ROOT/box.env"
-H5="$T_TMP/home5"
+H5="$T_SH/h5"
 DR="$H5/.local/share/csi-spl/cloud"
 sock() { mkdir -p "$(dirname "$1")" && python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' "$1"; }
 desk() { printf '%s/%s/desk/%s/box-t/spool' "$DR" "$1" "$2"; }
+S5="$(desk prd t1)/.hub/submit.sock"
+check "5. CONTROL: a desk socket path fits AF_UNIX (${#S5} < 108 bytes)" test "${#S5}" -lt 108
 sock "$(desk prd t1)/.hub/submit.sock"; mkdir -p "$(desk prd t1)/c-905"
 sock "$(desk prd w2)/.hub/submit.sock"; mkdir -p "$(desk prd w2)/c-001"; ln -s c-001 "$(desk prd w2)/c-905"
 sock "$(desk dev t1)/.hub/submit.sock"; mkdir -p "$(desk dev t1)/c-001"
@@ -193,7 +201,7 @@ eq "7. dry run: 2 dry-run log lines" 2 "$(grep -c "rc=- .*dry-run $DR/prd/bin/sp
 HOME="$H5" SPOOL_LIVE_ACK_DRY_RUN=1 SPOOL_SUBMIT_SOCKET="$T_TMP/single.sock" bash "$SENDER" c-901 "$M1" >/dev/null
 eq "7. dry run on the single-socket path: the stub runs 0 times" "" "$(cat "$ARGS")"
 # a listening desk socket that counts connects; its binary dials it
-DR7="$T_TMP/home7/.local/share/csi-spl/cloud"
+DR7="$T_SH/h7/.local/share/csi-spl/cloud"
 S7="$DR7/prd/desk/t1/box-t/spool"
 mkdir -p "$S7/.hub" "$S7/c-907" "$DR7/prd/bin" "$SPOOL_ROOT/c-907/lifetime"
 cat > "$DR7/prd/bin/spool" <<'STUB'
@@ -217,10 +225,10 @@ except socket.timeout:
 lpid=$!
 for _ in $(seq 1 50); do [ -S "$S7/.hub/submit.sock" ] && break; sleep 0.1; done
 check "7. CONTROL: the desk socket listens" test -S "$S7/.hub/submit.sock"
-HOME="$T_TMP/home7" SPOOL_LIVE_ACK_DRY_RUN=1 env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-907 "$M1" >/dev/null
+HOME="$T_SH/h7" SPOOL_LIVE_ACK_DRY_RUN=1 env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-907 "$M1" >/dev/null
 sleep 0.3
 eq "7. dry run: the live desk socket is dialed 0 times" 0 "$(wc -l < "$N7")"
-HOME="$T_TMP/home7" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-907 "$M1"
+HOME="$T_SH/h7" env -u SPOOL_BIN -u SPOOL_TEST bash "$SENDER" c-907 "$M1"
 for _ in $(seq 1 30); do [ "$(wc -l < "$N7")" -ge 1 ] && break; sleep 0.1; done
 eq "7. CONTROL: the same run without the dry run dials it once" 1 "$(wc -l < "$N7")"
 kill "$lpid" 2>/dev/null; wait "$lpid" 2>/dev/null

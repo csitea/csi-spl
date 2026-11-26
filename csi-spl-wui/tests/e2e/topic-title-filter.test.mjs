@@ -11,7 +11,7 @@
 //      them
 //   4  a bad pattern is named under the field
 //   5  the header has no Select by title button; on the phone the field fits
-//      the screen
+//      the screen and the select tick is a 44 px tap target (R7 W1)
 // Red on origin/master a464b5399: there is no Title field and no header tick
 // (the header's button opened the pattern box, which ADDED matches to the
 // selection without narrowing the list).
@@ -127,6 +127,8 @@ async function run(browser, base, { tag, width, height, phone }) {
       return { l: r.left, r: r.right, vw: window.innerWidth }
     })
     ok(`${tag}: the title field fits the ${width} px screen`, fit.l >= 0 && fit.r <= fit.vw, fit)
+    const tick = await p.evaluate(() => document.querySelector('[data-test=topic-select-listed]').getBoundingClientRect().width)
+    ok(`${tag}: the select tick is a 44 px tap target`, tick >= 44, tick)
   }
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/title-filter-${tag}.png` })
   await closePop(p)

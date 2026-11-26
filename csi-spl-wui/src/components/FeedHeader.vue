@@ -140,6 +140,9 @@ onBeforeUnmount(() => {
   min-width: calc(2 * 26px + 2px);
   min-height: 18px;
 }
+/* spec 186, SPL-6613: the select tick sits after the filter and sort, as the bar's page box;
+   before the phone rule, which widens it to the tap width (R7 W1) */
+.feed-header__select { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--color-accent); cursor: pointer; }
 @media (max-width: 820px) {
   .feed-header__row2 { min-height: var(--tap); }
   .feed-header__select { width: var(--tap, 44px); }
@@ -148,8 +151,6 @@ onBeforeUnmount(() => {
     min-height: 32px;
   }
 }
-/* spec 186, SPL-6613: the select tick sits after the filter and sort, as the bar's page box */
-.feed-header__select { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--color-accent); cursor: pointer; }
 /* gives way (ellipsis) before the name does; the badge never shrinks */
 .feed-header__topic {
   display: inline-flex;

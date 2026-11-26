@@ -16,28 +16,31 @@
 # tests/ci-rerun-setup-flake.tst.sh.
 #
 # Local equivalent: RUN_ID=<id> REPO=<owner>/<repo> DRY_RUN=1 ./csi-spl-orc/run -a do_ci_rerun_setup_flake
+#
+# It watches only the workflows that ever lost a job at "Set up job", plus
+# wf 26 (SPL-6385 A7; csi-spl-doc/specs/016-spool-testability/
+# ci-volume-2026-11-24.md section 3). Each watched completion is one wf 12
+# run. Measured 2026-10-27..2026-11-26: n=14,410 wf 12 runs, 13,857 skipped;
+# the job logs of the 553 that ran: 1 rerun (wf 10 41638443630, "wui: browser
+# e2e 4/8" at Set up job), 550 real reds, 1 nothing, 1 no verdict. In the
+# attempt-1 jobs of those 550 red watched runs, none failed at "Set up job".
+#
+# | workflow | setup-flake reruns, 30 d | why it is watched                   |
+# |----------|-------------------------:|-------------------------------------|
+# | 10       | 1                        | the 30-day rerun; 38685379352 above |
+# | 20       | 0                        | 38684002050, 38687357160 above      |
+# | 26       | 0                        | SPL-4988: a lost run delays notes   |
+#
+# The other 14 (15, 23, 30, 32, 50, 61-67, 70, 85): 0 in 30 days, dropped; a
+# setup flake there needs a hand rerun (gh run rerun <id> --failed).
 name: "12 ci: rerun an action-download flake"
 on:
   workflow_run:
-    # the workflows that run on a push to master (name: lines, verbatim)
+    # the measured set above (name: lines, verbatim; ci-rerun-setup-flake.tst.sh case 9)
     workflows:
       - "10 ci: quality gate"
-      - "15 sec: deps and secrets"
       - "20 ci-cd: spool hub build + deploy"
-      - "23 ci-cd: agent join check"
       - "26 ops: release notes ingest"
-      - "30 ci-cd: spool WUI build + deploy"
-      - "32 ci-cd: docs publish"
-      - "50 oss-standalone"
-      - "61 sec: semgrep (SAST)"
-      - "62 sec: gosec (Go SAST)"
-      - "63 sec: eslint-plugin-security (WUI JS)"
-      - "64 sec: trufflehog (verified secrets)"
-      - "65 sec: checkov (terraform IaC)"
-      - "66 sec: hadolint (Dockerfiles)"
-      - "67 sec: shellcheck (bash)"
-      - "70 sec: supply chain (trivy IaC + OSV)"
-      - "85 sec: actionlint (workflows)"
     types: [completed]
     branches: [master]
 

@@ -14,6 +14,7 @@
 #   6. no failed job                                   -> nothing
 #   7. DRY_RUN=1 on a flake                            -> says so, nothing rerun
 #   8. a refused rerun, an unreadable run, a bad RUN_ID, no REPO -> rc 1
+#   9. wf 12 watches the measured set (10, 20, 26), each a real workflow name
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -138,6 +139,22 @@ RUN=abc run_it
 [[ $RC -eq 1 && "$out" == *"FATAL RUN_ID"* ]] && pass "8 a RUN_ID that is not a run id is rc 1" || fail "8 RUN_ID: rc=$RC out='$out'"
 run_it REPO= GITHUB_REPOSITORY=
 [[ $RC -eq 1 && "$out" == *"FATAL REPO"* ]] && pass "8 no REPO and no GITHUB_REPOSITORY is rc 1 (no default repo)" || fail "8 REPO: rc=$RC out='$out'"
+
+# --- 9. the watch list is the measured set (SPL-6385 A7) ------------------------
+# wf 12 watches only the workflows that lost a job at "Set up job" (its header
+# comment holds the measurement), plus wf 26 for SPL-4988; each entry must be
+# a workflow's name: line verbatim, or it never fires.
+WF12="$APP_ROOT/.github/workflows/12_ci-rerun-setup-flake.yml"
+want=$'10 ci: quality gate\n20 ci-cd: spool hub build + deploy\n26 ops: release notes ingest'
+got="$(sed -n '/^    workflows:/,/^    types:/s/^      - "\(.*\)"$/\1/p' "$WF12")"
+[[ "$got" == "$want" ]] && pass "9 wf 12 watches the measured set: 10, 20, 26" ||
+  fail "9 wf 12 watches $(grep -c . <<<"$got") workflow(s), not the measured 3: '$(tr '\n' ',' <<<"$got")'"
+missing=''
+while IFS= read -r w; do
+  grep -qxF -e "name: \"$w\"" -e "name: $w" "$APP_ROOT"/.github/workflows/*.yml || missing+="'$w' "
+done <<<"$got"
+[[ -n "$got" && -z "$missing" ]] && pass "9 every watched name is a workflow's name: line" ||
+  fail "9 watched names with no workflow: $missing"
 
 echo "---- $(basename "$0"): $fails failed"
 [[ "$fails" -eq 0 ]]

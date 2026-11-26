@@ -15,6 +15,8 @@
 # A file whose test changed inside the window takes the runs whose head
 # contains that change only: invited-inactive-member (8de44d393, 4 -> 8 s)
 # from 44274958796 (n=1; the held-out run also took 8 s).
+# composer-multi-file-drop (SPL-6595) is new: 28 s, its one runner line on a generated
+# mock bundle (n=1, 2026-11-26), until a refresh measures CI.
 # reporting-costs-taxes (SPL-6438) is new: 19 s, its one local run (57 s on a loaded
 # box where labels took 214 s and project 130 s against their 62 / 45: scaled
 # by that ~3x, n=1, 2026-11-25), until a refresh measures CI.
@@ -110,6 +112,7 @@ tests/e2e/commit-links.test.mjs 1
 tests/e2e/composer-buttons-bottom.test.mjs 13
 tests/e2e/composer-long-msg.test.mjs 50
 tests/e2e/composer-mode-cue.test.mjs 20
+tests/e2e/composer-multi-file-drop.test.mjs 28
 tests/e2e/composer-target-chip.test.mjs 7
 tests/e2e/connect-agent.test.mjs 5
 tests/e2e/console-errors.test.mjs 24

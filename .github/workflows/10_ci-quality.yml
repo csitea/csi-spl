@@ -94,15 +94,23 @@ on:
         default: ""
   push:
     branches: [master]
-  # The HOURLY VERDICT (brief wf10-hourly-verdict, 2026-10-12): gates master's
-  # head as it is at :43 every hour, in a group of its own (see concurrency),
-  # so no push can replace it. Without it, a push every 1-4 min replaced every
-  # pending push run before it started: 12 of 12 master runs read on
-  # 2026-10-12 were cancelled while queued, and 577 of 629 in 48 h, so master
-  # had no verdict since 2026-10-10T04:41Z. Odd minute: clear of :00, GitHub's
-  # busiest, and of the other schedules in .github/workflows.
+  # The SCHEDULED VERDICT (brief wf10-hourly-verdict, 2026-10-12): gates
+  # master's head as it is at :43 every 3 h (00:43, 03:43 .. 21:43 UTC, 8 a
+  # day), in a group of its own (see concurrency), so no push can replace it.
+  # Without it, a push every 1-4 min replaced every pending push run before it
+  # started: 12 of 12 master runs read on 2026-10-12 were cancelled while
+  # queued, and 577 of 629 in 48 h, so master had no verdict since
+  # 2026-10-10T04:41Z. Odd minute: clear of :00, GitHub's busiest, and of the
+  # other schedules in .github/workflows.
+  # Every 3 h, not hourly (SPL-6385, csi-spl-doc/specs/016-spool-testability/
+  # ci-volume-2026-11-24.md section 3 A1): the hourly full run was the largest
+  # line, 40,488 of 126,546 billed min in 7 days; 3 h saves up to ~27,000 of
+  # it, less what comes back as push minutes. Accepted risk: a red only this
+  # run sees surfaces up to 3 h late, and under cancel churn master can go up
+  # to 3 h with no verdict; in that week 0 of 168 hourly runs held a
+  # persisting red the push gates missed (report section 1.7).
   schedule:
-    - cron: "43 * * * *"
+    - cron: "43 */3 * * *"
   # The pull-request entry (11_ci-public.yml). Empty inputs = a push here.
   workflow_call:
     inputs:

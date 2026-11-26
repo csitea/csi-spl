@@ -8,7 +8,7 @@
 #
 # With a push every 1-4 min the pending push run never started at all (12 of
 # 12 master runs read 2026-10-12 cancelled while queued; no verdict since
-# 2026-10-10T04:41Z), so a SCHEDULE (hourly) and a workflow_dispatch run get a
+# 2026-10-10T04:41Z), so a SCHEDULE (every 3 h) and a workflow_dispatch run get a
 # group of their own, keyed on run_id, which no push can replace.
 #
 # What it asserts on .github/workflows/10_ci-quality.yml:
@@ -21,7 +21,7 @@
 #      bound);
 #   3. there IS such a run_id part, gated on both schedule and
 #      workflow_dispatch, and `on:` has a schedule (else a push replaces the
-#      hourly / dispatched run and master again has no verdict);
+#      scheduled / dispatched run and master again has no verdict);
 #   4. concurrency.cancel-in-progress is false (true kills the running gate on
 #      every push; with a push every ~4 min and a ~25 min gate, NO verdict on
 #      master ever finishes).
@@ -61,11 +61,11 @@ check10() {  # <wf 10 file> - prints the first violation, or nothing
     [[ "$seg" == *github.run_id* ]] && found=1
   done < <(grep -oP '\$\{\{.*?\}\}' <<<"$g")
   (( found )) || { echo "group '$g' gives schedule/dispatch runs no run_id group: a push replaces them"; return; }
-  [[ "$(yq '.on | has("schedule")' "$f")" == true ]] || { echo "no schedule trigger: master gets no hourly verdict"; return; }
+  [[ "$(yq '.on | has("schedule")' "$f")" == true ]] || { echo "no schedule trigger: master gets no scheduled verdict"; return; }
   [[ "$c" == false ]] || { echo "cancel-in-progress is '$c' (want false: true kills the running gate on every push)"; return; }
 }
 
-v=$(check10 "$W10"); [[ -z "$v" ]] && pass "wf 10: push group per ref, schedule/dispatch per run_id, hourly schedule, cancel-in-progress false" || fail "wf 10: $v"
+v=$(check10 "$W10"); [[ -z "$v" ]] && pass "wf 10: push group per ref, schedule/dispatch per run_id, a schedule, cancel-in-progress false" || fail "wf 10: $v"
 
 control() {  # <name> <yq edit>
   yq "$2" "$W10" >"$T/c.yml"
@@ -84,5 +84,20 @@ control "schedule left in the shared group (dispatch only)" \
 control "dispatch left in the shared group" \
   ".concurrency.group = \"quality-gate-\${{ github.ref }}\${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}\""
 control "no schedule trigger" 'del(.on.schedule)'
+
+# The full gate runs every 3 h, not hourly (SPL-6385, ci-volume-2026-11-24.md
+# section 3 A1): one cron line, at :43 on the hours divisible by 3, 8 a day.
+check_cadence() {  # <wf 10 file> - prints the first violation, or nothing
+  local f="$1" crons n h runs=0 i
+  crons=$(yq '.on.schedule[].cron' "$f"); n=$(grep -c . <<<"$crons")
+  (( n == 1 )) || { echo "$n schedule lines (want one)"; return; }
+  [[ "$crons" == "43 */3 * * *" ]] || { echo "cron '$crons' (want '43 */3 * * *')"; return; }
+  read -r _ h _ <<<"$crons"
+  for ((i = 0; i < 24; i++)); do (( i % ${h#*/} == 0 )) && runs=$((runs + 1)); done
+  (( runs == 8 )) || echo "$runs scheduled runs a day (want 8)"
+}
+v=$(check_cadence "$W10"); [[ -z "$v" ]] && pass "wf 10: the schedule reads '43 */3 * * *' (8 scheduled runs a day)" || fail "wf 10 cadence: $v"
+yq '.on.schedule[0].cron = "43 * * * *"' "$W10" >"$T/c.yml"
+v=$(check_cadence "$T/c.yml"); [[ -n "$v" ]] && pass "CONTROL: the hourly cron is caught ($v)" || fail "CONTROL: the hourly cron passed"
 
 echo "---"; (( fails == 0 )) && echo "PASS: all gate10-concurrency.tst.sh assertions" || { echo "gate10-concurrency: $fails failed"; exit 1; }

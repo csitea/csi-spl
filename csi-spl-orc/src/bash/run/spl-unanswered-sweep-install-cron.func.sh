@@ -49,7 +49,7 @@ do_spl_unanswered_sweep_install_cron() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line ns lock current sched pre="" out="cron.out" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns lock sched pre="" out="cron.out" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:unanswered-sweep$([[ "$env_name" == prd ]] || printf -- '-%s' "$env_name")"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -68,39 +68,9 @@ do_spl_unanswered_sweep_install_cron() {
   ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$lock")" || return 1
   line="$(printf '%s * * * * %sENV=%s SWEEP_MIN_AGE=%s SWEEP_ESCALATE_AGE=%s %s%s >> %s/%s 2>&1 # %s' \
     "$sched" "$pre" "$env_name" "$min_age" "$esc_age" "$ns" "$script" "$logdir" "$out" "$tag")"
-  current="$(spl_desk_cron_line "$tag")"
-
-  if [[ "$act" == check ]]; then
-    if [[ -z "$current" ]]; then
-      do_log "FAIL the unanswered sweep is NOT installed (no line tagged $tag): a missed human post is never looked at again"
-      return 1
-    fi
-    spl_desk_cron_say "$current"
-    local ran; ran="$(spl_desk_cron_script "$current")"
-    [[ -n "$ran" && -x "$ran" ]] ||
-      { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
-    [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
-    do_log "OK the unanswered sweep is installed and its script is executable"
-    return 0
-  fi
-
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  if [[ "$act" == remove ]]; then
-    spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the unanswered sweep is out of the crontab"
-    return 0
-  fi
-  spl_desk_cron_checkout "$src" "$trunk" || return 1
-  [[ -x "$script" ]] || { do_log "FATAL $script is missing or not executable in $src (is it on trunk yet?)"; return 1; }
-  mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
-  spl_desk_cron_write "$tag" "$line" || return 1
-  current="$(spl_desk_cron_line "$tag")"
-  [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the unanswered sweep runs every ${every}m as the box user:"
-  spl_desk_cron_say "$line"
+  # shellcheck source=setup-box-stats-cron.func.sh
+  declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
+  _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
+    "unanswered sweep" "runs every ${every}m as the box user" \
+    ": a missed human post is never looked at again" ""
 }

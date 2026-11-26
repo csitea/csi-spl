@@ -45,7 +45,7 @@ do_spl_workspace_delivery_probe_install_cron() {
   fi
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line ns current sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:delivery-probe-$env_name"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -61,35 +61,8 @@ do_spl_workspace_delivery_probe_install_cron() {
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron-$env_name.lock")" || return 1
   line="$(printf '%s * * * * %sENV=%s %s%s >> %s/cron-%s.out 2>&1 # %s' "$sched" "$pre" "$env_name" "$ns" "$script" "$logdir" "$env_name" "$tag")"
-  current="$(spl_desk_cron_line "$tag")"
-
-  if [[ "$act" == check ]]; then
-    [[ -n "$current" ]] || { do_log "FAIL the delivery probe is NOT installed (no line tagged $tag)"; return 1; }
-    spl_desk_cron_say "$current"
-    local ran; ran="$(spl_desk_cron_script "$current")"
-    [[ -n "$ran" && -x "$ran" ]] ||
-      { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
-    [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
-    do_log "OK the delivery probe is installed and its script is executable"
-    return 0
-  fi
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  if [[ "$act" == remove ]]; then
-    spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the delivery probe is out of the crontab"
-    return 0
-  fi
-  spl_desk_cron_checkout "$src" "$trunk" || return 1
-  [[ -x "$script" ]] || { do_log "FATAL $script is missing or not executable in $src (is it on trunk yet?)"; return 1; }
-  mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
-  spl_desk_cron_write "$tag" "$line" || return 1
-  current="$(spl_desk_cron_line "$tag")"
-  [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the delivery probe runs every ${every}m as the box user:"
-  spl_desk_cron_say "$line"
+  # shellcheck source=setup-box-stats-cron.func.sh
+  declare -F _spl_simple_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/setup-box-stats-cron.func.sh"
+  _spl_simple_cron_apply "$act" "$tag" "$src" "$trunk" "$script" "$logdir" "$line" \
+    "delivery probe" "runs every ${every}m as the box user" "" ""
 }

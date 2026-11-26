@@ -62,16 +62,18 @@ do_setup_box_stats_cron() {
 }
 
 # _spl_simple_cron_apply <act> <tag> <src> <trunk> <script> <logdir> <line>
-#   <label> <ok_msg> [miss_why] -> run check, dry-run, remove, or install for
-#   a single-line tagged crontab action.
+#   <label> <ok_msg> [miss_why] [noun] -> run check, dry-run, remove, or
+#   install for a single-line tagged crontab action. noun defaults to " cron"
+#   when unset; pass "" when <label> already names the job without "cron".
 _spl_simple_cron_apply() {
   local act="$1" tag="$2" src="$3" trunk="$4" script="$5" logdir="$6" line="$7"
-  local label="$8" ok_msg="$9" miss_why="${10:-}" current
+  local label="$8" ok_msg="$9" miss_why="${10:-}" noun="${11- cron}" current
+  local subj="${label}${noun}"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then
     if [[ -z "$current" ]]; then
-      do_log "FAIL the $label cron is NOT installed (no line tagged $tag)$miss_why"
+      do_log "FAIL the $subj is NOT installed (no line tagged $tag)$miss_why"
       return 1
     fi
     spl_desk_cron_say "$current"
@@ -79,7 +81,7 @@ _spl_simple_cron_apply() {
     [[ -n "$ran" && -x "$ran" ]] ||
       { do_log "FAIL the line names a script that is gone or not executable: ${ran:-<none>}"; return 1; }
     [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
-    do_log "OK the $label cron is installed and its script is executable"
+    do_log "OK the $subj is installed and its script is executable"
     return 0
   fi
 
@@ -91,7 +93,7 @@ _spl_simple_cron_apply() {
   fi
   if [[ "$act" == remove ]]; then
     spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the $label cron is out of the crontab"
+    do_log "OK the $subj is out of the crontab"
     return 0
   fi
   spl_desk_cron_checkout "$src" "$trunk" || return 1
@@ -100,6 +102,6 @@ _spl_simple_cron_apply() {
   spl_desk_cron_write "$tag" "$line" || return 1
   current="$(spl_desk_cron_line "$tag")"
   [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the $label cron $ok_msg:"
+  do_log "OK the $subj $ok_msg:"
   spl_desk_cron_say "$line"
 }

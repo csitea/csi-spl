@@ -270,6 +270,98 @@ out="$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE
 [[ $rc -eq 1 && "$out" == *"FAIL the go-cache prune cron is NOT installed (no line tagged csi-spl:go-cache-prune)"* && "$out" != *"command not found"* ]] &&
   pass "4. lazy load: setup-go-cache-prune-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "4. lazy gc (rc=$rc): $out"
 
+# 5. _spl_simple_cron_apply empty noun and wave-3 delegation (r04-02 one copy) --
+out="$(env PROJ_ROOT="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" T="$T" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }
+  source "$PROJ_ROOT/src/bash/run/setup-box-stats-cron.func.sh"
+  _spl_simple_cron_apply check "csi-spl:widget" "$T" master "$T/demo.sh" "$T/wlog" "* * * * * $T/demo.sh # csi-spl:widget" "widget" "runs every 1m" ": no widget" ""
+  echo "rc1=$?"
+  _spl_simple_cron_apply install "csi-spl:widget" "$T" master "$T/demo.sh" "$T/wlog" "* * * * * $T/demo.sh # csi-spl:widget" "widget" "runs every 1m" ": no widget" ""
+  echo "rc2=$?"
+  _spl_simple_cron_apply check "csi-spl:widget" "$T" master "$T/demo.sh" "$T/wlog" "* * * * * $T/demo.sh # csi-spl:widget" "widget" "runs every 1m" ": no widget" ""
+  echo "rc3=$?"
+  _spl_simple_cron_apply remove "csi-spl:widget" "$T" master "$T/demo.sh" "$T/wlog" "* * * * * $T/demo.sh # csi-spl:widget" "widget" "runs every 1m" ": no widget" ""
+  echo "rc4=$?"' 2>&1)"
+[[ "$out" == *"FAIL the widget is NOT installed (no line tagged csi-spl:widget): no widget"* && "$out" == *"rc1=1"* \
+  && "$out" == *"OK the widget runs every 1m:"* && "$out" == *"rc2=0"* \
+  && "$out" == *"OK the widget is installed and its script is executable"* && "$out" == *"rc3=0"* \
+  && "$out" == *"OK the widget is out of the crontab"* && "$out" == *"rc4=0"* \
+  && "$out" != *"widget cron"* ]] &&
+  cmp -s "$T/crontab" "$T/crontab.orig" &&
+  pass "5. _spl_simple_cron_apply empty noun omits ' cron' across check, install and remove" || fail "5. empty noun: $out"
+
+sr_f="$PROJ_ROOT/src/bash/run/spl-spawn-remote-install-cron.func.sh"
+us_f="$PROJ_ROOT/src/bash/run/spl-unanswered-sweep-install-cron.func.sh"
+dp_f="$PROJ_ROOT/src/bash/run/spl-workspace-delivery-probe-install-cron.func.sh"
+for sib in "$sr_f" "$us_f" "$dp_f"; do
+  own="$(grep -nE "the crontab does not read back what was written|is installed and its script is executable|OK DRY_RUN nothing was touched" "$sib" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_simple_cron_apply " "$sib" &&
+    pass "5. one copy: $(basename "$sib") delegates apply to _spl_simple_cron_apply" || fail "5. one copy $(basename "$sib"): own=[$own]"
+done
+
+mkdir -p "$SH/csi-spl-orc/src/bash/features/spawn-agents/scripts"
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh"
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh"
+printf '#!/bin/sh\n' >"$SH/csi-spl-orc/src/bash/scripts/workspace-delivery-probe-cron.sh"
+chmod +x "$SH/csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh" \
+  "$SH/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh" \
+  "$SH/csi-spl-orc/src/bash/scripts/workspace-delivery-probe-cron.sh"
+printf '%s\n' '# keep me' >"$T/crontab.s5"
+
+out="$(env -u CRON_REMOVE -u SPAWN_REMOTE_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" SPAWN_REMOTE_CRON_LOG_DIR="$T/log-sr" SPAWN_REMOTE_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-spawn-remote-install-cron.func.sh"
+  do_spl_spawn_remote_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the spawn receiver is NOT installed (no line tagged csi-spl:spawn-remote): spawn requests to this box wait for ever"* && "$out" != *"command not found"* ]] &&
+  pass "5. lazy load: spl-spawn-remote-install-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "5. lazy sr (rc=$rc): $out"
+
+out="$(env -u CRON_REMOVE -u SPAWN_REMOTE_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" SPAWN_REMOTE_CRON_LOG_DIR="$T/log-sr" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-spawn-remote-install-cron.func.sh"
+  do_spl_spawn_remote_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the spawn receiver runs every minute as the box user:"* ]] &&
+  pass "5. spawn receiver install keeps exact ok_msg" || fail "5. sr ok (rc=$rc): $out"
+
+out="$(env -u ENV -u SWEEP_CRON_ACTION -u SWEEP_CRON_EVERY -u SWEEP_CRON_OFFSET -u SWEEP_CRON_MIN_AGE -u SWEEP_CRON_ESCALATE_AGE PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" SWEEP_CRON_LOG_DIR="$T/log-us" SWEEP_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep-install-cron.func.sh"
+  do_spl_unanswered_sweep_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the unanswered sweep is NOT installed (no line tagged csi-spl:unanswered-sweep): a missed human post is never looked at again"* && "$out" != *"command not found"* ]] &&
+  pass "5. lazy load: spl-unanswered-sweep-install-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "5. lazy us (rc=$rc): $out"
+
+out="$(env -u ENV -u SWEEP_CRON_ACTION -u SWEEP_CRON_EVERY -u SWEEP_CRON_OFFSET -u SWEEP_CRON_MIN_AGE -u SWEEP_CRON_ESCALATE_AGE PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" SWEEP_CRON_LOG_DIR="$T/log-us" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep-install-cron.func.sh"
+  do_spl_unanswered_sweep_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the unanswered sweep runs every 1m as the box user:"* ]] &&
+  pass "5. unanswered sweep install keeps exact ok_msg" || fail "5. us ok (rc=$rc): $out"
+
+out="$(env -u ENV -u PROBE_CRON_ACTION -u PROBE_CRON_EVERY -u PROBE_CRON_OFFSET -u PROBE_PRD_GO PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" PROBE_CRON_LOG_DIR="$T/log-dp" PROBE_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-workspace-delivery-probe-install-cron.func.sh"
+  do_spl_workspace_delivery_probe_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the delivery probe is NOT installed (no line tagged csi-spl:delivery-probe-dev)"* && "$out" != *"command not found"* ]] &&
+  pass "5. lazy load: spl-workspace-delivery-probe-install-cron.func.sh loads _spl_simple_cron_apply standalone" || fail "5. lazy dp (rc=$rc): $out"
+
+out="$(env -u ENV -u PROBE_CRON_ACTION -u PROBE_CRON_EVERY -u PROBE_CRON_OFFSET -u PROBE_PRD_GO PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s5" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SH" PROBE_CRON_LOG_DIR="$T/log-dp" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-workspace-delivery-probe-install-cron.func.sh"
+  do_spl_workspace_delivery_probe_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the delivery probe runs every 10m as the box user:"* ]] &&
+  pass "5. delivery probe install keeps exact ok_msg" || fail "5. dp ok (rc=$rc): $out"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "box-stats-cron: all passed"; exit 0; fi
 echo "box-stats-cron: $fails FAILED"; exit 1

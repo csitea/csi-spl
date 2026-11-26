@@ -500,10 +500,18 @@ func loopDueClaimed(l store.TopicLoop, now time.Time) time.Time {
 }
 
 // loopMessage is the fired prompt (4.3 step 2): kind task from the author
-// to the target, its id derived from (loop, cause) (4.3 step 3).
+// to the target, its id derived from (loop, cause) (4.3 step 3). v0.11
+// (SPL-6581, HUM-10 t1 6e8c1cdb msgs 7f3ebb17, 9e3161d9): the first line
+// names the loop's title after the mark ("...msg:<id>): Before each agent
+// reply"), the prompt stays below it; the mark itself is unchanged, as the
+// box notify (spool-notify.inc.sh) and the time quote match on it.
 func (s *Server) loopMessage(l store.TopicLoop, c loopFireCause, agent string, now time.Time) *msg.Message {
 	from := s.loopFrom(l)
-	body := topicLoopPromptMark + "set by @" + from + ", " + c.head + ")\n\n" + l.Prompt + "\n\n" + quoteBlock(c.quote)
+	head := topicLoopPromptMark + "set by @" + from + ", " + c.head + ")"
+	if title := loopTitle(l); title != "" {
+		head += ": " + title
+	}
+	body := head + "\n\n" + l.Prompt + "\n\n" + quoteBlock(c.quote)
 	return &msg.Message{V: s.writeVersion(), MsgID: loopPromptID(l, c), TaskID: l.TaskID,
 		TS: now.Format(time.RFC3339), From: from, To: agent, Kind: "task", Body: body, Files: []msg.Attachment{}}
 }

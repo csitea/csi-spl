@@ -566,7 +566,9 @@ func TestTopicLoopAfterHumanReplyFires(t *testing.T) {
 		p.Kind != "task" || p.TaskID != r.task || p.MsgID != uid.FromSeed("topic-loop:"+loop+":"+post) {
 		t.Fatalf("prompt row %+v", p)
 	}
-	for _, want := range []string{"Loop prompt (background; set by @HUM-1, fired by msg:" + post + ")", "export this topic as a PDF", "> is the hub back on prd?"} {
+	/* v0.11: the first line names the loop's title, the prompt stays below it (SPL-6581) */
+	head := "Loop prompt (background; set by @HUM-1, fired by msg:" + post + "): After each human reply\n\nexport this topic as a PDF"
+	for _, want := range []string{head, "> is the hub back on prd?"} {
 		if !strings.Contains(p.Body, want) {
 			t.Fatalf("prompt body lacks %q:\n%s", want, p.Body)
 		}

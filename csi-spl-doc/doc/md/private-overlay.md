@@ -131,7 +131,7 @@ the hub's migrate).
 - It cannot prove absence (a deny list only finds what it names): a slug that
   is not in the overlay is not swept.
 - The 40 reconcile workflow is enabled and runs on its schedule (state
-  `active`, a run every 15 min). Its job logs on a public repo are public, so
+  `active`, a run every hour, SPL-6385). Its job logs on a public repo are public, so
   in Actions `spl_th_ci_mask` registers every hidden slug as a runner mask
   (`::add-mask::`) before any line can name it: each slug of the overlay, and
   each open `tenant_hosts` row that would be a new hidden workspace. The log

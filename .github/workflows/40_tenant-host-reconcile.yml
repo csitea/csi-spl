@@ -3,7 +3,7 @@
 # REVIVED - owner option A, 2026-09-30 (topic bea3a4e6, 047 B5, SPL-1161): a
 # paid tenant gets its host <tenant>.<fqdn> automatically (SPL-959 made every
 # tenant its host; paused 2026-09-19 for "tenant from identity", which SPL-959
-# reversed). Every 15 min: nothing open = the job ends after one read; an open
+# reversed). Every hour: nothing open = the job ends after one read; an open
 # row = one 019 + 025 apply (Firebase custom domain + A/TXT) through the make
 # path, then the cert wait, the probe and tenant_hosts -> ready. The WUI says
 # "your address is being prepared" meanwhile (utils/tenant-host-boot.mjs).
@@ -47,8 +47,13 @@
 name: "40 cd: tenant host reconcile"
 
 on:
+  # Hourly, not every 15 min (SPL-6385, CI volume A8): the Reconcile step
+  # ran in 0 of 40 sampled runs (no open host; specs/016 ci-volume-2026-11-24
+  # section 1.6). A new hidden workspace is still dispatched by
+  # do_spl_tenant_host_reserve past its hold; any other open row waits for
+  # the schedule, now at most 1 h instead of 15 min.
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
     inputs:
       environment:

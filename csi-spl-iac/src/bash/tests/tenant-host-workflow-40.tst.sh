@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: specs/024 -- the tenant host reconcile (40) stays inside the
-#          owner's rules: REVIVED (owner option A 2026-09-30, 047 B5), so a
-#          schedule every 15 min plus dispatch; one run per env
+#          owner's rules: REVIVED (owner option A 2026-09-30, 047 B5), so an
+#          hourly schedule (SPL-6385, was every 15 min) plus dispatch; one run per env
 #          (concurrency group per env, never cancelled mid-apply); dev before
 #          prd (max-parallel 1, matrix order); only the existing per-env key
 #          secrets GCP_KEY_CSI_SPL_<ENV> (+ the private overlay, SPL-1874) are read; terraform only through the
@@ -40,7 +40,7 @@ w = yaml.safe_load(raw)
 on = w.get(True) or w.get("on")
 bad = []
 sched = [str(x.get("cron", "")) for x in (on.get("schedule") or [])]
-if sched != ["7,22,37,52 * * * *"] or "workflow_dispatch" not in on: bad.append("revived: must run every 15 min (7,22,37,52) plus dispatch, no schedule found")
+if sched != ["7 * * * *"] or "workflow_dispatch" not in on: bad.append("revived: must run hourly (7 * * * *) plus dispatch, no schedule found")
 j = w["jobs"]["reconcile"]
 c = j.get("concurrency") or {}
 if "matrix.environment" not in str(c.get("group", "")) or c.get("cancel-in-progress") is not False:
@@ -64,7 +64,7 @@ PY
 }
 
 out=$(check "$WF")
-[[ -z "$out" ]] && pass "40 keeps the rules (revived: every 15 min + dispatch, per-env concurrency, dev->prd, key secrets only, make path only, gated named action)" ||
+[[ -z "$out" ]] && pass "40 keeps the rules (revived: hourly + dispatch, per-env concurrency, dev->prd, key secrets only, make path only, gated named action)" ||
   fail "40: $out"
 grep -q '^do_spl_tenant_host_reconcile()' "$APP_ROOT/csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh" &&
   pass "the named action exists in csi-spl-orc" || fail "do_spl_tenant_host_reconcile is missing"
@@ -73,7 +73,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 python3 - "$WF" "$T/bad.yml" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
-s = s.replace("  schedule:\n    - cron: \"7,22,37,52 * * * *\"\n", "", 1)
+s = s.replace("  schedule:\n    - cron: \"7 * * * *\"\n", "", 1)
 s = s.replace("if: steps.open.outputs.apply != '' && steps.open.outputs.apply != '0'", "if: steps.open.outputs.open != ''")
 s = s.replace("      - name: Drop the keys", "      - name: planted\n        env:\n          X: ${{ secrets.OTHER_TOKEN }}\n        run: terraform apply -auto-approve\n\n      - name: Drop the keys", 1)
 open(sys.argv[2], "w").write(s)

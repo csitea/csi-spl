@@ -157,5 +157,45 @@ out="$(ocron DRY_RUN=0 COST_LABELS_TRANSLATE_CRON_ACTION=remove)"; rc=$?
 [ "$rc" -eq 0 ] && [ "$(ctag "$CT2")" = 0 ] && grep -q '^@reboot /usr/bin/true$' "$CT2" \
   && pass "8. remove takes the line out of the agent user's crontab" || fail "8. remove ($rc: $(cat "$CT2"))"
 
+# 9. cron_refuse_linked_worktree wave-3 delegation (r07-02 one copy)
+for sib in \
+  "$PROJ_ROOT/src/bash/run/spl-od-pool-supervise-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/spl-shadow-feed-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/spl-cost-labels-translate-install-cron.func.sh"; do
+  own="$(grep -nE 'is a linked worktree: install from the main checkout|--git-common-dir' "$sib" || true)"
+  [ -z "$own" ] && grep -q 'cron_refuse_linked_worktree ' "$sib" \
+    && pass "9. one copy: $(basename "$sib") delegates worktree check to cron_refuse_linked_worktree" \
+    || fail "9. one copy $(basename "$sib"): own=[$own]"
+done
+
+git init -q -b master "$T/wt-main" && git -C "$T/wt-main" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+git -C "$T/wt-main" worktree add -q --detach "$T/wt-linked"
+mkdir -p "$T/wt-linked/csi-spl-orc" "$T/wt-spool"
+out="$(env -u OD_CRON_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-spool" OD_CRONTAB="$T/fake-crontab" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_spl_od_pool_supervise_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-od-pool-supervise-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "9. spl-od-pool-supervise refuses a linked worktree when DRY_RUN=0" || fail "9. od-pool dry=0 ($rc: $out)"
+out="$(env -u OD_CRON_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-spool" OD_CRONTAB="$T/fake-crontab" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_spl_od_pool_supervise_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-od-pool-supervise-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the path below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. spl-od-pool-supervise warns on a linked worktree when DRY_RUN=1" || fail "9. od-pool dry=1 ($rc: $out)"
+out="$(env -u SHADOW_FEED_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SHADOW_FEED_CRONTAB="$T/fake-crontab" SHADOW_FEED_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_spl_shadow_feed_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-shadow-feed-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "9. spl-shadow-feed refuses a linked worktree when DRY_RUN=0" || fail "9. shadow-feed dry=0 ($rc: $out)"
+out="$(env -u COST_LABELS_TRANSLATE_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" ENV=dev SPOOL_AGENT_USER="$(id -un)" COST_LABELS_TRANSLATE_SUDO=false COST_LABELS_TRANSLATE_CRON_SCHEDULE="0 3 * * *" COST_LABELS_TRANSLATE_CRONTAB="$T/fake-crontab" COST_LABELS_TRANSLATE_CRON_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; source "$3"; do_spl_cost_labels_translate_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/spl-cloud-cnf.func.sh" "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-cost-labels-translate-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "9. spl-cost-labels-translate refuses a linked worktree when DRY_RUN=0" || fail "9. cost-labels dry=0 ($rc: $out)"
+out="$(env -u COST_LABELS_TRANSLATE_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" ENV=dev SPOOL_AGENT_USER="$(id -un)" COST_LABELS_TRANSLATE_SUDO=false COST_LABELS_TRANSLATE_CRON_SCHEDULE="0 3 * * *" COST_LABELS_TRANSLATE_CRONTAB="$T/fake-crontab" COST_LABELS_TRANSLATE_CRON_LOG_DIR="$T/log" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; source "$3"; do_spl_cost_labels_translate_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/spl-cloud-cnf.func.sh" "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-cost-labels-translate-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the path below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "9. spl-cost-labels-translate warns on a linked worktree when DRY_RUN=1" || fail "9. cost-labels dry=1 ($rc: $out)"
+
 echo "spl-cost-labels-translate-install-cron: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -39,7 +39,7 @@
 #------------------------------------------------------------------------------
 do_spl_cost_labels_translate_install_cron() {
   local dry="${DRY_RUN:-1}" act="${COST_LABELS_TRANSLATE_CRON_ACTION:-install}" ct="${COST_LABELS_TRANSLATE_CRONTAB:-crontab}"
-  local sched="${COST_LABELS_TRANSLATE_CRON_SCHEDULE:-}" org_app tag logdir want gd cd agent act_ct ahome rc
+  local sched="${COST_LABELS_TRANSLATE_CRON_SCHEDULE:-}" org_app tag logdir want agent act_ct ahome rc
   local sudo_="${COST_LABELS_TRANSLATE_SUDO:-sudo -n}" box_env="${SPOOL_BOX_ENV-${SPOOL_ROOT:-/var/spool-hub}/box.env}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove|check) ;; *) do_log "FATAL COST_LABELS_TRANSLATE_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
@@ -73,12 +73,7 @@ do_spl_cost_labels_translate_install_cron() {
     do_log "OK the cost labels translate cron is installed, schedule '${want%% cd *}' box local (the cnf time is '$sched')"; return 0
   fi
   if [[ "$act" == install ]]; then
-    gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-    cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-    if [[ -n "$gd" && "$gd" != "$cd" && "${COST_LABELS_TRANSLATE_ALLOW_WORKTREE:-0}" != 1 ]]; then
-      [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-      echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-    fi
+    cron_refuse_linked_worktree "$dry" "${COST_LABELS_TRANSLATE_ALLOW_WORKTREE:-0}" || return 1
     [[ -n "$sched" ]] || sched="$(spl_cost_labels_translate_cron_schedule)" || { printf '%s\n' "$sched"; return 1; }
     [[ "$sched" =~ ^[0-9*,/-]+( [0-9*,/-]+){4}$ ]] || { do_log "FATAL COST_LABELS_TRANSLATE_CRON_SCHEDULE must be five cron fields, got: '$sched'"; return 1; }
   fi

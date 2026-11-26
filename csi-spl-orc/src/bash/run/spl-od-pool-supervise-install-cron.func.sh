@@ -26,16 +26,11 @@
 do_spl_od_pool_supervise_install_cron() {
   local dry="${DRY_RUN:-1}" act="${OD_CRON_ACTION:-install}" on="${OD_CRON_SUPERVISE:-0}"
   local root="${SPOOL_ROOT:-/var/spool-hub}" ct="${OD_CRONTAB:-crontab}" tag="csi-spl:od-pool-supervise"
-  local cmd gd cd want="" want30="" rc=0
+  local cmd want="" want30="" rc=0
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$on" == 0 || "$on" == 1 ]] || { do_log "FATAL OD_CRON_SUPERVISE must be 0 or 1, got: '$on'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL OD_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${OD_CRON_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-  fi
+  [[ "$act" == install ]] && { cron_refuse_linked_worktree "$dry" "${OD_CRON_ALLOW_WORKTREE:-0}" || return 1; }
   cmd="cd $PROJ_PATH && OD_POOL_SUPERVISE=$on SPOOL_ROOT=$root ./run -a do_spl_od_pool_supervise >> $root/od/supervise.log 2>&1"
   if [[ "$act" == install ]]; then
     want="* * * * * $cmd # $tag"

@@ -21,7 +21,7 @@
 do_spl_shadow_feed_install_cron() {
   local dry="${DRY_RUN:-1}" act="${SHADOW_FEED_CRON_ACTION:-install}" every="${SHADOW_FEED_EVERY:-5}"
   local ct="${SHADOW_FEED_CRONTAB:-crontab}" logdir="${SHADOW_FEED_LOG_DIR:-$HOME/.cache/csi-spl}"
-  local tag="csi-spl:shadow-feed" want gd cd envs="" v
+  local tag="csi-spl:shadow-feed" want envs="" v
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL SHADOW_FEED_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   [[ "$every" =~ ^[0-9]+$ ]] && (( every >= 1 && every <= 59 )) || { do_log "FATAL SHADOW_FEED_EVERY must be 1..59 minutes, got: '$every'"; return 1; }
@@ -30,12 +30,7 @@ do_spl_shadow_feed_install_cron() {
     [[ "${!v}" =~ ^[A-Za-z0-9_./:=@\ -]+$ ]] || { do_log "FATAL $v carries a character a cron line cannot hold: '${!v}'"; return 1; }
     envs+=" $v='${!v}'"
   done
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${SHADOW_FEED_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-  fi
+  [[ "$act" == install ]] && { cron_refuse_linked_worktree "$dry" "${SHADOW_FEED_ALLOW_WORKTREE:-0}" || return 1; }
   want="*/$every * * * * cd $PROJ_PATH && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/.local/bin flock -n $logdir/shadow-feed.lock env$envs ./run -a do_spl_shadow_feed >> $logdir/shadow-feed.log 2>&1 # $tag"
   [[ "$act" == install ]] || want=""
   cron_drop_tagged_line "$ct" "$tag" "$dry" "$logdir" "$want" || return $(( $? == 2 ? 0 : 1 ))

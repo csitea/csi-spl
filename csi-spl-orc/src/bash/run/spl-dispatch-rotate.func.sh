@@ -594,24 +594,81 @@ spl_disp_lease_to() {
 # writes the lease (no loop tells anyone then, so F and M are told here);
 # fleet mode waits for the fleet loop's CAS, which tells them.
 spl_disp_hold() {
-  local m="$LEASE_MASTER" f="$LEASE_FAILOVER"
+  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" at
+  at="$(date +%s)"
   # the 4th field is this rotation's pid: spl_lease_held drops the hold once it is gone
-  printf '%s %s %s %s\n' "$m" "$(date +%s)" "$ROTATE_RID" "$$" > "$LEASE_DIR/rotate.hold.tmp.$$" &&
+  printf '%s %s %s %s\n' "$m" "$at" "$ROTATE_RID" "$$" > "$LEASE_DIR/rotate.hold.tmp.$$" &&
     mv -f "$LEASE_DIR/rotate.hold.tmp.$$" "$LEASE_DIR/rotate.hold"
   spl_lease_log "ROTATE $ROTATE_RID: hold $m"
+  ROTATE_HOLD_WAITED="$ROTATE_PROMOTE_WAIT"
   if [[ -z "${LEASE_FLEET:-}" ]]; then
     spl_lease_locked spl_disp_lease_to "$f"
     spl_rotate_note "$f" dispatch-lease "DISPATCH LEASE: you are now ACTIVE (hourly rotation $ROTATE_RID: $m gets a fresh session). Dispatch, including $m's unread inbox (spool recv --as $m), until told STANDBY."
     spl_rotate_note "$m" dispatch-lease "DISPATCH LEASE: STANDBY - hourly rotation $ROTATE_RID, $f acts while a fresh $m session starts. Route, spawn and post nothing more."
-  fi
-  if ! spl_disp_wait_holder "$f"; then
-    rm -f "$LEASE_DIR/rotate.hold"
-    spl_disp_hold_standby && return 3
-    spl_disp_step FAIL FAIL "HOLD: the lease did not move to $f in ${ROTATE_PROMOTE_WAIT}s (it is $LH); $m keeps acting"
-    spl_rotate_alert master "$ROTATE_RID" PROMOTE "the lease did not move to $f in ${ROTATE_PROMOTE_WAIT}s"
-    return 1
+    spl_disp_wait_holder "$f" || { spl_disp_hold_fail; return; }
+  else
+    spl_disp_wait_fleet_hold "$f" "$at" || { spl_disp_hold_fail; return; }
   fi
   spl_disp_step HOLD OK "rotate.hold = $m; the lease is $LH"
+}
+
+# HOLD's wait ran out: the hold goes, then the lease is read again. It may
+# name F by now (a pass in flight landed its CAS: SPL-6616, 11 s after the
+# FAIL), and then M does NOT keep acting: no such line, no such alert.
+spl_disp_hold_fail() {
+  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" n="$ROTATE_HOLD_WAITED"
+  rm -f "$LEASE_DIR/rotate.hold"
+  spl_lease_read
+  spl_disp_hold_standby && return 3
+  if [[ "$LH" == "$f" || "$LH" == "$f@$ROTATE_BOX" ]]; then
+    spl_disp_step FAIL FAIL "HOLD: the lease reached $f only after the ${n}s wait (it is $LH now, the hold is gone); the fleet loop hands it back to $m"
+    spl_rotate_alert master "$ROTATE_RID" PROMOTE "the lease reached $f only after the ${n}s wait, the hold was already gone"
+    return 1
+  fi
+  spl_disp_step FAIL FAIL "HOLD: the lease did not move to $f in ${n}s (it is $LH); $m keeps acting"
+  spl_rotate_alert master "$ROTATE_RID" PROMOTE "the lease did not move to $f in ${n}s"
+  return 1
+}
+
+# spl_disp_fleet_pass: the start epoch of the dispatch fleet loop's newest
+# pass that reached the hub: the 3rd field of fleet.dispatch.age, which
+# spl_fleet_age_write stamps each pass before its CAS (empty when none).
+spl_disp_fleet_pass() {
+  local s=""
+  read -r _ _ s 2>/dev/null < "$LEASE_DIR/fleet.dispatch.age" || true
+  [[ "$s" =~ ^[0-9]+$ ]] && echo "$s"
+  return 0
+}
+
+# spl_disp_wait_fleet_hold F AT: the fleet-mode HOLD wait, 0 once the lease
+# names F (bare or F@this box). It waits for the fleet loop's progress, not
+# only a clock (SPL-6616; row 2c of rotation-failures-2026-10-22.md). Past
+# ROTATE_PROMOTE_WAIT it FAILs only once a full pass that STARTED after the
+# hold (a pass stamp newer than AT, then a newer one: that pass and its
+# lease write are over) left the lease elsewhere, or at the hard cap of
+# 2 x ROTATE_PROMOTE_WAIT; while it extends it logs HOLD WAIT fleet pass
+# slow, once. The stamp is read before the lease, so the lease read after a
+# finished pass shows that pass's result. A lease on another box ends it
+# (spl_disp_hold_standby then).
+spl_disp_wait_fleet_hold() {
+  local f="$1" at="$2" t0=$SECONDS cap=$(( 2 * ROTATE_PROMOTE_WAIT )) s first="" done=0 said=0 el
+  while :; do
+    s="$(spl_disp_fleet_pass)"
+    if [[ -n "$s" ]] && (( s > at )); then
+      [[ -z "$first" ]] && first="$s"
+      (( s > first )) && done=1
+    fi
+    spl_lease_read
+    [[ "$LH" == "$f" || "$LH" == "$f@$ROTATE_BOX" ]] && return 0
+    spl_lease_remote && return 1
+    el=$(( SECONDS - t0 )); ROTATE_HOLD_WAITED="$el"
+    if (( el >= ROTATE_PROMOTE_WAIT )); then
+      (( done == 1 || el >= cap )) && return 1
+      (( said == 1 )) || spl_rotate_log "$ROTATE_RID" HOLD WAIT "fleet pass slow (${el}s): no full fleet pass since the hold yet; waiting up to ${cap}s"
+      said=1
+    fi
+    sleep "$ROTATE_POLL"
+  done
 }
 
 # spl_disp_hold_standby: 0 when HOLD's wait ended with the lease on ANOTHER

@@ -114,6 +114,11 @@
 #      able, or no better vendor = RELEASE FAIL + ask
 #  31. SPL-5684: a standby box with a fresh fleet.dispatch.hub-down = GATE SKIP
 #      hub-down, no STANDBY OK refresh. Control: a marker 600 s old refreshes
+#  32. SPL-6616: the fleet CAS lands after ROTATE_PROMOTE_WAIT, a pass newer
+#      than the hold still running = HOLD WAIT fleet pass slow, HOLD OK, no
+#      ask. Controls: that pass over, lease on M = FAIL + ask before the 2x
+#      cap; stamps older than the hold = FAIL at the cap. The lease on F once
+#      the hold is gone = FAIL without "M keeps acting"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -1383,6 +1388,77 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   pass "31. CONTROL: a hub-down marker 600s old: the standby seats are refreshed" || fail "31. control rc=$rc $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "31. no stray failing command under the ERR trap" || fail "31. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
+
+# --- 32. SPL-6616: HOLD waits for a fleet pass, not a fixed clock --------------------------------
+# rotation-failures-2026-10-22.md row 2c: sat 2026-11-26 08:45Z, load ~56 on
+# 16 CPUs: HOLD waited its fixed ROTATE_PROMOTE_WAIT (240 s), FAIL HOLD +
+# ask "c-002 keeps acting" at 08:49:34, and the fleet loop's CAS landed 11 s
+# later anyway (hold to CAS on sat since 11-19, n=376: p50 52 s, max 253 s).
+# Fixed: past ROTATE_PROMOTE_WAIT HOLD waits for a full fleet pass that
+# started after the hold (fleet.dispatch.age's 3rd field, the pass's start,
+# newer than the hold, then a newer one), capped at 2 x ROTATE_PROMOTE_WAIT.
+# hold_fleet_at <stamp poll> <cas poll|0> <2nd stamp poll|0> [<stamp offset>]:
+# a stub fleet loop on HOLD's 1 s polls (counted only while rotate.hold is
+# there): it stamps a pass that started <offset> (default 1) s after the
+# hold, lands the CAS (c-903@box-desk), stamps a later pass; once the hold is
+# gone after a CAS it hands the lease back to c-902 (RELEASE).
+hold_fleet_at() {
+  rm -f "$T/hold.n"
+  cat >"$T/at-sleep.1" <<HOOK
+d="\$T/spool/dispatch"
+if [[ ! -e "\$d/rotate.hold" ]]; then
+  if [[ -e "\$T/hold.n" && "$2" != 0 ]] && (( \$(cat "\$T/hold.n") >= $2 )); then echo "c-902@box-desk \$(date +%s)" >"\$d/lease"; fi
+  cp "\$T/at-sleep.ran" "\$T/at-sleep.1"; exit 0
+fi
+n=\$(( \$(cat "\$T/hold.n" 2>/dev/null || echo 0) + 1 )); echo "\$n" >"\$T/hold.n"
+at=\$(cut -d' ' -f2 "\$d/rotate.hold")
+if (( n == $1 )); then echo "c-902@box-desk 30 \$(( at + ${4:-1} ))" >"\$d/fleet.dispatch.age"; fi
+if (( n == $3 )); then echo "c-902@box-desk 30 \$(( at + ${4:-1} + 1 ))" >"\$d/fleet.dispatch.age"; fi
+if (( n == $2 )); then echo "c-903@box-desk \$(date +%s)" >"\$d/lease"; fi
+cp "\$T/at-sleep.ran" "\$T/at-sleep.1"
+HOOK
+}
+# the pass stamped at poll 2, the CAS on poll 6, past ROTATE_PROMOTE_WAIT=4
+# (origin/master before the fix: FAIL FAIL HOLD + a PROMOTE ask at poll 4)
+fleet_world; hold_fleet_at 2 6 0
+act DRY_RUN=0 ROTATE_PROMOTE_WAIT=4 ROTATE_RELEASE_WAIT=20 >"$T/o" 2>&1; rc=$?
+rm -f "$T/at-sleep.1"
+grep -q ' HOLD OK rotate.hold = c-902; the lease is c-903@box-desk' "$T/o" && ! grep -q 'FAIL FAIL HOLD' "$T/o" &&
+  grep -q ' HOLD WAIT fleet pass slow ([0-9]*s)' "$T/o" && ! grep -q 'PROMOTE' "$T/run.log" 2>/dev/null && [[ ! -e "$T/hook-fail.log" ]] &&
+  pass "32. the CAS after ROTATE_PROMOTE_WAIT, a pass newer than the hold still running: HOLD WAIT fleet pass slow, HOLD OK, no PROMOTE ask" ||
+  fail "32. slow pass rc=$rc polls=$(cat "$T/hold.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" "$T/hook-fail.log" 2>/dev/null)"
+# CONTROL: that pass ends (a newer stamp, poll 5) with the lease still on c-902
+# = FAIL HOLD + ask at once, before the 2 x 4 s cap
+fleet_world; hold_fleet_at 2 0 5
+act DRY_RUN=0 ROTATE_PROMOTE_WAIT=4 >"$T/o" 2>&1; rc=$?
+rm -f "$T/at-sleep.1"
+[[ $rc -ne 0 && "$(cat "$T/hold.n")" -lt 8 && ! -e "$D/rotate.hold" ]] && grep -q ' FAIL FAIL HOLD: the lease did not move to c-903 in [0-9]*s (it is c-902@box-desk); c-902 keeps acting' "$T/o" &&
+  grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master PROMOTE' "$T/run.log" &&
+  pass "32. CONTROL: a full pass after the hold leaves the lease on the master: FAIL HOLD + ask before the cap" ||
+  fail "32. control pass-over rc=$rc polls=$(cat "$T/hold.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+# CONTROL: passes stamped BEFORE the hold do not count: the wait runs to the
+# 2 x ROTATE_PROMOTE_WAIT cap, then FAIL HOLD + ask
+fleet_world; hold_fleet_at 1 0 3 -9
+act DRY_RUN=0 ROTATE_PROMOTE_WAIT=4 >"$T/o" 2>&1; rc=$?
+rm -f "$T/at-sleep.1"
+[[ $rc -ne 0 && "$(cat "$T/hold.n")" -ge 8 ]] && grep -q ' FAIL FAIL HOLD: the lease did not move to c-903 in [0-9]*s' "$T/o" &&
+  grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master PROMOTE' "$T/run.log" &&
+  pass "32. CONTROL: pass stamps older than the hold: the wait runs to the 2x cap, FAIL HOLD + ask" ||
+  fail "32. control stale stamps rc=$rc polls=$(cat "$T/hold.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+# item 2: the CAS lands the moment the hold is removed (a pass in flight, as
+# at 08:49:45): the lease is read again, the FAIL line and the alert do not
+# say "c-902 keeps acting". The fixture rm (BASH_ENV) moves the lease to F
+# when rotate.hold goes.
+fleet_world
+cat >"$T/rm-cas.sh" <<'EOF'
+rm() { local a rc=0; command rm "$@" || rc=$?; for a; do [[ "$a" == */dispatch/rotate.hold ]] && echo "c-903@box-desk $(date +%s)" >"${a%/rotate.hold}/lease"; done; return "$rc"; }
+EOF
+act DRY_RUN=0 BASH_ENV="$T/rm-cas.sh" >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q ' FAIL FAIL HOLD: the lease reached c-903 only after the [0-9]*s wait (it is c-903@box-desk now, the hold is gone)' "$T/o" &&
+  ! grep -q 'keeps acting' "$T/o" "$T/run.log" && grep -q '^do_spl_ask_put .*the lease reached c-903 only after' "$T/run.log" &&
+  pass "32. the lease names the failover once the hold is gone: no 'c-902 keeps acting' line or alert" ||
+  fail "32. late CAS rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+! grep -q ERRTRAP "$T/o" && pass "32. no stray failing command under the ERR trap" || fail "32. ERRTRAP: $(grep ERRTRAP "$T/o")"
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }
 echo "dispatch-rotate: $fails failure(s)"; exit 1

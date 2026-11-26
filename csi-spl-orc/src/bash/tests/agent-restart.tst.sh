@@ -41,6 +41,10 @@
 #      at once naming it, the new process signalled (nothing typed into the
 #      dialog), ALERT = ask + owner DM, the alert recorded for recovery.
 #      Control: case 1, the same rebirth on a plain screen, runs to DONE OK
+#  13c. SPL-6615: the new session on 'auth/login' in the shared-credential
+#      refresh gap (wiped, expiresAt 0): restored and probing ok -> dropped,
+#      ONE respawn, DONE OK, no ask; still wiped -> RS-SPAWN FAIL + ask, one
+#      spawn. Control: an hour-old live credential -> no gap, FAIL at once
 #  14. an id with an open FAIL alert restarted to DONE OK: its ask closed and
 #      ONE "recovered at <ts> by do_spl_agent_restart <rid> (<cause>), now pid
 #      <pid>" line to the owner on that ask's thread. Control: no open alert,
@@ -503,6 +507,62 @@ source "$PROJ_PATH/src/bash/features/spawn-agents/lib/start-check.inc.sh"
 [[ "$(printf '  Settings Warning\n  ❯ 1. Continue\n    3. Exit and fix manually\n' | spool_start_dialog)" == 'Settings Warning' &&
    "$(printf '  Applying the settings now\n────\n❯ \n────\n' | spool_start_dialog)" == '' ]] &&
   pass "13b. control: a Settings Warning stays a Settings Warning; a bare 'settings' is no dialog" || fail "13b. control: the matcher order or a bare-settings match"
+
+# --- 13c. auth/login in the shared-credential refresh gap (SPL-6615) --------------------------
+# As dispatch-rotate.tst.sh 14b: the credential stub's stat prints the first
+# line of cred.stat and drops it while more follow; a probe prints cred.probe
+# ("ok ok" when absent), logs the call, and an ok probe runs cred.onok once
+# (the healed login: the next session starts on a plain screen).
+cat > "$T/bin/cred" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  stat) head -1 "$T/cred.stat"; if [ "$(wc -l < "$T/cred.stat")" -gt 1 ]; then sed -i 1d "$T/cred.stat"; fi ;;
+  probe) echo probe >> "$T/cred.log"; v="$(cat "$T/cred.probe" 2>/dev/null || echo 'ok ok')"; echo "$v"
+    case "$v" in ok*) if [ -f "$T/cred.onok" ]; then mv "$T/cred.onok" "$T/cred.onok.ran"; bash "$T/cred.onok.ran"; fi ;; esac ;;
+esac
+EOF
+chmod +x "$T/bin/cred"
+login_gap() {  # login_gap <id> <stat line>...: a lane whose new session lands on 'auth/login'
+  local id="$1" n="${1##*-}"; shift
+  world; rm -f "$T/cred."*; lane "$id" "%$n" -; reborn "$id"; printf '%s\n' "$@" > "$T/cred.stat"
+  printf '  Not logged in · Please run /login\n' > "$T/tmux/screen.%3$n"
+  printf 'rm -f "$T/tmux/screen.%%3%s"\n' "$n" > "$T/cred.onok"
+}
+now=$(date +%s)
+# (a) wiped, then restored by the login check: one respawn, DONE OK
+login_gap c-951 "aaaaaaaaaaaa 0 $now" "bbbbbbbbbbbb 1790000000000 $now"
+rc="$(go ID=c-951 CAUSE=rebirth DRY_RUN=0 ROTATE_LOGIN_CRED_CMD="$T/bin/cred")"
+[[ "$rc" == 0 && "$(grep -c '^spawn claude c-951 ' "$T/spawn.log")" == 2 && "$(nproc c-951)" == 1 && "$(grep -c . "$T/cred.log" 2>/dev/null)" == 1 ]] &&
+  grep -q "RS-SPAWN WAIT %3951: a 'auth/login' dialog; screen: Not logged in" "$D/rotate.log" &&
+  grep -q "RS-SPAWN WAIT %3951: auth/login in the login gap (credential aaaaaaaaaaaa expiresAt 0, written [0-9]*s ago)" "$D/rotate.log" &&
+  grep -q "RS-SPAWN WAIT credential bbbbbbbbbbbb probes ok after [0-9]*s" "$D/rotate.log" &&
+  grep -q "RS-SPAWN WAIT %3951 (pid 3951) dropped: the login healed, one respawn" "$D/rotate.log" &&
+  grep -q 'RS-SPAWN OK new pid 3951 in %3951' "$D/rotate.log" && ! grep -q 'RS-SPAWN FAIL' "$D/rotate.log" &&
+  [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE OK" ]] &&
+  pass "13c. auth/login in the login gap, the credential restored: dropped, ONE respawn, DONE OK" ||
+  fail "13c. gap healed rc=$rc spawns=$(grep -c '^spawn claude c-951 ' "$T/spawn.log") $(grep -a c-951 "$D/rotate.log" | tail -8)"
+grep -q '^kill -TERM 3951$' "$T/kill.log" && grep -q '^kill %3951$' "$T/tmux/log" && ! grep -q '^keys %3951 ' "$T/tmux/log" &&
+  ! grep -q '^do_spl_ask_put ' "$T/run.log" 2>/dev/null &&
+  pass "13c. ... the parked session signalled, its window closed, nothing typed, no ask" || fail "13c. drop: $(cat "$T/kill.log" "$T/tmux/log" "$T/run.log" 2>&1)"
+! grep -q ERRTRAP "$T/o" && pass "13c. no stray failing command under the ERR trap" || fail "13c. ERRTRAP: $(grep ERRTRAP "$T/o")"
+# (b) wiped, and it stays wiped: RS-SPAWN FAIL and its ask, as before; a wiped one is never probed
+login_gap c-952 "aaaaaaaaaaaa 0 $now"
+rc="$(go ID=c-952 CAUSE=rebirth DRY_RUN=0 ROTATE_LOGIN_CRED_CMD="$T/bin/cred" ROTATE_LOGIN_RACE_WAIT=2)"
+[[ "$rc" == 1 && "$(grep -c '^spawn claude c-952 ' "$T/spawn.log")" == 1 && "$(nproc c-952)" == 0 && ! -e "$T/cred.log" ]] &&
+  grep -q "RS-SPAWN WAIT %3952: no credential probed ok within 2s (now aaaaaaaaaaaa expiresAt 0): the start fails" "$D/rotate.log" &&
+  grep -q "RS-SPAWN FAIL the new session in %3952 is stopped on a 'auth/login' dialog" "$D/rotate.log" &&
+  grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" &&
+  pass "13c. auth/login, the credential stays wiped: RS-SPAWN FAIL + ask, one spawn" ||
+  fail "13c. stays wiped rc=$rc $(grep -a c-952 "$D/rotate.log" | tail -6) $(cat "$T/run.log" 2>&1)"
+# control: auth/login on an hour-old live credential is no gap: FAIL at once, no probe
+login_gap c-953 "cccccccccccc 1790000000000 $(( now - 3600 ))"
+rc="$(go ID=c-953 CAUSE=rebirth DRY_RUN=0 ROTATE_LOGIN_CRED_CMD="$T/bin/cred")"
+[[ "$rc" == 1 && "$(grep -c '^spawn claude c-953 ' "$T/spawn.log")" == 1 && ! -e "$T/cred.log" ]] &&
+  grep -q "RS-SPAWN WAIT %3953: auth/login, credential cccccccccccc expiresAt 1790000000000 written 36[0-9][0-9]s ago: not the login gap" "$D/rotate.log" &&
+  grep -q "RS-SPAWN FAIL the new session in %3953 is stopped on a 'auth/login' dialog" "$D/rotate.log" &&
+  pass "13c. control: auth/login on an hour-old live credential: no wait, no respawn, RS-SPAWN FAIL" || fail "13c. control rc=$rc $(grep -a c-953 "$D/rotate.log" | tail -5)"
+! grep -q ERRTRAP "$T/o" && pass "13c. control: no stray failing command under the ERR trap" || fail "13c. ERRTRAP: $(grep ERRTRAP "$T/o")"
+rm -f "$T/cred."*
 
 # --- 14. recovered ------------------------------------------------------------------------------
 world; lane c-944 %44 -; reborn c-944

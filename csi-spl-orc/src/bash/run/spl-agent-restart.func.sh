@@ -606,7 +606,21 @@ spl_ars_seat() {
 # restore then signals the session and types nothing into the dialog); no
 # input box and no known dialog = one WAIT line, the start stands.
 # spawn-window's own check is off (SPAWN_START_CHECK=0): it runs here.
+# An 'auth/login' dialog met in the shared-credential refresh gap
+# (spl_rotate_login_race, SPL-6615): the new session is dropped (TERM, KILL,
+# its window closed) and started ONCE more.
 spl_ars_spawn() {
+  spl_ars_spawn_try "$@" && return 0
+  [[ "$ROTATE_NEW_DIALOG" == auth/login ]] || return 1
+  spl_peer_with_lib spl_rotate_login_race "$ROTATE_NEW_PANE" RS-SPAWN || return 1
+  spl_peer_rlog "$ROTATE_RID" RS-SPAWN WAIT "$ROTATE_NEW_PANE (pid ${ROTATE_NEW_PID:-none}) dropped: the login healed, one respawn"
+  if [[ -n "$ROTATE_NEW_PID" ]] && spl_peer_alive "$ROTATE_NEW_PID"; then spl_wdt_kill "$ROTATE_NEW_PID" || true; fi
+  spl_rotate_tmux kill-window -t "$ROTATE_NEW_PANE" 2>/dev/null || true
+  spl_ars_spawn_try "$@"
+}
+
+# spl_ars_spawn_try lane|seat ID SEED: one start, as spl_ars_spawn describes.
+spl_ars_spawn_try() {
   local how="$1" out rc=0
   local -x SPAWN_START_CHECK=0
   shift
@@ -619,6 +633,7 @@ spl_ars_spawn() {
     0) return 0 ;;
     3) ROTATE_NEW_DIALOG="$out"
        ROTATE_ERR="the new session in $ROTATE_NEW_PANE is stopped on a '$out' dialog (not answered: fix its cause$(spool_start_hint "$out"))"
+       spl_peer_rlog "$ROTATE_RID" RS-SPAWN WAIT "$ROTATE_NEW_PANE: a '$out' dialog; screen: $(spl_rotate_screen_tail "$ROTATE_NEW_PANE")"
        return 1 ;;
   esac
   spl_peer_rlog "$ROTATE_RID" RS-SPAWN WAIT "$ROTATE_NEW_PANE: $out and no known dialog"

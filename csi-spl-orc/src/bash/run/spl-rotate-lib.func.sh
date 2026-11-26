@@ -28,6 +28,7 @@
 #   spl_rotate_reping ID                    the inbox messages that came in after the handoff, rung again on the new pane
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
 #   spl_rotate_start_check PANE             a known dialog on the new pane fails the start at once (ROTATE_ERR names it)
+#   spl_rotate_login_race PANE              its 'auth/login' met the shared-credential refresh gap and healed: one respawn (SPL-6615)
 #   spl_rotate_restore ID OLD_PANE NEW_PANE the failure path: new closed, old name and map entry back (FR-013, FR-014, FR-027)
 #   spl_rotate_retire PANE PID              /exit-clean, /exit once its turn ends, wait, TERM, wait, KILL (FR-015)
 #   spl_rotate_ack_wait ID RID TIMEOUT      the new session's result on task <role>-rotate-<rid> in <ID>/outbox (FR-041)
@@ -1471,8 +1472,20 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 # (spl_rotate_start_check), adopt it in the identity map, and check
 # ai_pane_of <ID> is the new pane. Sets ROTATE_NEW_PANE / ROTATE_NEW_PID.
 # Non-zero = failed, the reason in ROTATE_ERR; the caller runs spl_rotate_restore.
-# shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
+# A start stopped on the 'auth/login' dialog inside the shared-credential
+# refresh gap (spl_rotate_login_race, SPL-6615) is dropped and spawned ONCE more.
 spl_rotate_spawn() {
+  spl_rotate_spawn_try "$@" && return 0
+  [[ "${ROTATE_NEW_DIALOG:-}" == auth/login ]] || return 1
+  spl_rotate_login_race "$ROTATE_NEW_PANE" || return 1
+  spl_rotate_log "${ROTATE_RID:--}" SPAWN WAIT "$ROTATE_NEW_PANE (pid ${ROTATE_NEW_PID:-none}) dropped: the login healed, one respawn"
+  spl_rotate_drop_new
+  spl_rotate_spawn_try "$@"
+}
+
+# spl_rotate_spawn_try ID SEED: one start, as spl_rotate_spawn describes.
+# shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
+spl_rotate_spawn_try() {
   local id="$1" seed="$2" sess out pid user t0 got tag bin wd
   ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG="" ROTATE_OLD_GONE=""
   # no old window (a seat whose process is gone, do_spl_role_failover): no
@@ -1603,10 +1616,76 @@ spl_rotate_start_check() {
     0) return 0 ;;
     3) ROTATE_NEW_DIALOG="$out"
        ROTATE_ERR="the new session in $pane is stopped on a '$out' dialog (not answered: fix its cause$(spool_start_hint "$out"))"
+       spl_rotate_log "${ROTATE_RID:--}" SPAWN WAIT "$pane: a '$out' dialog; screen: $(spl_rotate_screen_tail "$pane")"
        return 1 ;;
   esac
   spl_rotate_log "${ROTATE_RID:--}" SPAWN WAIT "$pane: $out and no known dialog; screen: $(spl_rotate_screen_tail "$pane")"
   return 0
+}
+
+# ---- the login gap (SPL-6615) ------------------------------------------------------
+# Two boxes share one Claude OAuth credential; about 5 min before its expiry
+# both refresh, the loser writes empty tokens (expiresAt 0) and the login
+# check heals it within one cron tick (<= 60 s). A start whose check runs in
+# that gap meets 'auth/login' (20261126T1245Z-master, %9200).
+
+# spl_rotate_cred OP: agent-login-cred.sh OP for the agent user's login the
+# new session starts under (slot 2 for a ROTATE_CLAUDE_CONFIG_DIR start);
+# ROTATE_LOGIN_CRED_CMD replaces the script. Prints nothing on failure.
+# shellcheck disable=SC2086 # the command is split on purpose
+spl_rotate_cred() {
+  local cmd="${ROTATE_LOGIN_CRED_CMD:-bash $(dirname "${BASH_SOURCE[0]}")/../scripts/agent-login-cred.sh}" cfg="${ROTATE_CLAUDE_CONFIG_DIR:-}"
+  if [[ -n "$cfg" && "${ROTATE_KIND:-claude}" == claude ]]; then LOGIN_CRED_DIR2="$cfg" $cmd "$1" 2 </dev/null 2>/dev/null || true
+  else $cmd "$1" </dev/null 2>/dev/null || true; fi
+}
+
+# spl_rotate_login_race PANE [PHASE]: 0 when PANE's 'auth/login' dialog met the
+# login gap and the credential healed: on disk it has the wiped shape
+# (expiresAt 0) or was written under ROTATE_LOGIN_RACE_AGE (90) s ago, and
+# within ROTATE_LOGIN_RACE_WAIT (90 s: one login-check tick plus a margin)
+# a credential with an expiry probes ok (each new one probed once). Else 1:
+# not the gap, or it stayed wiped; the start FAILs as before. Logs each step
+# as PHASE (SPAWN).
+spl_rotate_login_race() {
+  local pane="$1" ph="${2:-SPAWN}" wait="${ROTATE_LOGIN_RACE_WAIT:-90}" fresh="${ROTATE_LOGIN_RACE_AGE:-90}" sha="" exp="" mt="" t0 probed="" v="" ago
+  read -r sha exp mt _ <<<"$(spl_rotate_cred stat)" || true
+  if ! [[ "$exp" =~ ^[0-9]+$ && "$mt" =~ ^[0-9]+$ ]]; then
+    spl_rotate_log "${ROTATE_RID:--}" "$ph" WAIT "$pane: auth/login, no credential to read (${sha:-none}): not the login gap"; return 1
+  fi
+  ago=$(( $(date +%s) - mt ))
+  if (( exp != 0 && ago > fresh )); then
+    spl_rotate_log "${ROTATE_RID:--}" "$ph" WAIT "$pane: auth/login, credential $sha expiresAt $exp written ${ago}s ago: not the login gap"; return 1
+  fi
+  spl_rotate_log "${ROTATE_RID:--}" "$ph" WAIT "$pane: auth/login in the login gap (credential $sha expiresAt $exp, written ${ago}s ago); up to ${wait}s for one that probes ok"
+  t0=$SECONDS
+  while :; do
+    if (( exp > 0 )) && [[ "$sha" != "$probed" ]]; then
+      probed="$sha"; v="$(spl_rotate_cred probe)"
+      if [[ "$v" == ok* ]]; then
+        spl_rotate_log "${ROTATE_RID:--}" "$ph" WAIT "credential $sha probes ok after $((SECONDS - t0))s"; return 0
+      fi
+    fi
+    (( SECONDS - t0 < wait )) || break
+    sleep "${ROTATE_POLL:-5}"
+    read -r sha exp mt _ <<<"$(spl_rotate_cred stat)" || true
+    [[ "$exp" =~ ^[0-9]+$ ]] || exp=0
+  done
+  spl_rotate_log "${ROTATE_RID:--}" "$ph" WAIT "$pane: no credential probed ok within ${wait}s (now ${sha:-none} expiresAt ${exp:-0}${v:+, probe: ${v:0:80}}): the start fails"
+  return 1
+}
+
+# spl_rotate_drop_new: the new session parked on a dialog goes before a
+# respawn, as spl_rotate_restore ends it (TERM, KILL, nothing typed), its
+# window closed; ROTATE_NEW_PID / _PANE / _DIALOG cleared.
+spl_rotate_drop_new() {
+  local t0
+  if [[ -n "${ROTATE_NEW_PID:-}" ]]; then
+    ${ROTATE_KILL:-sudo -n kill} -TERM "$ROTATE_NEW_PID" 2>/dev/null || true
+    t0=$SECONDS; while (( SECONDS - t0 < 5 )) && spl_rotate_alive "$ROTATE_NEW_PID"; do sleep 1; done
+    if spl_rotate_alive "$ROTATE_NEW_PID"; then ${ROTATE_KILL:-sudo -n kill} -KILL "$ROTATE_NEW_PID" 2>/dev/null || true; fi
+  fi
+  if [[ -n "${ROTATE_NEW_PANE:-}" ]]; then spl_rotate_tmux kill-window -t "$ROTATE_NEW_PANE" 2>/dev/null || true; fi
+  ROTATE_NEW_PID="" ROTATE_NEW_PANE="" ROTATE_NEW_DIALOG=""
 }
 
 # spl_rotate_workdir ID: the new session's working dir, the first usable of:

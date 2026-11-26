@@ -43,6 +43,10 @@
 #      once naming it (not after the ack wait), the old M keeps the role,
 #      ALERT; nothing typed into the dialog (20261007T1715Z-failover).
 #      Control: the same rotation on a plain screen is not failed at SPAWN
+#  14b. SPL-6615: the fresh M on 'auth/login' in the shared-credential
+#      refresh gap (wiped, expiresAt 0): restored and probing ok -> dropped,
+#      ONE respawn, DONE OK, no ask; still wiped -> FAIL SPAWN + ask, one
+#      spawn. Control: an hour-old live credential -> no gap, FAIL at once
 #  15. a seat with an open FAIL alert (lifetime/alerts.open) whose rotation
 #      acks: the ask closed + one "recovered at <ts> by rotation <rid>, now
 #      pid <pid>" line on the ask's thread, the file gone. Control: no open
@@ -806,6 +810,64 @@ took=$(( SECONDS - t0 + $(awk '{s += $1} END {print int(s / 1000)}' "$T/vclock" 
 world; act DRY_RUN=0 >"$T/o" 2>&1
 ! grep -q 'FAIL SPAWN' "$T/o" && grep -q ' ACK OK acked by pid 2902' "$T/o" &&
   pass "14. control: a plain screen on the fresh M is not failed at SPAWN" || fail "14. control: $(cat "$T/o")"
+
+# --- 14b. auth/login in the shared-credential refresh gap (SPL-6615) -----------------------
+# live 20261126T1245Z-master: FAIL SPAWN on 'auth/login' in %9200; the two
+# boxes' shared credential was wiped by the losing refresh (expiresAt 0) and
+# healed by the login check within a minute. The credential stub: each stat
+# prints the first line of cred.stat and drops it while more follow; a probe
+# prints cred.probe ("ok ok" when absent) and logs the call; an ok probe runs
+# cred.onok once (the healed login: the next session starts on a plain screen
+# and acks).
+cat >"$T/bin/cred" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  stat) head -1 "$T/cred.stat"; if [ "$(wc -l <"$T/cred.stat")" -gt 1 ]; then sed -i 1d "$T/cred.stat"; fi ;;
+  probe) echo probe >>"$T/cred.log"; v="$(cat "$T/cred.probe" 2>/dev/null || echo 'ok ok')"; echo "$v"
+    case "$v" in ok*) if [ -f "$T/cred.onok" ]; then mv "$T/cred.onok" "$T/cred.onok.ran"; bash "$T/cred.onok.ran"; fi ;; esac ;;
+esac
+EOF
+chmod +x "$T/bin/cred"
+login_gap() {  # login_gap <stat line>...: the fresh M on 'auth/login', no ack from it
+  world; rm -f "$T/cred."*; printf '%s\n' "$@" >"$T/cred.stat"
+  printf '  Not logged in · Please run /login\n' >"$T/tmux/screen.%2902"; echo no >"$T/ack.mode.c-902"
+  printf 'rm -f "$T/tmux/screen.%%2902"; echo yes >"$T/ack.mode.c-902"\n' >"$T/cred.onok"
+}
+now=$(date +%s)
+# (a) wiped, then restored by the login check: one respawn, DONE OK
+login_gap "aaaaaaaaaaaa 0 $now" "bbbbbbbbbbbb 1790000000000 $now"
+act DRY_RUN=0 ROTATE_LOGIN_CRED_CMD="$T/bin/cred" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(grep -c '^spawn claude c-902 ' "$T/spawn.log")" == 2 && "$(grep -c . "$T/cred.log" 2>/dev/null)" == 1 ]] &&
+  grep -q " SPAWN WAIT %2902: a 'auth/login' dialog; screen: Not logged in" "$T/o" &&
+  grep -q " SPAWN WAIT %2902: auth/login in the login gap (credential aaaaaaaaaaaa expiresAt 0, written [0-9]*s ago)" "$T/o" &&
+  grep -q " SPAWN WAIT credential bbbbbbbbbbbb probes ok after [0-9]*s" "$T/o" &&
+  grep -q " SPAWN WAIT %2902 (pid 2902) dropped: the login healed, one respawn" "$T/o" &&
+  grep -q ' ACK OK acked by pid 2902' "$T/o" && grep -q ' DONE OK fresh c-902' "$T/o" && ! grep -q ' FAIL ' "$T/o" &&
+  pass "14b. auth/login in the login gap, the credential restored: dropped, ONE respawn, DONE OK" ||
+  fail "14b. gap healed rc=$rc spawns=$(grep -c '^spawn claude c-902 ' "$T/spawn.log") $(cat "$T/o")"
+grep -qx 'kill -TERM 2902' "$T/kill.log" && grep -qx 'kill %2902' "$T/tmux/log" && ! grep -qE '^keys %2902 (Enter|1)$' "$T/tmux/log" &&
+  ! grep -q '^do_spl_ask_put ' "$T/run.log" 2>/dev/null &&
+  pass "14b. ... the parked session signalled, its window closed, nothing typed, no ask" || fail "14b. drop: $(cat "$T/kill.log" "$T/tmux/log" "$T/run.log" 2>&1)"
+! grep -q ERRTRAP "$T/o" && pass "14b. no stray failing command under the ERR trap" || fail "14b. ERRTRAP: $(grep ERRTRAP "$T/o")"
+# (b) wiped, and it stays wiped: FAIL SPAWN and its ask, as before; no probe of a wiped one
+login_gap "aaaaaaaaaaaa 0 $now"
+act DRY_RUN=0 ROTATE_LOGIN_CRED_CMD="$T/bin/cred" ROTATE_LOGIN_RACE_WAIT=5 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && "$(grep -c '^spawn claude c-902 ' "$T/spawn.log")" == 1 && ! -e "$T/cred.log" ]] &&
+  grep -q " FAIL FAIL SPAWN: the new session in %2902 is stopped on a 'auth/login' dialog" "$T/o" &&
+  grep -q " SPAWN WAIT %2902: no credential probed ok within 5s (now aaaaaaaaaaaa expiresAt 0): the start fails" "$T/o" &&
+  grep -q "^do_spl_ask_put .*ASK_FROM=c-902 .*ASK_SUMMARY=ROTATION FAILED master SPAWN the new session in %2902 is stopped on a 'auth/login'" "$T/run.log" &&
+  [[ -d "$T/proc/102" && "$(holder)" == c-902 ]] &&
+  pass "14b. auth/login, the credential stays wiped: FAIL SPAWN + ask, one spawn, the old M keeps the role" ||
+  fail "14b. stays wiped rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+# control: auth/login on an old live credential is no gap: FAIL at once, one spawn, no probe
+login_gap "cccccccccccc 1790000000000 $(( now - 3600 ))"
+act DRY_RUN=0 ROTATE_LOGIN_CRED_CMD="$T/bin/cred" >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && "$(grep -c '^spawn claude c-902 ' "$T/spawn.log")" == 1 && ! -e "$T/cred.log" ]] &&
+  grep -q " SPAWN WAIT %2902: auth/login, credential cccccccccccc expiresAt 1790000000000 written 36[0-9][0-9]s ago: not the login gap" "$T/o" &&
+  grep -q " FAIL FAIL SPAWN: the new session in %2902 is stopped on a 'auth/login' dialog" "$T/o" &&
+  pass "14b. control: auth/login on an hour-old live credential: no wait, no respawn, FAIL SPAWN" || fail "14b. control rc=$rc $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "14b. control: no stray failing command under the ERR trap" || fail "14b. ERRTRAP: $(grep ERRTRAP "$T/o")"
+rm -f "$T/cred."*
 
 # --- 15. recovered -------------------------------------------------------------------------
 world; rm -f "$T/run2.log"; mkdir -p "$S/c-902/lifetime"

@@ -2,7 +2,7 @@
 
 Status: **specified** (2026-10-02, CLE-77941). Being built in two lanes:
 orchestrator rotation CLE-77939, dispatcher rotation CLE-77940.
-Version: 1.2 (change log: section 11).
+Version: 1.3 (change log: section 11).
 Plan: [plan.md](plan.md). Tasks: [tasks.md](tasks.md).
 Related: [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md)
 (the roles, the leases, the ask book), [058 the fleet on many machines](../058-multi-machine-fleet/spec.md)
@@ -194,6 +194,27 @@ it cannot act during the overlap.
   - `FAIL spawn` and an ALERT (FR-075).
 
   The old session keeps the role (owner D2).
+- **FR-013a** The start check (`spl_rotate_start_check`, rotate-lib; the
+  same in `spl_ars_spawn` of `do_spl_agent_restart`, phase `RS-SPAWN`):
+  up to `ROTATE_START_CHECK_WAIT` (45 s) for the new session's input box. A
+  known dialog of `start-check.inc.sh` fails the start at once, never
+  answered, with one `SPAWN WAIT <pane>: a '<dialog>' dialog; screen: <last
+  rows>` line before the `FAIL`. One exception, the login gap (SPL-6615,
+  rid `20261126T1245Z-master`, `%9200`): two boxes share one Claude
+  credential; about 5 min before its expiry both refresh, the loser writes
+  empty tokens (`expiresAt` 0), and the login check heals it within one
+  cron tick. On `auth/login`, when the agent user's credential
+  (`agent-login-cred.sh stat`, slot 2 for a `ROTATE_CLAUDE_CONFIG_DIR`
+  start) is wiped (`expiresAt` 0) or was written under
+  `ROTATE_LOGIN_RACE_AGE` (90) s ago, the run waits up to
+  `ROTATE_LOGIN_RACE_WAIT` (90 s: one tick plus a margin) for a credential
+  with an expiry that probes ok (`agent-login-cred.sh probe`, once per new
+  credential). Then the parked session is signalled (TERM, KILL, nothing
+  typed), its window closed, and the start runs ONCE more; that second start
+  is checked the same way, with no further retry. A credential that stays
+  wiped, or an `auth/login` on an older live credential, fails as before,
+  with its ask. Each step is a `SPAWN WAIT` line. Tests:
+  `dispatch-rotate.tst.sh` case 14b, `agent-restart.tst.sh` case 13c.
 - **FR-014** ACK: the script waits up to `ROTATE_ACK_TIMEOUT` (900 s) for the
   ack (FR-041). On a timeout:
   - `/exit` is typed into the NEW pane, and its process is killed after 30 s;
@@ -933,5 +954,6 @@ seconds as SPAWN.
 |---|---|---|
 | 1.1 | 2026-11-04 | R8, FR-047 (SPL-4807): a standby machine's orchestrator is refreshed in place once it is 2 h old; FR-010 gate 3, FR-044 and FR-053 follow |
 | 1.2 | 2026-11-05 | FR-047 (SPL-4878): the standby keys are kept in the orch ctx, so a resumed refresh or re-seat logs no `lease-moved`; case 25 tests the failover branch of the standby gate |
+| 1.3 | 2026-11-27 | FR-013a (SPL-6615): the start check written down; an `auth/login` start in the shared-credential refresh gap waits for the healed credential and respawns once; the dialog FAIL logs the screen |
 
 <!-- last-edit: 2026-10-02T04:40:00Z — CLE-77941 -->

@@ -384,6 +384,101 @@ cron SPAWN_FILL_CRON_LOG_DIR= SPL_VAR_APP_DIR="$T/var" DRY_RUN=1 >"$T/o" 2>&1; r
 (( rc == 0 )) && grep -qF "flock -n $T/var/spawn-fill/spawn-fill.lock " "$T/o" && grep -qF ">> $T/var/spawn-fill/cron.out 2>&1" "$T/o" && [[ ! -e "$T/var" ]] &&
   pass "7b. no override: the lock and cron.out sit under \$SPL_VAR_APP_DIR/spawn-fill, a dry run creates nothing" || fail "7b. derived log dir rc=$rc $(cat "$T/o")"
 
+# --- 11. _spl_run_cron_apply and wave-1 delegation (r05-02 one copy) --------------
+printf '%s\n' '# keep me' >"$T/crontab.s11"
+cp "$T/crontab.s11" "$T/crontab.s11.orig"
+out="$(env PROJ_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SRC="$SRC" T="$T" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-spawn-fill-install-cron.func.sh"
+  _spl_run_cron_apply check "csi-spl:widget" "$SRC" master "$SRC/csi-spl-orc/run" "$T/wlog" "* * * * * true # csi-spl:widget" "widget" "runs every 1m" ": no widget"
+  echo "rc1=$?"
+  DRY_RUN=1 _spl_run_cron_apply install "csi-spl:widget" "$SRC" master "$SRC/csi-spl-orc/run" "$T/wlog" "* * * * * true # csi-spl:widget" "widget" "runs every 1m" ": no widget"
+  echo "rc2=$?"
+  _spl_run_cron_apply install "csi-spl:widget" "$SRC" master "$SRC/csi-spl-orc/run" "$T/wlog" "* * * * * true # csi-spl:widget" "widget" "runs every 1m" ": no widget"
+  echo "rc3=$?"
+  _spl_run_cron_apply check "csi-spl:widget" "$SRC" master "$SRC/csi-spl-orc/run" "$T/wlog" "* * * * * true # csi-spl:widget" "widget" "runs every 1m" ": no widget"
+  echo "rc4=$?"
+  _spl_run_cron_apply check "csi-spl:widget" "$SRC" master "$T/no-such-run" "$T/wlog" "* * * * * true # csi-spl:widget" "widget" "runs every 1m" ": no widget"
+  echo "rc5=$?"
+  _spl_run_cron_apply remove "csi-spl:widget" "$SRC" master "$SRC/csi-spl-orc/run" "$T/wlog" "* * * * * true # csi-spl:widget" "widget" "runs every 1m" ": no widget"
+  echo "rc6=$?"' 2>&1)"
+[[ "$out" == *"FAIL the widget is NOT installed (no line tagged csi-spl:widget): no widget"* && "$out" == *"rc1=1"* \
+  && "$out" == *"OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."* && "$out" == *"rc2=0"* \
+  && "$out" == *"OK the widget runs every 1m:"* && "$out" == *"rc3=0"* \
+  && "$out" == *"OK the widget is installed"* && "$out" == *"rc4=0"* \
+  && "$out" == *"FAIL $T/no-such-run is gone or not executable"* && "$out" == *"rc5=1"* \
+  && "$out" == *"OK the widget is out of the crontab"* && "$out" == *"rc6=0"* ]] &&
+  cmp -s "$T/crontab.s11" "$T/crontab.s11.orig" &&
+  pass "11. _spl_run_cron_apply covers check-missing, dry-run, install, check-ok, check-bad-run and remove" || fail "11. helper lifecycle: $out"
+
+sf_f="$PROJ_ROOT/src/bash/run/spl-spawn-fill-install-cron.func.sh"
+sr_f="$PROJ_ROOT/src/bash/run/spl-security-round-install-cron.func.sh"
+pa_f="$PROJ_ROOT/src/bash/run/spl-desk-poll-ack-install-cron.func.sh"
+ac_f="$PROJ_ROOT/src/bash/run/spl-accepted-close-install-cron.func.sh"
+sf_old="$(grep -n 'spl_spawn_fill_cron_check' "$sf_f" || true)"
+[[ -z "$sf_old" && "$(grep -c 'the crontab does not read back what was written' "$sf_f")" -eq 1 && "$(grep -c '_spl_run_cron_apply ' "$sf_f")" -ge 1 ]] &&
+  pass "11. one copy: spl-spawn-fill-install-cron.func.sh hosts the single _spl_run_cron_apply helper" || fail "11. host one copy: old=[$sf_old]"
+for sib in "$sr_f" "$pa_f" "$ac_f"; do
+  own="$(grep -nE "spl_(security_round|poll_ack|accepted_close)_cron_check|the crontab does not read back what was written|OK DRY_RUN nothing was touched" "$sib" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_run_cron_apply " "$sib" &&
+    pass "11. one copy: $(basename "$sib") delegates apply to _spl_run_cron_apply" || fail "11. one copy $(basename "$sib"): own=[$own]"
+done
+
+out="$(env -u SECURITY_ROUND_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" SECURITY_ROUND_CRON_LOG_DIR="$T/log-sr" SECURITY_ROUND_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-security-round-install-cron.func.sh"
+  do_spl_security_round_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the weekly security round is NOT installed (no line tagged csi-spl:security-round): Friday's round is not queued"* && "$out" != *"command not found"* ]] &&
+  pass "11. lazy load: spl-security-round-install-cron.func.sh loads _spl_run_cron_apply standalone" || fail "11. lazy sr (rc=$rc): $out"
+
+out="$(env -u SECURITY_ROUND_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" SECURITY_ROUND_CRON_LOG_DIR="$T/log-sr" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-security-round-install-cron.func.sh"
+  do_spl_security_round_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the weekly security round runs Friday at :30 in the night phase (UTC Friday, do_spl_rhythm_phase night) as the box user (it queues only on the orch holder's machine, while its switch is on):"* ]] &&
+  pass "11. security-round install keeps exact ok_msg" || fail "11. sr ok (rc=$rc): $out"
+
+out="$(env -u POLL_ACK_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" POLL_ACK_CRON_LOG_DIR="$T/log-pa" POLL_ACK_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-desk-poll-ack-install-cron.func.sh"
+  do_spl_desk_poll_ack_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the poll acknowledgement is NOT installed (no line tagged csi-spl:poll-ack): an owner poll answer waits for a model to notice it"* && "$out" != *"command not found"* ]] &&
+  pass "11. lazy load: spl-desk-poll-ack-install-cron.func.sh loads _spl_run_cron_apply standalone" || fail "11. lazy pa (rc=$rc): $out"
+
+out="$(env -u POLL_ACK_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" POLL_ACK_CRON_LOG_DIR="$T/log-pa" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-desk-poll-ack-install-cron.func.sh"
+  do_spl_desk_poll_ack_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the poll acknowledgement runs every minute as $(id -un) (it acts only while this machine holds the dispatch lease):"* ]] &&
+  pass "11. poll-ack install keeps exact ok_msg" || fail "11. pa ok (rc=$rc): $out"
+
+out="$(env -u ACCEPT_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" ACCEPT_CRON_LOG_DIR="$T/log-ac" ACCEPT_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-accepted-close-install-cron.func.sh"
+  do_spl_accepted_close_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the accepted close is NOT installed (no line tagged csi-spl:accepted-close): a landed, reviewed lane waits for a model to send its ACCEPTED"* && "$out" != *"command not found"* ]] &&
+  pass "11. lazy load: spl-accepted-close-install-cron.func.sh loads _spl_run_cron_apply standalone" || fail "11. lazy ac (rc=$rc): $out"
+
+out="$(env -u ACCEPT_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s11" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" ACCEPT_CRON_LOG_DIR="$T/log-ac" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-accepted-close-install-cron.func.sh"
+  do_spl_accepted_close_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the accepted close runs every minute as $(id -un) (it acts only while this machine holds the dispatch lease):"* ]] &&
+  pass "11. accepted-close install keeps exact ok_msg" || fail "11. ac ok (rc=$rc): $out"
+
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }
 echo "FAIL: $fails"

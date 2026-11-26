@@ -27,7 +27,7 @@ declare -F spl_desk_cron_checkout >/dev/null ||
 
 do_spl_spawn_fill_install_cron() {
   do_require_bin crontab || return 1
-  local act="${SPAWN_FILL_CRON_ACTION:-install}" min="${SPAWN_FILL_CRON_MIN:-10}" tag src run logdir line current trunk="${DESK_CRON_TRUNK:-master}"
+  local act="${SPAWN_FILL_CRON_ACTION:-install}" min="${SPAWN_FILL_CRON_MIN:-10}" tag src run logdir line trunk="${DESK_CRON_TRUNK:-master}"
   case "$act" in install|remove|check) ;; *) do_log "FATAL SPAWN_FILL_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "$min" =~ ^[1-9][0-9]?$ ]] && ((min < 60)) || { do_log "FATAL SPAWN_FILL_CRON_MIN must be 1..59, got: '$min'"; return 1; }
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
@@ -44,8 +44,30 @@ do_spl_spawn_fill_install_cron() {
   fi
   # shellcheck disable=SC2016 # $HOME is for the cron shell, not this one
   line="$(printf '*/%s * * * * cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin DRY_RUN=0 flock -n %s/spawn-fill.lock ./run -a do_spl_spawn_fill >> %s/cron.out 2>&1 # %s' "$min" "${run%/run}" "$logdir" "$logdir" "$tag")"
+  _spl_run_cron_apply "$act" "$tag" "$src" "$trunk" "$run" "$logdir" "$line" \
+    "idle filler" \
+    "runs every $min min as the box user (it queues only on the orch holder's machine, while its switch is on)" \
+    ": spare capacity is not filled from issues"
+}
+
+# _spl_run_cron_apply <act> <tag> <src> <trunk> <run> <logdir> <line> <label>
+#   <ok_msg> [miss_why] -> run check, dry-run, remove, or install for a
+#   single-line tagged ./run crontab action.
+_spl_run_cron_apply() {
+  local act="$1" tag="$2" src="$3" trunk="$4" run="$5" logdir="$6" line="$7"
+  local label="$8" ok_msg="$9" miss_why="${10:-}" current
   current="$(spl_desk_cron_line "$tag")"
-  [[ "$act" == check ]] && { spl_spawn_fill_cron_check "$tag" "$current" "$line" "$run"; return; }
+  if [[ "$act" == check ]]; then
+    if [[ -z "$current" ]]; then
+      do_log "FAIL the $label is NOT installed (no line tagged $tag)$miss_why"
+      return 1
+    fi
+    spl_desk_cron_say "$current"
+    [[ -x "$run" ]] || { do_log "FAIL $run is gone or not executable"; return 1; }
+    [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
+    do_log "OK the $label is installed"
+    return 0
+  fi
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
     [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
@@ -54,7 +76,7 @@ do_spl_spawn_fill_install_cron() {
   fi
   if [[ "$act" == remove ]]; then
     spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the idle filler is out of the crontab"
+    do_log "OK the $label is out of the crontab"
     return 0
   fi
   spl_desk_cron_checkout "$src" "$trunk" || return 1
@@ -62,17 +84,6 @@ do_spl_spawn_fill_install_cron() {
   mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
   spl_desk_cron_write "$tag" "$line" || return 1
   [[ "$(spl_desk_cron_line "$tag")" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written"; return 1; }
-  do_log "OK the idle filler runs every $min min as the box user (it queues only on the orch holder's machine, while its switch is on):"
+  do_log "OK the $label $ok_msg:"
   spl_desk_cron_say "$line"
-}
-
-spl_spawn_fill_cron_check() {  # TAG CURRENT LINE RUN
-  if [[ -z "$2" ]]; then
-    do_log "FAIL the idle filler is NOT installed (no line tagged $1): spare capacity is not filled from issues"
-    return 1
-  fi
-  spl_desk_cron_say "$2"
-  [[ -x "$4" ]] || { do_log "FAIL $4 is gone or not executable"; return 1; }
-  [[ "$2" == "$3" ]] || do_log "INFO installed with other settings than this call would write - working"
-  do_log "OK the idle filler is installed"
 }

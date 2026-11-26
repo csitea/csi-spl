@@ -194,3 +194,44 @@ echo "P2(QWEN.md mode 000): $(run "$tmp/p2" | tr '\n' ' ')"
 mkdir -p "$tmp/p3/.qwen"
 echo "P3(no QWEN.md): $(run "$tmp/p3" | tr '\n' ' ')"
 ```
+
+## 6. Verdict on v0.2: PASS
+
+**PASS** on `d065eb53b27fab8d9c9016c6faa98ed5bab88bbe` (v0.2, a fast-forward on v0.1;
+`git ls-remote origin refs/heads/review/c002-bug-round-51-planner` -> `d065eb53b27fab8d9c9016c6faa98ed5bab88bbe`;
+`git log --oneline 366b5b8ef..d065eb53b` -> one commit; `git diff --stat` -> only `bug-round-51-plan.md`). Read 12:50Z..12:56Z, n=1 per run.
+
+### 6.1 W1 folded
+
+- 3.1 now says the defect is reachable through the entry point via an unreadable `QWEN.md` (and ENOSPC/EIO). It says the read-only dir stops at `mktemp -d` (:65) and a missing file skips the backup (:79), and labels A and B helper-level. That matches probe P1, P2 and P3 (section 2.4). The added detail is right: `! cmp -s` (:78) is true on cmp's read error.
+- `rc01-b51.sh` v0.2, extracted from the plan's 4.1: `sha256sum` -> `d017001e49beee475f711215f52ea89e6b3561aa23e10df43de79cfed45e4a46` (7133 B), which matches the plan. `diff` against v0.1: header comment, case labels, `u+rwX` in the trap, and the new Case E. Nothing else changed.
+- New Case E runs through `spool_install_vendor_lane_rule` with `HOME=<tmp>`, so it touches no live state.
+
+| run | lines | exit |
+|---|---|---|
+| `bash rc01-b51.sh bf585dc99` | `E(entry_unreadable_qwen): rc=1 false_nofree=1 perm=1 kept=1 stage=0`; A, B `false_nofree=1`; C, D pass; `rc01 exit 1` | 1 |
+| `bash rc01-b51.sh bf585dc99 fix-shape` | `E: rc=1 false_nofree=0 perm=2 kept=1 stage=0`; A `[Errno 2]`, B `[Errno 13]`; C, D pass; `rc01 exit 0` | 0 |
+| `bash rc01-b51.sh origin/master` (`13293131f`) | `rc01 exit 1` | 1 |
+
+Case E's red is the false line (`false_nofree`). `perm>=1` already holds on the base from `cp`'s own error, so it is a guard, not the discriminator. Test section 10 is re-scoped to the entry-level case plus the labelled helper cases.
+
+### 6.2 Notes folded
+
+- **N1:** the plan's Window line and slug row record the moved W (`68d29f7cd`) and keep `fee404830`.
+- **N2:** R7 prefers agy, and the fallback cites c-001 `77ba5669`. `1a7c70da` is gone (`grep -c 1a7c70da` on the v0.2 plan -> 0).
+- **N3:** the 12:30:51Z R3 is recorded.
+- **N4:** 3 rows kept on holder `ee7d2da1`.
+- **N5:** case 35 names `do_provision_firebase_dns` and `do_spl_desk_up_all`.
+
+### 6.3 Unchanged parts, re-checked
+
+- `rc02-b51.sh` `4d2fb494754c...` (6087 B) and `rc03-b51.sh` `a977907ee08f...` (3595 B) are byte-identical to v0.1 (`sha256sum`).
+- `bash rc03-b51.sh origin/master` -> `rc03 exit 1`, still red on `13293131f`.
+- Drift: `git diff --name-only bf585dc99 origin/master -- <row files + spool-install/ + apply-gh-runner-cpu-budget.func.sh + spl-lane-map.func.sh> | wc -l` -> `0`.
+- R3 at 12:54:22Z: `lane-map.sh --check <5 row files> --agent c-052` -> exit 4. No live lane lists them; 20 `unknown:` lanes, all on `<box2>`. The holder re-checks at placement, as the plan says.
+- New 3.5 item (holder `b4952880`, `do_rdb_migration_next` `DRY_RUN=0` false hold) is carried to round 52, which is right at the 3-row cap. Its cited `:701-708` is the doc comment of the `DRY` exemption on `bf585dc99`; the regex itself is `:756`. See N6.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` -> rc 0, `INFO distribution-hygiene: clean over the tracked tree` (with this section in the file).
+
+### 6.4 Notes on v0.2
+
+- **N6.** The round-52 `do_rdb_migration_next` item edits `spl-review-go.func.sh` (the `DRY` rule at `:756` and/or `fixed` at `:803`), which is b51-03's file. Under R3 it cannot be placed until b51-03 lands. Its plan should re-read the lines on that sha.

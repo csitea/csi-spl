@@ -29,14 +29,17 @@ declare -F env_order_cache_put >/dev/null ||
 declare -F do_tf_log_mask >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/tf-log-mask.func.sh"
 
 # tf_plan_resource_changes <run dir> <plan file>: prints how many resources the
-# saved plan would change (actions other than no-op, or read for a data source).
+# saved plan would change (actions other than no-op, or read for a data source),
+# plus moved {} and import {} entries, which change state under a no-op action.
 # Fails when the plan cannot be shown or parsed. The JSON may carry sensitive
 # values: it goes to jq only, never to a log or the screen.
 tf_plan_resource_changes() {
   terraform -chdir="$1" show -json "$2" 2>/dev/null | jq -er '
     if has("format_version") | not then error("not a plan") else
-    [.resource_changes[]? | .change.actions
-      | select(. != ["no-op"] and . != ["read"])] | length end' 2>/dev/null
+    [.resource_changes[]?
+      | select((.change.actions != ["no-op"] and .change.actions != ["read"])
+               or .previous_address != null
+               or .change.importing != null)] | length end' 2>/dev/null
 }
 
 # shellcheck disable=SC2154  # tf_run_path, tf_proj: set by do_tf_init

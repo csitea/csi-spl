@@ -171,6 +171,20 @@ rm -rf "$T/cache"; out=$(pp "$T/update.json"); rc=$?
 compgen -G "$T/cache/*" >/dev/null && fail "a pending plan was cached" || pass "a pending plan is not cached"
 out=$(pp "$T/bad.json"); rc=$?
 [[ $rc -eq 2 && "$out" == "TF_PLAN dev 030-x pending "* ]] && pass "plan rc 2, plan not readable -> pending (fail closed)" || fail "bad json: rc=$rc out=$out"
+# moved {} sets previous_address, import {} sets change.importing; both change
+# state under a no-op action. Explicit nulls are the outputs-only control.
+plan_raw() { printf '{"format_version":"1.2","resource_changes":[%s],"output_changes":{"o":{"actions":["update"]}}}\n' "$2" >"$1"; }
+plan_raw "$T/moved.json" '{"address":"x.new","previous_address":"x.old","change":{"actions":["no-op"]}}'
+plan_raw "$T/import.json" '{"address":"x.imp","change":{"actions":["no-op"],"importing":{"id":"synthetic-id"}}}'
+plan_raw "$T/nulls.json" '{"address":"x.y","previous_address":null,"change":{"actions":["no-op"],"importing":null}}'
+for c in moved import; do
+  rm -rf "$T/cache"; out=$(pp "$T/$c.json"); rc=$?
+  [[ $rc -eq 2 && "$out" == "TF_PLAN dev 030-x pending "* ]] && pass "plan rc 2, $c block with a no-op action -> pending" || fail "$c: rc=$rc out=$out"
+  compgen -G "$T/cache/*" >/dev/null && fail "the $c plan was cached" || pass "the $c plan is not cached"
+done
+rm -rf "$T/cache"; out=$(pp "$T/nulls.json"); rc=$?
+[[ $rc -eq 0 && "$out" == "TF_PLAN dev 030-x clean sha="*"No changes. (outputs only)" ]] \
+  && pass "no-op with null previous_address and importing -> clean (outputs only)" || fail "nulls: rc=$rc out=$out"
 
 # --- 7. static --------------------------------------------------------------
 for f in provision tf-apply tf-apply-target; do

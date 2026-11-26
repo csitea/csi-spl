@@ -26,7 +26,7 @@ declare -F spl_desk_cron_checkout >/dev/null ||
 
 do_spl_spawn_place_install_cron() {
   do_require_bin crontab || return 1
-  local act="${SPAWN_PLACE_CRON_ACTION:-install}" tag src run logdir line current trunk="${DESK_CRON_TRUNK:-master}"
+  local act="${SPAWN_PLACE_CRON_ACTION:-install}" tag src run logdir line trunk="${DESK_CRON_TRUNK:-master}"
   case "$act" in install|remove|check) ;; *) do_log "FATAL SPAWN_PLACE_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
@@ -43,37 +43,10 @@ do_spl_spawn_place_install_cron() {
   # cron's own PATH (/usr/bin:/bin) has no yq: every tick read no cnf (c-001@sat, 10-12)
   # shellcheck disable=SC2016 # $HOME is for the cron shell, not this one
   line="$(printf '* * * * * cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin flock -n %s/spawn-place.lock ./run -a do_spl_spawn_place >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"
-  current="$(spl_desk_cron_line "$tag")"
-  case "$act" in
-    check) spl_spawn_place_cron_check "$tag" "$current" "$line" "$run"; return ;;
-  esac
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  if [[ "$act" == remove ]]; then
-    spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the spawn placer is out of the crontab"
-    return 0
-  fi
-  spl_desk_cron_checkout "$src" "$trunk" || return 1
-  [[ -x "$run" ]] || { do_log "FATAL $run is missing or not executable in $src"; return 1; }
-  mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
-  spl_desk_cron_write "$tag" "$line" || return 1
-  [[ "$(spl_desk_cron_line "$tag")" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written"; return 1; }
-  do_log "OK the spawn placer runs every minute as the box user (it acts only while this machine holds the orch role):"
-  spl_desk_cron_say "$line"
-}
-
-spl_spawn_place_cron_check() {  # TAG CURRENT LINE RUN
-  if [[ -z "$2" ]]; then
-    do_log "FAIL the spawn placer is NOT installed (no line tagged $1): queued spawn requests wait for a hand placement"
-    return 1
-  fi
-  spl_desk_cron_say "$2"
-  [[ -x "$4" ]] || { do_log "FAIL $4 is gone or not executable"; return 1; }
-  [[ "$2" == "$3" ]] || do_log "INFO installed with other settings than this call would write - working"
-  do_log "OK the spawn placer is installed"
+  # shellcheck source=spl-spawn-fill-install-cron.func.sh
+  declare -F _spl_run_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-fill-install-cron.func.sh"
+  _spl_run_cron_apply "$act" "$tag" "$src" "$trunk" "$run" "$logdir" "$line" \
+    "spawn placer" \
+    "runs every minute as the box user (it acts only while this machine holds the orch role)" \
+    ": queued spawn requests wait for a hand placement"
 }

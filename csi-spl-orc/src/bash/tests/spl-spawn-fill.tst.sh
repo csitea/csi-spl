@@ -479,6 +479,98 @@ out="$(env -u ACCEPT_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PA
 [[ $rc -eq 0 && "$out" == *"OK the accepted close runs every minute as $(id -un) (it acts only while this machine holds the dispatch lease):"* ]] &&
   pass "11. accepted-close install keeps exact ok_msg" || fail "11. ac ok (rc=$rc): $out"
 
+# --- 12. _spl_run_cron_apply mode=r and wave-2 delegation (r06-01 one copy) -------
+printf '%s\n' '# keep me' >"$T/crontab.s12"
+cp "$T/crontab.s12" "$T/crontab.s12.orig"
+mkdir -p "$SRC/csi-spl-orc/src/bash/scripts"
+: >"$SRC/csi-spl-orc/src/bash/scripts/topic-archive-suggest-cron.sh"
+chmod 644 "$SRC/csi-spl-orc/src/bash/scripts/topic-archive-suggest-cron.sh"
+out="$(env PROJ_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SRC="$SRC" T="$T" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-spawn-fill-install-cron.func.sh"
+  scr="$SRC/csi-spl-orc/src/bash/scripts/topic-archive-suggest-cron.sh"
+  _spl_run_cron_apply install "csi-spl:rjob" "$SRC" master "$T/no-such-script" "$T/rlog" "* * * * * true # csi-spl:rjob" "rjob" "runs hourly" "" r
+  echo "rc1=$?"
+  _spl_run_cron_apply install "csi-spl:rjob" "$SRC" master "$scr" "$T/rlog" "* * * * * true # csi-spl:rjob" "rjob" "runs hourly" "" r
+  echo "rc2=$?"
+  _spl_run_cron_apply check "csi-spl:rjob" "$SRC" master "$scr" "$T/rlog" "* * * * * true # csi-spl:rjob" "rjob" "runs hourly" "" r
+  echo "rc3=$?"
+  _spl_run_cron_apply check "csi-spl:rjob" "$SRC" master "$T/no-such-script" "$T/rlog" "* * * * * true # csi-spl:rjob" "rjob" "runs hourly" "" r
+  echo "rc4=$?"
+  _spl_run_cron_apply remove "csi-spl:rjob" "$SRC" master "$scr" "$T/rlog" "* * * * * true # csi-spl:rjob" "rjob" "runs hourly" "" r
+  echo "rc5=$?"' 2>&1)"
+[[ "$out" == *"FATAL $T/no-such-script is missing in $SRC"* && "$out" != *"not executable"* && "$out" == *"rc1=1"* \
+  && "$out" == *"OK the rjob runs hourly:"* && "$out" == *"rc2=0"* \
+  && "$out" == *"OK the rjob is installed"* && "$out" == *"rc3=0"* \
+  && "$out" == *"FAIL $T/no-such-script is gone"* && "$out" == *"rc4=1"* \
+  && "$out" == *"OK the rjob is out of the crontab"* && "$out" == *"rc5=0"* ]] &&
+  cmp -s "$T/crontab.s12" "$T/crontab.s12.orig" &&
+  pass "12. _spl_run_cron_apply mode=r accepts a readable non-exec script and emits exact missing/gone wording" || fail "12. mode=r lifecycle: $out"
+
+sp_f="$PROJ_ROOT/src/bash/run/spl-spawn-place-install-cron.func.sh"
+rg_f="$PROJ_ROOT/src/bash/run/spl-review-go-install-cron.func.sh"
+as_f="$PROJ_ROOT/src/bash/run/spl-topic-archive-suggest-install-cron.func.sh"
+for sib in "$sp_f" "$rg_f" "$as_f"; do
+  own="$(grep -nE "spl_(spawn_place|review_go|archive_suggest)_cron_check|the crontab does not read back what was written|OK DRY_RUN nothing was touched" "$sib" || true)"
+  [[ -z "$own" ]] && grep -q "_spl_run_cron_apply " "$sib" &&
+    pass "12. one copy: $(basename "$sib") delegates apply to _spl_run_cron_apply" || fail "12. one copy $(basename "$sib"): own=[$own]"
+done
+
+out="$(env -u SPAWN_PLACE_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" SPAWN_PLACE_CRON_LOG_DIR="$T/log-sp" SPAWN_PLACE_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-spawn-place-install-cron.func.sh"
+  do_spl_spawn_place_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the spawn placer is NOT installed (no line tagged csi-spl:spawn-place): queued spawn requests wait for a hand placement"* && "$out" != *"command not found"* ]] &&
+  pass "12. lazy load: spl-spawn-place-install-cron.func.sh loads _spl_run_cron_apply standalone" || fail "12. lazy sp (rc=$rc): $out"
+
+out="$(env -u SPAWN_PLACE_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" SPAWN_PLACE_CRON_LOG_DIR="$T/log-sp" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-spawn-place-install-cron.func.sh"
+  do_spl_spawn_place_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the spawn placer runs every minute as the box user (it acts only while this machine holds the orch role):"* ]] &&
+  pass "12. spawn-place install keeps exact ok_msg" || fail "12. sp ok (rc=$rc): $out"
+
+out="$(env -u REVIEW_GO_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" REVIEW_GO_CRON_LOG_DIR="$T/log-rg" REVIEW_GO_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-review-go-install-cron.func.sh"
+  do_spl_review_go_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the review GO is NOT installed (no line tagged csi-spl:review-go): a review PASS waits for a model to send the GO"* && "$out" != *"command not found"* ]] &&
+  pass "12. lazy load: spl-review-go-install-cron.func.sh loads _spl_run_cron_apply standalone" || fail "12. lazy rg (rc=$rc): $out"
+
+out="$(env -u REVIEW_GO_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" REVIEW_GO_CRON_LOG_DIR="$T/log-rg" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-review-go-install-cron.func.sh"
+  do_spl_review_go_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the review GO runs every minute as $(id -un) (it acts only while this machine holds the dispatch lease):"* ]] &&
+  pass "12. review-go install keeps exact ok_msg" || fail "12. rg ok (rc=$rc): $out"
+
+out="$(env -u ARCHIVE_SUGGEST_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" ARCHIVE_SUGGEST_CRON_LOG_DIR="$T/log-as" ARCHIVE_SUGGEST_CRON_ACTION=check bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-topic-archive-suggest-install-cron.func.sh"
+  do_spl_topic_archive_suggest_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL the archive suggestion is NOT installed (no line tagged csi-spl:topic-archive-suggest)" && "$out" != *"command not found"* ]] &&
+  pass "12. lazy load: spl-topic-archive-suggest-install-cron.func.sh loads _spl_run_cron_apply standalone" || fail "12. lazy as (rc=$rc): $out"
+
+out="$(env -u ARCHIVE_SUGGEST_CRON_ACTION PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab.s12" SPL_ORG_APP=csi-spl \
+  DESK_CRON_SRC="$SRC" ARCHIVE_SUGGEST_CRON_LOG_DIR="$T/log-as" DRY_RUN=0 bash -c '
+  set -uo pipefail; do_log(){ printf "%s\n" "$*"; }; do_require_bin(){ return 0; }
+  source "$PROJ_PATH/src/bash/run/spl-desk-install-service.func.sh"
+  source "$PROJ_PATH/src/bash/run/spl-topic-archive-suggest-install-cron.func.sh"
+  do_spl_topic_archive_suggest_install_cron' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK the archive suggestion runs hourly as $(id -un) (dry until lease.conf says ARCHIVE_SUGGEST_DRY_RUN=0):"* ]] &&
+  pass "12. topic-archive-suggest install keeps exact ok_msg on readable non-exec script" || fail "12. as ok (rc=$rc): $out"
+
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }
 echo "FAIL: $fails"

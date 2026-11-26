@@ -51,11 +51,11 @@ do_spl_spawn_fill_install_cron() {
 }
 
 # _spl_run_cron_apply <act> <tag> <src> <trunk> <run> <logdir> <line> <label>
-#   <ok_msg> [miss_why] -> run check, dry-run, remove, or install for a
-#   single-line tagged ./run crontab action.
+#   <ok_msg> [miss_why] [mode] -> run check, dry-run, remove, or install for a
+#   single-line tagged crontab action (mode: x = -x default, r = -r script).
 _spl_run_cron_apply() {
   local act="$1" tag="$2" src="$3" trunk="$4" run="$5" logdir="$6" line="$7"
-  local label="$8" ok_msg="$9" miss_why="${10:-}" current
+  local label="$8" ok_msg="$9" miss_why="${10:-}" mode="${11:-x}" current
   current="$(spl_desk_cron_line "$tag")"
   if [[ "$act" == check ]]; then
     if [[ -z "$current" ]]; then
@@ -63,7 +63,8 @@ _spl_run_cron_apply() {
       return 1
     fi
     spl_desk_cron_say "$current"
-    [[ -x "$run" ]] || { do_log "FAIL $run is gone or not executable"; return 1; }
+    if [[ "$mode" == r ]]; then [[ -r "$run" ]] || { do_log "FAIL $run is gone"; return 1; }
+    else [[ -x "$run" ]] || { do_log "FAIL $run is gone or not executable"; return 1; }; fi
     [[ "$current" == "$line" ]] || do_log "INFO installed with other settings than this call would write - working"
     do_log "OK the $label is installed"
     return 0
@@ -80,7 +81,8 @@ _spl_run_cron_apply() {
     return 0
   fi
   spl_desk_cron_checkout "$src" "$trunk" || return 1
-  [[ -x "$run" ]] || { do_log "FATAL $run is missing or not executable in $src"; return 1; }
+  if [[ "$mode" == r ]]; then [[ -r "$run" ]] || { do_log "FATAL $run is missing in $src"; return 1; }
+  else [[ -x "$run" ]] || { do_log "FATAL $run is missing or not executable in $src"; return 1; }; fi
   mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
   spl_desk_cron_write "$tag" "$line" || return 1
   [[ "$(spl_desk_cron_line "$tag")" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written"; return 1; }

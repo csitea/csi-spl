@@ -27,7 +27,7 @@ declare -F spl_desk_cron_checkout >/dev/null ||
 
 do_spl_review_go_install_cron() {
   do_require_bin crontab || return 1
-  local act="${REVIEW_GO_CRON_ACTION:-install}" tag src run logdir line current trunk="${DESK_CRON_TRUNK:-master}"
+  local act="${REVIEW_GO_CRON_ACTION:-install}" tag src run logdir line trunk="${DESK_CRON_TRUNK:-master}"
   case "$act" in install|remove|check) ;; *) do_log "FATAL REVIEW_GO_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
@@ -43,37 +43,10 @@ do_spl_review_go_install_cron() {
   fi
   # shellcheck disable=SC2016 # $HOME is for the cron shell, not this one
   line="$(printf '* * * * * cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin flock -n %s/review-go.cron.lock env DRY_RUN=0 ./run -a do_spl_review_go >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"
-  current="$(spl_desk_cron_line "$tag")"
-  if [[ "$act" == check ]]; then
-    spl_review_go_cron_check "$tag" "$current" "$line" "$run"; return
-  fi
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_desk_cron_diff "$tag" "$([[ "$act" == install ]] && printf '%s' "$line")"
-    [[ "$act" == install ]] && spl_desk_cron_checkout_dry "$src" "$trunk"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  if [[ "$act" == remove ]]; then
-    spl_desk_cron_write "$tag" "" || return 1
-    do_log "OK the review GO is out of the crontab"
-    return 0
-  fi
-  spl_desk_cron_checkout "$src" "$trunk" || return 1
-  [[ -x "$run" ]] || { do_log "FATAL $run is missing or not executable in $src"; return 1; }
-  mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
-  spl_desk_cron_write "$tag" "$line" || return 1
-  [[ "$(spl_desk_cron_line "$tag")" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written"; return 1; }
-  do_log "OK the review GO runs every minute as $(id -un) (it acts only while this machine holds the dispatch lease):"
-  spl_desk_cron_say "$line"
-}
-
-spl_review_go_cron_check() {  # TAG CURRENT LINE RUN
-  if [[ -z "$2" ]]; then
-    do_log "FAIL the review GO is NOT installed (no line tagged $1): a review PASS waits for a model to send the GO"
-    return 1
-  fi
-  spl_desk_cron_say "$2"
-  [[ -x "$4" ]] || { do_log "FAIL $4 is gone or not executable"; return 1; }
-  [[ "$2" == "$3" ]] || do_log "INFO installed with other settings than this call would write - working"
-  do_log "OK the review GO is installed"
+  # shellcheck source=spl-spawn-fill-install-cron.func.sh
+  declare -F _spl_run_cron_apply >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-fill-install-cron.func.sh"
+  _spl_run_cron_apply "$act" "$tag" "$src" "$trunk" "$run" "$logdir" "$line" \
+    "review GO" \
+    "runs every minute as $(id -un) (it acts only while this machine holds the dispatch lease)" \
+    ": a review PASS waits for a model to send the GO"
 }

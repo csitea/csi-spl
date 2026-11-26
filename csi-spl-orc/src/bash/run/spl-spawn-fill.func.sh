@@ -37,6 +37,10 @@
 # @description      under SPAWN_PLACE_BRIEF_DIR, puts the ask (id derived from
 # @description      the key, so a replay is the same ask) and enqueues it with
 # @description      do_spl_spawn_enqueue, SPAWN_CLASS and SPAWN_PLACE=<vendor>:<slug>
+# @description A non-empty spawn queue stops the tick at step 1, except for an
+# @description issue a person set to priority 1 or 2 (spec 153 Q8, owner H4 A):
+# @description its class default (a bug's 2) does not pass; still SPAWN_FILL_MAX
+# @description a tick, still the box pick, the bands and the skips
 # @description DRY_RUN=1 (the default) prints what it would queue and why. The
 # @description switch: SPAWN_FILL=on|off, else cnf env.box.spawn_fill.enabled;
 # @description absent = OFF. A live run (DRY_RUN=0) queues only while it is on
@@ -60,7 +64,7 @@
 #------------------------------------------------------------------------------
 
 do_spl_spawn_fill() {
-  local dry="${DRY_RUN:-1}" on holder rows pick n share phase classes issues chosen
+  local dry="${DRY_RUN:-1}" on holder rows set_only pick n share phase classes issues chosen
   spl_spawn_fill_check || return 1
   spl_spawn_fill_moved && return "$SPAWN_FILL_HOP_RC"
   spl_spawn_fill_epic_stall
@@ -76,8 +80,9 @@ do_spl_spawn_fill() {
     return 0
   fi
   rows="$(spl_spawn_q_rows)" || { do_log "WARN the hub did not answer: no fill this tick"; return 0; }
+  set_only=0
   jq -e 'length == 0' >/dev/null <<<"$rows" ||
-    { do_log "INFO the spawn queue is not empty ($(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued, $(jq '[.[] | select(.state == "acked")] | length' <<<"$rows") placing): nothing to fill"; return 0; }
+    { set_only=1; do_log "INFO the spawn queue is not empty ($(jq '[.[] | select(.state == "queued")] | length' <<<"$rows") queued, $(jq '[.[] | select(.state == "acked")] | length' <<<"$rows") placing): only an issue a person set to priority 1 or 2 passes"; }
   pick="$(spl_spawn_fill_pick)" || return 0
   n="$(spl_spawn_fill_count "$pick")"
   share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: no fill this tick"; return 0; }
@@ -86,9 +91,9 @@ do_spl_spawn_fill() {
   [[ -n "$classes" ]] || { do_log "INFO every class the filler takes by $phase ($(spl_spawn_fill_phase_classes "$phase")) is over its band ($(spl_spawn_share_line "$share")): nothing to fill"; return 0; }
   do_log "INFO $(jq -r '.why' <<<"$pick"): $n lane(s) this tick (${SPAWN_FILL_CORES_PER_LANE:-1} core(s) a lane, at most $(spl_spawn_fill_max)); $phase, classes in order: $classes ($(spl_spawn_share_line "$share"))"
   issues="$(spl_spawn_fill_issues)" || { do_log "WARN the open issues could not be read: no fill this tick"; return 0; }
-  chosen="$(spl_spawn_fill_choose "$issues" "$classes" "$(spl_spawn_fill_held "$share")" "$n")"
+  chosen="$(spl_spawn_fill_choose "$issues" "$classes" "$(spl_spawn_fill_held "$share")" "$n" "$set_only")"
   [[ "$(jq 'length' <<<"$chosen")" -gt 0 ]] ||
-    { do_log "INFO no open $classes issue is free (labelled, not needs-owner / blocker / epic, not held by a lane or an ask): nothing to fill"; return 0; }
+    { do_log "INFO no open $classes issue is free (labelled, not needs-owner / blocker / epic, not held by a lane or an ask$( ((set_only)) && printf '; with a queue: priority 1 or 2 set by a person')): nothing to fill"; return 0; }
   spl_spawn_fill_queue "$chosen" "$pick" "$holder" "$on"
 }
 
@@ -239,13 +244,20 @@ spl_spawn_fill_issues() {
 
 # The issues to queue, best first, at most N, as a JSON array of
 # {key, title, description, status, priority, created_at, discussions, class, sensitive}.
-spl_spawn_fill_choose() {  # ISSUES CLASSES HELD N
-  jq -c --arg cl "$2" --argjson held "$3" --argjson n "$4" --arg st "${SPAWN_FILL_STATUS:-todo,eval}" '
+# SET_ONLY=1 (the queue is not empty; spec 153 Q8, owner H4 A "Only a priority
+# a person set"): only an issue at priority 1 or 2 that is not its class
+# default. The issue list carries no "set by", so a priority equal to the
+# class default (issue_prio_default.go: alert 1, bug and refactor 2) reads as
+# the default and does not pass, even when a person set that same value.
+spl_spawn_fill_choose() {  # ISSUES CLASSES HELD N [SET_ONLY]
+  jq -c --arg cl "$2" --argjson held "$3" --argjson n "$4" --arg st "${SPAWN_FILL_STATUS:-todo,eval}" --arg so "${5:-0}" '
     def lbl: [.labels[]? | if type == "object" then (.id // .name) else . end];
     def secret: test("secret|credential|password|passphrase|private key|api[ _-]?key|access token|personal data|customer data|\\bpii\\b|key-[a-z0-9-]+\\.json"; "i");
+    def classdef($l): [$l[] | {alert: 1, bug: 2, refactor: 2}[.] // empty] | min // 0;
     ($cl | split(" ")) as $order | ($st | split(",")) as $sts
     | [.result.issues[]? | select((.kind // "issue") == "issue") | select(.status as $s | $sts | index($s))
        | lbl as $l
+       | select($so != "1" or ((.priority // 0) as $p | ($p == 1 or $p == 2) and $p != classdef($l)))
        | select(($l | index("needs-owner") | not) and ($l | index("blocker") | not) and ($l | index("epic") | not))
        | (if ($l | index("bug")) then "bug" elif ($l | index("feature")) then "feature" else "" end) as $c
        | select($c != "" and ($order | index($c)))

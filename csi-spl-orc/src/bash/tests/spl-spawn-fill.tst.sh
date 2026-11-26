@@ -37,6 +37,11 @@
 #  10. the open reaches the hub (b16-01): through the real spl_desk_spool and
 #      a fake spool with the client's same-box rule, the open is mirrored to
 #      the hub, so the link is taken; the link runs with the mirror unset
+#  13. a set plan passes the queue gate (spec 153 Q8, owner H4 A): with a
+#      queued row, a priority 2 feature queues one, priority 3 none, a bug at
+#      its class default 2 (or an alert at 1) none, a bug raised to 1 one;
+#      still one a tick and still behind the box pick; an empty queue fills
+#      a priority 3 issue as before
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -218,8 +223,10 @@ grep -qx 'Class: bug' "$T/briefs/fill-spl-1.md" && [[ "$(li_key_from_brief "$T/b
 [[ "$(li_discussion_from_brief "$T/briefs/fill-spl-1.md")" == fcf09921-0000-4000-8000-000000001922 ]] &&
   pass "live: the brief names the issue's linked topic (SPL-5325: the enqueue refuses a brief with no discussion)" || fail "brief topic: $(cat "$T/briefs/fill-spl-1.md")"
 [[ ! -s "$T/spoolhub.log" ]] && pass "live: an issue with a topic of its own opens no hub topic" || fail "hub calls: $(cat "$T/spoolhub.log")"
-id2="$(fill SPAWN_FILL=on DRY_RUN=0 | grep -c 'not empty (1 queued')"
-[[ "$id2" == 1 && "$(asks)" == 1 ]] && pass "live: the next tick sees 1 queued and fills nothing" || fail "second tick: $id2 $(asks)"
+jq '.result.issues |= map(select(.key == "SPL-1"))' "$T/issues.json" >"$T/issues-1.json"
+printf '#!/usr/bin/env bash\ncat "%s/issues-1.json"\n' "$T" >"$T/bin/issues-1"; chmod +x "$T/bin/issues-1"
+id2="$(fill SPAWN_FILL=on DRY_RUN=0 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-1" | grep -c 'not empty (1 queued')"
+[[ "$id2" == 1 && "$(asks)" == 1 ]] && pass "live: the next tick sees 1 queued and fills nothing (SPL-1 is a bug at its default 2)" || fail "second tick: $id2 $(asks)"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$id" --by c-001@box-desk --reason "placed: c-300@box-desk" >/dev/null
 out="$(fill)"
 ! grep -q 'PLAN would queue SPL-1 ' <<<"$out" && grep -q '^PLAN would queue SPL-5 ' <<<"$out" &&
@@ -345,6 +352,45 @@ out="$(hub10)"
 out="$(hub10 SPOOL_MIRROR_LOCAL=1)"
 [[ "$out" == "open=0 link=0" && "$(tr '\n' ' ' <"$T/hub10.log")" == "send mirror=1 issue mirror=unset " ]] &&
   pass "topic: a caller's SPOOL_MIRROR_LOCAL=1 does not reach the link" || fail "inherited mirror: $out | $(cat "$T/hub10.log")"
+
+# 13. a set plan passes the queue gate (spec 153 Q8, owner H4 A) --------------------
+# A queued row is in the hub. Only an issue a person set to priority 1 or 2
+# passes; a bug at its class default 2 (issue_prio_default.go) does not.
+q13() {  # ISSUE-LINES(json, one a line) [env...]: a live tick over a queue of one (its log: $T/out13.log); prints the queued keys
+  local lines="$1"; shift
+  rm -rf "$T/hub-13" "$T/briefs"; mkdir -p "$T/hub-13" "$T/briefs"
+  HUB_DIR="$T/hub-13" "$T/bin/hub" ask put --fleet main --id 13131313-0000-4000-8000-000000000013 --kind task --role orch \
+    --from c-002@box-desk --topic x --summary "SPAWN REQUEST other work" >/dev/null
+  HUB_DIR="$T/hub-13" "$T/bin/hub" ask queue --fleet main --id 13131313-0000-4000-8000-000000000013 --class bug >/dev/null
+  jq -s '{result: {issues: .}}' <<<"$lines" >"$T/issues-13.json"
+  printf '#!/usr/bin/env bash\ncat "%s/issues-13.json"\n' "$T" >"$T/bin/issues-13"; chmod +x "$T/bin/issues-13"
+  fill SPAWN_FILL=on DRY_RUN=0 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-13" HUB_DIR="$T/hub-13" LANES="$LANES_B4" "$@" >"$T/out13.log"
+  jq -r '[.[] | select(.state == "queued") | .summary | split(" ")[2] | select(startswith("SPL-"))] | join(" ")' "$T/hub-13/main.json"
+}
+got="$(q13 "$(iss SPL-50 todo 2 '["feature"]')")"
+[[ "$got" == SPL-50 ]] && grep -q 'not empty (1 queued, 0 placing): only an issue a person set to priority 1 or 2 passes' "$T/out13.log" &&
+  grep -q 'OK 1 row(s) queued' "$T/out13.log" &&
+  pass "13. set plan: a priority 2 feature with a non-empty queue queues one ($got)" || fail "13. prio 2: '$got' $(cat "$T/out13.log")"
+got="$(q13 "$(iss SPL-51 todo 3 '["feature"]')")"
+[[ -z "$got" ]] && grep -q 'with a queue: priority 1 or 2 set by a person): nothing to fill' "$T/out13.log" &&
+  pass "13. set plan: a priority 3 issue with a non-empty queue queues none" || fail "13. prio 3: '$got' $(cat "$T/out13.log")"
+got="$(q13 "$(iss SPL-52 todo 2 '["bug"]')")"
+[[ -z "$got" ]] && grep -q 'nothing to fill' "$T/out13.log" &&
+  pass "13. set plan (H4 A): a bug at its class default 2 with a non-empty queue queues none" || fail "13. bug default: '$got' $(cat "$T/out13.log")"
+got="$(q13 "$(iss SPL-54 todo 1 '["bug","alert"]')")"
+[[ -z "$got" ]] && pass "13. set plan (H4 A): an alert at its class default 1 queues none" || fail "13. alert default: '$got' $(cat "$T/out13.log")"
+got="$(q13 "$(iss SPL-53 todo 1 '["bug"]')")"
+[[ "$got" == SPL-53 ]] && pass "13. set plan: a bug a person raised to 1 queues one ($got)" || fail "13. bug 1: '$got' $(cat "$T/out13.log")"
+got="$(q13 "$(iss SPL-50 todo 2 '["feature"]'; iss SPL-55 todo 1 '["feature"]')")"
+[[ "$got" == SPL-55 ]] && pass "13. set plan: still SPAWN_FILL_MAX (1) a tick, priority 1 first ($got)" || fail "13. max: '$got' $(cat "$T/out13.log")"
+got="$(q13 "$(iss SPL-50 todo 2 '["feature"]')" PICK='hold reason=no box with a sample is below its overflow mark')"
+[[ -z "$got" ]] && grep -q 'no box is below its low mark' "$T/out13.log" &&
+  pass "13. set plan: the box pick still gates it" || fail "13. pick: '$got' $(cat "$T/out13.log")"
+mkdir -p "$T/hub-13-empty"
+iss SPL-51 todo 3 '["feature"]' | jq -s '{result: {issues: .}}' >"$T/issues-13.json"
+out="$(fill SPAWN_FILL_ISSUES_CMD="$T/bin/issues-13" HUB_DIR="$T/hub-13-empty" LANES="$LANES_B4")"
+grep -q '^PLAN would queue SPL-51 (feature, todo, priority 3)' <<<"$out" &&
+  pass "13. set plan: with an empty queue a priority 3 issue still fills, as before" || fail "13. empty queue: $out"
 
 # 7. the cron installer ------------------------------------------------------------
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"

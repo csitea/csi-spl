@@ -38,3 +38,19 @@ cron_drop_tagged_line() {
   $ct "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab refused the new file"; return 1; }
   rm -f "$before" "$after"
 }
+
+# cron_refuse_linked_worktree <dry> [allow]: refuse an install from a linked
+# git worktree ($PROJ_PATH vanishes with it); dry=1 warns and returns 0,
+# dry=0 logs FATAL and returns 1. allow=1 skips the check (for tests).
+cron_refuse_linked_worktree() {
+  local dry="$1" allow="${2:-0}" gd cd
+  [[ "$allow" == 1 ]] && return 0
+  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
+  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  [[ -n "$gd" && "$gd" != "$cd" ]] || return 0
+  if [[ "$dry" == 0 ]]; then
+    do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"
+    return 1
+  fi
+  echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
+}

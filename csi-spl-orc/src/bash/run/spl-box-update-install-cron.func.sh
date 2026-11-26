@@ -25,7 +25,7 @@
 #------------------------------------------------------------------------------
 do_spl_box_update_install_cron() {
   local dry="${DRY_RUN:-1}" act="${BOX_UPDATE_CRON_ACTION:-install}" ct="${BOX_UPDATE_CRONTAB:-crontab}"
-  local sched="${BOX_UPDATE_CRON_SCHEDULE:-0 0,12 * * *}" org_app tag logdir want gd cd
+  local sched="${BOX_UPDATE_CRON_SCHEDULE:-0 0,12 * * *}" org_app tag logdir want
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove|check) ;; *) do_log "FATAL BOX_UPDATE_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "$sched" =~ ^[0-9*,/-]+( [0-9*,/-]+){4}$ ]] || { do_log "FATAL BOX_UPDATE_CRON_SCHEDULE must be five cron fields, got: '$sched'"; return 1; }
@@ -44,12 +44,7 @@ do_spl_box_update_install_cron() {
   fi
   if [[ "$act" == install ]]; then
     spl_require_cloud_env || return 1
-    gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-    cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-    if [[ -n "$gd" && "$gd" != "$cd" && "${BOX_UPDATE_ALLOW_WORKTREE:-0}" != 1 ]]; then
-      [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-      echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-    fi
+    cron_refuse_linked_worktree "$dry" "${BOX_UPDATE_ALLOW_WORKTREE:-0}" || return 1
   fi
   # cron's PATH is /usr/bin:/bin; $HOME is expanded by the job's shell
   want="$sched cd $PROJ_PATH && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/.local/bin flock -n $logdir/box-update.lock env ENV=${ENV:-} DRY_RUN=0 ./run -a do_spl_box_update >> $logdir/cron.out 2>&1 # $tag"

@@ -33,7 +33,7 @@
 #------------------------------------------------------------------------------
 do_spl_cost_rollup_install_cron() {
   local dry="${DRY_RUN:-1}" act="${COST_ROLLUP_CRON_ACTION:-install}" ct="${COST_ROLLUP_CRONTAB:-crontab}"
-  local sched="${COST_ROLLUP_CRON_SCHEDULE:-}" srcs="${COST_SOURCES:-}" org_app tag logdir want gd cd
+  local sched="${COST_ROLLUP_CRON_SCHEDULE:-}" srcs="${COST_SOURCES:-}" org_app tag logdir want
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove|check) ;; *) do_log "FATAL COST_ROLLUP_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   spl_require_cloud_env || return 1
@@ -54,12 +54,7 @@ do_spl_cost_rollup_install_cron() {
     do_log "OK the cost rollup cron is installed"; return 0
   fi
   if [[ "$act" == install ]]; then
-    gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-    cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-    if [[ -n "$gd" && "$gd" != "$cd" && "${COST_ROLLUP_ALLOW_WORKTREE:-0}" != 1 ]]; then
-      [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-      echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-    fi
+    cron_refuse_linked_worktree "$dry" "${COST_ROLLUP_ALLOW_WORKTREE:-0}" || return 1
     [[ -n "$sched" ]] || sched="$(spl_cost_rollup_cron_schedule)" || { printf '%s\n' "$sched"; return 1; }
     [[ "$sched" =~ ^[0-9*,/-]+( [0-9*,/-]+){4}$ ]] || { do_log "FATAL COST_ROLLUP_CRON_SCHEDULE must be five cron fields, got: '$sched'"; return 1; }
     [[ -z "$srcs" || "$srcs" =~ ^[a-z][a-z0-9_]*( [a-z][a-z0-9_]*)*$ ]] || { do_log "FATAL COST_SOURCES must be source names separated by one space, got: '$srcs'"; return 1; }

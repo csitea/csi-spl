@@ -67,4 +67,57 @@ fixture
 out="$(drop "$T/refusing-crontab" csi-spl:demo 0 "$T/log")"; rc=$?
 [ "$rc" = 1 ] && grep -q 'FATAL crontab refused the new file' <<<"$out" && pass "6. a refusing crontab: FATAL, rc 1" || fail "6. refused ($rc: $out)"
 
+# 7. cron_refuse_linked_worktree and wave-1 delegation (r06-02 one copy)
+git init -q -b master "$T/wt-main" && git -C "$T/wt-main" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+git -C "$T/wt-main" worktree add -q --detach "$T/wt-linked"
+mkdir -p "$T/wt-main/csi-spl-orc" "$T/wt-linked/csi-spl-orc" "$T/wt-nogit/csi-spl-orc"
+wt_check() {
+  local pp="$1"; shift
+  env PROJ_PATH="$pp" LIB="$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" bash -c '
+    set -uo pipefail; do_log() { echo "$*"; }
+    source "$LIB"; cron_refuse_linked_worktree "$@"' _ "$@" 2>&1
+}
+out="$(wt_check "$T/wt-main/csi-spl-orc" 0 0)"; rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] && pass "7. cron_refuse_linked_worktree allows a main checkout (dry=0)" || fail "7. main ($rc: $out)"
+out="$(wt_check "$T/wt-nogit/csi-spl-orc" 0 0)"; rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] && pass "7. cron_refuse_linked_worktree allows a non-git dir (dry=0)" || fail "7. nogit ($rc: $out)"
+out="$(wt_check "$T/wt-linked/csi-spl-orc" 0 0)"; rc=$?
+[ "$rc" = 1 ] && [ "$out" = "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" ] \
+  && pass "7. cron_refuse_linked_worktree refuses a linked worktree when dry=0" || fail "7. linked dry=0 ($rc: $out)"
+out="$(wt_check "$T/wt-linked/csi-spl-orc" 1 0)"; rc=$?
+[ "$rc" = 0 ] && [ "$out" = "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the path below would vanish with it; install from the main checkout" ] \
+  && pass "7. cron_refuse_linked_worktree warns and returns 0 when dry=1" || fail "7. linked dry=1 ($rc: $out)"
+out="$(wt_check "$T/wt-linked/csi-spl-orc" 0 1)"; rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] && pass "7. cron_refuse_linked_worktree skips when allow=1" || fail "7. linked allow=1 ($rc: $out)"
+
+ctl_f="$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh"
+[ "$(grep -c 'is a linked worktree: install from the main checkout' "$ctl_f")" -eq 1 ] && grep -q '^cron_refuse_linked_worktree()' "$ctl_f" \
+  && pass "7. one copy: cron-tagged-line.func.sh hosts cron_refuse_linked_worktree" || fail "7. host one copy"
+for sib in \
+  "$PROJ_ROOT/src/bash/run/spl-box-update-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/spl-cost-rollup-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/git-prune-merged-install-cron.func.sh"; do
+  own="$(grep -nE 'is a linked worktree: install from the main checkout|--git-common-dir' "$sib" || true)"
+  [ -z "$own" ] && grep -q 'cron_refuse_linked_worktree ' "$sib" \
+    && pass "7. one copy: $(basename "$sib") delegates worktree check to cron_refuse_linked_worktree" \
+    || fail "7. one copy $(basename "$sib"): own=[$own]"
+done
+
+# standalone installer linked-worktree checks (dry=1 warns, dry=0 refuses)
+out="$(env -u GIT_PRUNE_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" GIT_PRUNE_CRONTAB="$T/fake-crontab" GIT_PRUNE_CRON_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_git_prune_merged_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/git-prune-merged-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "7. git-prune-merged refuses a linked worktree when DRY_RUN=0" || fail "7. git-prune dry=0 ($rc: $out)"
+out="$(env -u GIT_PRUNE_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" GIT_PRUNE_CRONTAB="$T/fake-crontab" GIT_PRUNE_CRON_LOG_DIR="$T/log" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_git_prune_merged_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/git-prune-merged-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the path below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "7. git-prune-merged warns on a linked worktree when DRY_RUN=1" || fail "7. git-prune dry=1 ($rc: $out)"
+out="$(env -u COST_ROLLUP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" ENV=dev COST_ROLLUP_CRON_SCHEDULE="0 2 * * *" COST_ROLLUP_CRONTAB="$T/fake-crontab" COST_ROLLUP_CRON_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; source "$3"; do_spl_cost_rollup_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/spl-cloud-cnf.func.sh" "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-cost-rollup-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "7. cost-rollup refuses a linked worktree when DRY_RUN=0" || fail "7. cost-rollup dry=0 ($rc: $out)"
+
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

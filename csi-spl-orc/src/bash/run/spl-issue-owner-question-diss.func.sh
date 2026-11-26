@@ -32,24 +32,13 @@
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-002 OWNER_ID=HUM-10 ISSUE_CREATED_DAY=2026-10-11 ISSUE_NUM_FROM=1351 ISSUE_NUM_TO=1471 ./run -a do_spl_issue_owner_question_diss
 #------------------------------------------------------------------------------
 do_spl_issue_owner_question_diss() {
-  local dry=1 plan rows rc=0
+  local dry=1 plan
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_issue_oq_check || return 1
-  plan="$(spl_issue_oq_plan_path)" || return 1
-  rows="$(mktemp)"
-  if spl_issue_oq_read >"$rows" && spl_issue_oq_verdicts <"$rows" >"$plan"; then
-    do_log "INFO $(grep -c . "$plan" || true) candidates: $(cut -f3 "$plan" | sort | uniq -c | awk '{ printf "%s=%s ", $2, $1 }')"
-    if (( dry )); then
-      cat "$plan"
-      do_log "OK DRY_RUN nothing was moved. PLAN $plan"
-    else
-      spl_issue_oq_apply "$plan" || rc=1
-    fi
-  else
-    rc=1
-  fi
-  rm -f "$rows"
-  return $rc
+  # shellcheck source=spl-issue-blocker-rca-close.func.sh
+  declare -F _spl_issue_brc_run_plan >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-issue-blocker-rca-close.func.sh"
+  plan="$(spl_issue_brc_plan_path issue-owner-question)" || return 1
+  _spl_issue_brc_run_plan "$dry" "$plan" spl_issue_oq_read spl_issue_oq_verdicts spl_issue_oq_apply
 }
 
 # spl_issue_oq_check: every knob's shape before any read; the values it
@@ -68,16 +57,6 @@ spl_issue_oq_check() {
   [[ -n "${DESK_AGENT:-}" ]] || { do_log "FATAL DESK_AGENT must be set (the agent the desk writes as)"; return 1; }
 }
 
-# spl_issue_oq_plan_path -> ISSUE_PLAN, or a fresh name in a 0700 state dir.
-# The plan holds titles (workspace data): 0600, never in git.
-spl_issue_oq_plan_path() {
-  local p="${ISSUE_PLAN:-${SPL_STATE_DIR}/issue-owner-question/${TENANT_ID}-$(date -u +%Y%m%dT%H%M%SZ).plan.tsv}"
-  mkdir -p "$(dirname "$p")" || return 1
-  [[ -n "${ISSUE_PLAN:-}" ]] || chmod 700 "$(dirname "$p")"
-  (umask 077; : >"$p") || return 1
-  printf '%s\n' "$p"
-}
-
 # spl_issue_oq_read -> one TSV row per candidate from the hub Postgres:
 # key, status, owner events, owner comments, title. Read-only, as the SA.
 spl_issue_oq_read() {
@@ -88,15 +67,11 @@ spl_issue_oq_read() {
   spl_db_query_rc "$provider" _spl_issue_oq_query
 }
 
-# _spl_issue_oq_query: the read, once $dsn is the local login. Stops the proxy.
-# shellcheck disable=SC2154 # dsn: bound by spl_db_query_rc, via dynamic scope
+# _spl_issue_oq_query: callback for spl_db_query_rc; delegates to _spl_issue_brc_query.
 _spl_issue_oq_query() {
-  local out qrc
-  out="$(spl_psql_ro "$dsn" "$(spl_issue_oq_sql)")"
-  qrc=$?
-  spl_sql_proxy_stop
-  [[ $qrc == 0 ]] || { do_log "FATAL read-only query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; return 1; }
-  [[ -z "$out" ]] || printf '%s\n' "$out"
+  # shellcheck source=spl-issue-blocker-rca-close.func.sh
+  declare -F _spl_issue_brc_query >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-issue-blocker-rca-close.func.sh"
+  _spl_issue_brc_query spl_issue_oq_sql
 }
 
 # spl_issue_oq_sql -> the candidates with the owner's touches counted. Every

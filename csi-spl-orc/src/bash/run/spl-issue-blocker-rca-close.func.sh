@@ -33,19 +33,27 @@
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-996 ISSUE_OWNER_GO=<owner msg uuid> DRY_RUN=0 ./run -a do_spl_issue_blocker_rca_close
 #------------------------------------------------------------------------------
 do_spl_issue_blocker_rca_close() {
-  local dry=1 plan rows rc=0
+  local dry=1 plan
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_issue_brc_check "$dry" || return 1
   do_spl_cloud_cnf || return 1
-  plan="$(spl_issue_brc_plan_path)" || return 1
+  plan="$(spl_issue_brc_plan_path issue-blocker-rca)" || return 1
+  _spl_issue_brc_run_plan "$dry" "$plan" spl_issue_brc_read spl_issue_brc_verdicts spl_issue_brc_apply
+}
+
+# _spl_issue_brc_run_plan DRY PLAN READ_FN VERDICTS_FN APPLY_FN -> read rows
+# into a temp file, write verdicts to PLAN, log counts, and either preview
+# (DRY=1) or run APPLY_FN (DRY=0).
+_spl_issue_brc_run_plan() {
+  local dry="$1" plan="$2" read_fn="$3" verdicts_fn="$4" apply_fn="$5" rows rc=0
   rows="$(mktemp)"
-  if spl_issue_brc_read >"$rows" && spl_issue_brc_verdicts <"$rows" >"$plan"; then
+  if "$read_fn" >"$rows" && "$verdicts_fn" <"$rows" >"$plan"; then
     do_log "INFO $(grep -c . "$plan" || true) candidates: $(cut -f3 "$plan" | sort | uniq -c | awk '{ printf "%s=%s ", $2, $1 }')"
     if (( dry )); then
       cat "$plan"
       do_log "OK DRY_RUN nothing was moved. PLAN $plan"
     else
-      spl_issue_brc_apply "$plan" || rc=1
+      "$apply_fn" "$plan" || rc=1
     fi
   else
     rc=1
@@ -66,10 +74,12 @@ spl_issue_brc_check() {
     { do_log "FATAL DRY_RUN=0 needs ISSUE_OWNER_GO, the owner's go message uuid (full, lowercase), got: '${ISSUE_OWNER_GO:-}'"; return 1; }
 }
 
-# spl_issue_brc_plan_path -> ISSUE_PLAN, or a fresh name in a 0700 state dir.
-# The plan holds titles (workspace data): 0600, never in git.
+# spl_issue_brc_plan_path [SUBDIR] -> ISSUE_PLAN, or a fresh name in a 0700
+# state dir (default subdir issue-blocker-rca). The plan holds titles
+# (workspace data): 0600, never in git.
 spl_issue_brc_plan_path() {
-  local p="${ISSUE_PLAN:-${SPL_STATE_DIR}/issue-blocker-rca/${TENANT_ID}-$(date -u +%Y%m%dT%H%M%SZ).plan.tsv}"
+  local sub="${1:-issue-blocker-rca}"
+  local p="${ISSUE_PLAN:-${SPL_STATE_DIR}/${sub}/${TENANT_ID}-$(date -u +%Y%m%dT%H%M%SZ).plan.tsv}"
   mkdir -p "$(dirname "$p")" || return 1
   [[ -n "${ISSUE_PLAN:-}" ]] || chmod 700 "$(dirname "$p")"
   (umask 077; : >"$p") && chmod 600 "$p" || return 1
@@ -85,11 +95,11 @@ spl_issue_brc_read() {
   spl_db_query_rc "$provider" _spl_issue_brc_query
 }
 
-# _spl_issue_brc_query: the read, once $dsn is the local login. Stops the proxy.
+# _spl_issue_brc_query [SQL_FN]: the read, once $dsn is the local login. Stops the proxy.
 # shellcheck disable=SC2154 # dsn: bound by spl_db_query_rc, via dynamic scope
 _spl_issue_brc_query() {
-  local out qrc
-  out="$(spl_psql_ro "$dsn" "$(spl_issue_brc_sql)")"
+  local sql_fn="${1:-spl_issue_brc_sql}" out qrc
+  out="$(spl_psql_ro "$dsn" "$("$sql_fn")")"
   qrc=$?
   spl_sql_proxy_stop
   [[ $qrc == 0 ]] || { do_log "FATAL read-only query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; return 1; }

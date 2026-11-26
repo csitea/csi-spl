@@ -127,4 +127,50 @@ grep -q "i.tenant_id = 't1'" <<<"$sql" && grep -q "i.parent_number = 2394 AND i.
 sql=$(SNIPPET='spl_issue_brc_sql' in_orc "${base[@]}" ISSUE_EXTRA_NUMS= 2>&1)
 grep -q "OR i.number IN (NULL)" <<<"$sql" && pass "control: ISSUE_EXTRA_NUMS='' adds no number" || fail "sql no extra: $sql"
 
+# --- r04-01 shared helpers (_spl_issue_brc_run_plan, plan_path subdir, query) ---
+out=$(env PROJ_ROOT="$PROJ_ROOT" T="$T" TENANT_ID=t1 SPL_STATE_DIR="$T/state/sub" bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }
+  source "$PROJ_ROOT/src/bash/run/spl-issue-blocker-rca-close.func.sh"
+  p="$(spl_issue_brc_plan_path issue-owner-question)" || exit 1
+  printf "P=%s MODE=%s DMODE=%s\n" "$p" "$(stat -c %a "$p")" "$(stat -c %a "$(dirname "$p")")"
+  r_fn(){ printf "SPL-1\ttodo\thello\n"; }
+  v_fn(){ awk -F"\t" -v OFS="\t" "{print \$1,\$2,\"MOVE\",\"w\",\$3}"; }
+  a_fn(){ echo "APPLIED:$1"; }
+  _spl_issue_brc_run_plan 1 "$p" r_fn v_fn a_fn || exit 1
+  _spl_issue_brc_run_plan 0 "$p" r_fn v_fn a_fn || exit 1' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"P=$T/state/sub/issue-owner-question/t1-"*"MODE=600 DMODE=700"* &&
+  "$out" == *"OK DRY_RUN nothing was moved. PLAN $T/state/sub/issue-owner-question/t1-"* &&
+  "$out" == *"APPLIED:$T/state/sub/issue-owner-question/t1-"* ]] &&
+  pass "r04-01: spl_issue_brc_plan_path accepts subdir and _spl_issue_brc_run_plan drives dry and live runs" ||
+  fail "r04-01 plan_path/run_plan (rc=$rc): $out"
+
+out=$(env PROJ_ROOT="$PROJ_ROOT" bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }
+  spl_psql_ro(){ printf "DSN=%s SQL=%s\n" "$1" "$2"; }
+  spl_sql_proxy_stop(){ echo "STOPPED"; }
+  my_sql(){ echo "SELECT 42;"; }
+  source "$PROJ_ROOT/src/bash/run/spl-issue-blocker-rca-close.func.sh"
+  dsn=pg://local _spl_issue_brc_query my_sql' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"STOPPED"* && "$out" == *"DSN=pg://local SQL=SELECT 42;"* ]] &&
+  pass "r04-01: _spl_issue_brc_query runs caller SQL_FN and stops proxy" ||
+  fail "r04-01 query ok (rc=$rc): $out"
+
+out=$(env PROJ_ROOT="$PROJ_ROOT" bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }
+  spl_psql_ro(){ echo "boom"; return 2; }
+  spl_sql_proxy_stop(){ echo "STOPPED"; }
+  my_sql(){ echo "SELECT 42;"; }
+  source "$PROJ_ROOT/src/bash/run/spl-issue-blocker-rca-close.func.sh"
+  SPL_SQL_CONN=c SPL_DB_NAME=d dsn=pg://local _spl_issue_brc_query my_sql' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"STOPPED"* && "$out" == *"FATAL read-only query on c/d failed: boom"* ]] &&
+  pass "r04-01: _spl_issue_brc_query stops proxy and logs FATAL on psql error" ||
+  fail "r04-01 query fail (rc=$rc): $out"
+
+brc_f="$PROJ_ROOT/src/bash/run/spl-issue-blocker-rca-close.func.sh"
+[[ "$(grep -c 'OK DRY_RUN nothing was moved. PLAN' "$brc_f")" -eq 1 &&
+  "$(grep -c 'FATAL read-only query on' "$brc_f")" -eq 1 &&
+  "$(grep -c '_spl_issue_brc_run_plan ' "$brc_f")" -ge 1 ]] &&
+  pass "r04-01 one copy: spl-issue-blocker-rca-close.func.sh hosts the single plan-run and query helpers" ||
+  fail "r04-01 brc one copy"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

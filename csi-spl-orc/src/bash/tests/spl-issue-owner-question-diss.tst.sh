@@ -86,4 +86,39 @@ grep -q "assignee = 'HUM-10'" <<<"$sql" && grep -q "'blocker' = ANY (i.labels)" 
   grep -q "DATE '2026-10-11'" <<<"$sql" && grep -q "e.event <> 'created'" <<<"$sql" && grep -q "m.from_id = 'HUM-10'" <<<"$sql" &&
   pass "the SQL carries owner, label, open status, range, day, the owner's events and comments" || fail "sql: $sql"
 
+# --- r04-01 shared helpers delegation and standalone lazy-source ----------------
+oq_f="$PROJ_ROOT/src/bash/run/spl-issue-owner-question-diss.func.sh"
+own_r04="$(grep -nE 'spl_issue_oq_plan_path|OK DRY_RUN nothing was moved\. PLAN|FATAL read-only query on' "$oq_f" || true)"
+[[ -z "$own_r04" ]] &&
+  grep -q '_spl_issue_brc_run_plan "$dry" "$plan" spl_issue_oq_read spl_issue_oq_verdicts spl_issue_oq_apply' "$oq_f" &&
+  grep -q 'spl_issue_brc_plan_path issue-owner-question' "$oq_f" &&
+  grep -q '_spl_issue_brc_query spl_issue_oq_sql' "$oq_f" &&
+  pass "r04-01 one copy: spl-issue-owner-question-diss.func.sh delegates plan_path, run_plan and query to brc helpers" ||
+  fail "r04-01 oq one copy: own=[$own_r04]"
+
+: >"$T/desk.log"
+SNIPPET="${STUBS}do_spl_issue_owner_question_diss" in_orc "${base[@]}" IN_ORC_RUN=spl-issue-owner-question-diss \
+  SPL_STATE_DIR="$T/state/oq-solo" >"$T/o" 2>&1; rc=$?
+p_solo="$(ls "$T/state/oq-solo/issue-owner-question/"t1-*.plan.tsv 2>/dev/null || true)"
+[[ $rc -eq 0 && -n "$p_solo" && "$(stat -c %a "$T/state/oq-solo/issue-owner-question")" == 700 &&
+  "$(stat -c %a "$p_solo")" == 600 ]] && grep -q "OK DRY_RUN nothing was moved. PLAN $p_solo" "$T/o" &&
+  pass "r04-01 standalone dry run: loads brc helpers and writes 0600 plan under issue-owner-question (0700)" ||
+  fail "r04-01 oq solo dry (rc=$rc): $(cat "$T/o")"
+
+out=$(env PROJ_ROOT="$PROJ_ROOT" "${base[@]}" bash -c '
+  set -uo pipefail; do_log(){ echo "$*"; }
+  spl_psql_ro(){ printf "DSN=%s SQL=%s\n" "$1" "$2"; }
+  spl_sql_proxy_stop(){ echo "STOPPED"; }
+  source "$PROJ_ROOT/src/bash/run/spl-issue-owner-question-diss.func.sh"
+  dsn=pg://local _spl_issue_oq_query' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"STOPPED"* && "$out" == *"DSN=pg://local"* && "$out" == *"assignee = 'HUM-10'"* && "$out" != *"command not found"* ]] &&
+  pass "r04-01 standalone query: _spl_issue_oq_query lazy-loads _spl_issue_brc_query and passes spl_issue_oq_sql" ||
+  fail "r04-01 oq solo query (rc=$rc): $out"
+
+(umask 022; : >"$T/plan.tsv"; chmod 644 "$T/plan.tsv")
+run
+[[ $RC -eq 0 && "$(stat -c %a "$T/plan.tsv")" == 600 ]] &&
+  pass "r04-01 plan mode: an existing 0644 ISSUE_PLAN is tightened to 0600" ||
+  fail "r04-01 existing plan mode (rc=$RC): $(stat -c %a "$T/plan.tsv")"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

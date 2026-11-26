@@ -62,9 +62,16 @@ describe('the Discussion loops… entry and its lock (answer 5 A)', () => {
 describe('the loop form (4.1 step 2)', () => {
   const ok = { prompt: 'Export this discussion as a PDF.', trigger: 'after_agent_reply', interval: 30 }
 
-  it('the eleven triggers of section 1.2 (v0.6, Q11 C), in order', () => {
+  it('the twelve triggers of section 1.2 (v0.6, Q11 C; v0.11 change 9 splits the file one by poster), in order', () => {
     assert.deepEqual([...LOOP_TRIGGERS], ['after_agent_reply', 'before_agent_reply', 'after_human_reply', 'every_hour', 'every_n_minutes',
-      'post_has_keyword', 'post_has_file', 'blocker_posted', 'no_reply_after_human', 'issue_status_changed', 'daily_at'])
+      'post_has_keyword', 'post_has_file_agent', 'post_has_file_human', 'blocker_posted', 'no_reply_after_human', 'issue_status_changed', 'daily_at'])
+  })
+
+  it('the old file trigger (v0.11 change 9): not offered, refused in a save, but a stored loop keeps it and its title', () => {
+    assert.equal(loopFormError({ ...ok, trigger: 'post_has_file' }), KEY + 'err_trigger')
+    const old = loopForm({ prompt: 'p', triggers: ['post_has_file'] })
+    assert.equal(old.trigger, 'post_has_file', 'the Edit form opens on it')
+    assert.deepEqual(loopTriggerLabels({ triggers: ['post_has_file'] }), [[KEY + 'trigger.post_has_file', {}]])
   })
 
   it('exactly one trigger (v0.11): none is refused, each one alone is enough', () => {
@@ -151,7 +158,8 @@ describe('the trigger names the loop (v0.11, change 1)', () => {
     every_hour: 'Every hour',
     every_n_minutes: 'Every 30 minutes',
     post_has_keyword: 'A post that contains \u201cdeploy\u201d',
-    post_has_file: 'A post with a file attached',
+    post_has_file_agent: 'After an agent post with one or more files attached',
+    post_has_file_human: 'After a human post with one or more files attached',
     blocker_posted: 'A blocker posted in the topic',
     no_reply_after_human: 'No reply for 15 minutes after a human post',
     issue_status_changed: 'An issue linked to the topic changes status',
@@ -223,7 +231,7 @@ describe('the list row and the refusals (7.1.2)', () => {
     for (const m of utils.matchAll(/KEY \+ '([a-z_]+)'(?! \+)/g)) keys.add(m[1])
     for (const m of utils.matchAll(/: '(err_[a-z_]+)'/g)) keys.add(m[1])
     for (const k of keys) assert.equal(typeof en.feed.topic_loops[k], 'string', k)
-    for (const k of LOOP_TRIGGERS) assert.equal(typeof en.feed.topic_loops.trigger[k], 'string', k)
+    for (const k of [...LOOP_TRIGGERS, 'post_has_file']) assert.equal(typeof en.feed.topic_loops.trigger[k], 'string', k)
     for (const k of ['idle_author_left', 'idle_author_no_right', 'every_n', 'keyword_row', 'idle_row', 'daily_row']) assert.equal(typeof en.feed.topic_loops[k], 'string', k)
     assert.equal(typeof en.feed.msg_menu.topic_loops, 'string')
   })

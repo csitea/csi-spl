@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Her n dakikada",
         "post_has_keyword": "Şunu içeren bir gönderi",
         "post_has_file": "Dosya eklenmiş bir gönderi",
+        "post_has_file_agent": "Bir veya daha fazla dosya eklenmiş bir ajan gönderisinden sonra",
+        "post_has_file_human": "Bir veya daha fazla dosya eklenmiş bir insan gönderisinden sonra",
         "blocker_posted": "Konuda paylaşılan bir engel",
         "no_reply_after_human": "Bir insan gönderisinden sonra n dakika yanıt yok",
         "issue_status_changed": "Konuya bağlı bir kaydın durumu değişir",

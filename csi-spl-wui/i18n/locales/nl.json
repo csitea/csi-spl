@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Elke n minuten",
         "post_has_keyword": "Een bericht dat bevat",
         "post_has_file": "Een bericht met een bijlage",
+        "post_has_file_agent": "Na een bericht van een agent met een of meer bijlagen",
+        "post_has_file_human": "Na een bericht van een mens met een of meer bijlagen",
         "blocker_posted": "Een blokkade gemeld in het onderwerp",
         "no_reply_after_human": "Geen antwoord binnen n minuten na een bericht van een mens",
         "issue_status_changed": "Een aan het onderwerp gekoppeld issue krijgt een andere status",

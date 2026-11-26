@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Kas n minučių",
         "post_has_keyword": "Įrašas, kuriame yra",
         "post_has_file": "Įrašas su prisegtu failu",
+        "post_has_file_agent": "Po agento įrašo su vienu ar daugiau prisegtų failų",
+        "post_has_file_human": "Po žmogaus įrašo su vienu ar daugiau prisegtų failų",
         "blocker_posted": "Temoje paskelbta kliūtis",
         "no_reply_after_human": "Nėra atsakymo n minučių po žmogaus įrašo",
         "issue_status_changed": "Su tema susietos užduoties būsena pasikeičia",

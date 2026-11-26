@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Cada n minutos",
         "post_has_keyword": "Una publicación que contiene",
         "post_has_file": "Una publicación con un archivo adjunto",
+        "post_has_file_agent": "Después de una publicación de un agente con uno o más archivos adjuntos",
+        "post_has_file_human": "Después de una publicación de una persona con uno o más archivos adjuntos",
         "blocker_posted": "Un bloqueo publicado en el tema",
         "no_reply_after_human": "Sin respuesta n minutos después de una publicación de una persona",
         "issue_status_changed": "Una incidencia vinculada al tema cambia de estado",

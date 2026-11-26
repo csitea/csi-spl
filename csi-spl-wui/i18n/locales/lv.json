@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Ik pēc n minūtēm",
         "post_has_keyword": "Ziņa, kurā ir",
         "post_has_file": "Ziņa ar pievienotu failu",
+        "post_has_file_agent": "Pēc aģenta ziņas ar vienu vai vairākiem pievienotiem failiem",
+        "post_has_file_human": "Pēc cilvēka ziņas ar vienu vai vairākiem pievienotiem failiem",
         "blocker_posted": "Tēmā publicēts šķērslis",
         "no_reply_after_human": "Nav atbildes n minūtes pēc cilvēka ziņas",
         "issue_status_changed": "Ar tēmu saistīta pieteikuma statuss mainās",

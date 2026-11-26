@@ -1,4 +1,4 @@
-// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6587, 6589, 6592, 6593): the
+// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6589, 6592, 6593): the
 // Discussion loops dialog after the owner's changes, in Chrome on the mock.
 //
 //   1  1440 px: the dialog is 70% of the viewport wide and its top is 10%
@@ -7,6 +7,8 @@
 //      the form's title at once, with its parameter, and only one stays
 //      checked (changes 1 and 3, msgs 543a5bde, a04bba37, febf1db4)
 //   2b "Every day at" is a 24-hour HH:MM text field (change 10, e4cb57a6)
+//   2c the file trigger is two radios, an agent post and a human post with
+//      files (change 9, msg d8e02722)
 //   3  the prompt is left and Run it right (change 11, msg 534340d9); the
 //      prompt box is about 17% of the screen high and still resizable
 //      (change 7, msg ae3a2d5c)
@@ -153,8 +155,11 @@ try {
   /* ---- 2. one radio group; the pick is the title ------------------------- */
   await p.click('[data-testid=topic-loops-add]')
   await p.waitForSelector('[data-testid=topic-loops-form]')
-  const radios = await p.evaluate(() => [...document.querySelectorAll('[data-testid^=topic-loops-trigger-]')].map((e) => ({ type: e.type, name: e.name, on: e.checked })))
-  ok('2 eleven triggers, each a radio of one group, none picked', radios.length === 11 && radios.every((r) => r.type === 'radio' && r.name === radios[0].name && !r.on), radios.length)
+  const radios = await p.evaluate(() => [...document.querySelectorAll('[data-testid^=topic-loops-trigger-]')].map((e) => ({ id: e.dataset.testid, type: e.type, name: e.name, on: e.checked })))
+  ok('2 twelve triggers, each a radio of one group, none picked', radios.length === 12 && radios.every((r) => r.type === 'radio' && r.name === radios[0].name && !r.on), radios.length)
+  const fileIds = radios.map((r) => r.id).filter((id) => id.includes('post_has_file'))
+  ok('2c the file trigger is two: an agent post and a human post with files (change 9)',
+    fileIds.join() === 'topic-loops-trigger-post_has_file_agent,topic-loops-trigger-post_has_file_human', fileIds)
   ok('2 no title before a pick', (await text(p, '[data-testid=topic-loops-form-title]')) === null)
   await clickTrigger(p, 'before_agent_reply')
   await sleep(100)
@@ -280,7 +285,7 @@ try {
   await sleep(300)
   const n = await p.evaluate(() => document.querySelectorAll('input[type=radio][data-testid^=topic-loops-trigger-]').length)
   const cols = await p.evaluate(() => getComputedStyle(document.querySelector('[data-testid=topic-loops-cols]')).gridTemplateColumns.split(' ').length)
-  ok('6 390 px: the radios are there, in one column under the prompt', n === 11 && cols === 1, { n, cols })
+  ok('6 390 px: the radios are there, in one column under the prompt', n === 12 && cols === 1, { n, cols })
   await shot(p, '390-form')
   const benign = (e) => /Failed to fetch dynamically imported module/.test(e)
   ok('no unexpected page errors', errors.filter((e) => !benign(e)).length === 0, errors)

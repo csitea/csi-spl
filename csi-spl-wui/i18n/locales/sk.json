@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Každých n minút",
         "post_has_keyword": "Príspevok, ktorý obsahuje",
         "post_has_file": "Príspevok s priloženým súborom",
+        "post_has_file_agent": "Po príspevku agenta s jedným alebo viacerými priloženými súbormi",
+        "post_has_file_human": "Po príspevku človeka s jedným alebo viacerými priloženými súbormi",
         "blocker_posted": "Prekážka zverejnená v téme",
         "no_reply_after_human": "Žiadna odpoveď n minút po príspevku človeka",
         "issue_status_changed": "Úloha prepojená s témou zmení stav",

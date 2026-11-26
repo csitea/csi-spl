@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Var n:e minut",
         "post_has_keyword": "Ett inlägg som innehåller",
         "post_has_file": "Ett inlägg med en bifogad fil",
+        "post_has_file_agent": "Efter ett agentinlägg med en eller flera bifogade filer",
+        "post_has_file_human": "Efter ett mänskligt inlägg med en eller flera bifogade filer",
         "blocker_posted": "En blockerare postad i ämnet",
         "no_reply_after_human": "Inget svar på n minuter efter ett mänskligt inlägg",
         "issue_status_changed": "Ett ärende kopplat till ämnet byter status",

@@ -1067,6 +1067,8 @@
         "every_n_minutes": "La fiecare n minute",
         "post_has_keyword": "O postare care conține",
         "post_has_file": "O postare cu un fișier atașat",
+        "post_has_file_agent": "După o postare a unui agent cu unul sau mai multe fișiere atașate",
+        "post_has_file_human": "După o postare a unui om cu unul sau mai multe fișiere atașate",
         "blocker_posted": "Un blocaj postat în subiect",
         "no_reply_after_human": "Niciun răspuns la n minute după o postare umană",
         "issue_status_changed": "Un tichet legat de subiect își schimbă starea",

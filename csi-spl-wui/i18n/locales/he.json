@@ -1067,6 +1067,8 @@
         "every_n_minutes": "כל n דקות",
         "post_has_keyword": "פוסט שמכיל",
         "post_has_file": "פוסט עם קובץ מצורף",
+        "post_has_file_agent": "אחרי פוסט של סוכן עם קובץ מצורף אחד או יותר",
+        "post_has_file_human": "אחרי פוסט של אדם עם קובץ מצורף אחד או יותר",
         "blocker_posted": "חסם שפורסם בנושא",
         "no_reply_after_human": "אין תשובה n דקות אחרי פוסט של אדם",
         "issue_status_changed": "סטטוס של משימה המקושרת לנושא משתנה",

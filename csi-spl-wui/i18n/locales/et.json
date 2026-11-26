@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Iga n minuti järel",
         "post_has_keyword": "Postitus, mis sisaldab",
         "post_has_file": "Postitus manusega",
+        "post_has_file_agent": "Pärast agendi postitust ühe või mitme manusega",
+        "post_has_file_human": "Pärast inimese postitust ühe või mitme manusega",
         "blocker_posted": "Teemasse postitatud takistus",
         "no_reply_after_human": "Pole vastust n minutit pärast inimese postitust",
         "issue_status_changed": "Teemaga seotud pileti olek muutub",

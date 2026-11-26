@@ -1067,6 +1067,8 @@
         "every_n_minutes": "n minuutin välein",
         "post_has_keyword": "Viesti, jossa on",
         "post_has_file": "Viesti, jossa on liitetiedosto",
+        "post_has_file_agent": "Agentin viestin jälkeen, jossa on yksi tai useampi liitetiedosto",
+        "post_has_file_human": "Ihmisen viestin jälkeen, jossa on yksi tai useampi liitetiedosto",
         "blocker_posted": "Aiheeseen lähetetty este",
         "no_reply_after_human": "Ei vastausta n minuuttiin ihmisen viestin jälkeen",
         "issue_status_changed": "Aiheeseen linkitetyn tiketin tila muuttuu",

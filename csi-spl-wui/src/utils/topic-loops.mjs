@@ -1,7 +1,7 @@
 // csi-spl-wui/src/utils/topic-loops.mjs
 //
 // Spec 182 row L3 (SPL-6034): the pure half of a topic's Discussion loops
-// (HUM-10, t1 f08c0c58, msg 19acb8f9): the eleven trigger keys of section 1.2
+// (HUM-10, t1 f08c0c58, msg 19acb8f9): the trigger keys of section 1.2
 // (v0.4; msgs d44af000 and a1d73b19; owner Q11 C, msg 46e61a8c, drops
 // "before each human reply"),
 // the form's rules (section 4.1 step 2), the request body and the row state
@@ -19,8 +19,13 @@
 
 import { isKnownTimeZone } from './date-iso.mjs'
 
-/** Section 1.2, in the order the form lists them (store TopicLoopTriggers). */
-export const LOOP_TRIGGERS = Object.freeze([
+/**
+ * Every key a stored loop may carry, in store TopicLoopTriggers order:
+ * post_has_file (v0.4) is no longer offered (v0.11 change 9, msg d8e02722,
+ * split by poster), but a loop stored with it still reads, fires and keeps
+ * its label.
+ */
+const LOOP_KEYS = Object.freeze([
   'after_agent_reply',
   'before_agent_reply',
   'after_human_reply',
@@ -28,11 +33,15 @@ export const LOOP_TRIGGERS = Object.freeze([
   'every_n_minutes',
   'post_has_keyword',
   'post_has_file',
+  'post_has_file_agent',
+  'post_has_file_human',
   'blocker_posted',
   'no_reply_after_human',
   'issue_status_changed',
   'daily_at',
 ])
+/** Section 1.2, the twelve the form offers, in the order it lists them. */
+export const LOOP_TRIGGERS = Object.freeze(LOOP_KEYS.filter((k) => k !== 'post_has_file'))
 export const LOOP_EVERY_N = 'every_n_minutes'
 export const LOOP_KEYWORD = 'post_has_keyword'
 export const LOOP_IDLE = 'no_reply_after_human'
@@ -77,10 +86,10 @@ export function loopForm(loop, tz = 'UTC') {
   }
 }
 
-/** The known keys of `list`, distinct, in LOOP_TRIGGERS order. */
+/** The known keys of `list` (offered or not), distinct, in LOOP_KEYS order. */
 function knownTriggers(list) {
   const on = new Set(Array.isArray(list) ? list.map(String) : [])
-  return LOOP_TRIGGERS.filter((k) => on.has(k))
+  return LOOP_KEYS.filter((k) => on.has(k))
 }
 
 function minutesOk(v) {

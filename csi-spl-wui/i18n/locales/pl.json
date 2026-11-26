@@ -1067,6 +1067,8 @@
         "every_n_minutes": "Co n minut",
         "post_has_keyword": "Wpis zawierający",
         "post_has_file": "Wpis z załączonym plikiem",
+        "post_has_file_agent": "Po wpisie agenta z co najmniej jednym załączonym plikiem",
+        "post_has_file_human": "Po wpisie człowieka z co najmniej jednym załączonym plikiem",
         "blocker_posted": "Bloker zgłoszony w temacie",
         "no_reply_after_human": "Brak odpowiedzi przez n minut po wpisie człowieka",
         "issue_status_changed": "Zgłoszenie powiązane z tematem zmienia status",

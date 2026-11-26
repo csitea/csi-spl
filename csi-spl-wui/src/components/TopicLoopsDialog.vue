@@ -2,7 +2,7 @@
      topic card's Discussion loops… entry. It lists the topic's loops (first
      line of the prompt, the checked triggers, on / paused / held until hh:mm
      by the cap, the author) with Edit, Pause / Resume and Delete per row, and
-     Add loop. Add and Edit share one form: the prompt and the eleven trigger
+     Add loop. Add and Edit share one form: the prompt and the twelve trigger
      checkboxes of section 1.2 (v0.4 less Q11 C's "before each human reply"), with each box's own field next to it:
      n for "each n minutes" and "no reply for n minutes", the word or phrase
      for "a post that contains", a time and a zone (the browser's to start)

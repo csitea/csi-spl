@@ -58,6 +58,7 @@
 # @param REFLECTION_REF (optional) - default origin/master (fetched first, unless REFLECTION_FETCH=0)
 # @param REFLECTION_ZOMBIE_LOG (optional) - default <SPL_VAR_APP_DIR>/zombie-topics/cron.log (spl_run_paths, as the cron that writes it)
 # @param REFLECTION_TPL (optional) - the brief template, default features/dispatch/brief-reflection.tpl.md
+# @param REFLECTION_BRIEF_GATHER_BYTES (optional) - the most of the gathered file the brief pastes whole, default 24000 B; over it the paste is bounded (spl_reflection_paste, SPL-6633)
 # @param REFLECTION_CNF (optional) - the cnf holding env.rhythm.reflection_discussion, default <checkout>/<org>-<app>-cnf/<org>-<app>/all.env.yaml
 # @param REFLECTION_MIX_CMD (optional, tests) - prints the lane mix (gets LANE_MIX_KIND, LANE_MIX_SENSITIVE)
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where the brief goes, default <spool root>/dispatch/briefs
@@ -430,17 +431,76 @@ spl_reflection_share_line() {
   spl_spawn_q_init >/dev/null 2>&1 && share="$(spl_spawn_share 2>/dev/null)" && spl_spawn_share_line "$share"
 }
 
-# spl_reflection_brief <night> <gather file> <since> <until>: the lane brief.
+# spl_reflection_paste <gather file>: the gathered file as the brief pastes
+# it. At or under REFLECTION_BRIEF_GATHER_BYTES (default 24000) it is the
+# whole file, unchanged. Over it (2026-11-26: 380 owner messages, a 76870 B
+# brief, the lane's start refused by brief-token-estimate.sh, budget 16000
+# tokens = 64000 B for seed + brief), first section 4 is grouped per topic,
+# "- topic <uuid>: <n> owner msg(s), <first> .. <last>", newest first (the
+# lane reads each topic on the hub, `spool tail --task`, from any box); then,
+# while still over, every section keeps its first k item lines (k halved
+# each round, each line cut to 240 chars) and counts the rest on one line
+# naming the whole file on the queuing box, which is kept whole.
+spl_reflection_paste() {
+  GATHER_FILE="$1" GATHER_BYTES="${REFLECTION_BRIEF_GATHER_BYTES:-24000}" python3 - <<'PY'
+import os, re, sys
+e = os.environ
+path, cap = e["GATHER_FILE"], int(e["GATHER_BYTES"])
+text = open(path, encoding="utf-8").read().rstrip("\n")
+size = lambda t: len(t.encode("utf-8"))
+if size(text) <= cap:
+    sys.stdout.write(text); sys.exit(0)
+secs = [[]]
+for l in text.splitlines():
+    if l.startswith("## "):
+        secs.append([])
+    secs[-1].append(l)
+msg = re.compile(r"^- msg ([^,]+), topic ([^,]+), (\S+)$")
+for sec in secs:
+    if not sec or not sec[0].startswith("## 4."):
+        continue
+    topics, n = {}, 0
+    for l in sec:
+        m = msg.match(l)
+        if m:
+            topics.setdefault(m[2], []).append(m[3]); n += 1
+    if not n:
+        continue
+    order = sorted(topics, key=lambda t: max(topics[t]), reverse=True)
+    rest = [l for l in sec[1:] if l.strip() and not msg.match(l)]
+    sec[1:] = ["", f"({n} owner msg id(s) in {len(order)} topic(s), grouped per topic to fit the brief: read each topic's owner messages of the window with `spool tail --task <topic>` on the hub)"] + \
+        [f"- topic {t}: {len(topics[t])} owner msg(s), {min(topics[t])} .. {max(topics[t])}" for t in order] + rest + [""]
+def cut(k):
+    out = []
+    for sec in secs:
+        items = [i for i, l in enumerate(sec) if l.startswith("- ")]
+        drop = set(items[k:])
+        out += [l[:240] if l.startswith("- ") else l for i, l in enumerate(sec) if i not in drop]
+        if drop:
+            out.append(f"({len(drop)} more line(s) not pasted, to fit the brief: the whole list is in {path} on the queuing box)")
+    return "\n".join(out)
+k = max(sum(l.startswith("- ") for l in sec) for sec in secs)
+body = cut(k)
+while size(body) > cap and k > 0:
+    k //= 2; body = cut(k)
+sys.stdout.write(body)
+PY
+}
+
+# spl_reflection_brief <night> <gather file> <since> <until>: the lane brief,
+# the gathered file pasted as spl_reflection_paste bounds it.
 spl_reflection_brief() {
-  local tpl="${REFLECTION_TPL:-$PROJ_PATH/src/bash/features/dispatch/brief-reflection.tpl.md}"
+  local tpl="${REFLECTION_TPL:-$PROJ_PATH/src/bash/features/dispatch/brief-reflection.tpl.md}" paste rc=0
   [[ -r "$tpl" ]] || { do_log "FATAL reflection: no brief template $tpl"; return 1; }
   [[ -n "${DISCUSSION:-}" ]] || { do_log "FATAL reflection: no DISCUSSION for the brief"; return 1; }
-  NIGHT="$1" GATHER_FILE="$2" SINCE="$(spl_reflection_iso "$3")" UNTIL="$(spl_reflection_iso "$4")" \
-    python3 - "$tpl" <<'PY'
+  paste="$(mktemp)" || return 1
+  spl_reflection_paste "$2" >"$paste" || { do_log "FATAL reflection: the gathered file $2 could not be pasted"; rm -f "$paste"; return 1; }
+  NIGHT="$1" GATHER_FILE="$2" GATHER_PASTE="$paste" SINCE="$(spl_reflection_iso "$3")" UNTIL="$(spl_reflection_iso "$4")" \
+    python3 - "$tpl" <<'PY' || rc=1
 import os, sys
 s = open(sys.argv[1], encoding="utf-8").read()
 e = os.environ
-gather = open(e["GATHER_FILE"], encoding="utf-8").read().rstrip("\n")
+gather = open(e["GATHER_PASTE"], encoding="utf-8").read()
 # the gathered file's own headings sit two levels below the brief's section
 gather = "\n".join("##" + l if l.startswith("#") else l for l in gather.splitlines())
 for k, v in {"ORIGIN_TOPICS": e.get("ORIGIN_TOPICS") or "(none: not gathered)", "NIGHT": e["NIGHT"], "SINCE": e["SINCE"], "UNTIL": e["UNTIL"], "DISCUSSION": e["DISCUSSION"],
@@ -448,6 +508,8 @@ for k, v in {"ORIGIN_TOPICS": e.get("ORIGIN_TOPICS") or "(none: not gathered)", 
     s = s.replace("{" + k + "}", v)
 sys.stdout.write(s)
 PY
+  rm -f "$paste"
+  return "$rc"
 }
 
 # spl_reflection_vendor: the lane mix's pick for specs_and_docs on data that

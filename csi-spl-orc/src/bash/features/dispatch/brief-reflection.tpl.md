@@ -40,6 +40,11 @@ SPL-5829).
    For each owner message id in its section 4, read the message
    (`spool tail --task <topic>` on the hub) and mark the **corrections**: the
    owner saying a rule was broken or a result was wrong, each with its msg id.
+   On a busy night the paste is bounded to fit the start budget: section 4
+   lists each topic once with its count of owner messages (read the topic's
+   owner messages of the window on the hub, from any box), and a section
+   past its cap ends with a "(N more line(s) not pasted ...)" line; those
+   lines are in the whole file on the queuing box only.
 2. Write ONE Qto doc page in the workspace `system`, titled
    `Reflection {NIGHT}`, through `do_spl_desk_doctree` under your own seat
    in the operator workspace: `ENV=prd TENANT_ID=t1 DESK_AGENT=<you>

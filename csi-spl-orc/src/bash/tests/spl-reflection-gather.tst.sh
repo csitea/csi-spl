@@ -89,6 +89,16 @@
 #      override wins over both; no override and no tree (SPL_RUN_PATHS_TOP=)
 #      is one "(not read: ...)" line naming REFLECTION_ZOMBIE_LOG. Red
 #      control: master read a literal box path, so $T/v was never read
+#  19. the brief fits the lane's start budget on a busy night (SPL-6633;
+#      2026-11-26: 380 owner messages, a 76870 B brief, the start refused):
+#      seed (a 10180 B fixture, that night's seed) + brief through
+#      brief-token-estimate.sh at its default budget:
+#        quiet night (the fixture above)    pasted as before, byte for byte   rc 0
+#        400 owner msgs in 60 topics        section 4 grouped per topic       rc 0
+#        400 msgs in 400 topics + 60 reds   grouped, then each section capped rc 0
+#      the gathered file stays whole in every case. Red control: the old
+#      paste-all (REFLECTION_BRIEF_GATHER_BYTES past the file) on both busy
+#      fixtures: rc 3, the FATAL line of that night
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -511,6 +521,44 @@ got="$(env -u REFLECTION_ZOMBIE_LOG -u APP_PATH -u PROJ_PATH -u SPL_VAR_APP_DIR 
   bash -c 'do_log() { :; }; source "$0"; spl_reflection_zombie >/dev/null; printf "%s" "${SPL_WT_ROOT-unset}"' "$FUNC" 2>&1)"
 [[ "$got" == unset ]] &&
   pass "18. derived from the tree, SPL_WT_ROOT unset before: still unset in the caller after" || fail "18. no-leak: SPL_WT_ROOT=$got"
+
+# --- 19. the brief fits the start budget on a busy night (SPL-6633) ---------------
+EST="$PROJ_ROOT/src/bash/features/spawn-agents/scripts/brief-token-estimate.sh"
+printf '%*s' 10180 '' | tr ' ' s >"$T/seed.txt"
+B="$T/briefs/$SLUG.md"
+est() { env -u SPOOL_BRIEF_TOKEN_BUDGET bash "$EST" "$T/seed.txt" "$B" >"$T/est" 2>&1; }
+pasted() { sed -n '/^## The gathered file$/,$p' "$B" | tail -n +3; }
+cp "$T/owner.tsv" "$T/owner.keep"; cp "$T/ci.txt" "$T/ci.keep"
+reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived"; est; erc=$?
+[[ $rc == 0 && $erc == 0 ]] && diff <(pasted) <(sed 's/^#/###/' "$GF") >/dev/null &&
+  pass "19. quiet night: the gathered file pasted byte for byte as before; the brief is $(wc -c <"$B") B, seed + brief pass the estimate ($(cat "$T/est"))" ||
+  fail "19. quiet: rc=$rc est=$erc $(cat "$T/est") $(diff <(pasted) <(sed 's/^#/###/' "$GF") | sed -n 1,5p)"
+# owner_tsv N TOPICS: N owner msgs spread over TOPICS live topics, one minute apart
+owner_tsv() { local i; for ((i = 0; i < $1; i++)); do
+  printf '%08x-0000-4000-8000-%012x\t%08x-0000-4000-9000-%012x\t2026-01-15T%02d:%02d:00Z\n' "$i" "$i" "$((i % $2))" "$((i % $2))" "$((i / 60 % 24))" "$((i % 60))"
+done >"$T/owner.tsv"; }
+busy_ci() { local i; { sed -n '1,2p' "$T/ci.keep"; for ((i = 0; i < 60; i++)); do
+  printf '   %d  2026-01-15T%02d:00:00Z  abc%04d  job-%d  || FAIL: %0180d\n' "$((9100 + i))" "$((i % 18))" "$i" "$i" 0; done; } >"$T/ci.txt"; }
+for case in grouped capped; do
+  if [[ $case == grouped ]]; then owner_tsv 500 60; cp "$T/ci.keep" "$T/ci.txt"; else owner_tsv 400 400; busy_ci; fi
+  reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived"; est; erc=$?
+  whole="$(grep -c "^- msg " "$GF" 2>/dev/null)"
+  if [[ $case == grouped ]]; then
+    ok() { grep -qxF "(500 owner msg id(s) in 60 topic(s), grouped per topic to fit the brief: read each topic's owner messages of the window with \`spool tail --task <topic>\` on the hub)" "$B" &&
+      [[ "$(pasted | grep -c '^- topic .*: [0-9]* owner msg(s), ')" == 60 ]] && ! pasted | grep 'not pasted' >/dev/null; }
+  else
+    ok() { [[ "$(pasted | grep -c '^- topic ')" -lt 400 ]] && grep -qE "^\([0-9]+ more line\(s\) not pasted, to fit the brief: the whole list is in $GF on the queuing box\)$" "$B" &&
+      [[ "$(pasted | sed -n '/^#### 1\./,/^#### 2\./p' | grep -c '^- run ')" -lt 60 ]]; }
+  fi
+  [[ $rc == 0 && $erc == 0 && "$whole" == "$(wc -l <"$T/owner.tsv")" ]] && ok &&
+    pass "19. busy night ($case): the brief is $(wc -c <"$B") B, seed + brief pass the estimate ($(cat "$T/est")); the gathered file keeps all $whole msg lines" ||
+    fail "19. busy $case: rc=$rc est=$erc whole=$whole $(cat "$T/est") $(pasted | sed -n 1,20p)"
+  reset; run "$NIGHT_NOW" DRY_RUN=0 SPAWN_PLACE_ARCHIVED_CMD="$T/bin/archived" REFLECTION_BRIEF_GATHER_BYTES=100000000; est; erc=$?
+  [[ $rc == 0 && $erc == 3 ]] && grep -q '^FATAL brief-token-estimate: seed + brief estimate [0-9]* tokens .* is over the budget 16000 tokens' "$T/est" &&
+    pass "19. red control ($case): the old paste-all, $(wc -c <"$B") B, fails the estimate (rc 3)" ||
+    fail "19. red control ($case) did not go red: rc=$rc est=$erc $(cat "$T/est")"
+done
+cp "$T/owner.keep" "$T/owner.tsv"; cp "$T/ci.keep" "$T/ci.txt"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'

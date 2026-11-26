@@ -172,7 +172,7 @@ import { createLatest } from '~/utils/latest-only.mjs'
 import { browserTimeZone, isoClock, knownTimeZones } from '~/utils/date-iso.mjs'
 import {
   LOOP_DAILY, LOOP_EVERY_N, LOOP_IDLE, LOOP_INTERVAL_MAX, LOOP_INTERVAL_MIN, LOOP_KEYWORD, LOOP_KEYWORD_MAX, LOOP_PROMPT_MAX, LOOP_TRIGGERS,
-  emptyLoopForm, formLoop, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTitle,
+  emptyLoopForm, formLoop, formOthersLoop, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTitle,
 } from '~/utils/topic-loops.mjs'
 import type { TopicLoop, TopicLoopForm } from '~/utils/topic-loops'
 
@@ -202,7 +202,7 @@ const zones = computed(() => (form.value ? knownTimeZones() : []))
 
 /* the title follows the picked radio and its field (v0.11, change 1) */
 const formTitle = computed(() => (form.value ? loopTitle(formLoop(form.value), t, locale.value) : ''))
-const othersText = computed(() => (form.value ? loopTitle({ triggers: form.value.others }, t, locale.value) : ''))
+const othersText = computed(() => (form.value ? loopTitle(formOthersLoop(form.value), t, locale.value) : ''))
 
 function stateText(l: TopicLoop): string {
   const s = loopRowState(l)
@@ -363,5 +363,7 @@ onUnmounted(() => offFrame())
 .topic-loops__first { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .topic-loops__prompt { margin: 2px 0 0; overflow-wrap: anywhere; }
 .topic-loops__meta { margin: 4px 0; font-size: var(--omnibox-fs); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+/* R7 a-099 N2: a locked or busy row's icon buttons look disabled */
+.topic-loops__row-actions .icon-btn:disabled { opacity: 0.4; cursor: default; }
 .topic-loops__row-actions, .topic-loops__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 </style>

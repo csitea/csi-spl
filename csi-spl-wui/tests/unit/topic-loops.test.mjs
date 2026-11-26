@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { topicCardMenuOpts, topicMenuLocks } from '../../src/utils/topic-menu.mjs'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
 import {
-  LOOP_TRIGGERS, emptyLoopForm, formLoop, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTitle, loopTriggerLabels,
+  LOOP_TRIGGERS, emptyLoopForm, formLoop, formOthersLoop, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTitle, loopTriggerLabels,
 } from '../../src/utils/topic-loops.mjs'
 import { mockAddTopicLoop, mockDeleteTopicLoop, mockEditTopicLoop, mockTopicLoops } from '../../src/utils/spool-client-mock.mjs'
 
@@ -169,6 +169,12 @@ describe('the trigger names the loop (v0.11, change 1)', () => {
       const form = { ...fields, prompt: 'say hello', trigger: k }
       assert.equal(loopTitle(loopBody(form), t, 'en'), loopTitle(formLoop(form), t, 'en'), k)
     }
+  })
+
+  it('the multi-trigger note names each kept trigger with its parameter (R7 N1)', () => {
+    const form = loopForm({ triggers: ['after_agent_reply', 'every_n_minutes', 'post_has_keyword', 'daily_at'], interval_min: 10, keyword: 'deploy', daily_at: '21:30', daily_tz: 'UTC' })
+    assert.deepEqual(form.others, ['every_n_minutes', 'post_has_keyword', 'daily_at'])
+    assert.equal(loopTitle(formOthersLoop(form), t, 'en'), 'Every 10 minutes, a post that contains \u201cdeploy\u201d, every day at 21:30 (UTC)')
   })
 
   it('a loop stored with several triggers names them all; the first letter follows the locale', () => {

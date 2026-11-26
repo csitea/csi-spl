@@ -146,6 +146,16 @@ export function formLoop(form) {
 }
 
 /**
+ * The form's kept extra triggers (a loop stored with several, v0.11) as loop
+ * JSON for loopTitle, WITH the form's fields, so a kept "every n minutes"
+ * names its n (R7 a-099 N1: without them the note read "Every  minutes").
+ */
+export function formOthersLoop(form) {
+  const f = form && typeof form === 'object' ? form : {}
+  return { ...formLoop(f), triggers: knownTriggers(f.others) }
+}
+
+/**
  * One loop's checked boxes as [i18n key, params] pairs for the list row, in
  * the form's order; a box with a field names its value.
  *

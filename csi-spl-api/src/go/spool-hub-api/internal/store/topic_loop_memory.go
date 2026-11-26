@@ -35,9 +35,12 @@ func topicLoopCopy(l TopicLoop) TopicLoop {
 	return l
 }
 
-// sortTopicLoops orders ls as TopicLoops does: SetAt, then LoopID.
+// sortTopicLoops orders ls as TopicLoops does: Position, SetAt, then LoopID.
 func sortTopicLoops(ls []TopicLoop) {
 	sort.Slice(ls, func(i, j int) bool {
+		if ls[i].Position != ls[j].Position {
+			return ls[i].Position < ls[j].Position
+		}
 		if !ls[i].SetAt.Equal(ls[j].SetAt) {
 			return ls[i].SetAt.Before(ls[j].SetAt)
 		}
@@ -103,6 +106,11 @@ func (s *Memory) AddTopicLoop(_ context.Context, tenant string, l TopicLoop) (To
 	if _, dup := tl[k]; dup {
 		return TopicLoop{}, ErrConflict
 	}
+	for _, l := range tl { // last in the list (rdb 0329)
+		if l.TenantID == tenant && l.TaskID == row.TaskID && l.Position >= row.Position {
+			row.Position = l.Position + 1
+		}
+	}
 	tl[k] = row
 	return topicLoopCopy(row), nil
 }
@@ -127,6 +135,36 @@ func (s *Memory) EditTopicLoop(_ context.Context, tenant, taskID, loopID string,
 	}
 	tl[k] = l
 	return topicLoopCopy(l), nil
+}
+
+// OrderTopicLoops implements TopicLoopOrderStore.
+func (s *Memory) OrderTopicLoops(_ context.Context, tenant, taskID string, loopIDs []string) ([]TopicLoop, error) {
+	key, err := checkTopicLoopTask(tenant, taskID)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tl := s.topicLoopsLocked()
+	var have []TopicLoop
+	for k, l := range tl {
+		if k[0] == tenant && l.TaskID == key {
+			have = append(have, l)
+		}
+	}
+	ids, err := topicLoopOrder(have, loopIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]TopicLoop, len(ids))
+	for i, id := range ids {
+		k := [2]string{tenant, id}
+		l := tl[k]
+		l.Position = i
+		tl[k] = l
+		out[i] = topicLoopCopy(l)
+	}
+	return out, nil
 }
 
 // DeleteTopicLoop implements TopicLoopStore.

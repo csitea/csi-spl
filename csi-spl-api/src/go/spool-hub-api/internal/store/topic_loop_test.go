@@ -246,6 +246,67 @@ func TestTopicLoopCRUD(t *testing.T) {
 // TestTopicLoopCap: 12 fires in the loop's hour count, the 13th does not
 // (HeldUntil = HourStart + 1h); an hour later the hour rolls over; a paused
 // or deleted loop never counts; a cap passed in replaces the default.
+// TestTopicLoopOrder (spec 182 v0.11 change 8, rdb 0329): adds go last, an
+// order naming each loop once renumbers them 0..n-1 and TopicLoops reads it
+// back; an order missing a loop, naming one twice or a stranger is
+// ErrBadTopicLoopOrder and writes nothing; an edit keeps the place.
+func TestTopicLoopOrder(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newLoopFix(t, s)
+			ord, ok := s.(TopicLoopOrderStore)
+			if !ok {
+				t.Fatalf("%T has no OrderTopicLoops", s)
+			}
+			a := f.add("a", 0, LoopAfterAgentReply)
+			b := f.add("b", 0, LoopAfterHumanReply)
+			c := f.add("c", 0, LoopBlockerPosted)
+			ids := func() []string {
+				ls, err := f.ls.TopicLoops(f.ctx, f.tn, f.task)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var out []string
+				for _, l := range ls {
+					out = append(out, l.Prompt)
+				}
+				return out
+			}
+			if a.Position != 0 || b.Position != 1 || c.Position != 2 {
+				t.Fatalf("add positions %d %d %d, want 0 1 2", a.Position, b.Position, c.Position)
+			}
+			got, err := ord.OrderTopicLoops(f.ctx, f.tn, f.task, []string{c.LoopID, strings.ToUpper(a.LoopID), b.LoopID})
+			if err != nil || len(got) != 3 || got[0].Prompt != "c" || got[1].Position != 1 || got[2].Prompt != "b" {
+				t.Fatalf("order: %+v %v", got, err)
+			}
+			if p := ids(); !slices.Equal(p, []string{"c", "a", "b"}) {
+				t.Fatalf("TopicLoops after order: %v", p)
+			}
+			for why, bad := range map[string][]string{
+				"missing":  {c.LoopID, a.LoopID},
+				"twice":    {c.LoopID, a.LoopID, a.LoopID},
+				"stranger": {c.LoopID, a.LoopID, uuid4()},
+				"empty":    {},
+			} {
+				if _, err := ord.OrderTopicLoops(f.ctx, f.tn, f.task, bad); !errors.Is(err, ErrBadTopicLoopOrder) {
+					t.Fatalf("%s: %v, want ErrBadTopicLoopOrder", why, err)
+				}
+			}
+			if _, err := ord.OrderTopicLoops(f.ctx, f.tn, "not-a-uuid", nil); !errors.Is(err, ErrBadTopicTask) {
+				t.Fatalf("bad task: %v", err)
+			}
+			prompt := "a2"
+			if _, err := f.ls.EditTopicLoop(f.ctx, f.tn, f.task, a.LoopID, TopicLoopEdit{Prompt: &prompt, By: "HUM-1", At: f.t0}); err != nil {
+				t.Fatal(err)
+			}
+			d := f.add("d", 0, LoopEveryHour)
+			if p := ids(); !slices.Equal(p, []string{"c", "a2", "b", "d"}) || d.Position != 3 {
+				t.Fatalf("after edit and add: %v, d at %d", p, d.Position)
+			}
+		})
+	}
+}
+
 func TestTopicLoopCap(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {

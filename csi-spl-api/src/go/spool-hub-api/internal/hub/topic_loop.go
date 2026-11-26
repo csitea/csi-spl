@@ -21,7 +21,10 @@ import (
 //     read the topic (the read door: 404 otherwise), with may_edit;
 //   - POST   /v1/topics/{task_id}/loops: add, 201;
 //   - PUT    /v1/topics/{task_id}/loops/{loop_id}: edit, pause, resume;
-//   - DELETE /v1/topics/{task_id}/loops/{loop_id}: idempotent 200.
+//   - DELETE /v1/topics/{task_id}/loops/{loop_id}: idempotent 200;
+//   - PUT    /v1/topics/{task_id}/loops/order: the list's order (v0.11
+//     change 8, SPL-6587), {"loop_ids": [...]}, the topic's every loop id
+//     once each, else 400 bad_loop; 200 with the list as GET reads it.
 //
 // Every write needs the workspace's "Who can archive topics" right (answer
 // 5 A, the priority route's checks), writes no message in the topic
@@ -38,6 +41,7 @@ func (s *Server) routeTopicLoops(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/topics/{task_id}/loops", s.handleTopicLoopsGet)
 	mux.HandleFunc("POST /v1/topics/{task_id}/loops", s.handleTopicLoopAdd)
 	mux.HandleFunc("PUT /v1/topics/{task_id}/loops/{loop_id}", s.handleTopicLoopEdit)
+	mux.HandleFunc("PUT /v1/topics/{task_id}/loops/order", s.handleTopicLoopOrder)
 	mux.HandleFunc("DELETE /v1/topics/{task_id}/loops/{loop_id}", s.handleTopicLoopDelete)
 	mux.HandleFunc("OPTIONS /v1/topics/{task_id}/loops", s.topicLoopsPreflight)
 	mux.HandleFunc("OPTIONS /v1/topics/{task_id}/loops/{loop_id}", s.topicLoopsPreflight)
@@ -358,6 +362,39 @@ func (s *Server) handleTopicLoopDelete(w http.ResponseWriter, r *http.Request) {
 	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("loop_id", id).Str("by", q.hum).Bool("deleted", gone).Msg("topic loop deleted")
 	s.loopsFrame(r.Context(), ls, q)
 	writeJSON(w, http.StatusOK, map[string]any{"loop_id": id, "deleted": gone})
+}
+
+func (s *Server) handleTopicLoopOrder(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r)
+	q, ls, ok := s.loopWriter(w, r, true)
+	if !ok {
+		return
+	}
+	ord, ok := ls.(store.TopicLoopOrderStore)
+	if !ok {
+		writeErr(w, http.StatusNotImplemented, "not_implemented", "this hub's store keeps no loop order")
+		return
+	}
+	var b struct {
+		LoopIDs []string `json:"loop_ids"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&b); err != nil || b.LoopIDs == nil {
+		writeErr(w, http.StatusBadRequest, "bad_loop", "body must be {\"loop_ids\": [...]}")
+		return
+	}
+	loops, err := ord.OrderTopicLoops(r.Context(), q.t.ID, q.task, b.LoopIDs)
+	switch {
+	case errors.Is(err, store.ErrBadTopicLoopOrder):
+		writeErr(w, http.StatusBadRequest, "bad_loop", "loop_ids must name every loop of the topic exactly once")
+		return
+	case !s.loopWriteErr(w, q, err):
+		return
+	}
+	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Int("loops", len(loops)).Str("by", q.hum).Msg("topic loops ordered")
+	s.loopsFrame(r.Context(), ls, q)
+	writeJSON(w, http.StatusOK, map[string]any{"task_id": q.task, "loops": s.loopsJSON(r.Context(), loops, &q.card)})
 }
 
 func derefInt(p *int) int {

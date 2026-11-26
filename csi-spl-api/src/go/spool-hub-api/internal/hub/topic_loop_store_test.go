@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -121,5 +122,44 @@ func TestTopicLoopStoreClaimFiresOnce(t *testing.T) {
 	}
 	if n := r.prompts(t, loop, []string{"due:" + due.UTC().Format(time.RFC3339)}); n != 1 {
 		t.Fatalf("no prompt seeded on the pre-move due time %v", due)
+	}
+}
+
+// Spec 182 v0.11 change 8 (SPL-6587, rdb 0329): PUT .../loops/order on L1's
+// store stores the list's order, GET reads it back, and an order that does
+// not name each loop once is 400 bad_loop with the order unchanged.
+func TestTopicLoopStoreOrder(t *testing.T) {
+	r := newRealLoopRig(t)
+	a := r.addLoop(t, loopBody(store.LoopAfterAgentReply))
+	b := r.addLoop(t, loopBody(store.LoopAfterHumanReply))
+	c := r.addLoop(t, loopBody(store.LoopBlockerPosted))
+	path := "/v1/topics/" + r.task + "/loops"
+	order := func(out map[string]any) []string {
+		var ids []string
+		for _, l := range out["loops"].([]any) {
+			ids = append(ids, l.(map[string]any)["loop_id"].(string))
+		}
+		return ids
+	}
+	code, out := call(t, r.e, r.tid, http.MethodPut, path+"/order", "HUM-1", map[string]any{"loop_ids": []string{c, a, b}})
+	if code != http.StatusOK || !slices.Equal(order(out), []string{c, a, b}) {
+		t.Fatalf("order: %d %v", code, out)
+	}
+	if code, out := call(t, r.e, r.tid, http.MethodGet, path, "HUM-1", nil); code != http.StatusOK || !slices.Equal(order(out), []string{c, a, b}) {
+		t.Fatalf("GET after order: %d %v", code, out)
+	}
+	for why, body := range map[string]map[string]any{
+		"missing":  {"loop_ids": []string{c, a}},
+		"twice":    {"loop_ids": []string{c, a, a}},
+		"stranger": {"loop_ids": []string{c, a, uuidV4()}},
+		"no ids":   {},
+		"unknown":  {"loop_ids": []string{c, a, b}, "x": 1},
+	} {
+		if code, out := call(t, r.e, r.tid, http.MethodPut, path+"/order", "HUM-1", body); code != http.StatusBadRequest || out["error"] != "bad_loop" {
+			t.Fatalf("%s: %d %v, want 400 bad_loop", why, code, out)
+		}
+	}
+	if _, out := call(t, r.e, r.tid, http.MethodGet, path, "HUM-1", nil); !slices.Equal(order(out), []string{c, a, b}) {
+		t.Fatalf("a refused order changed the list: %v", out)
 	}
 }

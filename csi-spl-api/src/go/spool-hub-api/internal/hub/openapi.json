@@ -21535,6 +21535,99 @@
         ]
       }
     },
+    "/v1/topics/{task_id}/loops/order": {
+      "put": {
+        "operationId": "putTopicsByTaskIdLoopsOrder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The topic's every loop id, each once, in the list's new order (spec 182 v0.11 change 8). Contract: csi-spl-doc/specs/182-topic-loop-prompt/spec.md §8.8.",
+                "properties": {
+                  "loop_ids": {
+                    "items": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "loop_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "loops": {
+                      "items": {
+                        "$ref": "#/components/schemas/TopicLoop"
+                      },
+                      "type": "array"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "task_id",
+                    "loops"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the list in its new order, as GET reads it"
+          },
+          "400": {
+            "description": "bad_loop: loop_ids does not name every loop of the topic exactly once"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: topic_archived"
+          },
+          "501": {
+            "description": "Not implemented: the hub's store keeps no discussion loops"
+          }
+        },
+        "summary": "Reorder a discussion's loops: the list's order, kept on the hub and sent to every open view",
+        "tags": [
+          "topics"
+        ]
+      }
+    },
     "/v1/topics/{task_id}/loops/{loop_id}": {
       "delete": {
         "operationId": "deleteTopicsByTaskIdLoopsByLoopId",

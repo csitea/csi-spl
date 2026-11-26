@@ -20,13 +20,13 @@ import (
 const topicLoopCols = `tenant_id, loop_id::text, task_id::text, prompt, triggers, set_by, set_at, state,
 	hour_start, fires_in_hour, fires_total, last_fired_at, coalesce(interval_min, 0), next_due_at, awaiting, awaiting_until,
 	coalesce(keyword, ''), coalesce(idle_min, 0), idle_due_at, coalesce(idle_post::text, ''),
-	coalesce(to_char(daily_at, 'HH24:MI'), ''), daily_tz, daily_due_at`
+	coalesce(to_char(daily_at, 'HH24:MI'), ''), daily_tz, daily_due_at, position`
 
 // topicLoopRowCols are the table columns topicLoopCols reads, by name: what an
 // UPDATE ... RETURNING hands on to a SELECT of topicLoopCols.
 const topicLoopRowCols = `tenant_id, loop_id, task_id, prompt, triggers, set_by, set_at, state,
 	hour_start, fires_in_hour, fires_total, last_fired_at, interval_min, next_due_at, awaiting, awaiting_until,
-	keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at`
+	keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at, position`
 
 // scanTopicLoop reads one topicLoopCols row, after any lead columns.
 func scanTopicLoop(row pgx.Row, lead ...any) (TopicLoop, error) {
@@ -34,7 +34,7 @@ func scanTopicLoop(row pgx.Row, lead ...any) (TopicLoop, error) {
 	var hour, last, due, until, idle, daily *time.Time
 	if err := row.Scan(append(lead, &l.TenantID, &l.LoopID, &l.TaskID, &l.Prompt, &l.Triggers, &l.SetBy, &l.SetAt, &l.State,
 		&hour, &l.FiresInHour, &l.FiresTotal, &last, &l.IntervalMin, &due, &l.Awaiting, &until,
-		&l.Keyword, &l.IdleMin, &idle, &l.IdlePost, &l.DailyAt, &l.DailyTZ, &daily)...); err != nil {
+		&l.Keyword, &l.IdleMin, &idle, &l.IdlePost, &l.DailyAt, &l.DailyTZ, &daily, &l.Position)...); err != nil {
 		return TopicLoop{}, err
 	}
 	l.SetAt = l.SetAt.UTC()
@@ -79,7 +79,7 @@ func (s *Postgres) topicLoops(ctx context.Context, tenant, taskID, and string) (
 	}
 	var out []TopicLoop
 	err = s.queryTenant(ctx, tenant, `SELECT `+topicLoopCols+` FROM topic_loops
-		WHERE tenant_id = $1 AND task_id = $2`+and+` ORDER BY set_at, loop_id`, []any{tenant, key},
+		WHERE tenant_id = $1 AND task_id = $2`+and+` ORDER BY position, set_at, loop_id`, []any{tenant, key},
 		func(rows pgx.Rows) error {
 			l, err := scanTopicLoop(rows)
 			out = append(out, l)
@@ -100,8 +100,9 @@ func (s *Postgres) AddTopicLoop(ctx context.Context, tenant string, l TopicLoop)
 	var out TopicLoop
 	err = s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		out, err = scanTopicLoop(tx.QueryRow(ctx, `INSERT INTO topic_loops
-				(tenant_id, loop_id, task_id, prompt, triggers, set_by, set_at, state, `+topicLoopFieldCols+`)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid, $15::time, $16, $17)
+				(tenant_id, loop_id, task_id, prompt, triggers, set_by, set_at, state, `+topicLoopFieldCols+`, position)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid, $15::time, $16, $17,
+				(SELECT coalesce(max(position) + 1, 0) FROM topic_loops WHERE tenant_id = $1 AND task_id = $3))
 			RETURNING `+topicLoopCols,
 			append([]any{tenant, row.LoopID, row.TaskID, row.Prompt, row.Triggers, row.SetBy, row.SetAt, row.State},
 				topicLoopFieldArgs(row)...)...))
@@ -146,6 +147,44 @@ func (s *Postgres) EditTopicLoop(ctx context.Context, tenant, taskID, loopID str
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TopicLoop{}, ErrNotFound
 	}
+	return out, err
+}
+
+// OrderTopicLoops implements TopicLoopOrderStore: the topic's rows are
+// read FOR UPDATE, checked against loopIDs (topicLoopOrder, the rule Memory
+// runs too) and renumbered, in one transaction.
+func (s *Postgres) OrderTopicLoops(ctx context.Context, tenant, taskID string, loopIDs []string) ([]TopicLoop, error) {
+	key, err := checkTopicLoopTask(tenant, taskID)
+	if err != nil {
+		return nil, err
+	}
+	var out []TopicLoop
+	err = s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT `+topicLoopCols+` FROM topic_loops
+			WHERE tenant_id = $1 AND task_id = $2 FOR UPDATE`, tenant, key)
+		if err != nil {
+			return err
+		}
+		have, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (TopicLoop, error) { return scanTopicLoop(row) })
+		if err != nil {
+			return err
+		}
+		ids, err := topicLoopOrder(have, loopIDs)
+		if err != nil {
+			return err
+		}
+		rows, err = tx.Query(ctx, `WITH moved AS (
+				UPDATE topic_loops t SET position = o.n - 1
+				FROM unnest($3::uuid[]) WITH ORDINALITY AS o(id, n)
+				WHERE t.tenant_id = $1 AND t.task_id = $2 AND t.loop_id = o.id
+				RETURNING `+topicLoopRowCols+`)
+			SELECT `+topicLoopCols+` FROM moved ORDER BY position`, tenant, key, ids)
+		if err != nil {
+			return err
+		}
+		out, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (TopicLoop, error) { return scanTopicLoop(row) })
+		return err
+	})
 	return out, err
 }
 
@@ -260,7 +299,7 @@ var topicLoopClaimSQL = `WITH due AS (
 const topicLoopColsT = `t.tenant_id, t.loop_id::text, t.task_id::text, t.prompt, t.triggers, t.set_by, t.set_at, t.state,
 	t.hour_start, t.fires_in_hour, t.fires_total, t.last_fired_at, coalesce(t.interval_min, 0), t.next_due_at, t.awaiting, t.awaiting_until,
 	coalesce(t.keyword, ''), coalesce(t.idle_min, 0), t.idle_due_at, coalesce(t.idle_post::text, ''),
-	coalesce(to_char(t.daily_at, 'HH24:MI'), ''), t.daily_tz, t.daily_due_at`
+	coalesce(to_char(t.daily_at, 'HH24:MI'), ''), t.daily_tz, t.daily_due_at, t.position`
 
 // ClaimDueTopicLoops implements TopicLoopStore, in the operator scope: the
 // ticker serves every workspace.

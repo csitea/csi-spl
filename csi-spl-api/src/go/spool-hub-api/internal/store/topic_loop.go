@@ -104,6 +104,7 @@ type TopicLoop struct {
 	DailyDueAt time.Time // zero: no daily_at, or paused
 	Due        []string  // set only by ClaimDueTopicLoops: the time keys that came due this claim
 	DueAt      time.Time // v0.5, set only by ClaimDueTopicLoops: the earliest of NextDueAt, DailyDueAt that came due, as it was BEFORE the move; zero when only the idle key came due
+	Position   int       // v0.11 (rdb 0329): its place in the topic's list, 0 first; an add goes last
 }
 
 // Has reports a checked trigger.
@@ -139,7 +140,7 @@ type TopicLoopEdit struct {
 // the workspace's own scope (ClaimDueTopicLoops: every workspace). The hub
 // reads it as an optional interface.
 type TopicLoopStore interface {
-	// TopicLoops: every loop of taskID, SetAt then LoopID order.
+	// TopicLoops: every loop of taskID, Position, SetAt then LoopID order.
 	// ErrBadTopicTask (topic_priority.go:29) on a non-uuid task.
 	TopicLoops(ctx context.Context, tenant, taskID string) ([]TopicLoop, error)
 	// TopicLoopsOn: only State == on; the fire path's one index probe (4.2 step 6).
@@ -178,10 +179,49 @@ type TopicLoopStore interface {
 	TenantHasTopicLoops(ctx context.Context, tenant string) (bool, error)
 }
 
+// TopicLoopOrderStore is spec 182 v0.11 change 8 (SPL-6587, rdb 0329): the
+// list's order, a store of its own so a TopicLoopStore without it still
+// serves every other route (the hub answers 501 on the order route).
+type TopicLoopOrderStore interface {
+	// OrderTopicLoops sets Position 0..n-1 on taskID's loops in loopIDs'
+	// order, in one transaction, and returns the list as TopicLoops reads
+	// it. loopIDs names every loop of taskID exactly once, else
+	// ErrBadTopicLoopOrder and nothing is written; ErrBadTopicTask.
+	OrderTopicLoops(ctx context.Context, tenant, taskID string, loopIDs []string) ([]TopicLoop, error)
+}
+
+// ErrBadTopicLoopOrder: an order that does not name each of the topic's
+// loops exactly once (a loop missing, twice, or not of the topic).
+var ErrBadTopicLoopOrder = errors.New("store: a loop order names every loop of the topic exactly once")
+
 var (
-	_ TopicLoopStore = (*Memory)(nil)
-	_ TopicLoopStore = (*Postgres)(nil)
+	_ TopicLoopStore      = (*Memory)(nil)
+	_ TopicLoopStore      = (*Postgres)(nil)
+	_ TopicLoopOrderStore = (*Memory)(nil)
+	_ TopicLoopOrderStore = (*Postgres)(nil)
 )
+
+// topicLoopOrder is loopIDs lower cased when they are exactly the ids of
+// have (each once, any order), else ErrBadTopicLoopOrder.
+func topicLoopOrder(have []TopicLoop, loopIDs []string) ([]string, error) {
+	if len(loopIDs) != len(have) {
+		return nil, ErrBadTopicLoopOrder
+	}
+	want := make(map[string]bool, len(have))
+	for _, l := range have {
+		want[l.LoopID] = true
+	}
+	out := make([]string, len(loopIDs))
+	for i, id := range loopIDs {
+		id = strings.ToLower(id)
+		if !want[id] {
+			return nil, ErrBadTopicLoopOrder
+		}
+		delete(want, id)
+		out[i] = id
+	}
+	return out, nil
+}
 
 // Further rules both stores share, beyond the contract's comments:
 //   - Triggers are stored sorted by name (sort.Strings), duplicates dropped;

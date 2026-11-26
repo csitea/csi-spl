@@ -1,7 +1,8 @@
 <!-- Spec 186 4.1 step 2, 4.4, 4.6 (row M11; owner HUM-10, t1 032d8010,
      msgs 5fdfff6c and 4b3833e7): the Multicast dialog. The selected topics,
      grouped by channel, each with its check verdict and a remove cross;
-     below them the dialog's OWN MessageComposer (H5: not the page's, so the
+     and the dialog's OWN MessageComposer, above them for newest first and
+     below them for newest last (owner, t1 c9b86153) (H5: not the page's, so the
      page composer and its draft are untouched), whose send it handles. Send
      is held (busy) until the check says every target is ok (Q9 ALL). Once
      sent, the text stays and each target shows its copy's state; a refused
@@ -10,7 +11,9 @@
      (Back closes it and keeps the selection). Loaded lazily. -->
 <template>
   <UiDialog :open="open" :title="t('multicast.title', { n: count })" size="md" @update:open="(v: boolean) => { if (!v) close() }">
-    <div class="mc" data-test="multicast-dialog" :data-phase="phase" :data-can-send="canSend ? '1' : '0'">
+    <div class="mc" data-test="multicast-dialog" :data-phase="phase" :data-can-send="canSend ? '1' : '0'" :data-prompt="newestLast ? 'bottom' : 'top'">
+      <template v-for="part in parts" :key="part">
+      <div v-if="part === 'targets'" class="mc__part" data-test="multicast-targets">
       <p v-if="!count" class="muted mc__note" data-test="multicast-none">{{ t('multicast.none') }}</p>
       <section v-for="g in groups" :key="g.channel" class="mc__group">
         <h3 class="mc__channel">#{{ g.channel }}</h3>
@@ -27,6 +30,8 @@
         </ul>
       </section>
       <p v-if="checkError && checkError !== 'multicast_none'" class="mc__note issues-error" role="status" data-test="multicast-check-error">{{ checkDetail || checkError }}</p>
+      </div>
+      <div v-else class="mc__part" data-test="multicast-prompt">
       <template v-if="phase === 'compose'">
         <p class="mc__note" data-test="multicast-send-label">{{ t('multicast.send', { n: count }) }}</p>
         <div class="mc__composer" data-test="multicast-composer" @input="onInput">
@@ -38,15 +43,23 @@
         <p v-if="sentCount" class="mc__note muted" role="status" data-test="multicast-sent">{{ t('multicast.sent', { n: sentCount }) }}</p>
         <button v-if="phase === 'failed'" type="button" class="btn mc__retry" data-test="multicast-retry" @click="retry()">{{ t('multicast.retry') }}</button>
       </template>
+      </div>
+      </template>
     </div>
   </UiDialog>
 </template>
 
 <script setup lang="ts">
 import { useMulticastSend, type McLine } from '~/composables/useMulticastSend'
+import { useViewPrefs } from '~/composables/useViewPrefs'
 
 const { t } = useI18n({ useScope: 'global' })
 const { open, lines, phase, count, canSend, checkError, checkDetail, sentText, setBody, remove, send, retry, close } = useMulticastSend()
+/* owner HUM-10, t1 c9b86153: the prompt sits at the targets' newest end, read live from
+   Settings -> Behaviour "Message order" (newest first = on top). Keyed parts: the DOM, so
+   the tab order, follows, and a flip moves the composer without remounting it */
+const { newestLast } = useViewPrefs()
+const parts = computed(() => (newestLast.value ? ['targets', 'prompt'] : ['prompt', 'targets']))
 /* the dialog composer's own box: a send the final check refused puts the text back */
 const box = ref<{ setText: (s: string) => void } | null>(null)
 
@@ -79,6 +92,7 @@ async function onSend(text: string, _topic?: string, files?: File[]) {
 
 <style scoped>
 .mc { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem 1rem 1rem; min-height: 0; }
+.mc__part { display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
 .mc__group { display: flex; flex-direction: column; gap: 0.25rem; }
 .mc__channel { margin: 0; font-size: 0.875rem; color: var(--color-muted); }
 .mc__list { list-style: none; margin: 0; padding: 0; overflow-y: auto; max-height: min(40vh, 20rem); }

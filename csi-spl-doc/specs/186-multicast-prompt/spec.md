@@ -405,11 +405,18 @@ Measured on `387370a79`:
 
 1. **The prompt.** Multicast opens a dialog titled "Send to n topics": the
    selected topics, grouped by channel, each with a remove cross, and
-   below them a composer, the same text field, @mentions and Attach as the
+   a composer (above or below them, see below), the same text field, @mentions and Attach as the
    page composer (an instance of `MessageComposer` whose `send` emit the
    dialog handles, so the page's own composer is not changed; question
    H5). Its Send button, the owner's "multicast play button" (msg
    `4b3833e7`), reads "Send to n topics".
+   The composer's place follows the person's Settings -> Behaviour
+   "Message order", read live: newest first (prepend, the default) puts it
+   ABOVE the target list, newest last (append) BELOW it, on desktop and
+   phone alike (owner HUM-10, t1 `c9b86153`, 2026-11-26: "the multicast
+   prompt should be on top of the topics to multicast to based on the
+   pre-pend or append order of the person in his personal settings";
+   SPL-6603, test `csi-spl-wui/tests/e2e/multicast-composer-order.test.mjs`).
 2. **Preview.** On open, and on every change of the list, the text or the
    files (debounced 300 ms), the dialog sends one `multicast_check` frame
    (7.1.2) naming the selected `task_id`s. Its answer is each target with

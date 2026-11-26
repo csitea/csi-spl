@@ -147,3 +147,47 @@ Fix for v0.2:
 - **N3 (R3).** The plan's R3 command (line 1028) lists `bug-round-52-plan.md` instead of `test-spawn-remote.sh`, so b52-03's test file was not checked. My run covers all 8 row files: exit 4, 21 `<box2>` unknowns, none listing a row file.
 - **N4 (b52-01).** Moving `++popSeq` before the untagged return means that a later untagged popstate stops a waiting tagged pop's level from ever applying, including on the 3 s fallback. That is intended (rc01 D), but it should be one named unit case in `mobile-stack.test.mjs`, so the behaviour is pinned, not only tested in the red control.
 - **N5 (evidence wording).** Plan line 97 says the `04:4xZ` GOs on b49-01, b49-02 and r05-02 all omitted `do_check_pre_push` and 3 iac tests. Candidates `:162` says the 3 iac tests were r05-02's only.
+
+---
+
+## Verdict v0.2: PASS on `90fc1467cee6fb6ad78cc16fb2b499454a7b4976`
+
+Plan v0.2 on `review/c002-bug-round-52-planner` (`git ls-remote` -> `90fc1467c…`, a fast-forward of v0.1: `git merge-base --is-ancestor 1d0f7ec93 90fc1467c` rc 0). The commit touches only `csi-spl-doc/doc/md/bug-round-52-plan.md` (+135 -71). Re-checked on sat around 23:45Z, n=1 per command.
+
+- **Red controls**, extracted verbatim from plan v0.2 sections 4.1 to 4.3:
+  - `rc01-b52.sh`: `642aa582b7a6…`, 15243 B, byte-identical to v0.1.
+  - `rc02-b52.sh`: `41a03d4059c1f5c0…`, 13146 B.
+  - `rc03-b52.sh`: `0ee4e89f1d90c576…`, 13673 B.
+  - All three match the plan.
+  - On `ecc05e480`: rc01 exit 1 / fix-shape exit 0; rc02 exit 1 / fix-shape exit 0; rc03 exit 1 / fix-shape exit 0.
+- **rc02 probes:**
+  - `red_plain_read_mention_holds` is `rc=0 gos=1` on the base and `rc=12 gos=0 tok_ok=1` on fix-shape.
+  - `ctrl_not_run_in_read` and `ctrl_sibling_rc_ignored` are `rc=0 gos=1` both ways.
+  - The other three reds hold `rc=12` on fix-shape.
+- **rc03 probes:**
+  - A1b (`handle_ack_after_from_live_path`) on the base gives `rej=1 minted=1`, the exact live path.
+  - A is now labelled as the REFUSED path (`ref=1`).
+  - A2 is correctly called red on the base.
+  - All of A, A1b, A2, B and C are green on fix-shape.
+- **W1 is folded.** I ran the v0.2 helper code (plan lines 577-649, as `c4v2.py`):
+  - `read: NOT RUN do_check_pre_push: box at 255% CPU` -> rc 0 (GO).
+  - A plain `read:` mention -> rc 1.
+  - `NOT RUN do_check_pre_push` with no `: <why>` -> rc 1, as C4 asks.
+  - The brief's own `rc02-b52.sh` missing on a `b52-02` brief -> rc 1.
+- **N1 to N5 are folded.**
+  - N1: sibling-row exclusion and `ctrl_sibling_rc_ignored`, and the R7 runs the helper on the b52 row briefs.
+  - N2: case A1b, A/A2 labels, and the workaround in candidates `:167` named in 3.3.
+  - N3: the R3 command at plan line 1090 now lists `test-spawn-remote.sh`.
+  - N4: named unit case `untagged-popstate-cancels-waiting-level` (3 mentions).
+  - N5: b49/r05 wording at plan line 97 cites `:162`.
+- **Drift:** `git diff --name-only ecc05e480 origin/master -- <8 row files>` (origin/master `383d44271`) printed nothing, rc 0.
+- **Hygiene:** `do_check_dist_hygiene` -> `clean`.
+
+No W findings.
+
+**N6 (b52-02, plan2 `:591` and `:623`, non-blocking).** The sibling exclusion compares only the row number (`rm.group(1) != own_row`), not the round.
+
+- A brief for `b52-02` that requires another round's control, e.g. `` also run `rc01-b51.sh` ``, has that item skipped.
+- I ran `c4v2.py` on such a brief with `ran: bash x.tst.sh` -> rc 0. That is a missed hold (GO), not a false hold.
+- It is rare and safe-side for the owner-go class, so it is not blocking.
+- The row author can match the round too (`rc<NN>-<own round>`) and add one case for it in case 36.

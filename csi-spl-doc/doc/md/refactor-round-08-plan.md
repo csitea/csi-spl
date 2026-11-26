@@ -51,16 +51,20 @@ Both rows are **one fact, one copy** (developer guide 2.2.4), with zero behaviou
   and `INFO`/`OK` logging) into `_spl_user_step_install` (with optional `home_suffix` and
   `repo` args so wave 2 in r09 can reuse it verbatim), and
   `orc:src/bash/run/spl-vibe-output-cap-install.func.sh:17-44` and
-  `orc:src/bash/run/spl-vibe-push-guard-install.func.sh:18-45` drop their verbatim
-  24-line copies and delegate to it (3/5 per-user `spool-install` actions consolidated),
+  `orc:src/bash/run/spl-vibe-push-guard-install.func.sh:18-45` drop their duplicated
+  user-loop bodies (28-line function bodies) and delegate to it (3/5 per-user `spool-install` actions consolidated),
   guarded by section `8` in
   `orc:src/bash/features/spool-install/tests/test-y16-git-pager-off.sh`.
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: v0.1 draft for cross-vendor panel review.** Editor: **a-121** (agy).
-Cross-vendor claude panel seat (`c002-refactor-round-08-claude-panel-seat`, queued as
-ask `a46d7902`) to review and sign on `review/c002-refactor-round-08-planner`.
+**Status: v1.0 for final cross-vendor panel signature.** Editor: **a-121** (agy).
+Cross-vendor claude panel seat **c-157** reviewed v0.1
+(`fa70bea3bc7dec4c38d58344b09777a0b394309f`, seat commit
+`323c005d2d67bd2b9833f641ae763cba7be0f884` on `review/c002-refactor-round-08-claude-seat`,
+msg `3faaef16` / holder `6aca38b3`; FAIL on W1-W3); W1-W3 and N1/N5 are folded here and
+N2-N4/N6 recorded in section 8. Pending final v1.0 PASS signature from **c-157** and
+`do_spl_review_line_check` rc 0 on `review/c002-refactor-round-08-planner`.
 
 **One sha:** every count is measured on **`e5af88d93`**
 (`e5af88d937230224ba556e6f2753b0356a4a1dd0`, `origin/master` at 2026-11-26T15:00:12Z),
@@ -212,7 +216,7 @@ Shape (built as head1 of 1.5):
   `install-box-crons.func.sh` `8e966e56793f`,
   `spl-agent-hooks-install.func.sh` `0d2593700f57`,
   `spl-agent-identity-install.func.sh` `0912482b3903`,
-  `cron-tagged-line.tst.sh` `8068b26331f2`.
+  `cron-tagged-line.tst.sh` `c56e361e4bb2`.
 
 Verbatim helper, caller, and test hunks (head1 on `e5af88d93`):
 
@@ -333,18 +337,18 @@ out="$(env -u HOOKS_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" HOOKS_SE
 mkdir -p "$T/wt-linked/csi-spl-orc/src/bash/features/spawn-agents/lib" "$T/wt-linked/csi-spl-orc/lib/bash/funcs" "$T/wt-id-spool/agents"
 cp "$PROJ_ROOT/src/bash/features/spawn-agents/lib/agent-identity.inc.sh" "$T/wt-linked/csi-spl-orc/src/bash/features/spawn-agents/lib/"
 cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" "$T/wt-linked/csi-spl-orc/lib/bash/funcs/"
-out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" DRY_RUN=0 \
+out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" SPOOL_TMUX_SOCKET="$T/no.sock" DRY_RUN=0 \
   bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_spl_agent_identity_install' _ \
   "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh" 2>&1)"; rc=$?
 [ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: run the install from the main checkout - nothing changed" <<<"$out" \
   && pass "9. spl-agent-identity-install refuses a linked worktree when DRY_RUN=0" || fail "9. identity dry=0 ($rc: $out)"
 out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" SPOOL_TMUX_SOCKET="$T/no.sock" DRY_RUN=1 \
-  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; ai_tmux() { return 0; }; do_spl_agent_identity_install' _ \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_spl_agent_identity_install' _ \
   "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
   && pass "9. spl-agent-identity-install warns with plural wording when DRY_RUN=1" || fail "9. identity dry=1 ($rc: $out)"
 out="$(env -u IDENTITY_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/wt-id-spool" IDENTITY_CRONTAB="$T/fake-crontab" SPOOL_TMUX_SOCKET="$T/no.sock" IDENTITY_UNINSTALL=1 DRY_RUN=0 \
-  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; ai_tmux() { return 0; }; do_spl_agent_identity_install' _ \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; do_spl_agent_identity_install' _ \
   "$PROJ_ROOT/src/bash/run/spl-agent-identity-install.func.sh" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the paths below would vanish with it; install from the main checkout" <<<"$out" \
   && pass "9. spl-agent-identity-install uninstall warns instead of refusing when DRY_RUN=0" || fail "9. identity uninstall ($rc: $out)"
@@ -360,7 +364,7 @@ standalone installer checks pass on unmodified `base` too).
 `orc:` = `csi-spl-orc/`. On `e5af88d93`:
 
 - Five per-user `spool-install` step actions in `orc:src/bash/run/` inline the same
-  ~22-line loop: step readability check, `SPOOL_AGENT_USER` / `box.env` fallback,
+  ~22-line user loop inside 28-line function bodies (`:16-43`, `:17-44`, `:18-45` here): step readability check, `SPOOL_AGENT_USER` / `box.env` fallback,
   user-list deduplication, `getent passwd` home lookup, `INFO`/`OK` logging, and
   `bash -c` vs `sudo -n -u` step invocation. Wave 1 consolidates the 3 two-arg callers
   into `_spl_user_step_install` hosted in `spl-git-pager-off-install.func.sh` (adding no
@@ -583,8 +587,8 @@ tree.
 | `orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh` | 01 | 0 / 29 / 0 | = | - |
 | `iac:src/bash/tests/satellite-ansible.tst.sh` | 01 | 0 / 96 / 0 | = | - |
 | `orc:src/bash/features/spool-install/tests/test-y16-git-pager-off.sh` | 02 | 0 / 11 / 0 | - | 0 / 22 / 0 (+11 new checks) |
-| `orc:src/bash/features/spool-install/tests/test-y15-vibe-output-cap.sh` | 02 | 0 / 11 / 0 | - | = |
-| `orc:src/bash/features/spool-install/tests/test-y12-vibe-push-guard.sh` | 02 | 0 / 11 / 0 | - | = |
+| `orc:src/bash/features/spool-install/tests/test-y15-vibe-output-cap.sh` | 02 | 0 / 16 / 0 | - | = |
+| `orc:src/bash/features/spool-install/tests/test-y12-vibe-push-guard.sh` | 02 | 0 / 35 / 0 | - | = |
 | `orc:src/bash/tests/run-eager-files.tst.sh` | 01, 02 | 0 / 14 / 0 | = | = |
 | `orc:src/bash/tests/no-literal-paths.tst.sh` | 01, 02 | 0 / 15 / 0 | = | = |
 | `orc:src/bash/tests/func-name-unique.tst.sh` | 01, 02 | 0 / 2 / 0 | = | = |
@@ -634,7 +638,11 @@ applied, then one defect planted):
 - `m1c` (`spl-agent-identity-install.func.sh` passes allow `"1"` instead of
   `"${IDENTITY_ALLOW_WORKTREE:-0}"`): `cron-tagged-line.tst.sh` rc 1, 46 `ok|pass` lines
   (43 real `PASS:` + 3 dumped `OK` lines), 3 fail (`FAIL: 9. identity dry=0`,
-  `FAIL: 9. identity dry=1`, `FAIL: 9. identity uninstall`).
+  `FAIL: 9. identity dry=1`, `FAIL: 9. identity uninstall`). Re-verified after W1 with
+  `SPOOL_TMUX_SOCKET="$T/no.sock"` on `DRY_RUN=0` and dead `ai_tmux` stubs removed, both
+  under a logging `tmux` shim with `TMUX=/tmp/FAKE-LIVE-SERVER.sock,123,0` (8 calls, all
+  `-S <scratch>/no.sock`, 0 hits on `FAKE-LIVE-SERVER.sock`) and under real `tmux` (same
+  `rc 1`, 46 `ok|pass` / 43 real `PASS:` / 3 fail).
 - `m2a` (`spl-vibe-output-cap-install.func.sh` omits `"/.vibe"` suffix):
   `test-y16-git-pager-off.sh` rc 1, 22 `ok|pass` lines (21 real `PASS:` + 1 dumped `OK`
   line), 1 fail (`FAIL: 8. vibe-output-cap`).
@@ -791,7 +799,7 @@ checked at 15:04:28Z):
   `_spl_user_step_install` (with optional `home_suffix` and `repo` args) and calls it from
   `do_spl_git_pager_off_install`. `orc:src/bash/run/spl-vibe-output-cap-install.func.sh`
   and `orc:src/bash/run/spl-vibe-push-guard-install.func.sh` each drop their duplicated
-  24-line user loop, lazy-load `spl-git-pager-off-install.func.sh`, and call
+  user-loop body (28-line replaced ranges `:17-44` and `:18-45`), lazy-load `spl-git-pager-off-install.func.sh`, and call
   `_spl_user_step_install` with `"/.vibe"`.
   `orc:src/bash/features/spool-install/tests/test-y16-git-pager-off.sh` updates its header
   comment (`:16`) and inserts section `8` before `:102` (6 helper checks, 3 one-copy
@@ -801,8 +809,12 @@ checked at 15:04:28Z):
 
 - Editor: **a-121** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat (rulebook 3.2; brief step 5; mistral sits
-  on no review since 2026-11-25): claude panel seat (`c002-refactor-round-08-claude-panel-seat`,
-  queued as ask `a46d7902` at 15:01:00Z). The seat reviews this plan only.
+  on no review since 2026-11-25): claude panel seat **c-157** (`c002-refactor-round-08-claude-panel-seat`,
+  seat branch `review/c002-refactor-round-08-claude-seat`). Reviewed v0.1
+  (`fa70bea3bc7dec4c38d58344b09777a0b394309f`, seat commit `323c005d2d67bd2b9833f641ae763cba7be0f884`,
+  msg `3faaef16` / holder `6aca38b3`; W1-W3 and N1/N5 folded in v1.0, N2-N4/N6 recorded;
+  pending final v1.0 PASS signature and `do_spl_review_line_check` rc 0). The seat reviews
+  this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T15:01:57Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -821,8 +833,8 @@ checked at 15:04:28Z):
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `a-121` | agy | editor | v0.1 (this commit) | draft | submitted to cross-vendor panel |
-| claude panel seat (`a46d7902`) | claude | panel | pending | pending | queued as `c002-refactor-round-08-claude-panel-seat` |
+| `a-121` | agy | editor | `fa70bea3b` (v0.1) -> v1.0 (this commit) | v1.0 | W1-W3 and N1/N5 folded; N2-N4/N6 recorded; submitted to panel |
+| `c-157` | claude | panel | `fa70bea3b` (v0.1) | FAIL -> pending v1.0 | seat `323c005d2`, msg `3faaef16` (W1-W3); signs v1.0 once folded |
 
 ## 5. Proposed row briefs
 
@@ -899,11 +911,12 @@ backup is used; never mistral; re-checked at placement).
 
 | what | why | measured by |
 |---|---|---|
-| `_spl_user_step_install` wave 2 (first candidate for `r09`, 3 files): `orc:src/bash/run/spl-grok-memory-install.func.sh:29-49` (50 lines) and `orc:src/bash/run/spl-agy-memory-install.func.sh:31-51` (52 lines), plus `orc:src/bash/features/spool-install/tests/test-y18-grok-memory.sh` (or `test-y20-agy-memory.sh`) | depends on `r08-02` landing `_spl_user_step_install` (which already supports the optional 7th `repo` arg), and rulebook 5.1 aims at 2 rows per round; also carries a small shared 5-line `git-common-dir` -> `dirname` repo-derivation block | `git grep -n "s/\^SPOOL_AGENT_USER=//p" e5af88d93 -- csi-spl-orc/src/bash/run/` (5 matching `spool-install` actions: 3 taken in r08-02, 2 here) (n=1) |
+| `_spl_user_step_install` wave 2 (first candidate for `r09`, 3 files): `orc:src/bash/run/spl-grok-memory-install.func.sh:29-49` (50 lines) and `orc:src/bash/run/spl-agy-memory-install.func.sh:31-51` (52 lines), plus `orc:src/bash/features/spool-install/tests/test-y18-grok-memory.sh` (or `test-y20-agy-memory.sh`) | depends on `r08-02` landing `_spl_user_step_install` (which already supports the optional 7th `repo` arg), and rulebook 5.1 aims at 2 rows per round; also carries a small shared 5-line `git-common-dir` -> `dirname` repo-derivation block | `git grep -l "spool-install/steps/" e5af88d93 -- csi-spl-orc/src/bash/run/ \| sed 's/^e5af88d93://' \| xargs -r git grep -n "s/\^SPOOL_AGENT_USER=//p" e5af88d93 --` (exact 5 matching `spool-install` actions: 3 taken in r08-02, 2 here) (n=1) |
 | `orc:src/bash/run/wui-{build,dev,test}.func.sh` (3 files, identical 7-line `pnpm` + `$APP_PATH/csi-spl-wui` + `node_modules` install preamble; candidate for `r09`) | left for `r09` (rulebook 5.1 aims at 2 rows; r08 already has 2 disjoint Batch 1 rows) | duplicate block scan on `e5af88d93` (`wui-build.func.sh:11-17`, `wui-dev.func.sh:12-18`, `wui-test.func.sh:7-13`) (n=1) |
 | Remaining 3 `is a linked worktree:` sites in `orc:src/bash/run/`: `spl-private-overlay-install-cron.func.sh:70-71` (names `RESERVE_GH_TOKEN_FILE`, secret-class), `box-peer-ssh-grant.func.sh:53` (one-off `"grant from..."`, no WARN branch), and `spl-box-deploy.func.sh:151` (prereq collector `"PREREQ checkout missing"`) | `spl-private-overlay-install-cron` stays out per the brief's secret-class exclusion; the other two have distinct control flow and wording | `git grep -n "is a linked worktree:" e5af88d93 -- csi-spl-orc/src/bash/run/` (10 lines across 6 files: 3 taken in r08-01, 3 here) (n=1) |
 | `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh` and `spl-issue-owner-question-diss.func.sh` `*_read` (`brc:91-96` vs `oq:62-68`) and `*_apply` (`brc:136-161` vs `oq:111-137`) scaffolding (r04-r07 section 7) | semantic differences in `*_apply` (`chmod 600`, `2>/dev/null` vs `2>&1`, status predicate, log/undo headers) and `do_spl_cloud_cnf` placement in `*_read` | r07 section 7; re-read on `e5af88d93` (n=1) |
-| Remaining non-matching cron installers (`spl-dispatch-rotate`, `spl-agent-boot-restore`, `spl-box-restart`, `spl-peer-crons`), secret-class 5 probe actions (`spl-*-probe.func.sh`), secret-class `gcp-*alert*` and `spl-{domain-verify,lb-absent-check,wait-for-firebase-domain,wait-for-mapping-cert}.func.sh` (`--key-file`), PG-heavy `spl-msg-{dedup,wipe}` and `spl-channel-agent-*` | each is secret-class, pulls PostgreSQL into R2, or has non-matching cron semantics | r07 section 7; duplicate block scan on `e5af88d93` (n=1) |
+| Remaining non-matching cron installers (`spl-dispatch-rotate`, `spl-agent-boot-restore`, `spl-box-restart`, `spl-peer-crons`), secret-class 5 probe actions (`spl-*-probe.func.sh`), secret-class `gcp-*alert*` and `spl-{domain-verify,lb-absent-check,wait-for-firebase-domain,wait-for-mapping-cert}.func.sh` (`--key-file`), PG-heavy `spl-msg-{dedup,wipe}` and `spl-channel-agent-{add,add-op,remove-op}.func.sh` | each is secret-class, pulls PostgreSQL into R2, or has non-matching cron semantics | r07 section 7; duplicate block scan on `e5af88d93` (n=1) |
+| Remaining unserved r07 section 7 inputs: `orc:src/bash/run/spl-{accepted-close,desk-poll-ack,review-go}.func.sh` action bodies, `orc:src/bash/run/spl-hub-box-band.func.sh`, `orc:src/bash/run/spl-wui-perf-report.func.sh`, `csi-spl-utl/**`, `iac:src/bash/run/sec-*.func.sh`, `orc:src/bash/scripts/*-cron.sh`, and Go/WUI duplicates | each pulls 30+ tests or PostgreSQL into R2, is secret-class / scanner-wrapper / distinct semantics, or stays out for its r07/r06 section 7 reason | r07 section 7 (`refactor-round-07-plan.md:769` on `e5af88d93`, `:773` on `fea2cc504`); paths verified on `e5af88d93` (n=1) |
 | Candidates-file open items: `_ppe_keys` exact-key in `iac:src/bash/run/check-pre-push-e2e.func.sh:121` (line 113), `csi-spl-wui/i18n/i18n-lang-review-exempt.json:2` `_doc` saying `Lang-review: a-NNN` (line 115), WUI entry-chunk `ci_initial_gzip_kb` headroom (line 125), other-box process churn (lines 147-148), and `b52` bug inputs (lines 153-163) | `_ppe_keys` is gate-design input; `i18n-lang-review-exempt.json:2` is a 1-line JSON doc comment; entry-chunk headroom and process churn are perf-shaped; lines 153-163 are bug-shaped for `b52` | `/var/spool-hub/dispatch/c002-next-round-candidates.md` (1.2 (c), n=1) |
 | Spec 011 deferred/owner-decision tasks (`T001`-`T008`, `T018`-`T021`, `T023`, `T025`-`T028`, `T031`, `T034`) | each is wider than one row or awaits an owner decision | `git log 34d67a385..e5af88d93 --oneline -- csi-spl-doc/specs/011-spool-project-refactor` (0 commits; 1.2 (d), n=1) |
 
@@ -914,4 +927,46 @@ backup is used; never mistral; re-checked at placement).
   `shellcheck 0.10.0 -S warning -x` and `do_sec_shellcheck` rc 0; both red controls
   (`rc1`, `rc2`) and all 6 mutation checks (`m1a`, `m1b`, `m1c`, `m2a`, `m2b`, `m2c`) run
   in fresh scratch clones and verified RED; all helper, caller, and test hunks included
-  verbatim in 1.3 and 1.4. Pushed to `review/c002-refactor-round-08-planner`.
+  verbatim in 1.3 and 1.4. Pushed to `review/c002-refactor-round-08-planner` (`fa70bea3b`).
+- v1.0 (a-121): folded cross-vendor claude panel (`c-157`, review on v0.1 `fa70bea3b`,
+  seat commit `323c005d2d67bd2b9833f641ae763cba7be0f884`, msg `3faaef16` / holder
+  `6aca38b3`) W1-W3 and N1/N5, and recorded N2-N4/N6 (no row change; 11 of 12 fenced
+  `bash` blocks byte-identical to v0.1 `fa70bea3b`, only row 01's section 9 test block
+  updated for W1; zero drift across all 9 row files from `e5af88d93` to `origin/master`
+  `ce545c3e5`; `lane-map.sh --check` on the 9 row files at 16:07Z exit 4, 0 owned, 22
+  `unknown:` on the other box):
+  - **W1 (safety, 1.3 row 01 section 9):** added `SPOOL_TMUX_SOCKET="$T/no.sock"` to the
+    `spl-agent-identity-install` `DRY_RUN=0` check and dropped the two dead
+    `ai_tmux() { return 0; };` stubs from the `DRY_RUN=1` and `IDENTITY_UNINSTALL=1`
+    checks (which were shadowed when the action sources `agent-identity.inc.sh`).
+    Updated head1's `cron-tagged-line.tst.sh` sha256 (`8068b26331f2` -> `c56e361e4bb2`;
+    other 4 head1 files unchanged, `+81 -1` unchanged). Re-verified in fresh scratch
+    clones of `e5af88d93`: head1 `0/46/0`, `rc1` `1/40/6`, `m1a` `1/46*(44)/2`, `m1b`
+    `1/43/3`, `m1c` `1/46*(43)/3` both under a logging `tmux` shim with
+    `TMUX=/tmp/FAKE-LIVE-SERVER.sock,123,0` (8 calls, all `-S <scratch>/no.sock`, 0 hits
+    on `FAKE-LIVE-SERVER.sock`) and under real `tmux`; `shellcheck -S warning -x` and
+    `do_sec_shellcheck` rc 0. (Stale hooks from v0.1's `m1c` run reported to orchestrator
+    by the dispatch holder; untouched here.)
+  - **W2 (section 7):** added the remaining unserved r07 section 7 inputs
+    (`spl-{accepted-close,desk-poll-ack,review-go}.func.sh`, `spl-hub-box-band.func.sh`,
+    `spl-wui-perf-report.func.sh`, `csi-spl-utl/**`, `iac:src/bash/run/sec-*.func.sh`,
+    `orc:src/bash/scripts/*-cron.sh`, and Go/WUI duplicates) with their r07/r06 section 7
+    reasons, paths verified on `e5af88d93`.
+  - **W3 (1.5 table):** corrected `test-y15-vibe-output-cap.sh` base count from
+    `0 / 11 / 0` to `0 / 16 / 0` and `test-y12-vibe-push-guard.sh` from `0 / 11 / 0` to
+    `0 / 35 / 0` (re-measured on `e5af88d93`, n=1 each; `=` verdicts unchanged).
+  - **N1 (section 7):** filtered the `SPOOL_AGENT_USER` grep to `spool-install/steps/`
+    files so it returns the exact 5 `spool-install` actions.
+  - **N2:** recorded that `_spl_user_step_install`'s optional 7th `repo` arg has no
+    wave-1 caller (neutral when empty, covered in section 8; `r09` will use or drop it).
+  - **N3:** recorded panel verification that the helper's `|| true` cannot be observed
+    under `run.sh:7` (`set -E`, no `-e`) and `run.sh:169-172` (`trap - ERR`).
+  - **N4:** recorded that `gcloud-account-pinned.tst.sh` counts are box-dependent (45 on
+    the planner box, 48 on the panel box; equal on base and heads on each box).
+  - **N5 (cosmetic):** aligned row 02 wording across the intro, 1.4, and section 3 to
+    state the 28-line replaced function bodies (`:16-43`, `:17-44`, `:18-45`) carrying
+    the ~22-line loop.
+  - **N6 (R3):** recorded that the panel box sees 7 `unknown:` lanes on the planner box
+    (none has a pushed head on a row file); the holder re-reads at placement per R3.
+  Pushed fast-forward to `review/c002-refactor-round-08-planner` for final panel
+  signature.

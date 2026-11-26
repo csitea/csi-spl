@@ -56,9 +56,10 @@ bypass is byte-identical):
   section `9` in `orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh`.
 The two rows share no file: both are **Batch 1**.
 
-**Status: v0.1 ready for cross-vendor panel review.** Editor: **a-071** (agy).
-Cross-vendor claude panel seat: **c-073** (placed 12:54Z, pending review of this v0.1
-commit on `review/c002-refactor-round-07-planner`).
+**Status: v1.0 ready for final panel signature.** Editor: **a-071** (agy).
+Cross-vendor claude panel seat: **c-073** (placed 12:54Z; reviewed v0.1 `21c3e6ce3`, seat
+commit `10e6f8072`, msg `4159c478`; W1 and N1-N6 folded here, pending final v1.0
+signature and `do_spl_review_line_check` rc 0).
 
 **One sha:** every count is measured on **`13293131f`**
 (`13293131fbed4e7c3f8ec5c8e689d203546fd4ea`, `origin/master` at 2026-11-26T12:50:08Z),
@@ -435,6 +436,7 @@ fail counts; "-" means that row's head does not touch the suite's tree.
 | `orc:src/bash/tests/tmp-scratch-sweep.tst.sh` | 01 | 0 / 35 / 0 | = | - |
 | `orc:src/bash/tests/agent-id-reap.tst.sh` | 01 | 0 / 14 / 0 | = | - |
 | `orc:src/bash/tests/run-log-sweep.tst.sh` | 01 | 0 / 16 / 0 | = | - |
+| `orc:src/bash/tests/spl-box-deploy.tst.sh` | 01 | 0 / 36 / 0 | = | - |
 | `iac:src/bash/tests/satellite-ansible.tst.sh` | 01 | 0 / 96 / 0 | = | - |
 | `orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh` | 02 | 0 / 21 / 0 | - | 0 / 29 / 0 (+8 new checks) |
 | `orc:src/bash/tests/od-pool-replace.tst.sh` | 02 | 0 / 9 / 0 | - | = |
@@ -511,11 +513,11 @@ The tests that name the sites (R2): `git grep -lE` over `*tst.sh`, `features/*/t
   `orc:src/bash/tests/box-disk-sweep.tst.sh`, `orc:src/bash/tests/prune-docker-images.tst.sh`,
   `orc:src/bash/tests/tmp-scratch-sweep.tst.sh`, `orc:src/bash/tests/agent-id-reap.tst.sh`,
   `orc:src/bash/tests/run-log-sweep.tst.sh` (`:89` calls `do_box_disk_sweep_install_cron`),
+  `orc:src/bash/tests/spl-box-deploy.tst.sh` (`:60` names `do_spl_agent_id_reap_install_cron`,
+  included per R2; measured 13:33Z-13:36Z on `13293131f` base and head1: `0 / 36 / 0`),
   and **`iac:src/bash/tests/satellite-ansible.tst.sh`** (`:458` greps
   `tag="csi-spl:tmp-scratch-sweep"` in `tmp-scratch-sweep-install-cron.func.sh`), plus the
-  edited **`orc:src/bash/tests/cron-tagged-line.tst.sh`** (`spl-box-deploy.tst.sh:60`
-  defines a stub function only without sourcing `spl-agent-id-reap-install-cron.func.sh`,
-  so it stays out of the test column; 0 hits in `csi-spl-api/`).
+  edited **`orc:src/bash/tests/cron-tagged-line.tst.sh`** (0 hits in `csi-spl-api/`).
 - Row 02 (`spl-od-pool-supervise-install-cron|do_spl_od_pool_supervise_install_cron|spl-shadow-feed-install-cron|do_spl_shadow_feed_install_cron|spl-cost-labels-translate-install-cron|do_spl_cost_labels_translate_install_cron`) ->
   **`orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh`** (edited),
   `orc:src/bash/tests/od-pool-replace.tst.sh`, and
@@ -530,7 +532,7 @@ The tests that name the sites (R2): `git grep -lE` over `*tst.sh`, `features/*/t
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r07-01-orc-cron-worktree-guard-wave2)` | one fact, one copy (developer guide 2.2.4) | `box-disk-sweep-install-cron.func.sh:41-46`, `prune-docker-images-install-cron.func.sh:42-47`, `tmp-scratch-sweep-install-cron.func.sh:41-46`, and `spl-agent-id-reap-install-cron.func.sh:33-38` duplicate the exact 6-line linked-worktree refusal/warning guard now hosted in `cron_refuse_linked_worktree` (`orc:lib/bash/funcs/cron-tagged-line.func.sh:45-56`, landed in `r06-02` `984b6d70d`), while all four already call `cron_drop_tagged_line` (1.3, r06 section 7 #1) | `orc:src/bash/run/box-disk-sweep-install-cron.func.sh:30,41-46`<br>`orc:src/bash/run/prune-docker-images-install-cron.func.sh:30,42-47`<br>`orc:src/bash/run/tmp-scratch-sweep-install-cron.func.sh:28,41-46`<br>`orc:src/bash/run/spl-agent-id-reap-install-cron.func.sh:27,33-38`<br>`orc:src/bash/tests/cron-tagged-line.tst.sh:123` | copies of the linked-worktree cron guard across these 4 wave-2 installers 4 -> 0 (delegating to `cron_refuse_linked_worktree`; 7/10 non-secret verbatim cron installers consolidated) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head1's `cron-tagged-line.tst.sh` on parent FAILs 4 checks (`rc1`, rc 1, 27 pass, 4 fail: 4 one-copy checks naming `:42`/`:44`, `:43`/`:45`, `:42`/`:44`, `:34`/`:36`; all 6 standalone installer checks pass on base), then GREEN (`0/31/0`); mutations `m1a` (`box-disk-sweep` `allow=1`, rc 1 `30*/2`), `m1b` (`prune-docker-images` `allow=1`, rc 1 `31*/1`), `m1c` (`tmp-scratch-sweep` `allow=1`, rc 1 `31*/1`), and `m1d` (`spl-agent-id-reap` `allow=1`, rc 1 `31*/1`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 10 new checks in `cron-tagged-line.tst.sh`. Tests: **`orc:.../cron-tagged-line.tst.sh`**, `orc:.../box-disk-sweep.tst.sh`, `orc:.../prune-docker-images.tst.sh`, `orc:.../tmp-scratch-sweep.tst.sh`, `orc:.../agent-id-reap.tst.sh`, `orc:.../run-log-sweep.tst.sh`, **`iac:.../satellite-ansible.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r07-01-orc-cron-worktree-guard-wave2)` | one fact, one copy (developer guide 2.2.4) | `box-disk-sweep-install-cron.func.sh:41-46`, `prune-docker-images-install-cron.func.sh:42-47`, `tmp-scratch-sweep-install-cron.func.sh:41-46`, and `spl-agent-id-reap-install-cron.func.sh:33-38` duplicate the exact 6-line linked-worktree refusal/warning guard now hosted in `cron_refuse_linked_worktree` (`orc:lib/bash/funcs/cron-tagged-line.func.sh:45-56`, landed in `r06-02` `984b6d70d`), while all four already call `cron_drop_tagged_line` (1.3, r06 section 7 #1) | `orc:src/bash/run/box-disk-sweep-install-cron.func.sh:30,41-46`<br>`orc:src/bash/run/prune-docker-images-install-cron.func.sh:30,42-47`<br>`orc:src/bash/run/tmp-scratch-sweep-install-cron.func.sh:28,41-46`<br>`orc:src/bash/run/spl-agent-id-reap-install-cron.func.sh:27,33-38`<br>`orc:src/bash/tests/cron-tagged-line.tst.sh:123` | copies of the linked-worktree cron guard across these 4 wave-2 installers 4 -> 0 (delegating to `cron_refuse_linked_worktree`; 7/10 non-secret verbatim cron installers consolidated) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head1's `cron-tagged-line.tst.sh` on parent FAILs 4 checks (`rc1`, rc 1, 27 pass, 4 fail: 4 one-copy checks naming `:42`/`:44`, `:43`/`:45`, `:42`/`:44`, `:34`/`:36`; all 6 standalone installer checks pass on base), then GREEN (`0/31/0`); mutations `m1a` (`box-disk-sweep` `allow=1`, rc 1 `30*/2`), `m1b` (`prune-docker-images` `allow=1`, rc 1 `31*/1`), `m1c` (`tmp-scratch-sweep` `allow=1`, rc 1 `31*/1`), and `m1d` (`spl-agent-id-reap` `allow=1`, rc 1 `31*/1`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 10 new checks in `cron-tagged-line.tst.sh`. Tests: **`orc:.../cron-tagged-line.tst.sh`**, `orc:.../box-disk-sweep.tst.sh`, `orc:.../prune-docker-images.tst.sh`, `orc:.../tmp-scratch-sweep.tst.sh`, `orc:.../agent-id-reap.tst.sh`, `orc:.../run-log-sweep.tst.sh`, `orc:.../spl-box-deploy.tst.sh`, **`iac:.../satellite-ansible.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 | 02 `refactor(r07-02-orc-cron-worktree-guard-wave3)` | one fact, one copy (developer guide 2.2.4) | `spl-od-pool-supervise-install-cron.func.sh:33-38`, `spl-shadow-feed-install-cron.func.sh:33-38`, and `spl-cost-labels-translate-install-cron.func.sh:76-81` are the last 3 non-secret verbatim copies of the 6-line linked-worktree refusal/warning guard in `orc:src/bash/run/`, while all three already call `cron_drop_tagged_line` from `cron-tagged-line.func.sh` (1.4, r06 section 7 #1) | `orc:src/bash/run/spl-od-pool-supervise-install-cron.func.sh:29,33-38`<br>`orc:src/bash/run/spl-shadow-feed-install-cron.func.sh:24,33-38`<br>`orc:src/bash/run/spl-cost-labels-translate-install-cron.func.sh:42,76-81`<br>`orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh:160` | copies of the linked-worktree cron guard across these 3 wave-3 installers 3 -> 0 (delegating to `cron_refuse_linked_worktree`; completes 10/10 non-secret verbatim cron installers consolidated) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head2's `spl-cost-labels-translate-install-cron.tst.sh` on parent FAILs 3 checks (`rc2`, rc 1, 26 pass, 3 fail: 3 one-copy checks naming `:34`/`:36`, `:34`/`:36`, `:77`/`:79`; all 5 standalone installer checks pass on base), then GREEN (`0/29/0`); mutations `m2a` (`od-pool-supervise` `allow=1`, rc 1 `31*/2`), `m2b` (`shadow-feed` `allow=1`, rc 1 `29*/1`), and `m2c` (`cost-labels-translate` `allow=1`, rc 1 `29*/3` in linked worktree) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 8 new checks in `spl-cost-labels-translate-install-cron.tst.sh`. Tests: **`orc:.../spl-cost-labels-translate-install-cron.tst.sh`**, `orc:.../od-pool-replace.tst.sh`, `orc:.../spl-shadow-feed.tst.sh`, `orc:.../cron-tagged-line.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
@@ -570,7 +572,8 @@ developer guide 2.2.4 names the rule, not its instances.
 
 ### 2.2 Off every live lane, every queued row and every unlanded row (R3)
 
-Paths (9 edited + 7 sibling regression-run / helper files = 16 checked):
+Paths (9 edited + 8 sibling regression-run / helper files = 17 checked;
+`spl-box-deploy.tst.sh` added per panel W1 and checked separately at 13:33:27Z):
 `orc:src/bash/run/box-disk-sweep-install-cron.func.sh`,
 `orc:src/bash/run/prune-docker-images-install-cron.func.sh`,
 `orc:src/bash/run/tmp-scratch-sweep-install-cron.func.sh`,
@@ -579,7 +582,8 @@ Paths (9 edited + 7 sibling regression-run / helper files = 16 checked):
 `orc:src/bash/tests/box-disk-sweep.tst.sh`,
 `orc:src/bash/tests/prune-docker-images.tst.sh`,
 `orc:src/bash/tests/tmp-scratch-sweep.tst.sh`,
-`orc:src/bash/tests/agent-id-reap.tst.sh`;
+`orc:src/bash/tests/agent-id-reap.tst.sh`,
+`orc:src/bash/tests/spl-box-deploy.tst.sh`;
 `orc:src/bash/run/spl-od-pool-supervise-install-cron.func.sh`,
 `orc:src/bash/run/spl-shadow-feed-install-cron.func.sh`,
 `orc:src/bash/run/spl-cost-labels-translate-install-cron.func.sh`,
@@ -598,8 +602,11 @@ Paths (9 edited + 7 sibling regression-run / helper files = 16 checked):
   `do_spl_lane_map` at 12:50:58Z — live lanes on this box (`a-071`, `a-942` r06 close,
   `a-068` SPL-6590 WUI R7, `a-008` / `c-973` s186 M12 WUI, `a-006` s196 T1 R7, `c-060`
   WUI multi-file drop, `a-934` s182 planner, `a-056` / `c-936` s186 M2 hub, `a-048` /
-  `c-052` b51 planner/panel) touch none of the 16 paths. No live lane owns any of the 16
-  paths; the holder re-reads at placement per R3.
+  `c-052` b51 planner/panel) touch none of the 16 paths. At 13:33:27Z
+  `lane-map.sh --check csi-spl-orc/src/bash/tests/spl-box-deploy.tst.sh --agent a-071`
+  also returned **exit 4** (0 owned, 20 `unknown:` all on the other box; `c-079` in,
+  `c-935` out). No live lane owns any of the 17 paths; the holder re-reads at placement
+  per R3.
 - **Bug round 51 beside us:** read `origin/review/c002-bug-round-51-planner` (`d065eb53b`)
   at 12:52:55Z: its 3 rows edit `y9-vendor-lane-rule.sh` + `test-agy-qwen-fleet-rules.sh`,
   `apply-gh-runner-cpu-budget.tst.sh`, and `spl-review-go.func.sh` + `spl-review-go.tst.sh`
@@ -648,7 +655,9 @@ Paths (9 edited + 7 sibling regression-run / helper files = 16 checked):
 - Editor: **a-071** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat (rulebook 3.2; brief step 5; mistral sits
   on no review since 2026-11-25): claude panel seat **c-073** (placed 12:54Z on this box).
-  The seat reviews this plan only.
+  Reviewed v0.1 (`21c3e6ce33a51d9a803543c87c6bbb2a9bc0b748`, seat commit `10e6f8072`, msg
+  `4159c478`; W1 and N1-N6 folded in v1.0; pending final v1.0 signature and
+  `do_spl_review_line_check` rc 0). The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T12:52:03Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -750,7 +759,7 @@ claude backup is used; never mistral; re-checked at placement).
 
 | what | why | measured by |
 |---|---|---|
-| Remaining linked-worktree guards in `orc:src/bash/run/` with different wording or secret-class adjacency (candidates for `r08`+): `orc:src/bash/run/install-box-crons.func.sh:65-70` (278 lines; WARN at `:69` says `"the paths below"` plural, does not call `cron_drop_tagged_line`), `orc:src/bash/run/spl-agent-hooks-install.func.sh:37-39` and `spl-agent-identity-install.func.sh:42-44` (FATAL says `"run the install from the main checkout"`, WARN says `"the paths below"` plural), `orc:src/bash/run/spl-private-overlay-install-cron.func.sh:65-72` (89 lines; names `RESERVE_GH_TOKEN_FILE` — secret-class, kept out per brief), plus distinct one-offs `box-peer-ssh-grant.func.sh:53` (`"grant from..."`) and `spl-box-deploy.func.sh:151` (`"PREREQ checkout missing..."`) | `install-box-crons` / `spl-agent-{hooks,identity}-install` need an optional plural/verb parameter on `cron_refuse_linked_worktree` to preserve exact wording (so they belong in a dedicated `r08` row, not mixed into wave 2-3); `spl-private-overlay-install-cron` stays out per the brief's secret-class exclusion | `git grep -n "is a linked worktree:" 13293131f -- csi-spl-orc/src/bash/run/` (25 lines across 13 files: 7 taken in r07, 6 here) (n=1) |
+| Remaining linked-worktree guards in `orc:src/bash/run/` with different wording or secret-class adjacency (candidates for `r08`+): `orc:src/bash/run/install-box-crons.func.sh:65-70` (278 lines; WARN at `:69` says `"the paths below"` plural, does not call `cron_drop_tagged_line`), `orc:src/bash/run/spl-agent-hooks-install.func.sh:37-39` and `spl-agent-identity-install.func.sh:42-44` (FATAL says `"run the install from the main checkout"`, WARN says `"the paths below"` plural), `orc:src/bash/run/spl-private-overlay-install-cron.func.sh:65-72` (89 lines; names `RESERVE_GH_TOKEN_FILE` — secret-class, kept out per brief), plus distinct one-offs `box-peer-ssh-grant.func.sh:53` (`"grant from..."`) and `spl-box-deploy.func.sh:151` (`"PREREQ checkout missing..."`) | `install-box-crons` / `spl-agent-{hooks,identity}-install` need an optional plural/verb parameter on `cron_refuse_linked_worktree` to preserve exact wording (so they belong in a dedicated `r08` row, not mixed into wave 2-3); `spl-private-overlay-install-cron` stays out per the brief's secret-class exclusion | `git grep -n "is a linked worktree:" 13293131f -- csi-spl-orc/src/bash/run/` (24 lines across 13 files: 7 taken in r07, 6 here) (n=1) |
 | `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh` and `spl-issue-owner-question-diss.func.sh` `*_read` (`brc:91-96` vs `oq:62-68`) and `*_apply` (`brc:136-161` vs `oq:111-137`) scaffolding (r04/r05/r06 section 7) | 15 differing lines in `*_apply` (`chmod 600`, stderr handling, status predicate, log/undo headers); left out while cleaner zero-behaviour-change cron worktree-guard duplicates remained (next `r08` candidate) | r06 section 7 |
 | Remaining non-matching cron installers: `orc:src/bash/run/spl-dispatch-rotate-install-cron.func.sh` (134 lines, 2-line rotate+heal), `spl-agent-boot-restore-install-cron.func.sh` (177 lines, retire/removed markers and custom install wording), `spl-box-restart-install-cron.func.sh` (117 lines, `SPL_DESK_CRON_CREATE` + slot check), `spl-peer-crons.func.sh` (273 lines, `SPL_DESK_CRON_CREATE` + no `"the "` prefix) | none matches `_spl_simple_cron_apply` or `_spl_run_cron_apply` verbatim; each needs separate inspection or a distinct helper | r06 section 7 |
 | `orc:src/bash/run/spl-{backfill,fallback,reply,reply-count,topic-reply}-probe.func.sh` (5 live probe sidecar setup/pin/detach/kill blocks) | touches 5+ files and passes `ROOT_KEY` / `MEMBER_PW_FILE` (secret-handling path; brief: secret-class sites stay out) | r06 section 7 |
@@ -766,13 +775,42 @@ claude backup is used; never mistral; re-checked at placement).
   `shellcheck 0.10.0 -S warning -x` and `do_sec_shellcheck` rc 0; both red controls
   (`rc1`, `rc2`) and all 7 mutation checks (`m1a`, `m1b`, `m1c`, `m1d`, `m2a`, `m2b`,
   `m2c`) run on detached worktrees and verified RED; all caller and test hunks included
-  verbatim in 1.3 and 1.4. Pushed to `review/c002-refactor-round-07-planner`.
+  verbatim in 1.3 and 1.4. Pushed to `review/c002-refactor-round-07-planner` (`21c3e6ce3`).
+- v1.0 (a-071): folded cross-vendor claude panel (`c-073`, review on v0.1 `21c3e6ce3`,
+  seat commit `10e6f8072`, msg `4159c478`) W1 and recorded N1-N6 (no row change; all 9
+  fenced `bash` blocks **byte-identical** to v0.1 `21c3e6ce3`; zero drift across all 9
+  row files + `cron-tagged-line.func.sh` from `13293131f` to `origin/master` `444c80979`):
+  - **W1 (R2):** added `orc:src/bash/tests/spl-box-deploy.tst.sh` (`:60` names
+    `do_spl_agent_id_reap_install_cron`) to row 01's `Tests:` column (section 2),
+    section 1.5's table (now 20 suites; measured `0 / 36 / 0` on base and head1 at
+    13:33Z-13:36Z, n=1), and section 2.2's checked paths (`lane-map.sh --check` exit 4,
+    0 owned, 20 `unknown:` on the other box at 13:33:27Z).
+  - **N1:** fixed section 7's `git grep -n "is a linked worktree:"` line count from
+    `25` to `24` lines across 13 files.
+  - **N2:** recorded that the 20 `unknown:` other-box lanes shifted (`c-079` in, `c-935`
+    out; still 0 owned); the holder re-reads at placement per R3.
+  - **N3:** recorded that r06's close record (`444c80979`, `docs(r06-plan, SPL-6566)`)
+    landed after r07 started; per rulebook 5.3, all r07 checks and row briefs keep the
+    recorded `W=2026-11-26T09:49:33+02:00` (`c28e628f2`).
+  - **N4:** recorded panel verification that `|| true` holds (neither `./run` nor
+    `spl-box-deploy.func.sh:336` uses `set -e`).
+  - **N5:** recorded that the `remove` bypass is test-pinned for `box-disk-sweep` and
+    visible in the verbatim `[[ "$act" == install ]] && ...` lines of the other wave-2/3
+    callers (non-blocking).
+  - **N6:** recorded that row 02's test column runs `cron-tagged-line.tst.sh`, which row
+    01 edits; R1 holds (edited files are disjoint), and the second row to land re-runs
+    `cron-tagged-line.tst.sh` after its rebase onto `origin/master`.
+  Pushed fast-forward to `review/c002-refactor-round-07-planner`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-071 (agy): v0.1 (pending cross-vendor panel review).
-- Panel reviewer seat: c-073 (claude): pending review of v0.1.
+- Editor seat: a-071 (agy): v1.0 (W1 and N1-N6 folded; pending final v1.0 panel
+  signature and `do_spl_review_line_check` rc 0).
+- Panel reviewer seat: c-073 (claude): reviewed v0.1
+  (`21c3e6ce33a51d9a803543c87c6bbb2a9bc0b748`, seat commit `10e6f8072`, msg `4159c478`;
+  W1 and N1-N6 folded in v1.0; pending final v1.0 signature and
+  `do_spl_review_line_check` rc 0).
 - Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
   never mistral).

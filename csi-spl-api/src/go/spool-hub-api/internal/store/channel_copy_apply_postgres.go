@@ -59,7 +59,7 @@ type ChannelCopyResult struct {
 var cpCarried = map[string]bool{
 	"channels": true, "messages": true, "message_revisions": true, "message_reactions": true,
 	"message_kind_changes": true, "message_moderation": true, "message_answers": true, "channel_humans": true,
-	"topic_heads": true, "topic_head_parts": true, "topic_priorities": true,
+	"topic_heads": true, "topic_head_parts": true, "topic_priorities": true, "topic_tag_stamps": true,
 	"calendar_events": true, "calendar_guests": true, "hours_jobs": true,
 	"issues": true, "issue_events": true, "issue_discussions": true,
 	"workspace_doc": true, "workspace_doc_item": true, "workspace_doc_node": true, "workspace_doc_acl": true, "workspace_doc_rev_log": true,
@@ -119,7 +119,7 @@ type pgCopy struct {
 }
 
 func (c *pgCopy) cpRun() error {
-	steps := []func() error{c.cpScope, c.planSet, c.buildMap, c.copyChannel, c.copyMessages, c.copyMessageChildren, c.copyCalendar, c.copyJobs,
+	steps := []func() error{c.cpScope, c.planSet, c.buildMap, c.copyChannel, c.copyMessages, c.copyMessageChildren, c.copyTopicTags, c.copyCalendar, c.copyJobs,
 		c.copyIssues, c.copyDocs, c.writeJournal, c.cpFinish}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -354,7 +354,7 @@ func (c *pgCopy) rewriteEnvelopes() error {
 func (c *pgCopy) copyMessageChildren() error {
 	for _, t := range []struct{ table, col string }{
 		{"message_revisions", "msg_id"}, {"message_reactions", "msg_id"}, {"message_kind_changes", "msg_id"},
-		{"message_moderation", "msg_id"}, {"topic_priorities", "task_id"},
+		{"message_moderation", "msg_id"}, {"topic_priorities", "task_id"}, {"topic_tag_stamps", "task_id"},
 	} {
 		if err := c.cpInsert(t.table, map[string]string{t.col: "a.new"}, `JOIN cp_ids a ON a.old = x.`+t.col, `true`); err != nil {
 			return err
@@ -365,6 +365,19 @@ func (c *pgCopy) copyMessageChildren() error {
 		return err
 	}
 	return c.rewriteText("message_revisions", "body", "text", `msg_id IN (SELECT new FROM cp_ids)`)
+}
+
+// copyTopicTags: a copied topic's tags, by slug under <DST>'s tag_ids (spec
+// 196 2.2, remapTopicTagsTx); <SRC> keeps its own.
+func (c *pgCopy) copyTopicTags() error {
+	olds := mpNonNil(c.b.Tasks)
+	news := make([]string, len(olds))
+	for i, o := range olds {
+		news[i] = c.out.IDs[o]
+	}
+	n, err := remapTopicTagsTx(c.ctx, c.tx, c.req.Src, c.req.Dst, olds, news)
+	c.res.Copied["topic_tag_links"] = n
+	return err
 }
 
 // rewriteText puts the new ids into one column of the <DST> rows where finds.

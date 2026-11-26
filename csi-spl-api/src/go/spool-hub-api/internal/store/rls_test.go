@@ -98,6 +98,8 @@ var rlsTables = []string{
 	"workspace_cancellations",
 	// rdb 0326, spec 143 taxes-tab.md S1 (SPL-6438): person seats read, the sync writes (tax_test.go)
 	"tax_snapshots", "tax_documents",
+	// rdb 0328, spec 196 T1 (SPL-6562): topic tags, their links and stamps
+	"topic_tags", "topic_tag_links", "topic_tag_stamps",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

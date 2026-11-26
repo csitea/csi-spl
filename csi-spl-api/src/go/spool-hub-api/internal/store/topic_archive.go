@@ -246,6 +246,7 @@ func (s *Memory) DeleteTopic(_ context.Context, tenant, msgID, ownTask, by strin
 		return TopicSet{}, err
 	}
 	set.Followed = s.followLocked(tenant, set.TaskIDs, IssueFollowDelete, by, at)
+	s.dropTopicTagsLocked(tenant, set.TaskIDs)
 	for _, id := range set.MsgIDs {
 		k := [2]string{tenant, id}
 		delete(s.messages, k)

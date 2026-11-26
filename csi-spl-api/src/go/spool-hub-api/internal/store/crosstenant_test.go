@@ -408,6 +408,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// topic_tags, topic_tag_links, topic_tag_stamps (rdb 0328, spec 196 T1):
+	// one tag on the seeded topic writes all three.
+	if _, err := pg.AddTopicTag(ctx, s.tenant, s.taskID, "release-notes", hum, now); err != nil {
+		t.Fatal(err)
+	}
 	// topic_pauses, topic_pause_issues (rdb 0297, spec 179 row B1): a paused
 	// topic and an issue it holds. Raw rows under inTenant: the census needs
 	// the rows, not the issue's status change.

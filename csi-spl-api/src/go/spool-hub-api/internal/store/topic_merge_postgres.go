@@ -47,6 +47,9 @@ func (s *Postgres) MergeTopic(ctx context.Context, tenant string, r MergeTopicRe
 		// order, so the first failing statement's error is the one returned,
 		// as it was one statement at a time.
 		b := &pgx.Batch{}
+		// Spec 196 2.2: the target keeps its tags and fills up to 10 from the
+		// source's, first in the batch, after topicTx's card lock.
+		queueMergeTopicTags(b, tenant, r.SrcTask, r.TargetTask, r.At)
 		b.Queue(`UPDATE messages SET
 				moved_from_parent = CASE WHEN moved_from_task IS NULL THEN parent_task_id ELSE moved_from_parent END,
 				moved_from_task   = COALESCE(moved_from_task, task_id)

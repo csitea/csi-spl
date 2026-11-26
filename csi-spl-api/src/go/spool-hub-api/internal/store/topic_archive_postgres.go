@@ -172,6 +172,10 @@ func (s *Postgres) DeleteTopic(ctx context.Context, tenant, msgID, ownTask, by s
 		if set.Followed, err = followDeleteTx(ctx, tx, tenant, set.TaskIDs, by, at); err != nil {
 			return err
 		}
+		// Spec 196 2.2: the topic's tags go with it, and the tags no topic uses.
+		if err = dropTopicTagsTx(ctx, tx, tenant, set.TaskIDs); err != nil {
+			return err
+		}
 		_, err = tx.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])`, tenant, set.MsgIDs)
 		return err
 	})

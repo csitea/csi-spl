@@ -23,8 +23,9 @@ var stampTables = []string{
 	"box_operators", "channel_humans", "channel_subscriptions", "channels", "deliveries", "issues",
 	"member_clones", "message_kind_changes", "message_moderation", "message_reactions", "message_revisions", "messages",
 	"rbac_roles", "read_marks", "tenant_member_roles", "tenant_memberships", "topic_priorities",
-	"topic_pauses", // rdb 0297, spec 179 B1
-	"topic_loops",  // rdb 0301, spec 182 L1
+	"topic_pauses",                  // rdb 0297, spec 179 B1
+	"topic_loops",                   // rdb 0301, spec 182 L1
+	"topic_tags", "topic_tag_links", // rdb 0328, spec 196 T1
 }
 
 // stampGlobalTables have no tenant_id: a write moves every tenant's stamp.
@@ -201,6 +202,14 @@ func TestChangeStampWriters(t *testing.T) {
 			}},
 		{name: "topic priority", do: func(s seeded) error { // rdb 0214, spec 150 C303
 			_, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, s.humanID, at())
+			return err
+		}},
+		{name: "topic tag add", do: func(s seeded) error { // rdb 0328, spec 196 T1
+			_, err := pg.AddTopicTag(ctx, s.tenant, s.taskID, "Billing", s.humanID, at())
+			return err
+		}},
+		{name: "topic tag remove", do: func(s seeded) error { // the seed's tag (crosstenant_test.go)
+			_, err := pg.RemoveTopicTag(ctx, s.tenant, s.taskID, "release-notes", s.humanID, at())
 			return err
 		}},
 		{name: "topic pause", do: func(s seeded) error { // rdb 0297, spec 179 B1

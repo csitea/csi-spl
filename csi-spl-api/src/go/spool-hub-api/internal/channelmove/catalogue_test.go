@@ -702,6 +702,13 @@ func TestCatalogueFollowsSpec(t *testing.T) {
 			t.Errorf("%s: its reason must cite %q (spec 169 v0.5), got %q", table, cite, e.Reason)
 		}
 	}
+	// Spec 196 2.2 (rdb 0328): a link names a <SRC> tag_id, so it is relinked
+	// by slug, never inserted as it is (its FK and UNIQUE (tenant_id, slug)).
+	for table, class := range map[string]Class{"topic_tags": NotChannel, "topic_tag_links": Rewritten, "topic_tag_stamps": Moved} {
+		if e, ok := Lookup(table); !ok || e.Class != class {
+			t.Errorf("%s: spec 196 2.2 says %s, catalogue has %q (found %v)", table, class, e.Class, ok)
+		}
+	}
 	if _, ok := Lookup("no_such_table"); ok {
 		t.Error("Lookup found a table that is not listed")
 	}

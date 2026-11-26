@@ -75,6 +75,7 @@ func (s *Memory) MergeTopic(_ context.Context, tenant string, r MergeTopicReq) (
 			return MergeResult{}, ErrMergeCycle
 		}
 	}
+	s.mergeTopicTagsLocked(tenant, r.SrcTask, r.TargetTask, r.At)
 	// recordHome saves task_id / parent_task_id into the move columns before
 	// the row is re-homed - the first move keeps the home (markRow's rule).
 	recordHome := func(m *Message) {

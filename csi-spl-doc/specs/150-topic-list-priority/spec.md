@@ -416,9 +416,11 @@ Every `file:line` in this subsection was read on `origin/master` `7481e6cac`:
   read group each.
 - **Scope: the loaded pages** (panel D1). The feed holds the newest pages
   (20 topics each, more on scroll). A sort or the New filter covers what is
-  loaded. When an older page exists, a line under the control says "Sorted:
-  the N topics loaded"; under New it says "Showing new among the N topics
-  loaded". No API change for part 2.
+  loaded. When an older page exists, a snackbar says "Sorted: the N topics
+  loaded"; under New it says "Showing new among the N topics loaded". It
+  shows for 1.5 s on each change of the sort, the filter or the loaded
+  count, then goes: never a permanent line (SPL-6605, owner HUM-10, t1
+  0e00285a, msg 01140272). No API change for part 2.
 
 ### 3.3 Part 3: a priority per discussion
 
@@ -1478,7 +1480,7 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C204 | 2 | sort Messages | higher count first, ties by last update | ascending sort | same |
 | C205 | 2 | sort Priority | 1 before 5; a topic with no priority sorts as 3, between a 2 and a 4 | no priority sorts first | same |
 | C206 | 2 | stable ties | equal keys keep last-update order, then task_id | drop the tie-break | same |
-| C207 | 2 | the loaded-topics line | shows under a sort and under New only when an older page exists | always shown | e2e as C101 |
+| C207 | 2 | the loaded-topics line | shows under a sort and under New only when an older page exists, as a 1.5 s snackbar (SPL-6605) | always shown, or a permanent line | e2e as C101 |
 | C208 | 2 | unread edge with a sort | unread cards stay at the edge; each group in the chosen sort | apply the sort after the unread move | unit as C201 |
 | C209 | 2 | the choice survives a reload | same filter and sort after a reload in the same browser | not stored | e2e as C101 |
 | C210 | 2 | New and the unread edge agree | every card `useUnreadOrder` puts at the edge is kept by New | pass `channel.unreadFor` as `unreadOf` | unit as C201 |

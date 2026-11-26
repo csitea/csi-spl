@@ -15,8 +15,19 @@
     <div v-if="channel.error" class="plain-err-slot">
       <LazyPlainErrorNotice :message="channel.error" :error="channel.errorCause" retry source="channel" test-id="channel-error" @retry="channel.refresh()" />
     </div>
-    <!-- spec 150 B6 (panel D1): a sort or New covers the loaded pages only; the line says so while an older page exists -->
-    <p v-if="windowLine" class="topic-list-window" data-testid="topic-list-window">{{ windowLine }}</p>
+    <!-- spec 150 B6 (panel D1): a sort or New covers the loaded pages only; the line says so while an older page exists.
+         SPL-6605 (owner, t1 0e00285a): a 1.5 s snackbar (fixed, so the list never shifts), not a permanent line. -->
+    <UndoSnackbar
+      v-if="windowFlash"
+      :key="windowFlash.id"
+      icon="sort"
+      testid="topic-list-window"
+      :text="windowFlash.text"
+      :show-undo="false"
+      :close-label="t('common.close')"
+      :duration="WINDOW_FLASH_MS"
+      @dismiss="windowFlash = null"
+    />
     <!-- SPL-2146: `virtual` - from 120 rows on, only the rows near the
          viewport are drawn; a ?topic= card or the unread divider is drawn
          when asked for (useFeedWindow). -->
@@ -73,6 +84,8 @@ import { useTopicListChoice } from '~/composables/useTopicListChoice'
 import { useTopicCardNew } from '~/composables/useTopicCardNew'
 import { useFreshTopics } from '~/composables/useFreshTopics'
 import { topicListView } from '~/utils/topic-list-order.mjs'
+import { WINDOW_FLASH_MS, windowFlashKey } from '~/utils/topic-list-window-flash.mjs'
+import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { isPromoteDropTarget, moveBlocked } from '~/utils/move.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -130,6 +143,13 @@ const windowLine = computed(() => {
   const n = channel.newestFirst.length
   if (choice.filtered.value) return t('feed.topic_list.window_new', { n })
   return choice.sorted.value ? t('feed.topic_list.window', { n }) : ''
+})
+/* SPL-6605: the line flashes for WINDOW_FLASH_MS on each change of the sort,
+   the filter or the loaded count while it applies; gone at once under the defaults */
+const windowFlash = ref<{ id: number, text: string } | null>(null)
+let windowFlashSeq = 0
+watch(() => windowFlashKey({ line: windowLine.value, filter: choice.filter.value, sort: choice.sort.value, n: channel.newestFirst.length }), (key) => {
+  windowFlash.value = key ? { id: ++windowFlashSeq, text: windowLine.value } : null
 })
 const newEmpty = computed(() => choice.filtered.value && channel.newestFirst.length > 0)
 
@@ -207,7 +227,6 @@ if (import.meta.client) {
 </script>
 
 <style scoped>
-.topic-list-window,
 .topic-list-empty-new {
   margin: 4px 12px;
   font-size: 0.8125rem;

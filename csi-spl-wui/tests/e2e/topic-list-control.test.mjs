@@ -10,6 +10,10 @@
 //        move, Escape closes back to the button
 //   C207 the "N topics loaded" line shows under a sort and under New only
 //        while an older page exists
+//   SPL-6605 that line is a 1.5 s snackbar (fixed, role=status), gone 2 s
+//        later, never a permanent label (owner HUM-10, t1 0e00285a, msg
+//        01140272: "just a small 1.5 s appearing snabar ... not a permanent
+//        lable"); WINDOW_SHOT=<prefix> saves <prefix>-shown.png / -gone.png
 //   C209 the filter and the sort survive a reload in the same browser
 //   SPL-6456 the sort menu holds 4 options, Created last (owner HUM-10,
 //        t1 a81e029c, msg 011b15dd: "add also the "created" attribute to the
@@ -145,8 +149,24 @@ function seedTopics(n) {
 
 function windowLine() {
   const el = document.querySelector('[data-testid=topic-list-window]')
+  const text = document.querySelector('[data-testid=topic-list-window-text]')
   const channel = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
-  return { shown: Boolean(el), text: el?.textContent?.trim() || '', hasOlder: Boolean(channel.hasOlder), topics: channel.newestFirst.length }
+  const css = el ? getComputedStyle(el) : null
+  return {
+    shown: Boolean(el),
+    text: text?.textContent?.trim() || '',
+    fixed: css?.position === 'fixed',
+    role: el?.getAttribute('role') || '',
+    live: el?.getAttribute('aria-live') || '',
+    hasOlder: Boolean(channel.hasOlder),
+    topics: channel.newestFirst.length,
+  }
+}
+
+/* SPL-6605: the first topic card's top, to prove the snackbar shifts nothing */
+function firstCardTop() {
+  const card = document.querySelector('.feed-body [data-msg-id], .feed-body article')
+  return card ? Math.round(card.getBoundingClientRect().top) : null
 }
 
 /* C207 */
@@ -161,9 +181,17 @@ async function windowCase(p) {
   await sleep(300)
   const plain = await p.evaluate(windowLine)
   ok('loaded-topics line: hidden under All + Last update with an older page', plain.hasOlder && !plain.shown, plain)
+  const topBefore = await p.evaluate(firstCardTop)
   await choose(p, 'sort', 'messages')
   const sorted = await p.evaluate(windowLine)
+  const topShown = await p.evaluate(firstCardTop)
   ok('loaded-topics line: shown under a sort with an older page, naming the topics loaded', sorted.shown && sorted.text.includes(String(sorted.topics)) && !sorted.text.includes('feed.topic_list'), sorted)
+  ok('SPL-6605: the line is a fixed snackbar, role=status, aria-live=polite, the cards do not move', sorted.fixed && sorted.role === 'status' && sorted.live === 'polite' && topShown === topBefore, { sorted, topBefore, topShown })
+  if (process.env.WINDOW_SHOT) await p.screenshot({ path: `${process.env.WINDOW_SHOT}-shown.png` })
+  await sleep(2000)
+  const later = await p.evaluate(windowLine)
+  if (process.env.WINDOW_SHOT) await p.screenshot({ path: `${process.env.WINDOW_SHOT}-gone.png` })
+  ok('SPL-6605: the snackbar is gone 2 s later, the sort still on (not a permanent label)', !later.shown && later.hasOlder, later)
   await choose(p, 'sort', 'last')
   await choose(p, 'filter', 'new')
   const fresh = await p.evaluate(windowLine)

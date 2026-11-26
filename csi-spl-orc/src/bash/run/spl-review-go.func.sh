@@ -102,7 +102,14 @@
 # @description rc=<n> ...`. A message seen once is never checked again. A
 # @description send that exits 5, 6 or 7 delivered the GO (its pane was not
 # @description rung): recorded as sent with a WARN naming the rc, never sent
-# @description again. Any other failed GO send is not logged, so the next run
+# @description again. A PASS for an author and sha that already have a PASS
+# @description row is a duplicate (one review delivered under a second msg_id,
+# @description e.g. a result and a note across a lease handoff, b48-01): no
+# @description GO, no hold note, not counted as sent; a live run logs `<ts>
+# @description review-go <msg_id> action=dedup author=<id> sha=<sha>`, a dry
+# @description run prints `PLAN SKIP` and writes nothing. The dedup reads this
+# @description box's automation.log only: a lease handoff to another box can
+# @description still send a second GO. Any other failed GO send is not logged, so the next run
 # @description tries again, except to an author retired on this machine (spool-send exit
 # @description 14, its quarantine): that send can never succeed, so it is held
 # @description once (one note, `action=refused rc=9`) and not tried again.
@@ -145,7 +152,9 @@ do_spl_review_go() {
     [[ -n "$rows" ]] || { do_log "FATAL $REVIEW_GO_MSG holds no review line from its reviewer"; return 1; }
     IFS=$'\t' read -r mid task from line <<<"$rows"
     _spl_review_go_seen "$mid" "$log" && { do_log "INFO msg $mid is in $log already: not checked again"; return 0; }
-    _spl_review_go_one "$holder" "$mid" "$task" "$line" "$log" "$dry" "$from"; return
+    rc=0; _spl_review_go_one "$holder" "$mid" "$task" "$line" "$log" "$dry" "$from" || rc=$?
+    (( rc == 11 )) && return 0
+    return "$rc"
   fi
   rows="$(_spl_review_go_scan "$max" "$SPOOL_ROOT/$holder")" || { do_log "WARN could not read $SPOOL_ROOT/$holder"; return 1; }
   while IFS=$'\t' read -r mid task from line; do
@@ -174,6 +183,27 @@ _spl_review_go_holder() {
 # a WAIT or a review-go line for the message.
 _spl_review_go_seen() {
   grep -qE "^(PASS|WAIT) [^ ]+ $1 | review-go $1 " "$2" 2>/dev/null
+}
+
+# _spl_review_go_seen_pass <author> <sha> <log>: 0 when automation.log already
+# holds a PASS row (`PASS <ts> <msg_id> <task_id> <author> <reviewer> <sha>`)
+# for the author and the sha, whatever its msg_id (b48-01).
+_spl_review_go_seen_pass() {
+  grep -qE "^PASS [^ ]+ [^ ]+ [^ ]+ $1 [^ ]+ $2$" "$3" 2>/dev/null
+}
+
+# _spl_review_go_dedup <msg> <log> <dry> <author> <sha>: a duplicate PASS, no
+# GO and no hold note. A live run records `action=dedup`, so the message is
+# seen on the next tick; a dry run prints PLAN SKIP and writes nothing.
+# Returns 11, which no caller counts as a GO sent.
+_spl_review_go_dedup() {
+  if [[ "$3" == 1 ]]; then
+    echo "PLAN SKIP msg $1 (duplicate PASS for $4 ${5:0:12})"
+    return 11
+  fi
+  printf '%s review-go %s action=dedup author=%s sha=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$4" "$5" >>"$2"
+  do_log "INFO msg $1: skipped duplicate PASS for $4 ${5:0:12}"
+  return 11
 }
 
 # _spl_review_go_read_fail <line>: 0 when the line's read: part says FAIL as
@@ -791,6 +821,7 @@ _spl_review_go_one() {
     { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here (its records here are not read for another box's seat; the lane map names no dispatch/briefs copy): brief on another box, not judged"; return 3; }
   IFS=$'\037' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task" | tr '\t' '\037')
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "$(_spl_review_go_unplaced "$brief" "$sha" "$task")"; return 3; }
+  _spl_review_go_seen_pass "$author" "$sha" "$log" && { _spl_review_go_dedup "$mid" "$log" "$dry" "$author" "$sha"; return 11; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
   abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha")"; rc=$?
   (( rc == 2 )) && { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}), and the $abrief: not verified"; return 7; }

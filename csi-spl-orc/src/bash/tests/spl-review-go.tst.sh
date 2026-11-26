@@ -22,7 +22,8 @@
 #        exit 14 (author retired on this machine): 3 cron ticks -> one GO try,
 #        one hold note, one `action=refused rc=9` line, no retry
 #    10. the cron scan: the holder's spool, once per message, only from the
-#        reviewer the line names, only within REVIEW_GO_MAX_AGE
+#        reviewer the line names, only within REVIEW_GO_MAX_AGE (a wider
+#        window reads the older copy, deduplicated as in case 33)
 #    11. the lease held elsewhere, stale, none -> nothing; never written
 #    12. the dry run prints PLAN, sends and logs nothing
 #    13. the install cron: dry run, one exact line, idempotent, check, remove;
@@ -152,6 +153,12 @@
 #        <id>-<slug>, is not a sibling -> GO (was rc 10, WAIT on itself);
 #        controls: a real second seat still waits (rc 10, WAIT names it,
 #        not the reviewer); a record with no worktree keeps today's rc 10
+#    33. one PASS under two msg ids (b48-01, a result and a note across a
+#        lease handoff): RED CONTROLS both copies in one tick -> one GO, no
+#        hold, one PASS row, one action=dedup line, `1 GO(s) sent`; the next
+#        tick sends and writes nothing; a third copy by REVIEW_GO_MSG -> rc 0,
+#        no GO; a fourth copy on a dry run -> PLAN SKIP, no PLAN GO, the log
+#        unchanged; control: a PASS on a new sha for the same author -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -380,7 +387,9 @@ if (( rc == 0 )) && [[ $(gos) == 1 && $(holds) == 0 ]] && grep -q "^PASS .* 1000
   pass "10. one GO: a relayed copy, an hour-old message and a kind task message are not read"
 else fail "10. rc=$rc gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"; fi
 run; [[ $(gos) == 1 && $(count "$LOG") == 1 ]] && pass "10. the next tick sends nothing again" || fail "10. retick gos=$(gos)"
-run REVIEW_GO_MAX_AGE=180; [[ $(gos) == 2 ]] && pass "10. control: a wider window reads the older message" || fail "10. window gos=$(gos)"
+# the older message is the same PASS (author, sha): read, then deduplicated, no second GO (b48-01)
+run REVIEW_GO_MAX_AGE=180; [[ $(gos) == 1 && $(count "$LOG" '^[^ ]* review-go 10000003-0000-4000-8000-000000000003 action=dedup ') == 1 ]] &&
+  pass "10. control: a wider window reads the older message (a duplicate PASS: dedup, no second GO)" || fail "10. window gos=$(gos) log=$(cat "$LOG")"
 # spec 033 K.3 (T024): a kind that routes as a note (SPOOL_NOTE_KINDS) is read like a note
 reset
 msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 10000005-0000-4000-8000-000000000005 docs >/dev/null
@@ -1284,6 +1293,43 @@ run REVIEW_GO_MSG="$f"; rc=$?
 (( rc == 10 && $(gos) == 0 )) && pass "32. control: a record with no worktree keeps today's path (rc 10)" ||
   fail "32. no worktree rc=$rc out=$(tail -3 "$T/out")"
 "${G[@]}" -C "$T/repo" worktree remove --force "$T/wt/a-333" 2>/dev/null
+
+# --- 33. one PASS under two msg ids sends one GO (b48-01) -----------------------------------------------
+# a reviewer sent its PASS to the old holder as a result and to the new one as a note: two GOs, two PASS rows
+reset
+msg 20261028T115800Z g-111@boxa "$(line g-111 grok PASS)" 33000000-0000-4000-8000-000000000001 result >/dev/null
+msg 20261028T115810Z g-111@boxa "$(line g-111 grok PASS)" 33000000-0000-4000-8000-000000000002 note >/dev/null
+run; rc=$?
+(( rc == 0 && $(gos) == 1 && $(holds) == 0 && $(count "$LOG" '^PASS ') == 1 && $(count "$LOG" " action=dedup author=c-222 sha=$SHA$") == 1 )) &&
+  grep -q '1 GO(s) sent' "$T/out" &&
+  pass "33. RED CONTROL: two copies of one PASS in one tick -> one GO, no hold, one PASS row, one dedup line" ||
+  fail "33. one tick rc=$rc gos=$(gos) holds=$(holds) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
+n=$(wc -l <"$LOG")
+run; rc=$?
+(( rc == 0 && $(gos) == 1 && $(wc -l <"$LOG") == n )) && grep -q '0 GO(s) sent' "$T/out" &&
+  pass "33. the next tick sends nothing and writes nothing" ||
+  fail "33. second tick rc=$rc gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"
+f=$(msg 20261028T115820Z g-111@boxa "$(line g-111 grok PASS)" 33000000-0000-4000-8000-000000000003 note)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 && $(holds) == 0 && $(count "$LOG" '^PASS ') == 1 )) &&
+  pass "33. RED CONTROL: a third copy by REVIEW_GO_MSG -> rc 0, no GO, no hold" ||
+  fail "33. REVIEW_GO_MSG copy rc=$rc gos=$(gos) holds=$(holds) log=$(cat "$LOG") out=$(tail -3 "$T/out")"
+f=$(msg 20261028T115825Z g-111@boxa "$(line g-111 grok PASS)" 33000000-0000-4000-8000-000000000004 note)
+n=$(wc -l <"$LOG")
+run DRY_RUN=1 REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(wc -l <"$LOG") == n )) && ! grep -q '^PLAN GO ' "$T/out" &&
+  grep -q '^PLAN SKIP msg 33000000-0000-4000-8000-000000000004 (duplicate PASS for c-222 ' "$T/out" &&
+  pass "33. RED CONTROL: a dry run on a fourth copy -> PLAN SKIP, no PLAN GO, the log unchanged" ||
+  fail "33. dry run rc=$rc log=$(cat "$LOG") out=$(tail -3 "$T/out")"
+echo d >"$T/repo/a.txt" && "${G[@]}" -C "$T/repo" commit -qam sha2 && "${G[@]}" -C "$T/repo" push -q -f origin HEAD:refs/heads/review/c002-x
+SHA2=$("${G[@]}" -C "$T/repo" rev-parse HEAD)
+rbrief g-111 "c-222@boxa (claude), SPL-1" "${SHA2:0:12}"
+f=$(msg 20261028T115830Z g-111@boxa "$(SHA=$SHA2 line g-111 grok PASS)" 33000000-0000-4000-8000-000000000005)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 2 && $(count "$LOG" '^PASS ') == 2 )) && grep -qxF "SEND --from c-002 --to c-222@boxa --kind task --task $TASK --body GO $SHA2" "$T/s/sent.log" &&
+  pass "33. control: a PASS on a new sha for the same author -> GO" ||
+  fail "33. new sha rc=$rc gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"
+"${G[@]}" -C "$T/repo" push -q -f origin "$SHA:refs/heads/review/c002-x"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

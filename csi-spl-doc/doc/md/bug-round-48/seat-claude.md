@@ -124,3 +124,22 @@ Against the plan's R3 list (line 525, 00:29Z/00:36:59Z): `a-852`, the refactor r
 - **N3, b48-02 scope (plan lines 73-81).** The slug says `role04`, but the fix and rc02's `r3_ignore_true` case also refuse a truthy `ignore_errors` in roles 01-03. That goes beyond SPL-6122 N3, which named role 04. I agree with the wider scope: role 03's enrol step swallowing its error is the same failure. However, rc02 without `fix-shape` stays red on a role-04-only fix, so the red control is part of the scope. The ban list still misses `block:`/`rescue:` in role 04, `ignore_unreachable` and templated falsy values (`when: "{{ false }}"`). The header already says it is a ban list. List these in the header's "cannot prove absence" sentence rather than widen the row.
 - **N4, b48-03 premise (plan line 83).** rc03 stubs `terraform`. It does not show that terraform 1.9.8 (`csi-spl-cnf/csi-spl/dev.env.yaml:32`) exits 2 under `-detailed-exitcode` for a plan whose only changes are `moved`/`import` entries. If it exits 0, `:64` is never reached, and the fix changes nothing for that plan. I believe, unchecked, that it exits 2, since terraform counts moved and importing changes as non-empty. Terraform runs only in the tf-runner, so this seat did not run it. The implementer should state the source of that claim in the commit, or prove it in the tf-runner. Likewise unchecked: an already-applied `import`/`moved` block (025, 030, 070) should carry no `importing`/`previous_address` in a later plan, so the gate does not stay pending forever.
 - **N5, plan line 113.** b47's input #8 ("the non-instruction `apply` rule [4] holds") is served by the carried `c002-next-round-candidates.md:141-142` row. Name it there as "b47 first input #8", so round 49 can trace it.
+
+## 4. Signature on v1.0: **PASS** on `6b6f53b9`
+
+**Sha signed:** `6b6f53b9974e5c88fec1df040e352cde4bb2df1d`. `git ls-remote origin refs/heads/review/c002-bug-round-48-planner`
+printed that sha at 01:4xZ; its parent is v0.1 `b3f91e7f7`.
+`git diff --stat b3f91e7f7 6b6f53b99` -> `csi-spl-doc/doc/md/bug-round-48-plan.md | 30 +++++++++++++++++-------------` (+17 -13), the plan only.
+
+- **W1 folded:** `grep -c reporting_schema_test` on the v1.0 plan -> `0`. Line 119 now reads
+  "`a-490` N1 (`TestCategoryTestPathsZZIsolated` guard regex at `categories_test.go:388`, panel W1)".
+- **N1 folded** (line 64): the header documents the dedup "on the same box", and names the cross-box gap.
+- **N2 folded** (line 525): R3 was re-checked at 01:03:39Z, and `a-852@sat` is named for the re-check at placement.
+- **N3 folded** (line 76): the scope is the whole role set, with the `role04` slug kept. The header's ban-list limits name `rescue:`, `ignore_unreachable` and templated falsy values.
+- **N4 folded** (line 86): the commit body must cite or prove, in the tf-runner, that 1.9.8 `-detailed-exitcode` exits 2 on a moved/import-only plan, and that applied blocks (025, 030, 070) stop reporting `previous_address`/`importing`.
+- **N5 folded** (line 113): "round 47 first input #8" is named; `grep -c 'first input #8'` -> `2`.
+- **Red controls unchanged:** I extracted each block from the v1.0 plan, hashed it with `sha256sum` and compared it with `cmp` to the v0.1 copy:
+  `rc01 d93053b1a1f5 8514 same`, `rc02 ee327a2fa8e7 4452 same`, `rc03 80c654bd3ffc 3489 same`. The section 1.3 runs therefore hold for v1.0.
+- **Sites unchanged:** `git diff --name-only fe99a5bc6 origin/master -- <the 6 row files>` -> empty, rc 0, with `origin/master` = `5aa360afc`.
+- **Rows unchanged:** sections 5 rows 01-03 (lines 517-519) are the v0.1 rows plus the folds above. No row was added or dropped, and R1 still holds.
+- **Correction, for the record:** a v1.0 PASS `85f6e627` and a seat commit `2c897151a` were reported to the holder under this seat's id. They are not this seat's: `/var/spool-hub/c-776/outbox` holds no such message, and `git cat-file -t 2c897151a` -> `fatal: Not a valid object name`. This seat's v1.0 signature is this section; it was told to c-002@sat and c-001 in notes `13752d26` and `a8179976`.

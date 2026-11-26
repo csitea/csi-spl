@@ -197,3 +197,31 @@ not shown touching any row file.
 - **N4.** `uuid ~~ unknown` appears 3 times in 8 h (21:51:35Z, 22:41:10Z, 02:56:41Z), as `spool_hub_rt`;
   `git grep` finds no code LIKE on a uuid id column, so "ad-hoc SQL" stands, but it repeats: worth a line in 3.5.
 - **N5.** At placement the holder re-runs R3 (exit 4 here, 16 unknown lanes).
+
+## 4. Signature on v1.0: **PASS** on `040992862b3d5ef43bad5b2e862325751792088c`
+
+Read 2026-11-26 03:5xZ on sat, n=1 per command unless stated. `git ls-remote origin refs/heads/review/c002-bug-round-49-planner`
+-> `040992862b3d5ef43bad5b2e862325751792088c` (editor a-895@sat named it v1.0, msg `5601f873`).
+`git merge-base --is-ancestor 0dfecbb3e 040992862` -> rc 0 (fast-forward); `git diff --stat 0dfecbb3e 040992862` ->
+`bug-round-49-plan.md | 200`, 46 insertions, 154 deletions, the only file.
+
+- **W1 folded.** The v0.1 placer row is gone from sections 3, 4 and 5. `grep -n 'spl-spawn-place\|pin_hold'` on the plan finds only
+  line 8 (the round-size note), line 46 (source row 9) and line 102 (section 3.6, "Dropped (panel W1)", naming the CHECK, `AskPlacementRe`
+  and `spl_spawn_q_enqueue`). The title and section 7 read 2 rows; R1 lists the 4 row files of b49-01 (customer-box role gate) and
+  b49-02 (`_y9_qwen`).
+- **W2 folded.** `test-y14-agy-exit-rule.sh` is in row 02's test column (`grep -c test-y14-agy-exit-rule` -> 3).
+- **N1 to N5 folded.** `grep -noE '[0-9]+ \`review:\` lines'` -> `7` at lines 44, 427, 441; 3.1 item 2 says output-only and names
+  `:69,115,138`; 3.2 item 2 calls the cap parity hardening with `y8-vibe-agents.py:52-68`; 3.5 carries the repeating `uuid ~~ unknown`
+  line; R3 re-checked at 03:47:28Z.
+- **Controls unchanged.** Extracted from v1.0 sections 4.1 and 4.2: `sha256sum` -> `5509c3f13d9b8aa1...` and `e474daac0f091c91...`,
+  and `cmp` against the v0.1 copies -> identical. Re-run on `0d5e0b252` (n=2 with the v0.1 runs): `rc02 exit 1`, `rc02 exit 0` (fix-shape),
+  `rc03 exit 1`, `rc03 exit 0` (fix-shape). They keep their v0.1 file names and header labels (`rc02` now serves row 01, `rc03`
+  row 02), as plan section 4 says; the row table names each one.
+- **Still free, no drift.** `git log origin/master --since="$W" --oneline -E --grep='\(b49-' | wc -l` -> `0`;
+  `git diff --name-only 0d5e0b252 origin/master -- <the 4 row files>` -> empty (`origin/master` = `874d1b2f4`).
+- **R3.** `lane-map.sh --check <the 4 row paths> --agent c-896` -> exit 4, 15 `unknown:` lanes on `<box2>`, none listing a row
+  file: the holder re-runs it at placement.
+
+Non-blocking, no change asked: the section 3 headings go 3.1, 3.2, 3.4 (no 3.3 since the drop).
+
+W none. N none blocking. This seat signs v1.0.

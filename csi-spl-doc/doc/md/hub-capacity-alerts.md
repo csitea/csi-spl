@@ -91,7 +91,7 @@ names it instead of "No severity" (owner answer A, msg 917de544, 2026-10-25):
 
 | severity | policies (`google_monitoring_alert_policy.<name>`) |
 |---|---|
-| `CRITICAL` | `uptime` (hub down), `sql_down`, `signin_5xx` |
+| `CRITICAL` | `uptime` (hub down), `sql_down`, `signin_5xx`, `fleet_silent` (section 7) |
 | `ERROR` | `rate_5xx`, `error_logs`, `rate_429` |
 | `WARNING` | `instances_at_max`, `memory_high`, `view_slow` |
 
@@ -144,3 +144,45 @@ burst on 2026-10-22T22:38Z where every loop logged once per workspace, and
   Test: `internal/hub/relay_retry_test.go` (a safe broken pipe is retried
   once and logs nothing; an unsafe one is read once; 3 failing workspaces
   log 1 line per site per pass).
+
+## 7. Every box of a fleet silent (SPL-4632)
+
+On 2026-11-01 one box was benched at 10:16Z while the other had been offline
+since 02:45Z; the only `#alerts` line came at 11:45Z and said the benched
+alert "could not be delivered". Every box alert is posted by a box through
+the hub, so with every box silent nobody posts, and no policy of this step
+read the box beats.
+
+- **The signal.** A policy cannot read the `box_beats` table, so the hub
+  writes one info line per stored beat, message `box beat` with its `tenant`
+  and `box` (`boxBeatLogMsg`,
+  `csi-spl-api/src/go/spool-hub-api/internal/hub/box_beat.go`). A refused or
+  unstored beat writes none.
+- **The metric.** `box_beats` (`<org>-<app>-<env>-hub-box-beats`) counts
+  those lines, labelled by tenant.
+- **The page.** `fleet_silent` is an absence condition on that metric,
+  summed per tenant: it fires when a tenant that was beating gets no beat
+  for cnf `steps.070-gcp-monitoring.fleet_silent_seconds` (600 s, 5 times
+  the box health `max_gap_s`). One box up keeps the tenant's series alive,
+  so it stays quiet. Cloud Monitoring sends the page to the channels of this
+  step, so no box has to be up to deliver it.
+- **The hub down.** A hub that is down stores no beat either, so
+  `fleet_silent` fires too, about 8 minutes after `uptime` (CRITICAL, two
+  regions failing for `uptime_fail_seconds`) has paged. With both open, fix
+  the hub first. A hub that is up while its Cloud SQL is down stores no beat
+  either; `sql_down` pages that.
+- **Where it can fire.** Measured read-only on 2026-11-26T17:34Z: prd
+  `box_beats` held one tenant, 2 boxes, 34386 beats in 2 days (about 6 a
+  minute per box). dev held none, so dev has no series and never fires.
+- **First response.** Read which tenant the incident names
+  (`metric.label.tenant`), then each of its boxes: power, uplink, the
+  watchdog's beat (`spl_wd_beat`).
+
+Test: `csi-spl-iac/src/bash/tests/monitoring-fleet-silent-070.tst.sh` (the
+hub's message is read from the Go source; the metric, the policy, the
+variable and the rendered tfvars; on minute series, both boxes silent past
+the limit fires and one box up stays quiet; controls: a threshold condition,
+grouping by box, a literal duration, no channels, another message and a
+metric without the tenant label each fail). Hub:
+`internal/hub/box_beat_log_test.go` (2 stored beats write 2 lines, a refused
+one writes none).

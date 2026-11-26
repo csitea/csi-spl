@@ -265,6 +265,16 @@ variable "view_5xx_per_5min" {
   }
 }
 
+variable "fleet_silent_seconds" {
+  type        = number
+  description = "Page when no box of a tenant's fleet has beaten the hub for this long (SPL-4632)."
+
+  validation {
+    condition     = var.fleet_silent_seconds >= 120 && var.fleet_silent_seconds <= 84600 && var.fleet_silent_seconds % 60 == 0
+    error_message = "fleet_silent_seconds must be whole minutes, in seconds, 120..84600 (Cloud Monitoring's absence condition duration)."
+  }
+}
+
 variable "auto_close_seconds" {
   type        = number
   description = "An open incident whose condition stays clear this long is closed."

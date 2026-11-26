@@ -31,6 +31,7 @@ view_path = "/v1/view/"
 view_p95_seconds = 4
 view_slow_seconds = 300
 view_5xx_per_5min = 3
+fleet_silent_seconds = 600
 auto_close_seconds = 1800
 hub_service_name        = "csi-spl-hub-dev"
 hub_max_instances       = 2

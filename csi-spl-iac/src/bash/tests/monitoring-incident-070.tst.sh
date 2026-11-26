@@ -29,9 +29,10 @@
 #      "handler panic" and Cloud Run's own entries (no message) stay counted
 #   8. SPL-3477 (owner answer A, msg 917de544): every alert policy carries its
 #      severity, so the alert email subject is no longer "No severity":
-#      CRITICAL hub down, Cloud SQL down, sign-in 5xx; ERROR 5xx rate, error
+#      CRITICAL hub down, Cloud SQL down, sign-in 5xx, every box of a fleet
+#      silent (SPL-4632); ERROR 5xx rate, error
 #      log rate, 429 streak; WARNING max instances, memory high, slow views.
-#      Controls: a policy without severity, a swapped one and a 10th policy
+#      Controls: a policy without severity, a swapped one and an 11th policy
 #      outside the map each fail
 #   9. SPL-3963 (owner answer C to Q2, poll 48c29645, part B): error_logs
 #      pages only when the error rate lasts var.error_logs_duration_s (cnf
@@ -247,7 +248,7 @@ counted "${he/ AND NOT jsonPayload.message = \\\"$msg5\\\"/}" error "$msg5" && p
 
 # --- 8. SPL-3477: each policy has exactly its owner-mapped severity --------------
 declare -A SEV=(
-  [uptime]=CRITICAL [sql_down]=CRITICAL [signin_5xx]=CRITICAL
+  [uptime]=CRITICAL [sql_down]=CRITICAL [signin_5xx]=CRITICAL [fleet_silent]=CRITICAL
   [rate_5xx]=ERROR [error_logs]=ERROR [rate_429]=ERROR
   [instances_at_max]=WARNING [memory_high]=WARNING [view_slow]=WARNING
 )
@@ -264,7 +265,7 @@ sev_ok() {
     [[ "$n" == 1 && "$got" == "${SEV[$pol]}" ]] || { echo "  $pol: severity '$got' ($n lines), want ${SEV[$pol]}"; return 1; }
   done
 }
-sev_ok "$tf" && pass "each of the ${#SEV[@]} alert policies has its mapped severity (CRITICAL 3, ERROR 3, WARNING 3)" \
+sev_ok "$tf" && pass "each of the ${#SEV[@]} alert policies has its mapped severity (CRITICAL 4, ERROR 3, WARNING 3)" \
   || fail "an alert policy misses its mapped severity"
 sev_ok "$(sed '0,/^  severity .*"CRITICAL"$/{//d}' <<<"$tf")" >/dev/null && fail "CONTROL a policy without severity passed" || pass "CONTROL a policy without severity fails"
 sev_ok "$(sed '0,/"WARNING"$/s//"ERROR"/' <<<"$tf")" >/dev/null && fail "CONTROL a WARNING swapped to ERROR passed" || pass "CONTROL a WARNING swapped to ERROR fails"

@@ -381,6 +381,7 @@ resource "time_sleep" "log_metrics" {
     signin_5xx   = google_logging_metric.signin_5xx.id
     view_latency = google_logging_metric.view_latency.id
     view_5xx     = google_logging_metric.view_5xx.id
+    box_beats    = google_logging_metric.box_beats.id
   }
 }
 
@@ -428,5 +429,72 @@ resource "google_monitoring_alert_policy" "view_slow" {
   documentation {
     mime_type = "text/markdown"
     content   = "The hub's read views (${var.view_path}*) answer slower than ${var.view_p95_seconds}s at p95, or with 5xx (a 503 view_timeout is the per-view limit cutting a slow query): the web UI hangs, and slow queries holding the hub's DB pool starve sign-in next. /v1/health does not touch the pool and stays 200. Read pg_stat_activity (`do_spl_db_query`) and the hub's error logs (csi-spl-doc/doc/md/hub-signin-view-alerts.md)."
+  }
+}
+
+# SPL-4632 (2026-11-01: one box benched at 10:16Z with the other offline since 02:45Z,
+# the only #alerts line came 11:45Z and said the bench "could not be
+# delivered"): every box alert is posted by a box through the hub, so with
+# every box silent nobody posts. A policy cannot read the box_beats table, so
+# the hub writes one info line per stored beat (internal/hub/box_beat.go,
+# boxBeatLogMsg) and this metric counts them per tenant. The absence
+# condition fires when a tenant that was beating gets no beat for
+# fleet_silent_seconds: every box of that fleet is silent (one box up keeps
+# the series alive). Cloud Monitoring sends the page, so no box has to be up.
+# A hub that is down stores no beat either: this pages after the uptime
+# policy (CRITICAL, uptime_fail_seconds) already did.
+resource "google_logging_metric" "box_beats" {
+  name        = "${local.name}-hub-box-beats"
+  description = "SPL-4632: box beats the hub stored, per tenant (its \"box beat\" info line)."
+  filter      = "${local.run} AND jsonPayload.message = \"box beat\" AND jsonPayload.level = \"info\""
+
+  label_extractors = {
+    tenant = "EXTRACT(jsonPayload.tenant)"
+  }
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+
+    labels {
+      key         = "tenant"
+      value_type  = "STRING"
+      description = "The tenant whose box beat."
+    }
+  }
+}
+
+resource "google_monitoring_alert_policy" "fleet_silent" {
+  depends_on            = [time_sleep.log_metrics]
+  display_name          = "${local.name} every box of a fleet silent"
+  combiner              = "OR"
+  notification_channels = local.channels
+  severity              = "CRITICAL"
+
+  conditions {
+    display_name = "no box beat of a tenant for ${var.fleet_silent_seconds}s"
+    condition_absent {
+      filter   = "metric.type = \"logging.googleapis.com/user/${google_logging_metric.box_beats.name}\" AND resource.type = \"cloud_run_revision\""
+      duration = "${var.fleet_silent_seconds}s"
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["metric.label.tenant"]
+      }
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "${var.auto_close_seconds}s"
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "No box of the tenant in the incident's metric.label.tenant has beaten the hub for ${var.fleet_silent_seconds}s: every box of that fleet is silent, so no box alert can be posted. If the hub health policy is open too, the hub is down: fix that first. Else check each box: its uplink, its watchdog (`spl_wd_beat`), its power (csi-spl-doc/doc/md/hub-capacity-alerts.md)."
   }
 }

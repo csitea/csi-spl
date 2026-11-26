@@ -22,5 +22,6 @@ output "alert_policies" {
     google_monitoring_alert_policy.memory_high.name,
     google_monitoring_alert_policy.signin_5xx.name,
     google_monitoring_alert_policy.view_slow.name,
+    google_monitoring_alert_policy.fleet_silent.name,
   ]
 }

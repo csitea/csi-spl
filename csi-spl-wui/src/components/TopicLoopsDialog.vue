@@ -250,7 +250,9 @@ onUnmounted(() => offFrame())
 .topic-loops__error { color: var(--color-danger); margin: 0; }
 .topic-loops__form { display: flex; flex-direction: column; gap: 12px; }
 .topic-loops__field { display: flex; flex-direction: column; gap: 4px; }
-.topic-loops__field textarea { width: 100%; resize: vertical; }
+/* v0.11 change 7 (msg ae3a2d5c, SPL-6586): still resizable; by default about
+   17% of the screen's height (the owner's hand-sized box, ~11 lines) */
+.topic-loops__field textarea { width: 100%; resize: vertical; height: 17vh; min-height: 6lh; }
 .topic-loops__triggers { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
 .topic-loops__trigger { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .topic-loops__trigger label { display: inline-flex; align-items: center; gap: 6px; }

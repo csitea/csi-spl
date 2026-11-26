@@ -7,8 +7,10 @@
 #      runs the job behind cron-no-stack.sh on <logdir>/cron.lock (SPL-4495)
 #   2. a second install keeps exactly one tagged line and the same floor
 #   3. CPU_BUDGET_GATE_FLOOR_PCT=0 renders the floor off; a bad value is refused
-#   4. red control: the action without the floor (git HEAD~ copy or a copy with
-#      the floor stripped) fails check 1
+#   4. red control: a copy with the floor stripped fails check 1. The copy is
+#      staged in a mirrored tree ($T/rc/src/bash/run, lib and sibling
+#      *.func.sh symlinked) so its relative `source` lines resolve: an
+#      unmodified copy there passes check 1 and the stripped one runs (rc 0)
 #   The rest of the installer (keep other lines, check, remove) is covered in
 #   apply-gh-runner-cpu-budget.tst.sh section 4. No real crontab: a stub.
 #------------------------------------------------------------------------------
@@ -80,11 +82,25 @@ out="$(setup "$FUNC" DRY_RUN=0 CPU_BUDGET_GATE_FLOOR_PCT=5x)"; rc=$?
 [[ $rc -ne 0 && "$out" == *'must be 0..99999'* ]] && cmp -s "$T/crontab" "$T/crontab.before" &&
   pass "a bad floor is refused, the crontab untouched" || fail "bad floor (rc=$rc): $out"
 
-# 4. red control: the installer without the floor
-sed -e 's/%sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU/%sCPU/' -e 's/"\$pre" "\$floor" "\$reserve"/"$pre" "$reserve"/' "$FUNC" >"$T/nofloor.func.sh"
-if grep -q 'CPU_BUDGET_GATE_FLOOR_PCT=%s' "$T/nofloor.func.sh"; then
+# 4. red control: the installer without the floor, staged in a mirrored
+# relative tree so the copy's sibling `source` lines resolve (b50-02)
+RC_RUN="$T/rc/src/bash/run"
+mkdir -p "$RC_RUN"
+ln -s "$PROJ_ROOT/lib" "$T/rc/lib"
+for sib_f in "$PROJ_ROOT"/src/bash/run/*.func.sh; do
+  [[ "$(basename "$sib_f")" == "$(basename "$FUNC")" ]] && continue
+  ln -s "$sib_f" "$RC_RUN/$(basename "$sib_f")"
+done
+RC_FUNC="$RC_RUN/$(basename "$FUNC")"
+cp "$FUNC" "$RC_FUNC"
+check_default "$RC_FUNC" && pass "red control: an unmodified copy in the staged tree passes check 1" ||
+  fail "red control: an unmodified staged copy failed check 1 (the staged tree is broken)"
+sed -e 's/%sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU/%sCPU/' -e 's/"\$pre" "\$floor" "\$reserve"/"$pre" "$reserve"/' "$FUNC" >"$RC_FUNC"
+if grep -q 'CPU_BUDGET_GATE_FLOOR_PCT=%s' "$RC_FUNC"; then
   fail "red control: could not strip the floor from the copy"
-elif check_default "$T/nofloor.func.sh"; then
+elif ! setup "$RC_FUNC" DRY_RUN=0 >/dev/null; then
+  fail "red control: the stripped copy failed to run (broken source or helper)"
+elif check_default "$RC_FUNC"; then
   fail "red control: a copy without the floor still passed check 1"
 else
   pass "red control: an installer without the floor fails check 1"

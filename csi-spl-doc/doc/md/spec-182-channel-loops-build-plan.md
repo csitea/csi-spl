@@ -1,7 +1,7 @@
-# Spec 182 channel loops build round - plan v1.0 (6 rows, 5 batches)
+# Spec 182 channel loops build round - plan v1.1 (6 rows, 5 batches)
 
 Epic: SPL-2398  
-Spec: csi-spl-doc/specs/182-topic-loop-prompt (v0.10)  
+Spec: csi-spl-doc/specs/182-topic-loop-prompt (v0.10, plus owner one-trigger rule t1 `6e8c1cdb` msg `febf1db4`)  
 Class: feature  
 Kind: specs_and_docs  
 Issue: SPL-6563  
@@ -18,6 +18,12 @@ Owner HUM-10, by pointer:
   (both topic and channel loops fire), **CL2 B** (no per-topic opt-out at
   first), **CL3 B** (follows the workspace's archive-topics permission),
   **CL4 B** (every open topic, newest first, at most 60 runs/h per loop).
+- t1 `6e8c1cdb`, 2026-11-26 11:29-11:36Z (msg `febf1db4`, relayed by dispatch
+  holder `c-002` msg `86483bbd`): *"those choices should be radio buttons - aka
+  one trigger per loop"* — reverses spec 182 Q3 B ("any mix of the triggers,
+  as checkboxes"). Queued lane ask `9e11f964`
+  (`claude:c002-6e8c1cdb-wui-loops-dialog-radio-title-drag`) implements all 7
+  Discussion-loops dialog changes and amends `spec.md` (see 2.3 and 2.4 N6).
 - Spec 182 v0.10, landed as `a1b1984fd` (SPL-6474, R7 `c-388` PASS): section 9
   closes CL1-CL4 and freezes the binding contracts (9.8) and six build rows
   (9.9).
@@ -29,28 +35,36 @@ Owner HUM-10, by pointer:
 **What this round is.** Spec 182 section 9.9 names six build rows: `C1`, `C2a`,
 `C2b`, `C3`, `C4`, `C5`. This plan re-measures every row's sites on one
 `origin/master` sha, adds three store/test gate files proved required for `C1`
-by the live test suite (2.4 N1), orders the six rows into five batches of
-strictly disjoint files (R1), checks live and queued R3 overlaps across specs
-186, 187 and 196, names each row's kind, vendor and cross-vendor R7 reviewer,
-and proposes one brief per row. It writes no code.
+by the live test suite (2.4 N1), folds the owner's one-trigger-per-loop rule
+(2.4 N6), orders the six rows into five batches of strictly disjoint files
+(R1), checks live and queued R3 overlaps across specs 186, 187, 196 and ask
+`9e11f964`, names each row's kind, vendor and cross-vendor R7 reviewer, and
+proposes one brief per row. It writes no code.
 
-**Status: v1.0, signed.** Planner: `a-934` (`agy`, main for
-`specs_and_docs`). Panel: one cross-vendor seat, **`c-938`** (`claude`,
-placement `c002-s182-cl-build-claude-panel-seat`, ask `3343e159`). `c-938`
-PASS on v0.2 `be601fc3d` (W none, `do_spl_review_line_check` rc 0 DOCS-ONLY,
-seat file `review/c002-s182-cl-build-claude-seat` `4cf4cd12a`); dispatch
-holder `c-003` GO LAND (`7d3347f9`); v0.2 landed on `origin/master` as
-`e6d3defb4` (plan body unchanged from `be601fc3d`).
+**Status: v1.1 (signed v1.0 plus owner one-trigger rule and ask `9e11f964` R3
+ordering).** Planner: `a-934` (`agy`, main for `specs_and_docs`). Panel: one
+cross-vendor seat, **`c-938`** (`claude`, placement
+`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`). `c-938` PASS on v0.2
+`be601fc3d` (W none, `do_spl_review_line_check` rc 0 DOCS-ONLY, seat file
+`review/c002-s182-cl-build-claude-seat` `4cf4cd12a`); dispatch holder `c-003`
+GO LAND (`7d3347f9`); v0.2 landed on `origin/master` as `e6d3defb4`, v1.0 as
+`c05833b1c`. v1.1 folds holder `c-002` msg `86483bbd` (HUM-10 t1 `6e8c1cdb`
+msg `febf1db4`, one trigger per loop, radio buttons) and serializes `C3` (and
+checks `C2a`/`C2b`) around ask `9e11f964`.
 
-**One sha.** Every code and spec read is on
+**One sha.** Every baseline code and spec read is on
 **`6b216a31990109235fbb11f3537c64e423b13b5c`** (`6b216a319`, `origin/master` at
-2026-11-26T05:22Z after a fresh fetch; at v0.2 `origin/master` is `f9521a941`,
-with `git diff --name-only 6b216a319..f9521a941` touching only
-`refactor-round-05-plan.md` and `specs/150-topic-list-priority/spec.md`, zero
-cited paths changed), with `git show` / `git grep`, n=1 per
-command. `git merge-base --is-ancestor a1b1984fd 6b216a319` -> rc 0: spec 182
-v0.10 is in the tree planned on, and no commit after it touches the spec folder
-(`git log --oneline a1b1984fd..6b216a319 -- csi-spl-doc/specs/182-topic-loop-prompt`
+2026-11-26T05:22Z after a fresh fetch; at v0.2 `origin/master` was `f9521a941`,
+with zero cited paths changed). At v1.1 (`origin/master`
+**`3ce429f73f03e2618cc28f038ab04a95879019a5`**, 2026-11-26T11:38Z),
+`git diff --name-only 6b216a319..3ce429f73` shows spec 186 M11 (`320b0250e`,
+`54a39b0ce`) shifted `wui:src/types/mjs-shims.d.ts` `*TopicLoop*` from
+`:209-217` to **`:211-219`** while `live-ws.mjs` (`:35`, `:66`, `:530-531`,
+`:564`) and `spool-client.mjs` (`:108-112`) kept the same lines, and zero
+Go/RDB/spec 182 paths cited in 1.2 changed. Every read used `git show` /
+`git grep`, n=1 per command. `git merge-base --is-ancestor a1b1984fd 3ce429f73`
+-> rc 0: spec 182 v0.10 is in the tree, and no commit after it touches the
+spec folder yet (`git log --oneline a1b1984fd..3ce429f73 -- csi-spl-doc/specs/182-topic-loop-prompt`
 -> empty). Lane map, queue and vendor picks are live state and carry their own
 UTC timestamp.
 
@@ -134,7 +148,7 @@ line moved since spec 182 v0.10 (`c9dd02117`), both are shown.
 | `wui:src/utils/spool-client.mjs` `*TopicLoop*` proxy list | (by name) | `:108-112` | C3 |
 | `wui:src/utils/spool-client-lazy.mjs` `*TopicLoop*` impl + exports | (by name) | `:1156-1184`, `:2648-2652` | C3 |
 | `wui:src/utils/spool-client-mock.mjs` mock topic loops | (by name) | mock topic loop handlers | C3 |
-| `wui:src/types/mjs-shims.d.ts` `*TopicLoop*` declarations | (by name) | `:209-217` | C3 |
+| `wui:src/types/mjs-shims.d.ts` `*TopicLoop*` declarations | (by name) | `:211-219` (on `3ce429f73`; was `:209-217` on `6b216a319`) | C3 |
 | `wui:i18n/locales/*.json` | 19 files | 19 files | C3 |
 | `csi-spl-doc/doc/help/channels-and-direct-messages.md`, `index.md` | (by name) | `index.md:67` | C5 |
 | `csi-spl-cnf/csi-spl/all.env.yaml` `mistral_ui_allowed`, `mistral_review_allowed`, `agent_split_by_kind` | `:1514-1530`, `:1567-1574` (**drifted**) | **`:1548`**, **`:1564`**, **`:1601-1606`** (incl. `i18n`; full block `:1601-1608`) | ref |
@@ -173,12 +187,12 @@ this plan claims no same-vendor waiver).
 
 | row | what | kind | vendor (main / backup) | R7 | depends on | batch |
 |---|---|---|---|---|---|---|
-| C1 | rdb + store: `channel_loops`, `channel_loop_state`, `ChannelLoopStore` (Postgres + Memory), `UnarchiveChannel` reset, RLS / change_stamp / channelmove / cpCarried | `complex_coding` | `claude` / `agy` | `agy` (`claude` if `agy`) | R3 wait: live `c-904` (s187 S1) + `c-907` (s196 T1) landed (2.3) | 1 |
-| C2a | hub routes + config + WS + OpenAPI (`/v1/channels/{channel}/loops`, CL3 B policy, 60/120 caps, `channel_loops` frame) | `complex_coding` | `claude` / `agy` | `agy` (`claude` if `agy`) | C1 landed | 2 |
-| C2b | hub fire + tick + topic lifecycle (all 11 triggers, CL1 A, unified Q10 A + N4 B, CL4 B open-topic scan, move/merge/archive state cleanup) | `complex_coding` | `claude` / `agy` | `agy` (`claude` if `agy`) | C1, C2a landed | 3 |
-| C3 | WUI + i18n + unit tests (`Channel loops…` menu entry, shared `TopicLoopsDialog.vue`, `live-ws`, client + mock, 19 locales + `do_spl_lang_review_gct`) | `simple_coding` (+ GCT) | `claude` / `agy` (never `mistral`) | `agy` (`claude` if `agy`) | C2a landed (and R3 wait: s186 M11 if live) | 3 |
-| C4 | WUI e2e (`wui:tests/e2e/channel-loops.test.mjs`) | `tests` | `claude` / `agy` (never `mistral`) | `agy` (`claude` if `agy`) | C3 landed | 4 |
-| C5 | spec status + synced user help (`spec.md`, `doc/help/`, `wui:public/help-md/`) | `specs_and_docs` | `agy` / `claude` (never `mistral`) | `claude` (`agy` if `claude`) | C2b, C4 landed | 5 |
+| C1 | rdb + store: `channel_loops` (`cardinality(triggers) = 1`, N6), `channel_loop_state`, `ChannelLoopStore` (Postgres + Memory), `UnarchiveChannel` reset, RLS / change_stamp / channelmove / cpCarried | `complex_coding` | `claude` / `agy` | `agy` (`claude` if `agy`) | R3 wait: live `c-904` (s187 S1) + `c-907` (s196 T1) landed (2.3) | 1 |
+| C2a | hub routes + config + WS + OpenAPI (`/v1/channels/{channel}/loops`, one-trigger save check N6, CL3 B policy, 60/120 caps, `channel_loops` frame) | `complex_coding` | `claude` / `agy` | `agy` (`claude` if `agy`) | C1 landed (and R3 check vs ask `9e11f964` on `openapi.json` / `view.go`, 2.3) | 2 |
+| C2b | hub fire + tick + topic lifecycle (all 11 triggers, one trigger per channel loop N6, CL1 A, unified Q10 A + N4 B, CL4 B open-topic scan, move/merge/archive state cleanup) | `complex_coding` | `claude` / `agy` | `agy` (`claude` if `agy`) | C1, C2a landed (and R3 wait: ask `9e11f964` landed if it touches `hub/topic_loop*.go`, 2.3) | 3 |
+| C3 | WUI + i18n + unit tests (`Channel loops…` menu entry, shared post-`9e11f964` `TopicLoopsDialog.vue` with radio-button one-trigger UI N6, `live-ws`, client + mock, 19 locales + `do_spl_lang_review_gct`) | `simple_coding` (+ GCT) | `claude` / `agy` (never `mistral`) | `agy` (`claude` if `agy`) | **C2a AND ask `9e11f964` landed** (direct clash on `TopicLoopsDialog.vue` + `topic-loops.mjs`, 2.3) | 3 |
+| C4 | WUI e2e (`wui:tests/e2e/channel-loops.test.mjs`, radio-button single-trigger UI N6) | `tests` | `claude` / `agy` (never `mistral`) | `agy` (`claude` if `agy`) | C3 landed | 4 |
+| C5 | spec status + synced user help (`spec.md`, `doc/help/`, `wui:public/help-md/`, one trigger per loop N6) | `specs_and_docs` | `agy` / `claude` (never `mistral`) | `claude` (`agy` if `claude`) | C2b, C4 landed (after `9e11f964`'s `spec.md` amendment) | 5 |
 
 Six rows total: within rulebook 1.1's hard cap of 10 rows (no cap waiver
 needed). Maximum 2 rows live in parallel (Batch 3: `C2b` ∥ `C3`).
@@ -244,6 +258,49 @@ Commands run:
 | `15629f29` (`claude:c002-s186-m2-hub-send-checks`, spec 186 M2) | **queued** pos 2/7, prio 3, age 8m | none (`hub/wui.go`, `hub/wui_multicast.go`, `store/{store,postgres,memory}.go`) | disjoint from all rows `C1`-`C5` |
 | `5b1b7d82` (`c001-s186-m9-n2-qto-sync`, pos 1/7, 40h WAIT), `3343e159` (`c002-s182-cl-build-claude-panel-seat`, pos 3/7, 8m), `5a432cc3` (`c002-60bf4e56-qto-doc-export-pdf`, pos 7/7, 7m) | **queued** | none (Qto sync / our own panel seat / Qto PDF export) | disjoint |
 | Other live lanes on `csi-spl` (`a-826` R7 review SPL-6517, `c-913` r05-01 orc cron, `a-932` spec 150 v2.0, `c-893`/`a-891`/`a-922` r05, `c-902`/`a-927` b50, `c-957`/`c-965` spec 125) and 13 non-csi-spl workspace rotation seats (`c-029`, `c-041`, `c-086`, `c-146`, `c-187`, `c-398`, `c-407`, `c-416`, `c-474`, `c-535`, `c-728`, `c-927`, `c-936`) | **live** (16 with no files recorded -> exit 4) | none by their briefs (except `c-904` listed above) | per R3, the placer re-runs `lane-map.sh --check` per row at placement and asks any lane still answering exit 4 |
+
+**v1.1 R3 refresh (`2026-11-26 11:37-11:38Z`, `do_spl_spawn_queue`: 12 queued;
+`lane-map.sh`: 30 busy + 6 role seats):**
+
+- **Ask `9e11f964` (`claude:c002-6e8c1cdb-wui-loops-dialog-radio-title-drag`,
+  queued pos 3/12, prio 1, age 2m at 11:37Z; HUM-10 t1 `6e8c1cdb`, 7
+  Discussion-loops dialog changes incl. `febf1db4` radio buttons / one trigger
+  per loop):**
+  - **`C3` (Batch 3) — DIRECT CLASH (must run strictly AFTER `9e11f964` lands):**
+    `wui:src/components/TopicLoopsDialog.vue`, `wui:src/utils/topic-loops.mjs`,
+    `wui:tests/unit/topic-loops.test.mjs`, plus
+    `wui:src/utils/spool-client-mock.mjs` and `wui:i18n/locales/*.json` (all 19
+    locales). `C3` cannot stay off `TopicLoopsDialog.vue` / `topic-loops.mjs`
+    because spec 182 9.2 + 9.8.3 pin the shared dialog; ordering `C3` after
+    `9e11f964` eliminates the file clash and automatically gives channel loops
+    all 7 dialog improvements (radio buttons, trigger-as-title, draggable
+    70%/10% dialog, icon action buttons, taller prompt box, card reorder).
+  - **`C5` (Batch 5) — DIRECT CLASH (`csi-spl-doc/specs/182-topic-loop-prompt/spec.md`):**
+    `9e11f964` amends `spec.md` first; `C5` already runs in Batch 5 after
+    `C3` -> `C4`.
+  - **`C2b` (Batch 3) — CONDITIONAL CLASH (`api:internal/hub/topic_loop.go`,
+    `api:internal/hub/topic_loop_fire.go`):** `9e11f964`'s brief covers the hub
+    one-trigger save check and reorder persistence (`hub/topic_loop.go`) and
+    possibly the fire line `topicLoopPromptMark` (`hub/topic_loop_fire.go:70`).
+    Order `C2b` strictly after `9e11f964` lands unless `9e11f964` is already
+    confirmed off both files.
+  - **`C2a` (Batch 2) — CONDITIONAL CLASH (`api:internal/hub/openapi.json`,
+    `api:internal/hub/view.go`):** if `9e11f964` adds a reorder route or
+    updates `TopicLoop` in OpenAPI, do not run `C2a` concurrently with
+    `9e11f964`; check `lane-map.sh --check` at Batch 2 placement (simplest: let
+    prio-1 `9e11f964` land before Batch 2/3).
+  - **`C1` (Batch 1) — FILE-DISJOINT from `9e11f964`:** `C1` never edits
+    `topic_loops` or `api:internal/store/topic_loop*.go`, and claims its own
+    migration number via `do_rdb_migration_next`. It only reads
+    `store.TopicLoopEdit` (`store/topic_loop.go:125`), so if `9e11f964` lands
+    first and extends `TopicLoopEdit`, `C1` re-measures it on `origin/master`
+    at work time.
+- **Status of earlier overlaps at `11:37Z`:** `c-904` (s187 S1) and `c-907`
+  (s196 T1) are still live, so `C1` still waits for both to land. Spec 186 M11
+  (`c-946`) has landed (`320b0250e`, `54a39b0ce`), clearing that `C3` wait.
+  Ask `2697b391` (`claude:c002-127f600b-wui-shift-l-loops-shift-c-copy-link`,
+  pos 1/12, prio 1) touches `msg-shortcuts.mjs` / `msg-menu.mjs` (disjoint from
+  `C3`, though check `i18n/locales/*.json` if it adds keys).
 
 **Upcoming (not yet queued) cross-spec overlaps to watch at placement (R3):**
 
@@ -313,12 +370,50 @@ cap binds bug-fix and refactor rounds only).
   default, `spl-lang-review-gct.func.sh:42`), and puts
   `Lang-review: gct <run-id>` in its commit body so pre-push `wui-lang-review`
   and CI workflow 10 pass.
-- **N5. Drifted line citations since `c9dd02117`.** Two spec 182 v0.10 citations
-  moved on `6b216a319`: `api:internal/config/config.go` `TopicLoopCap` is now
-  `:402` (was `:396`), and `csi-spl-cnf/csi-spl/all.env.yaml` `agent_split_by_kind`
-  is `:1601-1606` (incl. `i18n`; full block `:1601-1608`; was `:1567-1574`,
-  guards `:1548` and `:1564`). Every row brief re-measures its sites on
+- **N5. Drifted line citations since `c9dd02117`.** Spec 182 v0.10 citations
+  that moved on `origin/master`: `api:internal/config/config.go` `TopicLoopCap`
+  is `:402` (was `:396`), `csi-spl-cnf/csi-spl/all.env.yaml`
+  `agent_split_by_kind` is `:1601-1606` (incl. `i18n`; full block `:1601-1608`;
+  was `:1567-1574`, guards `:1548` and `:1564`), and after spec 186 M11
+  (`54a39b0ce`, on `3ce429f73`) `wui:src/types/mjs-shims.d.ts` `*TopicLoop*` is
+  `:211-219` (was `:209-217`). Every row brief re-measures its sites on
   `origin/master` at work time.
+- **N6. One trigger per loop (reverses Q3 B; HUM-10 t1 `6e8c1cdb` msg
+  `febf1db4`, 2026-11-26, relayed by `c-002` msg `86483bbd`).**
+  Owner HUM-10 reversed spec 182 Q3 B ("any mix of the triggers, as
+  checkboxes") to *"radio buttons - aka one trigger per loop"*. Unlike
+  `topic_loops` (which may hold pre-existing multi-trigger rows on prd and is
+  handled by ask `9e11f964`), `channel_loops` is a brand-new table with zero
+  legacy rows, so every layer of this round enforces **exactly one trigger per
+  channel loop** from day one:
+  - **`C1` (rdb + store):** SQL CHECK uses `cardinality(triggers) = 1`
+    (replacing `>= 1` in spec 182 9.7); `AddChannelLoop` and `EditChannelLoop`
+    reject `len(triggers) != 1` (0 triggers or >= 2 triggers) with
+    `ErrBadTopicLoop`. Keeps the `triggers text[]` column and `[]string` JSON
+    field (a 1-element array `["<key>"]`) for wire parity with `topic_loops`
+    (or matches whatever wire shape `9e11f964` freezes in spec 182 if it lands
+    before `C1`).
+  - **`C2a` (hub routes + OpenAPI):** `POST` and `PUT` on
+    `/v1/channels/{channel}/loops` reject `len(triggers) != 1` with
+    `400 bad_loop`; `openapi.json` sets `minItems: 1, maxItems: 1` on
+    `ChannelLoop.triggers`.
+  - **`C2b` (hub fire + tick):** each channel loop holds a single trigger (so
+    one channel loop never matches two triggers on one event, and its `Due`
+    slice holds at most one key). Cross-loop N4 B still applies identically
+    across `TopicLoopsOn(T)` ∪ `ChannelLoopsOn(C)`: an awaited answer clears
+    the answered loop (Q10 A) and suppresses `after_agent_reply` on every other
+    topic and channel loop on `T`, while another loop whose single trigger is
+    `post_has_keyword`, `post_has_file`, or `blocker_posted` still fires.
+  - **`C3` (WUI) / `C4` (e2e) / `C5` (help):** `C3` runs strictly after ask
+    `9e11f964` lands and reuses the updated radio-button `TopicLoopsDialog.vue`;
+    `C4` tests single-trigger radio selection across all 11 triggers; `C5`
+    documents one trigger per loop (radio) in `channels-and-direct-messages.md`.
+  - **Holder note on `9e11f964` schema additions:** ask `9e11f964`'s brief
+    includes trigger-as-title (change 1/2) and persisted drag-reorder of loop
+    cards (change 8). Once `9e11f964` settles whether `topic_loops` gains a
+    server-stored order or title field/endpoint, the holder decides whether
+    `C1`/`C2a`/`C3` mirror it on `channel_loops` or defer channel-loop card
+    reordering to a small follow-up.
 
 ## 3. Proposed row briefs
 
@@ -362,21 +457,30 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
     `api:internal/channelmove/catalogue.go` (`movedTables` `:93`:
     `channel_loops` `Set: "channel_id = @channel"` before `channel_loop_state`
     `Set: "task_id = ANY(@tasks)"` for FK parent-before-child insert order).
-- **Contract:** spec 182 sections 9.5, 9.6, 9.7 and 9.8.1 whole
-  (`ChannelLoopStore`, `ChannelLoopsMax = 20`, `ChannelLoopCapDefault = 60`,
-  `ChannelLoopTotalCapDefault = 120`, `ChannelOpenTopicsPage = 100`, outcome
-  constants `ChannelFireOK`, `ChannelFireTopicCap`, `ChannelFireLoopCap`,
-  `ChannelFireChannelCap`, `ChannelFireInactive`, `ChannelLoop`,
-  `ChannelLoopTopicState`, `ChannelLoopIdleDue`, `ChannelOpenTopic`, both
-  `Memory` and `Postgres` compile-time checks). Reuse `TopicLoopTriggers`,
-  `TopicLoopOn`, `TopicLoopPaused`, `TopicLoopIntervalMin..Max`,
-  `TopicLoopPromptMax`, `TopicLoopKeywordMax`, `ErrBadTopicLoop`,
-  `TopicLoopEdit` (`store/topic_loop.go:35-130`). `UnarchiveChannel` advances
+- **Contract:** spec 182 sections 9.5, 9.6, 9.7 and 9.8.1 whole, **amended by
+  the one-trigger rule (2.4 N6, HUM-10 t1 `6e8c1cdb` msg `febf1db4`):**
+  `channel_loops` enforces `cardinality(triggers) = 1` in its SQL CHECK
+  (replacing `>= 1` in 9.7), and `AddChannelLoop` / `EditChannelLoop` reject
+  `len(triggers) != 1` (0 triggers or >= 2 triggers) with `ErrBadTopicLoop`,
+  keeping `triggers text[]` (1-element array) for wire parity with
+  `topic_loops`. (`ChannelLoopStore`, `ChannelLoopsMax = 20`,
+  `ChannelLoopCapDefault = 60`, `ChannelLoopTotalCapDefault = 120`,
+  `ChannelOpenTopicsPage = 100`, outcome constants `ChannelFireOK`,
+  `ChannelFireTopicCap`, `ChannelFireLoopCap`, `ChannelFireChannelCap`,
+  `ChannelFireInactive`, `ChannelLoop`, `ChannelLoopTopicState`,
+  `ChannelLoopIdleDue`, `ChannelOpenTopic`, both `Memory` and `Postgres`
+  compile-time checks). Reuse `TopicLoopTriggers`, `TopicLoopOn`,
+  `TopicLoopPaused`, `TopicLoopIntervalMin..Max`, `TopicLoopPromptMax`,
+  `TopicLoopKeywordMax`, `ErrBadTopicLoop`, `TopicLoopEdit`
+  (`store/topic_loop.go:35-130`; re-measure `TopicLoopEdit` on `origin/master`
+  at work time if ask `9e11f964` landed first). `UnarchiveChannel` advances
   `next_due_at` / `daily_due_at` forward from `now` and clears stale
   `idle_due_at` / `idle_post` inside its transaction (9.5). Clean-code limits:
   <= 75 lines/func, depth <= 4, <= 7 params, no `SELECT *`.
-- **Done test (spec 182 9.9 C1, plus N1 gate tests) & `PRE_PUSH_TIER=full`:** Postgres +
-  Memory parity; all 11 triggers + field CHECKs + `ChannelLoopsMax` (20)
+- **Done test (spec 182 9.9 C1, plus N1 gate tests and N6 one-trigger check) & `PRE_PUSH_TIER=full`:** Postgres +
+  Memory parity; all 11 triggers (each single-trigger valid, 0 triggers and
+  >= 2 triggers refused with `ErrBadTopicLoop` in both Postgres CHECK and
+  Memory) + field CHECKs + `ChannelLoopsMax` (20)
   ceiling; `CountChannelLoopFire` enforces all three caps concurrently (12/h
   topic -> `topic_cap`, 60/h loop -> `loop_cap`, 120/h channel total ->
   `channel_cap`, atomic no-op on refusal) and rolls over after 1 h (including
@@ -410,7 +514,8 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 ### 3.2 C2a - hub routes + config + WS + OpenAPI
 
 - **Kind / Batch / Vendor / R7:** `complex_coding`. Batch 2 (after `C1` lands,
-  R16; check R3 against s187 S3/S6/S7/S11 and s196 T3). Author: `claude`
+  R16; check R3 against ask `9e11f964` on `openapi.json` / `view.go`, plus
+  s187 S3/S6/S7/S11 and s196 T3). Author: `claude`
   (backup `agy`). R7: `agy` (`claude` if authored by `agy`). Never `mistral`.
 - **Files (exclusive):**
   - New: `api:internal/hub/channel_loop.go`, `channel_loop_test.go`.
@@ -419,12 +524,15 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
     `api:internal/hub/server.go` (`Options.ChannelLoopCap`,
     `Options.ChannelLoopTotalCap` beside `TopicLoopCap` `:121`),
     `api:internal/hub/openapi.json` (`ChannelLoop` schema beside `TopicLoop`
-    `:1113`; `/v1/channels/{channel}/loops` and
+    `:1113`, with `minItems: 1, maxItems: 1` on `triggers` per N6;
+    `/v1/channels/{channel}/loops` and
     `/v1/channels/{channel}/loops/{loop_id}` paths),
     `api:internal/config/config.go` (`SPOOL_HUB_CHANNEL_LOOP_CAP` default `60`,
     `SPOOL_HUB_CHANNEL_TOTAL_CAP` default `120` beside `TopicLoopCap` `:402`),
     `api:cmd/spool/hub.go` (wire both caps beside `TopicLoopCap` `:427`).
-- **Contract:** spec 182 sections 9.4, 9.6 and 9.8.2 whole. Routes
+- **Contract:** spec 182 sections 9.4, 9.6 and 9.8.2 whole, **amended by the
+  one-trigger rule (2.4 N6):** `POST` and `PUT` reject `len(triggers) != 1` (0
+  or >= 2 triggers) with `400 bad_loop`. Routes
   `GET`/`POST`/`OPTIONS /v1/channels/{channel}/loops` and
   `PUT`/`DELETE`/`OPTIONS /v1/channels/{channel}/loops/{loop_id}`; optional
   interface `s.o.Store.(store.ChannelLoopStore)` -> `501 not_implemented` when
@@ -439,8 +547,9 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   (60/h per-loop cap OR earliest active `hour_start + 1h` when channel sum >=
   120/h); `channel_loops` WS frame via `s.fanoutChannelFrame` +
   `s.channelMemberSet`.
-- **Done test (spec 182 9.9 C2a, plus OpenAPI route/serve tests):** `go test ./internal/hub/... ./internal/config/...`:
-  CRUD (`GET`/`POST`/`PUT`/`DELETE`/`OPTIONS`); CL3 B
+- **Done test (spec 182 9.9 C2a, plus OpenAPI route/serve tests and N6 one-trigger check):** `go test ./internal/hub/... ./internal/config/...`:
+  CRUD (`GET`/`POST`/`PUT`/`DELETE`/`OPTIONS`), including multi-trigger `POST`
+  and `PUT` refusal (`400 bad_loop`, N6); CL3 B
   `tenants.topic_archive_policy` matrix (`everyone`, `admins`, `starter` on
   user-created and `hub`-created default channels, plus demo workspace forced
   to `starter`) + `rbac.ChannelsEdit` + `demo_read_only` + billing gate;
@@ -470,9 +579,10 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 ### 3.3 C2b - hub fire + tick + topic lifecycle
 
 - **Kind / Batch / Vendor / R7:** `complex_coding`. Batch 3 (after `C1` and
-  `C2a` land, R16; parallel with `C3`; check R3 against s186 M10). Author:
-  `claude` (backup `agy`). R7: `agy` (`claude` if authored by `agy`). Never
-  `mistral`.
+  `C2a` land, R16; parallel with `C3`; **R3 wait: serialize after ask `9e11f964`
+  if it touches `hub/topic_loop.go` or `hub/topic_loop_fire.go`**, plus check
+  s186 M10). Author: `claude` (backup `agy`). R7: `agy` (`claude` if authored
+  by `agy`). Never `mistral`.
 - **Files (exclusive):**
   - New: `api:internal/hub/channel_loop_fire.go`, `channel_loop_fire_test.go`.
   - Modified: `api:internal/hub/topic_loop_fire.go` (`topicLoopFireIf` `:300`,
@@ -484,14 +594,18 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
     `MoveMessage` `:326`),
     `api:internal/hub/topic_merge.go` (`mergeTopic` `:77` after `MergeTopic`
     `:108`; `unmergeTopic` `:128` after `UnmergeTopic` `:137`).
-- **Contract:** spec 182 sections 9.3, 9.5, 9.6 and 9.8.1 whole. Unified
-  awaited-answer pass across `TopicLoopsOn(T)` and `ChannelLoopsOn(C)` in
-  `topicLoopFireIf` (CL1 A both fire; Q10 A + N4 B stops cross-scope
-  `after_agent_reply` ping-pong while preserving other checked boxes); CL2 B
+- **Contract:** spec 182 sections 9.3, 9.5, 9.6 and 9.8.1 whole, **amended by
+  the one-trigger rule (2.4 N6):** each channel loop has exactly one trigger.
+  Unified awaited-answer pass across `TopicLoopsOn(T)` and `ChannelLoopsOn(C)`
+  in `topicLoopFireIf` (CL1 A both fire; Q10 A + N4 B stops cross-scope
+  `after_agent_reply` ping-pong while still allowing another loop whose trigger
+  is keyword/file/blocker to fire); CL2 B
   uniform application (no opt-out); exclude archived (`topicClosed`), paused
   (`AnyTopicPaused`), DM (`channel == ""`), and `LobbyTaskID`; fired `msg_id`
   = `uid.FromSeed("channel-loop:" + loopID + ":" + taskID + ":" + cause)` and
-  body starts with `topicLoopPromptMark` (`"Loop prompt (background; channel #<channel>, set by @HUM-n, fired by <cause>)"`);
+  body starts with `topicLoopPromptMark` (`"Loop prompt (background; channel #<channel>, set by @HUM-n, fired by <cause>)"`;
+  match any title format `9e11f964` adds to `topicLoopPromptMark` if it changes
+  the fire line);
   `TopicLoopTickOnce` runs `channelLoopTickOnce` (keyset-paginated
   `ChannelOpenTopics` newest-first, no recency cutoff, continues past
   `ChannelFireTopicCap`, stops on `ChannelFireLoopCap` / `ChannelFireChannelCap`
@@ -499,12 +613,13 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   contract) and `ClaimDueChannelLoopIdles`; `dropTopicLoops`, `handleMove`,
   `mergeTopic`, and `unmergeTopic` call `DeleteChannelLoopTopicState`; zero
   extra round trips when `channelLoopBits` is false or on DMs.
-- **Done test (spec 182 9.9 C2b verbatim):** `go test ./internal/hub/...`: all
-  11 triggers fire on existing, newly created, and moved-in open topics, never
+- **Done test (spec 182 9.9 C2b, plus N6 single-trigger check):** `go test ./internal/hub/...`: all
+  11 triggers (each as a single-trigger channel loop) fire on existing, newly
+  created, and moved-in open topics, never
   on moved-out, merged-away, paused, archived, DM, or `LobbyTaskID` topics;
   CL1 A additive firing (topic loop + channel loop both fire on same event);
   unified Q10 A + N4 B stops cross-scope `after_agent_reply` ping-pong while
-  still allowing another loop's keyword/file/blocker box; CL2 B uniform
+  still allowing another loop whose single trigger is keyword/file/blocker; CL2 B uniform
   application (no opt-out); CL4 B timed tick scans every open topic
   newest-first across pages (including >25 topics and >7-day-old topics), skips
   paused / no-agent topics without charging caps, continues past a `topic_cap`
@@ -533,34 +648,35 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 ### 3.4 C3 - WUI + i18n + unit tests
 
 - **Kind / Batch / Vendor / R7:** `simple_coding` (+ Google Cloud Translation
-  language check). Batch 3 (after `C2a` lands, R16; parallel with `C2b`; check
-  R3 against s186 M11/M8/M10, s187 S8, s196 T4/T5a/T5b/T6). Author: `claude`
-  (backup `agy`; **never `mistral`**). R7: `agy` (`claude` if authored by
-  `agy`).
+  language check). Batch 3 (**place strictly AFTER `C2a` AND ask `9e11f964`
+  `c002-6e8c1cdb-wui-loops-dialog-radio-title-drag` both land on
+  `origin/master`**, R3 + R16; parallel with `C2b`; check R3 against s186
+  M8/M10, s187 S8, s196 T4/T5a/T5b/T6). Author: `claude` (backup `agy`; **never
+  `mistral`**). R7: `agy` (`claude` if authored by `agy`).
 - **Files (exclusive):**
   - Modified:
     `wui:src/utils/sidebar-row-menu.mjs` (`:14`, `:16`, `:24-37`: add
     `channel-loops` with icon `'refresh'` between `properties` `:32` and
     `archive-channel` `:34`),
-    `wui:src/utils/topic-loops.mjs` (add `channelLoopsFromFrame(frame, channelId)`
-    beside `loopsFromFrame` `:188`),
+    `wui:src/utils/topic-loops.mjs` (re-measure after `9e11f964` lands; add
+    `channelLoopsFromFrame(frame, channelId)` beside `loopsFromFrame`),
     `wui:src/utils/live-ws.mjs` (add `channelLoops: 'channel_loops'` beside
     `channelDeleted` `:35` and route to `onChannel(f)` `:530-531`),
     `wui:src/utils/spool-client.mjs` (`:108-112`),
     `wui:src/utils/spool-client-lazy.mjs` (`:1156-1184`, `:2648-2652`),
     `wui:src/utils/spool-client-mock.mjs` (the five `*ChannelLoop*` methods +
-    mock handlers),
+    mock handlers enforcing the one-trigger rule),
     `wui:src/components/SidebarRowMenu.vue` (`:93`, `:112`, `:130-137`,
     `:245-264`),
     `wui:src/components/ChannelSidebar.vue` (`:352-360`, `:641`, `:672`,
     `:1041`, lazy `<LazyTopicLoopsDialog>`),
-    `wui:src/components/TopicLoopsDialog.vue` (`:16`, `:102-105`, `:123`
-    `defineProps`, `:158` `load`, `:203` `save`, `:216` `toggle`, `:220`
-    `remove`, `:224` `onFrame`, `:233` `onMockTopicLoops`: optional `channelId`
-    / `channelName` props, scope note, `useLive().onChannel` /
-    `onMockChannelLoops`),
+    `wui:src/components/TopicLoopsDialog.vue` (re-measure after `9e11f964`
+    lands; extend the post-`9e11f964` radio-button/one-trigger dialog with
+    optional `channelId` / `channelName` props, scope note, `list/add/edit/deleteChannelLoop`,
+    and `useLive().onChannel` / `onMockChannelLoops` without regressing any of
+    `9e11f964`'s 7 dialog changes),
     `wui:src/composables/useSidebarChannelAdmin.ts` (`:48`, `:105`),
-    `wui:src/types/mjs-shims.d.ts` (`:209-217`; no new `.mjs` module added so
+    `wui:src/types/mjs-shims.d.ts` (`:211-219`; no new `.mjs` module added so
     `SHIMS_CAP = 102` stays green),
     `wui:i18n/locales/*.json` (all 19 locale files:
     `sidebar.row_menu.channel_loops` and `sidebar.channel_loops.*`),
@@ -568,7 +684,10 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
     `wui:tests/unit/topic-loops.test.mjs`.
   - New: `wui:i18n/lang-review/<run-id>.json` (generated by
     `do_spl_lang_review_gct`, committed with the locale changes).
-- **Contract:** spec 182 sections 9.2 and 9.8.3 whole. No channel row badge, no
+- **Contract:** spec 182 sections 9.2 and 9.8.3 whole, **amended by the
+  one-trigger rule (2.4 N6) and built on top of `9e11f964`'s `TopicLoopsDialog.vue`**
+  (radio buttons — one trigger per loop — trigger-as-title, draggable 70%/10%
+  dialog, icon action buttons, taller prompt box). No channel row badge, no
   channel system post, no mark on messages (answer 7 C). Clean-code limits:
   <= 75 lines/func, depth <= 4, <= 5 params in TS/Vue; font sizes in `rem`;
   focus rings via canonical token.
@@ -576,11 +695,11 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   to all 18 other locales, run
   `cd csi-spl-orc && ENV=dev ./run -a do_spl_lang_review_gct`, commit the
   report JSON, and include `Lang-review: gct <run-id>` in the commit body.
-- **Done test (spec 182 9.9 C3, plus WUI hygiene gates and pre-push e2e selection):** `pnpm run typecheck`,
+- **Done test (spec 182 9.9 C3, plus WUI hygiene gates, N6 one-trigger check, and pre-push e2e selection):** `pnpm run typecheck`,
   `pnpm run test:unit` (`i18n-parity`, `i18n-untranslated`, `i18n-no-raw-text`,
   `cleancode`, `mjs-shims-exist`, `unused-exports`, `font-size`,
   `focus-tokens`, `sidebar-row-menu` ordering and `channel-loops` entry,
-  `channelLoopsFromFrame`, 11-trigger form rules), and
+  `channelLoopsFromFrame`, 11-trigger single-trigger radio form rules), and
   `cd csi-spl-orc && ENV=dev ./run -a do_spl_lang_review_gct` on the 19 locale
   files; plus every e2e file selected by
   `cd csi-spl-iac && WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e`
@@ -609,13 +728,15 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 - **Files (exclusive):**
   - New: `wui:tests/e2e/channel-loops.test.mjs` only (all mock handlers live in
     `C3`'s `spool-client-mock.mjs`).
-- **Done test (spec 182 9.9 C4, plus pre-push e2e selection):**
+- **Done test (spec 182 9.9 C4, plus N6 radio/one-trigger check and pre-push e2e selection):**
   `BASE_URL=<generated bundle> pnpm run test:e2e` on mock (plus
   `do_check_pre_push_e2e` selection): right-click channel row -> **Channel
   loops…** -> add, edit, pause/resume, delete a loop with all 11 triggers
-  available; verify read-only lock when `may_edit: false` (under `admins` /
-  `starter` policy); verify live `channel_loops` WS frame updates an open
-  dialog; verify no badge or prompt card appears in the channel.
+  rendered as **radio buttons (one trigger per loop: picking a second trigger
+  replaces the first, N6)** and the shared post-`9e11f964` dialog UX (trigger
+  title, icon action buttons); verify read-only lock when `may_edit: false`
+  (under `admins` / `starter` policy); verify live `channel_loops` WS frame
+  updates an open dialog; verify no badge or prompt card appears in the channel.
 - **Red control (seen RED then GREEN, quoted in commit body):** drop the
   `channelLoops` emit in `SidebarRowMenu.vue` (temporary local mutation,
   reverted before commit; verify `git diff --stat csi-spl-wui/src/` is empty
@@ -632,12 +753,13 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   because `wui:public/help-md/` is under `csi-spl-wui/`, developer guide 5.1).
   R7: `claude` (`agy` if authored by `claude`).
 - **Files (exclusive):**
-  - Modified: `csi-spl-doc/specs/182-topic-loop-prompt/spec.md` (mark rows
-    `C1`-`C5` landed with their shas and record the 2.4 N1/N5 adjustments),
+  - Modified: `csi-spl-doc/specs/182-topic-loop-prompt/spec.md` (after
+    `9e11f964`'s amendment; mark rows `C1`-`C5` landed with their shas and
+    record the 2.4 N1/N5/N6 adjustments),
     `csi-spl-doc/doc/help/channels-and-direct-messages.md` (document Channel
-    loops: right-click entry, 11 triggers, dynamic application to open topics,
-    CL3 B archive-policy permission, 12/60/120 hourly caps, archive/unarchive
-    behaviour),
+    loops: right-click entry, 11 triggers — one trigger per loop via radio
+    buttons, N6 — dynamic application to open topics, CL3 B archive-policy
+    permission, 12/60/120 hourly caps, archive/unarchive behaviour),
     `csi-spl-doc/doc/help/index.md` (`:67` summary line),
     `wui:public/help-md/channels-and-direct-messages.md` and
     `wui:public/help-md/index.md` (synced via
@@ -669,4 +791,5 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 |---|---|
 | v0.1 | first plan for panel review (`6ae5fe136`), measured on `origin/master` `6b216a319` (`6b216a31990109235fbb11f3537c64e423b13b5c`); adds three verified C1 gate files (`change_stamp_test.go`, `crosstenant_test.go`, `channel_copy_apply_postgres.go`, N1) and live/queued R3 ordering around s187 S1 (`c-904`), s196 T1 (`c-907`), and s186 M11 |
 | v0.2 | folds `c-938` FAIL on `6ae5fe136`: W1 replaces non-existent `TestOpenAPIServe` with `TestOpenAPIServedToMember` (`:32`) and `TestOpenAPIServeRouteNeedsItsOperation` (`:77`); W2 drops uncited same-vendor R7 quota waiver in favour of strict rulebook 2.7.2/2.7.3; W3 fixes line citations (`channels_postgres.go:77`, `channel_copy_apply_postgres.go:79`, `TopicLoopsDialog.vue` `:123/:158/:203/:216/:220/:224/:233`, `all.env.yaml:1601-1606`); N1 rewords done-test headings ("spec 182 9.9 Cx, plus ..."); N2 cites `spl-lang-review-gct.func.sh:42`; N4 adds `git diff --stat csi-spl-wui/src/` empty check to C4 red control |
-| v1.0 | records `c-938` PASS on v0.2 `be601fc3d` (`do_spl_review_line_check` rc 0 DOCS-ONLY, seat file `4cf4cd12a`) and dispatch holder `c-003` GO LAND (`7d3347f9`); v0.2 landed on `origin/master` as `e6d3defb4` |
+| v1.0 | records `c-938` PASS on v0.2 `be601fc3d` (`do_spl_review_line_check` rc 0 DOCS-ONLY, seat file `4cf4cd12a`) and dispatch holder `c-003` GO LAND (`7d3347f9`); v0.2 landed on `origin/master` as `e6d3defb4`, v1.0 as `c05833b1c` |
+| v1.1 | folds owner HUM-10 one-trigger-per-loop rule (t1 `6e8c1cdb` msg `febf1db4`, relayed by holder `c-002` msg `86483bbd`; 2.4 N6) across `C1`-`C5`, adds R3 serialization around queued ask `9e11f964` (`C3` strictly after `9e11f964`; `C2b`/`C2a` check `hub/topic_loop*.go` & `openapi.json`), and updates `mjs-shims.d.ts` to `:211-219` after s186 M11 (`54a39b0ce`) on `origin/master` `3ce429f73` |

@@ -746,6 +746,8 @@ spl_lane_rotate_one() {
     why="$(awk -v i="$id" '$1 == i {print " (" $2 ")"; exit}' <<<"$(spl_lane_rotate_role_inflight)")"
     spl_rotate_log "$rid" GATE SKIP "role seat: $id is a role seat or a role rotation acts on it$why"; return 0
   fi
+  # a fenced or held box starts nothing (spec 102 10.2, SPL-6638)
+  why="$(spl_lane_rotate_fence_why)" && { spl_rotate_log "$rid" GATE SKIP "$why"; return 0; }
   if spl_rotate_ctx_load lane && [[ -n "$ROTATE_PHASE" && ! "$ROTATE_PHASE" =~ ^(DONE|FAIL|ABORT)$ ]]; then
     spl_lane_rotate_resume "$id"; return 0
   fi
@@ -772,6 +774,14 @@ spl_lane_rotate_one() {
   ROTATE_ACK_TIMEOUT="$ROTATE_LANE_ACK_TIMEOUT"
   spl_lane_rotate_step GATE OK "$ROTATE_KIND pid $pid, $((age / 60)) min old, pane $pane$([[ "${LANE_ROTATE_FORCED:-0}" == 1 ]] && echo "; deadline, in flight: ${LANE_ROTATE_WHY:-}")"
   spl_lane_rotate_run "$id"
+}
+
+# spl_lane_rotate_fence_why: spl_wd_fence_why (spl-watchdog.func.sh, the writer
+# of <wd>/fenced and held), sourced on first use. rc 0 + why while this box
+# is fenced or held.
+spl_lane_rotate_fence_why() {
+  declare -F spl_wd_fence_why >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-watchdog.func.sh"
+  spl_wd_fence_why
 }
 
 # Record the phase (log + .state + ctx).
@@ -902,8 +912,14 @@ spl_lane_rotate_last() { echo "$(date +%s) $ROTATE_RID $1" > "$ROTATE_STATE_DIR/
 # A failure before RETIRE: the new session closed, the old one keeps the
 # lane (name and map back), one note to the dispatch lease holder; after an
 # ack timeout the lane is told where its handoff is. Returns 0.
+# An old session that is gone too (a box fence TERMed it meanwhile,
+# SPL-6638: c-853 and c-752 at one box's fence of 2026-11-07) keeps nothing:
+# the row and the note say so, and that the watchdog's restart owns the lane.
 spl_lane_rotate_fail() {
-  local id="$1" phase="$2" reason="$3"
+  local id="$1" phase="$2" reason="$3" keeps
+  keeps="the old session (pid $ROTATE_OLD_PID) keeps the lane"
+  spl_rotate_alive "$ROTATE_OLD_PID" ||
+    keeps="the old session (pid $ROTATE_OLD_PID) is gone too: no session carries the lane, the watchdog's restart (S3) owns it"
   [[ "$phase" == SPAWN ]] && spl_lane_rotate_limit_record "$ROTATE_KIND" "$id" "${ROTATE_NEW_DIALOG:-}"
   spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
   # the old window was gone before SPAWN renamed it (SPL-2898 fix E): the
@@ -913,10 +929,10 @@ spl_lane_rotate_fail() {
     spl_lane_rotate_last SKIP
     return 0
   fi
-  spl_lane_rotate_step FAIL FAIL "$phase: $reason; the old session (pid $ROTATE_OLD_PID) keeps the lane"
+  spl_lane_rotate_step FAIL FAIL "$phase: $reason; $keeps"
   spl_lane_rotate_last FAIL
   spl_rotate_note "$(spl_lane_rotate_holder_to)" dispatch-lane-rotate \
-    "**lane-rotate@$ROTATE_BOX**: rotation $ROTATE_RID of $id failed at $phase: $reason. The old session (pid $ROTATE_OLD_PID) keeps the lane; next try in $((ROTATE_LANE_RETRY / 60)) min."
+    "**lane-rotate@$ROTATE_BOX**: rotation $ROTATE_RID of $id failed at $phase: $reason. ${keeps^}; next try in $((ROTATE_LANE_RETRY / 60)) min."
   if [[ "$phase" == ACK ]] && spl_rotate_alive "$ROTATE_OLD_PID"; then
     spl_rotate_note "$id" "lane-rotate-$id" "Rotation $ROTATE_RID failed; you keep your task. Read $ROTATE_HANDOFF for anything you were interrupted on."
   fi

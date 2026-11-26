@@ -759,7 +759,7 @@ spl_wd_agents() {
     printf '%s\t%s\n' "$id" "$pane" >> "$tick/win"
   done < "$tick/panes"
   spl_wd_proc_ids "$tick" > "$tick/procs"
-  { spl_wd_expected; spl_wd_boot_listed; } > "$tick/expected"
+  { spl_wd_expected; spl_wd_boot_listed; spl_wd_fence_listed "$(spl_lease_now 2>/dev/null || date +%s)"; } > "$tick/expected"
   awk -F'\t' -v w="$tick/win" -v x="$tick/expected" '
     FILENAME == w { if (!($1 in wp)) { wp[$1] = $2; ids[$1] = 1 } ; next }
     FILENAME == x { ids[$1] = 1; next }
@@ -777,7 +777,8 @@ spl_wd_agents() {
 # the seat records <spool root>/agents/<role id>.json of this box. A seat
 # whose sessions died and whose window closed has neither a window nor a
 # process: without this list it is never checked again (sat, 2026-10-06,
-# 13 h). Lane ids are never listed: a lane that finished is not resurrected.
+# 13 h). Lane ids are never listed: a lane that finished is not resurrected;
+# the one exception is a lane the fence TERMed (spl_wd_fence_listed).
 spl_wd_expected() {
   local f sn
   {
@@ -2016,6 +2017,42 @@ spl_wd_unfence_done() {
 # spl_wd_box_fenced: 0 while this box is fenced or held (spl_wd_takeover's
 # and the boot path's gate).
 spl_wd_box_fenced() { [[ -e "$WD_DIR/fenced" || -e "$WD_DIR/held" ]]; }
+
+# spl_wd_fence_why: why this box starts nothing, printed, rc 0, while it is
+# fenced or held; nothing, rc 1, otherwise. The state dir is WD_DIR, else what
+# spl_wd_init would set (WD_STATE_DIR, else LEASE_DIR/wd), so a caller that
+# never ran spl_wd_init reads the same files: the lane and the orch rotation
+# gate on it (SPL-6638: one box's fence, 2026-11-07, rotation started role
+# sessions at 06:15Z and 06:26Z on the fenced box). Spec 102 10.2: a fenced
+# box starts nothing, role seats included.
+spl_wd_fence_why() {
+  local d="${WD_DIR:-${WD_STATE_DIR:-${LEASE_DIR:-${SPOOL_ROOT:-}/dispatch}/wd}}" at=""
+  if [[ -e "$d/fenced" ]]; then
+    read -r at 2>/dev/null < "$d/fenced" || true
+    [[ "$at" =~ ^[0-9]+$ ]] && at=" since $(date -u -d "@$at" +%FT%TZ)" || at=""
+    echo "fenced${at}: no beat ack from the hub, this box starts nothing (spec 102 10.2)"; return 0
+  fi
+  [[ -e "$d/held" ]] || return 1
+  echo "held: the hub answers but acks no beat, this box starts nothing (SPL-2529)"
+}
+
+# spl_wd_fence_listed NOW: the lanes the last fence TERMed that are still due
+# their restart: a <WD_DIR>/fence.restart.<id> written at UNFENCED no older
+# than WD_FENCE_RESTART_TTL (3600) s, the window spl_ars_box_event reads.
+# spl_wd_agents lists them, so S3 judges a lane whose window closed with the
+# TERM (SPL-6638: c-939 at one box's fence of 2026-11-07, no window and no
+# process, so never judged: no restart while 19 others got theirs). The
+# restart removes the marker when it is DONE OK.
+spl_wd_fence_listed() {
+  local now="$1" f at un
+  [[ "$now" =~ ^[0-9]+$ ]] || return 0
+  for f in "$WD_DIR"/fence.restart.*; do
+    [[ -f "$f" ]] || continue
+    at="" un=""; read -r at un 2>/dev/null < "$f" || true
+    [[ "$un" =~ ^[0-9]+$ ]] && (( now >= un && now - un < ${WD_FENCE_RESTART_TTL:-3600} )) || continue
+    echo "${f##*/fence.restart.}"
+  done | grep -xE '[acgqm]-[0-9]{3}' || true
+}
 
 # spl_wd_hub_reachable: 0 when the hub answers its liveness probe within
 # WD_HUB_PROBE_TIMEOUT (5) s: WD_HUB_PROBE_CMD, else GET <SPL_HUB_URL>/version

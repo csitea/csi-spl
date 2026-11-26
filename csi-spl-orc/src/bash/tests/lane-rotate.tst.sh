@@ -896,6 +896,29 @@ check "35a. the environ was removed after the -r test (the race happened)" '[ ! 
 check "35b. a gone environ and a gone lifetime dir: 0 stderr lines" '[ "$(n "$T/p35/err" "environ: No such file")" = 0 ] && [ "$(n "$T/p35/err" "rotate.lane.warned: No such file")" = 0 ]'
 check "35c. the return codes and the warn's note stay: rc 0 and 0, 1 note" '[ "$(tr "\n" " " <<<"$out35")" = "A rc=0 B rc=0 " ] && [ "$(n "$T/p35/sent")" = 1 ]'
 
+# --- 36. a fenced box rotates nothing; a FAIL row never says a dead session keeps the lane (SPL-6638) ---
+# One box's fence, 2026-11-07 06:02Z: the fence TERMed c-853 and c-752 while
+# their rotations ran, the FAIL rows said "the old session keeps the lane";
+# rotation also started sessions on the box after it was fenced. Spec 102
+# 10.2: a fenced (or held) box starts nothing. RED control: origin/master
+# rotates c-936 under <wd>/fenced and writes "keeps the lane" for c-937.
+reset; lane c-936 70; mkdir -p "$D/wd"; echo 1800000000 >"$D/wd/fenced"
+tick
+check "36. fenced: GATE SKIP fenced (since the fence epoch), nothing spawned" 'grep -q "lane-c-936 GATE SKIP fenced since 2027-01-15T08:00:00Z: no beat ack from the hub, this box starts nothing" "$D/rotate.log" && [ "$(n "$T/spawn.log")" = 0 ]'
+check "36. fenced: the old session untouched" '[ -d "$T/proc/2936" ] && [ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/tmux/log" submit)" = 0 ]'
+rm -f "$D/wd/fenced"; : >"$D/wd/held"; tick
+check "36. held: GATE SKIP held, nothing spawned" 'grep -q "lane-c-936 GATE SKIP held: the hub answers but acks no beat" "$D/rotate.log" && [ "$(n "$T/spawn.log")" = 0 ]'
+rm -f "$D/wd/held"; tick
+check "36. control: the fence lifted, the same lane is rotated" '[ "$(n "$T/spawn.log")" = 1 ] && grep -q "lane-c-936 DONE OK" "$D/rotate.log"'
+check "36. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# the old session is gone by the FAIL (a fence TERMed it while SPAWN waited)
+sed 's|^echo "\$2 %\$n"$|rm -rf "$T/proc/$FENCE_GONE_PID"; echo "$2 %$n"|' "$T/bin/spawn-stuck" >"$T/bin/spawn-fenced"
+chmod +x "$T/bin/spawn-fenced"
+reset; lane c-937 70
+FENCE_GONE_PID=2937 ROTATE_SPAWN="$T/bin/spawn-fenced" tick
+check "36. old session gone at FAIL: the row says so, not that it keeps the lane" 'grep -q "FAIL FAIL SPAWN: .*the old session (pid 2937) is gone too: no session carries the lane, the watchdog.s restart (S3) owns it" "$D/rotate.log" && ! grep -q "keeps the lane" "$D/rotate.log"'
+check "36. old session gone at FAIL: the holder's note says so too" 'grep -q "dispatch-lane-rotate.*The old session (pid 2937) is gone too" "$T/send.log" && ! grep -q "keeps the lane" "$T/send.log"'
+
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
 check "12. manifest row lane-rotate, every minute" 'grep -qE "^lane-rotate +\| \* \* \* \* \* +\| src/bash/scripts/lane-rotate-cron.sh +\| lane-rotate/cron.log" "$M"'

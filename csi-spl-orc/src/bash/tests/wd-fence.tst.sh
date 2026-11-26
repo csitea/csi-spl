@@ -602,5 +602,31 @@ ticks 30 120 silent
 printf 'c-001\t101\t%%1\nc-050\t150\t%%2\nc-051\t151\t%%3\n' > "$T/tick/agents"
 printf '101 1 500 claude\n150 1 500 claude\n151 1 500 claude\n' > "$T/tick/ps"
 
+# ---- 18. a lane the fence TERMed is judged after UNFENCED, window or not (SPL-6638) ----
+# One box's fence, 2026-11-07: 19 TERMed lanes restarted, c-939 did not: its
+# window closed with the TERM, so spl_wd_agents (windows, processes, expected
+# seats) never listed it again and S3 never judged it. Now the lanes with a
+# fresh fence.restart.<id> (UNFENCED's marker) are listed with no pid and no
+# pane, as an expected seat is. RED control: origin/master lists no c-939.
+reset; mkdir -p "$T/t18"; : > "$T/t18/panes"; : > "$T/t18/ps"
+echo "$(( T0 + 100 )) $(( T0 + 150 ))" > "$T/wd/fence.restart.c-939"
+LEASE_NOW=$(( T0 + 200 )) wd spl_wd_agents "$T/t18" >/dev/null 2>&1
+[[ "$(awk -F'\t' '$1 == "c-939"' "$T/t18/agents.raw" 2>/dev/null)" == "c-939	-	-" ]] &&
+  pass "18. a fence.restart.c-939 50 s old: c-939 listed (no pid, no pane), so S3 judges it" ||
+  fail "18. agents: $(cat "$T/t18/agents.raw" 2>&1)"
+LEASE_NOW=$(( T0 + 150 + 3600 )) wd spl_wd_agents "$T/t18" >/dev/null 2>&1
+[[ -z "$(awk -F'\t' '$1 == "c-939"' "$T/t18/agents.raw" 2>/dev/null)" ]] &&
+  pass "18. control: the marker past WD_FENCE_RESTART_TTL (3600 s): not listed" || fail "18. listed past the TTL: $(cat "$T/t18/agents.raw")"
+rm -f "$T/wd/fence.restart.c-939"; LEASE_NOW=$(( T0 + 200 )) wd spl_wd_agents "$T/t18" >/dev/null 2>&1
+[[ -z "$(awk -F'\t' '$1 == "c-939"' "$T/t18/agents.raw" 2>/dev/null)" ]] &&
+  pass "18. control: no marker, no window, no process: a lane is not listed (as before)" || fail "18. listed with no marker: $(cat "$T/t18/agents.raw")"
+out="$(wd spl_wd_fence_why)"; rc=$?
+[[ $rc -ne 0 && -z "$out" ]] && pass "18. spl_wd_fence_why: not fenced, rc 1, nothing" || fail "18. fence_why unfenced rc=$rc out=$out"
+echo "$T0" > "$T/wd/fenced"; out="$(wd spl_wd_fence_why)"; rc=$?
+[[ $rc -eq 0 && "$out" == "fenced since 2027-01-15T08:00:00Z: "* ]] && pass "18. spl_wd_fence_why: fenced, rc 0, the epoch named" || fail "18. fence_why fenced rc=$rc out=$out"
+rm -f "$T/wd/fenced"; : > "$T/wd/held"
+out="$(env -u WD_DIR WD_STATE_DIR="$T/wd" bash -c 'do_log() { :; }; source "$1"; spl_wd_fence_why' _ "$RUN_DIR/spl-watchdog.func.sh" 2>/dev/null)"; rc=$?
+[[ $rc -eq 0 && "$out" == held:* ]] && pass "18. spl_wd_fence_why without WD_DIR reads WD_STATE_DIR: held" || fail "18. fence_why held rc=$rc out=$out"
+
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

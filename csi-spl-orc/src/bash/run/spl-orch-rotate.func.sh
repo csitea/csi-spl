@@ -119,6 +119,7 @@ spl_orch_rotate_auto() {
   # one's (a resumed run kept them, spl_rotate_ctx_load, and returned above)
   ROTATE_STANDBY="" ROTATE_STANDBY_REFRESH=""
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
+  spl_orch_rotate_fenced "$rid" GATE && return 0
   spl_orch_rotate_standby_gate "$rid" "$id" "$new" || return 0
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
     spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
@@ -222,6 +223,19 @@ spl_orch_rotate_seat_age() {
 }
 
 # ---- ROTATE_CMD=standby (SPL-2774) --------------------------------------------
+# spl_orch_rotate_fenced RID TAG: 0 (logged "TAG SKIP fenced...") while this
+# box is fenced or held: spl_wd_fence_why of spl-watchdog.func.sh, the writer
+# of <wd>/fenced and held, sourced on first use. Spec 102 10.2: a fenced box
+# starts nothing, a role seat's successor included (SPL-6638: one box's
+# fence, 2026-11-07, role sessions started at 06:15Z and 06:26Z).
+spl_orch_rotate_fenced() {
+  local why
+  declare -F spl_wd_fence_why >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-watchdog.func.sh"
+  why="$(spl_wd_fence_why)" || return 1
+  spl_rotate_log "$1" "$2" SKIP "$why"
+  return 0
+}
+
 # 2026-10-21: the owner moved the orch lease to c-001 on another box (claude)
 # and the standby box's rotate.conf to ROTATE_ROLE_VENDOR=claude, but its seat stayed
 # g-001 (grok) on its weekly limit menu: the hourly rotation skips a standby
@@ -246,6 +260,7 @@ spl_orch_rotate_standby() {
   # guard only: the re-seat below sets ROTATE_STANDBY again for its go
   ROTATE_STANDBY="" ROTATE_STANDBY_REFRESH=""
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" STANDBY SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
+  spl_orch_rotate_fenced "$rid" STANDBY && return 0
   holder="$(spl_orch_rotate_holder)"
   local sb=0
   spl_orch_rotate_standby_box "$rid" "$holder" || sb=$?

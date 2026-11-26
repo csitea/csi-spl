@@ -701,6 +701,21 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   running: seats never move (next point). Once it reaches the hub again, it
   reads `running_box` for each of its agents: a lane now running elsewhere
   is not started here (10.3); the rest restart through section 4.
+- **Starts nothing means rotations too** (SPL-6638): a role seat is not
+  exempt. While `<wd>/fenced` or `<wd>/held` exists the lane rotation and
+  the orch rotation (auto, its standby refresh, `ROTATE_CMD=standby`) log
+  `GATE SKIP fenced ...` / `held ...` (`STANDBY SKIP` for the standby
+  command) and start no successor; the one reader is `spl_wd_fence_why`
+  in `spl-watchdog.func.sh`, next to the writer. The dispatch rotation
+  still reads only its `fleet.dispatch.hub-down` marker (a follow-up). A
+  lane rotation that fails after the fence TERMed its old session says
+  so (`the old session (pid N) is gone too: ... the watchdog's restart
+  (S3) owns it`), never that the old session keeps the lane.
+- **A TERMed lane is judged after the unfence, window or not**
+  (SPL-6638): the watchdog lists every lane with a `fence.restart.<id>`
+  younger than `WD_FENCE_RESTART_TTL` (`spl_wd_fence_listed`), with no
+  pid and no pane, so S3 judges a lane whose window closed with the
+  TERM and restarts it like the others.
 - **Held, not fenced** (SPL-2529): no ack for `box_down_min`, yet the hub
   answers its liveness probe (`/version`): the hub's beat path fails, not
   this box's network, so the box is **held**: it starts nothing and TERMs

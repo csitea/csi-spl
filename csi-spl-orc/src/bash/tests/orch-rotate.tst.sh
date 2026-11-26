@@ -1281,6 +1281,31 @@ act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
   pass "25. (c) after a DONE refresh/re-seat ctx, the holder's next run records neither key" || fail "25. (c) rc=$rc $(grep -E 'GATE|CLOSE|FAIL' "$T/o"; grep STANDBY "$D/rotate.orch.ctx")"
 ! grep -q ERRTRAP "$T/o" && pass "25. no stray failing command under the ERR trap" || fail "25. ERRTRAP: $(grep ERRTRAP "$T/o")"
 rm -f "$D/lease.orch"
+# --- 26. SPL-6638: a fenced or held box starts no orch successor (spec 102 10.2) --------------
+# One box's fence, 2026-11-07 06:02Z: role sessions were started at 06:15Z and
+# 06:26Z on the fenced box. A role seat is not exempt: the auto run (and its
+# standby refresh) and ROTATE_CMD=standby log "SKIP fenced" / "SKIP held" and
+# start nothing. RED control: origin/master spawns under <wd>/fenced.
+world; mkdir -p "$D/wd"; echo 1800000000 >"$D/wd/fenced"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/1001" ]] && grep -q ' GATE SKIP fenced since 2027-01-15T08:00:00Z: no beat ack from the hub, this box starts nothing' "$T/o" &&
+  pass "26. fenced: GATE SKIP fenced, nothing spawned, the old pid untouched" || fail "26. fenced rc=$rc $(grep -E 'GATE|SPAWN' "$T/o")"
+rm -f "$D/wd/fenced"; : >"$D/wd/held"; act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -q ' GATE SKIP held: the hub answers but acks no beat' "$T/o" &&
+  pass "26. held: GATE SKIP held, nothing spawned" || fail "26. held rc=$rc $(grep -E 'GATE|SPAWN' "$T/o")"
+sbr 7201; mkdir -p "$D/wd"; echo 1800000000 >"$D/wd/fenced"; act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -q ' GATE SKIP fenced since' "$T/o" && ! grep -q 'refreshing' "$T/o" &&
+  pass "26. fenced standby box, seat past its refresh age: GATE SKIP fenced, no refresh" || fail "26. refresh rc=$rc $(grep -E 'GATE|SPAWN' "$T/o")"
+rm -rf "$D/wd" "$D/lease.orch"; world; act >"$T/o" 2>&1
+grep -q ' GATE PLAN pass: c-900 pid 1001' "$T/o" && ! grep -q 'SKIP fenced' "$T/o" &&
+  pass "26. control: no fence, the same run passes the gates" || fail "26. control: $(grep GATE "$T/o")"
+export OLD_ID=g-001 DESK_STATE_ROOT="$T/desk"; sb_world; echo 1800000000 >"$D/wd/fenced"
+act ROTATE_CMD=standby DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/1001" ]] && grep -q ' STANDBY SKIP fenced since' "$T/o" && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
+  pass "26. ROTATE_CMD=standby on a fenced box: STANDBY SKIP fenced, no re-seat" || fail "26. standby rc=$rc $(grep -E 'STANDBY|SPAWN' "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "26. no stray failing command under the ERR trap" || fail "26. ERRTRAP: $(grep ERRTRAP "$T/o")"
+export OLD_ID=c-900; unset DESK_STATE_ROOT; rm -rf "$D/wd" "$D/lease.orch"
+printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }
 echo "orch-rotate: $fails failure(s)"; exit 1

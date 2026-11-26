@@ -267,7 +267,7 @@ export function mockOnTopicPriority(fn) {
 /*
  * Spec 182 row L3 (SPL-6034), the mock twin of the loop routes of section
  * 7.1.2 (GET / POST /v1/topics/{task_id}/loops, PUT / DELETE
- * .../loops/{loop_id}), so the dialog works before the hub (row L2) serves
+ * .../loops/{loop_id}, PUT .../loops/order of v0.11 change 8), so the dialog works before the hub (row L2) serves
  * them. `state.loops` is task_id -> loops. A write is checked with the
  * form's rule (400 bad_loop) and sends the `topic_loops` frame to the
  * browser's other tabs. e2e hook `spool.mock.loops-fault` = a token (e.g.
@@ -385,6 +385,20 @@ export function mockDeleteTopicLoop(state, taskId, loopId) {
   if (at >= 0) list.splice(at, 1)
   mockLoopTell(taskId, list.slice())
   return { loop_id: loopId, deleted: at >= 0 }
+}
+
+/** PUT .../loops/order (v0.11 change 8): { task_id, loops } in the order sent; every loop id once, else 400 bad_loop */
+export function mockOrderTopicLoops(state, taskId, loopIds) {
+  mockLoopFault()
+  const list = mockLoopsOf(state, taskId)
+  const ids = Array.isArray(loopIds) ? loopIds.map(String) : []
+  const byId = new Map(list.map((l) => [l.loop_id, l]))
+  if (ids.length !== list.length || new Set(ids).size !== ids.length || !ids.every((id) => byId.has(id))) {
+    throw Object.assign(new Error('bad loop order'), { status: 400, token: 'bad_loop' })
+  }
+  list.splice(0, list.length, ...ids.map((id) => byId.get(id)))
+  mockLoopTell(taskId, list.slice())
+  return { task_id: taskId, loops: list.slice() }
 }
 
 /** The receiving side: fn(frame) for each `topic_loops` frame another tab sends; returns the off switch. */

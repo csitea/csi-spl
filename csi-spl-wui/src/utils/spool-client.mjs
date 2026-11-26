@@ -109,6 +109,7 @@ const LAZY_METHODS = [
   'addTopicLoop',
   'editTopicLoop',
   'deleteTopicLoop',
+  'orderTopicLoops',
   'onMockTopicLoops',
   'topicSize',
   'deleteTopic',

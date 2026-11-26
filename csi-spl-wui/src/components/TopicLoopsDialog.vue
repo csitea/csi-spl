@@ -105,27 +105,54 @@
       <template v-else>
         <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
         <p v-else-if="!loops.length" class="muted" data-testid="topic-loops-empty">{{ t('feed.topic_loops.empty') }}</p>
-        <ul v-else class="topic-loops__list" data-testid="topic-loops-list">
-          <li v-for="l in loops" :key="l.loop_id" class="topic-loops__row" data-testid="topic-loops-row" :data-state="loopRowState(l).state">
-            <p class="topic-loops__first" data-testid="topic-loops-row-title">{{ loopTitle(l, t, locale) }}</p>
-            <p class="topic-loops__prompt" data-testid="topic-loops-row-prompt">{{ loopFirstLine(l.prompt) }}</p>
-            <p class="topic-loops__meta muted">
-              <span data-testid="topic-loops-row-state">{{ stateText(l) }}</span>
-              <span>{{ t('feed.topic_loops.by', { who: people.label(l.set_by) }) }}</span>
-            </p>
-            <div class="topic-loops__row-actions">
-              <button type="button" class="icon-btn" data-testid="topic-loops-edit" :disabled="!writable" :aria-label="t('feed.topic_loops.edit')" :title="lockTitle || t('feed.topic_loops.edit')" @click="openForm(l)">
-                <UiIcon name="pencil" :size="16" />
-              </button>
-              <button type="button" class="icon-btn" data-testid="topic-loops-pause" :disabled="!writable" :aria-label="pauseLabel(l)" :title="lockTitle || pauseLabel(l)" @click="toggle(l)">
-                <UiIcon :name="l.state === 'paused' ? 'play' : 'pause'" :size="16" />
-              </button>
-              <button type="button" class="icon-btn" data-testid="topic-loops-delete" :disabled="!writable" :aria-label="t('feed.topic_loops.delete')" :title="lockTitle || t('feed.topic_loops.delete')" @click="remove(l)">
-                <UiIcon name="trash" :size="16" />
-              </button>
+        <ul v-else ref="listEl" class="topic-loops__list" data-testid="topic-loops-list">
+          <li
+            v-for="l in shown"
+            :key="l.loop_id"
+            class="topic-loops__row"
+            :class="{ 'topic-loops__row--dragging': drag.draggingId.value === l.loop_id }"
+            data-testid="topic-loops-row"
+            :data-state="loopRowState(l).state"
+            :data-reorder-id="l.loop_id"
+          >
+            <!-- v0.11 change 8 (SPL-6587): drag the grip (mouse, pen, touch),
+                 or Arrow Up / Down on the focused grip -->
+            <button
+              type="button"
+              class="topic-loops__grip"
+              data-testid="topic-loops-grip"
+              :disabled="!writable || loops.length < 2"
+              :aria-label="t('settings.rail_order.drag')"
+              :title="lockTitle || t('settings.rail_order.drag')"
+              aria-keyshortcuts="ArrowUp ArrowDown"
+              @pointerdown="drag.down($event, l.loop_id)"
+              @keydown.up.prevent="step(l.loop_id, -1)"
+              @keydown.down.prevent="step(l.loop_id, 1)"
+            >
+              <UiIcon name="grip" :size="18" />
+            </button>
+            <div class="topic-loops__body">
+              <p class="topic-loops__first" data-testid="topic-loops-row-title">{{ loopTitle(l, t, locale) }}</p>
+              <p class="topic-loops__prompt" data-testid="topic-loops-row-prompt">{{ loopFirstLine(l.prompt) }}</p>
+              <p class="topic-loops__meta muted">
+                <span data-testid="topic-loops-row-state">{{ stateText(l) }}</span>
+                <span>{{ t('feed.topic_loops.by', { who: people.label(l.set_by) }) }}</span>
+              </p>
+              <div class="topic-loops__row-actions">
+                <button type="button" class="icon-btn" data-testid="topic-loops-edit" :disabled="!writable" :aria-label="t('feed.topic_loops.edit')" :title="lockTitle || t('feed.topic_loops.edit')" @click="openForm(l)">
+                  <UiIcon name="pencil" :size="16" />
+                </button>
+                <button type="button" class="icon-btn" data-testid="topic-loops-pause" :disabled="!writable" :aria-label="pauseLabel(l)" :title="lockTitle || pauseLabel(l)" @click="toggle(l)">
+                  <UiIcon :name="l.state === 'paused' ? 'play' : 'pause'" :size="16" />
+                </button>
+                <button type="button" class="icon-btn" data-testid="topic-loops-delete" :disabled="!writable" :aria-label="t('feed.topic_loops.delete')" :title="lockTitle || t('feed.topic_loops.delete')" @click="remove(l)">
+                  <UiIcon name="trash" :size="16" />
+                </button>
+              </div>
             </div>
           </li>
         </ul>
+        <p class="sr-only" role="status" aria-live="polite">{{ announce }}</p>
         <p v-if="!loading && !mayEdit" class="muted" data-testid="topic-loops-locked">{{ t('feed.topic_loops.locked') }}</p>
         <div class="topic-loops__actions">
           <button type="button" class="btn primary" data-testid="topic-loops-add" :disabled="!writable" :title="lockTitle" @click="openForm(null)">{{ t('feed.topic_loops.add') }}</button>
@@ -139,6 +166,8 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
+import { useDragReorder } from '~/composables/useDragReorder'
+import { moveBy } from '~/utils/rail-order'
 import { createLatest } from '~/utils/latest-only.mjs'
 import { browserTimeZone, isoClock, knownTimeZones } from '~/utils/date-iso.mjs'
 import {
@@ -250,6 +279,41 @@ function remove(l: TopicLoop) {
   void run(() => api.deleteTopicLoop(props.taskId, l.loop_id))
 }
 
+/* v0.11 change 8 (SPL-6587): the order is the hub's (PUT .../loops/order).
+   The list shows the new order at once; a refused write reads it back. */
+const listEl = ref<HTMLElement | null>(null)
+const announce = ref('')
+const drag = useDragReorder<string>({
+  order: () => loops.value.map((l) => l.loop_id),
+  items: () => [...(listEl.value?.querySelectorAll<HTMLElement>('[data-reorder-id]') || [])],
+  onDrop: (next) => { void reorder(next) },
+})
+const shown = computed(() => {
+  const ids = drag.preview.value
+  if (!ids) return loops.value
+  const byId = new Map(loops.value.map((l) => [l.loop_id, l]))
+  return ids.map((id) => byId.get(id)).filter((l): l is TopicLoop => Boolean(l))
+})
+
+async function reorder(ids: string[]): Promise<boolean> {
+  const byId = new Map(loops.value.map((l) => [l.loop_id, l]))
+  loops.value = ids.map((id) => byId.get(id)).filter((l): l is TopicLoop => Boolean(l))
+  const ok = await run(() => api.orderTopicLoops(props.taskId, ids))
+  if (!ok) void load()
+  return ok
+}
+
+async function step(id: string, delta: number) {
+  const order = loops.value.map((l) => l.loop_id)
+  const next = moveBy(order, id, delta)
+  if (next.every((x, i) => x === order[i]) || !(await reorder(next))) return
+  const l = loops.value.find((x) => x.loop_id === id)
+  announce.value = t('settings.rail_order.moved', { name: l ? loopTitle(l, t, locale.value) : id, n: loops.value.findIndex((x) => x.loop_id === id) + 1 })
+  /* the grip was disabled while the write ran: give the keyboard it back */
+  await nextTick()
+  listEl.value?.querySelector<HTMLButtonElement>(`[data-reorder-id="${id}"] [data-testid=topic-loops-grip]`)?.focus()
+}
+
 function onFrame(f: unknown) {
   const next = loopsFromFrame(f, props.taskId)
   if (next && !busy.value) loops.value = next as TopicLoop[]
@@ -288,7 +352,13 @@ onUnmounted(() => offFrame())
 .topic-loops__time { flex: 0 0 auto; width: 6ch; font-variant-numeric: tabular-nums; }
 .topic-loops__note { flex-basis: 100%; padding-left: 24px; font-size: var(--omnibox-fs); color: var(--color-muted); }
 .topic-loops__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.topic-loops__row { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px; }
+.topic-loops__row { display: flex; gap: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px 8px 4px; }
+.topic-loops__row--dragging { background: var(--color-surface-hover); }
+.topic-loops__body { flex: 1 1 auto; min-width: 0; }
+/* the grip: pointer drag, and touch without the page panning under it */
+.topic-loops__grip { flex: 0 0 auto; display: grid; place-items: center; min-width: 32px; padding: 0; border: 0; background: none; color: var(--color-muted); cursor: grab; touch-action: none; }
+.topic-loops__grip:disabled { cursor: default; opacity: 0.4; }
+.topic-loops__row--dragging .topic-loops__grip { cursor: grabbing; }
 .topic-loops__title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-heading); overflow-wrap: anywhere; }
 .topic-loops__first { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .topic-loops__prompt { margin: 2px 0 0; overflow-wrap: anywhere; }

@@ -215,6 +215,8 @@ declare module '~/utils/spool-client.mjs' {
     editTopicLoop(taskId: string, loopId: string, patch: Partial<import('~/utils/topic-loops').TopicLoopBody> & { state?: 'on' | 'paused' }): Promise<import('~/utils/topic-loops').TopicLoop>
     /** spec 182 7.1.2: DELETE (idempotent) */
     deleteTopicLoop(taskId: string, loopId: string): Promise<{ loop_id: string, deleted: boolean }>
+    /** spec 182 v0.11 change 8: PUT .../loops/order, the topic's every loop id once each; the list in its new order */
+    orderTopicLoops(taskId: string, loopIds: string[]): Promise<{ task_id: string, loops: import('~/utils/topic-loops').TopicLoop[] }>
     /** spec 182: the mock's other-tab `topic_loops` frames (live frames ride useLive().onTopic); the off switch */
     onMockTopicLoops(fn: (frame: Record<string, unknown>) => void): Promise<() => void>
     /** SPL-983: the confirm dialog's reply count and what the caller may do. */

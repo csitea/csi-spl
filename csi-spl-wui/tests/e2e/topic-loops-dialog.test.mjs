@@ -1,4 +1,4 @@
-// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6586, 6589, 6592, 6593): the
+// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6587, 6589, 6592, 6593): the
 // Discussion loops dialog after the owner's changes, in Chrome on the mock.
 //
 //   1  1440 px: the dialog is 70% of the viewport wide and its top is 10%
@@ -17,6 +17,9 @@
 //      screen (change 4, msg e68509d5)
 //   7  no text in the form or the list is smaller than the omnibox's
 //      (change 12, --omnibox-fs)
+//   8  three saved loops reorder: Arrow Down on a focused grip moves its
+//      row one place and keeps the focus; a pointer drag of a grip moves a
+//      row; a new open shows the stored order (change 8, SPL-6587)
 //   6  a 390 px window: no break (desktop only, msg 5c03fa45): full width,
 //      no page x-scroll, the radios are there
 //
@@ -207,6 +210,40 @@ try {
       && btns.map((b) => b.aria).join('|') === 'Edit|Pause|Delete', btns)
   const lf = await fonts(p)
   ok('7 the smallest list text is at least the omnibox size', lf.omni.length > 0 && lf.min.px >= Math.max(...lf.omni) - 0.01, lf)
+
+  /* ---- 8. reorder the saved loops (SPL-6587) ----------------------------- */
+  for (const [k, words] of [['after_human_reply', 'second'], ['blocker_posted', 'third']]) {
+    await p.click('[data-testid=topic-loops-add]')
+    await p.waitForSelector('[data-testid=topic-loops-form]')
+    await clickTrigger(p, k)
+    await p.type('[data-testid=topic-loops-prompt]', words)
+    await p.click('[data-testid=topic-loops-save]')
+    await p.waitForSelector('[data-testid=topic-loops-list]', { timeout: 5000 })
+    await sleep(200)
+  }
+  const order = () => p.evaluate(() => [...document.querySelectorAll('[data-testid=topic-loops-row-prompt]')].map((e) => e.textContent.trim()))
+  ok('8 three loops, in the order they were added', (await order()).join('|') === 'say hello|second|third', await order())
+  const grips = await p.evaluate(() => [...document.querySelectorAll('[data-testid=topic-loops-grip]')].map((b) => ({ dis: b.disabled, svg: !!b.querySelector('svg'), aria: b.getAttribute('aria-label') })))
+  ok('8 each row has an enabled grip with an icon and a label', grips.length === 3 && grips.every((g) => !g.dis && g.svg && g.aria), grips)
+  await p.focus('[data-testid=topic-loops-grip]')
+  await p.keyboard.press('ArrowDown')
+  await sleep(400)
+  ok('8 Arrow Down on the first grip moves it one place down', (await order()).join('|') === 'second|say hello|third', await order())
+  const focused = await p.evaluate(() => document.activeElement?.closest('[data-testid=topic-loops-row]')?.querySelector('[data-testid=topic-loops-row-prompt]')?.textContent.trim())
+  ok('8 the keyboard stays on the moved row\'s grip', focused === 'say hello', focused)
+  const rows = await p.evaluate(() => [...document.querySelectorAll('[data-testid=topic-loops-grip]')].map((b) => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } }))
+  await p.mouse.move(rows[2].x, rows[2].y)
+  await p.mouse.down()
+  await p.mouse.move(rows[2].x, rows[0].y - 20, { steps: 8 })
+  await p.mouse.up()
+  await sleep(400)
+  ok('8 dragging the last grip above the first moves that row to the top', (await order()).join('|') === 'third|second|say hello', await order())
+  await p.keyboard.press('Escape')
+  await sleep(300)
+  await openLoops(p, card)
+  await p.waitForSelector('[data-testid=topic-loops-row]', { timeout: 5000 })
+  ok('8 a new open shows the stored order', (await order()).join('|') === 'third|second|say hello', await order())
+  await shot(p, '1440-reordered')
 
   /* ---- 5. drag by the header; it stays on screen ------------------------ */
   const head = await rect(p, '[data-testid=ui-dialog-head]')

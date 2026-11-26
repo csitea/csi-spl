@@ -1180,6 +1180,13 @@ async function deleteTopicLoop(ctx, taskId, loopId) {
   return ctx.live(path, { method: 'DELETE' })
 }
 
+/** PUT .../loops/order { loop_ids }: the list in its new order (v0.11 change 8) */
+async function orderTopicLoops(ctx, taskId, loopIds) {
+  const path = `${loopsPath(taskId)}/order`
+  if (ctx.mock) return (await ctx.answers()).mockOrderTopicLoops(ctx.state, String(taskId), loopIds)
+  return ctx.live(path, { method: 'PUT', headers: JSON_HEAD, body: JSON.stringify({ loop_ids: loopIds }) })
+}
+
 /** MOCK ONLY: the other tabs' `topic_loops` frames; the live ones ride useLive().onTopic. Returns the off switch. */
 async function onMockTopicLoops(ctx, fn) {
   if (!ctx.mock) return () => {}
@@ -2649,6 +2656,7 @@ export const lazySpoolMethods = {
   addTopicLoop,
   editTopicLoop,
   deleteTopicLoop,
+  orderTopicLoops,
   onMockTopicLoops,
   topicSize,
   deleteTopic,

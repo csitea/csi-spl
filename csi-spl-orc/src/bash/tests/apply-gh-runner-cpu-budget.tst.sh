@@ -276,10 +276,21 @@ out="$(gate CPU_BUDGET_GATE_FLOOR_PCT=500 CPU_BUDGET_BOX_PCT=25)"; rc=$?
 out="$(: >"$SYSD_LOG"; run_budget DRY_RUN=0 OTHER=4 CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=880%' ]] &&
   pass "FLOOR=500 under a load quota of 880%: 880% (a floor never lowers)" || fail "gate above (rc=$rc): $out"
-mkdir -p "$T/red"; cp "$(dirname "$FUNC")/spl-lane-map.func.sh" "$T/red/"
-sed 's/((floor > GHRB_MIN)) \&\& GHRB_MIN="$floor"/:/' "$FUNC" >"$T/red/apply-gh-runner-cpu-budget.func.sh"
-grep -q 'GHRB_MIN="$floor"' "$T/red/apply-gh-runner-cpu-budget.func.sh" && fail "red control: the sed did not drop the raise"
-out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+RED_RUN="$T/red/src/bash/run"
+mkdir -p "$RED_RUN"
+ln -s "$PROJ_ROOT/lib" "$T/red/lib"
+for sib_f in "$PROJ_ROOT"/src/bash/run/*.func.sh; do
+  [[ "$(basename "$sib_f")" == "$(basename "$FUNC")" ]] && continue
+  ln -s "$sib_f" "$RED_RUN/$(basename "$sib_f")"
+done
+RED_FUNC="$RED_RUN/$(basename "$FUNC")"
+cp "$FUNC" "$RED_FUNC"
+out="$(FUNC="$RED_FUNC" gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=500%'* ]] &&
+  pass "red control: unmodified copy in staged tree reaches 500%" || fail "red control: unmodified staged copy failed (rc=$rc): $out"
+sed 's/((floor > GHRB_MIN)) \&\& GHRB_MIN="$floor"/:/' "$FUNC" >"$RED_FUNC"
+grep -q 'GHRB_MIN="$floor"' "$RED_FUNC" && fail "red control: the sed did not drop the raise"
+out="$(FUNC="$RED_FUNC" gate CPU_BUDGET_GATE_FLOOR_PCT=500)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'GATE STARVED'* && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' ]] &&
   pass "red control: a copy without the raise does not reach 500% (the check above catches it)" || fail "red control: the broken copy still reached 500%"
 
@@ -333,9 +344,9 @@ out="$(ci CPU_BUDGET_PER_RUNNER_PCT=150)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'CAP online=6 of 6 runner(s), the quota feeds 1 at 150% each'* && "$out" == *PARKED* ]] &&
   pass "...and without the reserve the same load feeds 1 runner (the baseline it fixes)" || fail "reserve baseline (rc=$rc): $out"
 rm -f "$T/state/parked" "$T/state-"* "$T/state/weight" "$T/weight"
-sed 's/((floor > GHRB_MIN)) \&\& GHRB_MIN="$floor"$/:/' "$FUNC" >"$T/red/apply-gh-runner-cpu-budget.func.sh"
-[[ "$(grep -c 'GHRB_MIN="$floor"' "$T/red/apply-gh-runner-cpu-budget.func.sh")" == 0 ]] || fail "red control: the sed did not drop the reserve raise"
-out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" ci "${R[@]}")"; rc=$?
+sed 's/((floor > GHRB_MIN)) \&\& GHRB_MIN="$floor"$/:/' "$FUNC" >"$RED_FUNC"
+[[ "$(grep -c 'GHRB_MIN="$floor"' "$RED_FUNC")" == 0 ]] || fail "red control: the sed did not drop the reserve raise"
+out="$(FUNC="$RED_FUNC" ci "${R[@]}")"; rc=$?
 [[ $rc -eq 0 && "$out" == *'CI RESERVE'* && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%'* ]] &&
   pass "red control: a copy without the reserve raise stays at 100% (the checks above catch it)" || fail "red control: the broken copy still reached the reserve"
 rm -f "$T/gh.json" "$T/state/weight" "$T/weight"
@@ -418,11 +429,11 @@ echo 1 >"$T/state/force-until"; reset_runners
 out="$(park)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'local=0'* && "$(grep -c '^systemctl stop' "$SYSD_LOG")" == 6 ]] && pass "an expired hold: back to park-all" || fail "force expired (rc=$rc): $out"
 rm -f "$T/state/force-until"; reset_runners
-sed 's/    if (cap > 0 \&\& q > cap) q = cap/    cap = 0/' "$FUNC" >"$T/red/apply-gh-runner-cpu-budget.func.sh"
-grep -q 'q > cap' "$T/red/apply-gh-runner-cpu-budget.func.sh" && fail "red control: the sed did not drop the clamp"
-out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" ov OTHER=0)"; rc=$?
-[[ "$(cat "$SYSD_LOG")" != *'CPUQuota=400%'* ]] &&
-  pass "red control: a copy without the cap clamp does not set 400% (the first check catches it)" || fail "red control: the broken copy still set 400%"
+sed 's/    if (cap > 0 \&\& q > cap) q = cap/    cap = 0/' "$FUNC" >"$RED_FUNC"
+grep -q 'q > cap' "$RED_FUNC" && fail "red control: the sed did not drop the clamp"
+out="$(FUNC="$RED_FUNC" ov OTHER=0)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=1280%'* && "$(cat "$SYSD_LOG")" != *'CPUQuota=400%'* ]] &&
+  pass "red control: a copy without the cap clamp sets 1280%, not 400% (the first check catches it)" || fail "red control: the broken copy did not run cleanly to 1280% (rc=$rc): $(cat "$SYSD_LOG")"
 rm -f "$T/gh.json" "$T/hub.json"
 
 # 4. cron script + installer -------------------------------------------------------

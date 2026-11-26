@@ -99,7 +99,14 @@
 # @description         or AT CAP -> HOLD: it stays queued, the reason in
 # @description         .place.wait, nothing acked; out of the tick's line
 # @description         before the head and the band pick, so it blocks no
-# @description         other row (SPL-4009)
+# @description         other row (SPL-4009). A logged review seat is judged
+# @description         at the seats' own mark (SPL-6521); past it, it FALLS
+# @description         OVER to the fleet pick at that mark among the boxes
+# @description         with its vendor's CLI and launches there (SPAWN_BOX,
+# @description         the brief carried by spawn-remote.sh), else it holds
+# @description         (SPL-6617). The box a seat is judged on is the box it
+# @description         launches on, under the overflow hold too
+# @description         (spl_spawn_place_seat_past)
 # @description      UI RULE (owner HUM-10, t1 b61851fb): a mistral placement whose
 # @description         brief names csi-spl-wui/ launches claude instead while
 # @description         cnf env.box.agent_split.mistral_ui_allowed is not true
@@ -549,26 +556,76 @@ spl_spawn_place_seat_overflow() {
 
 # 2a. May the logged review seat PLACEMENT (<vendor>:<slug>) pass the hold WHY
 # (spl_spawn_place_no_room)? Only the load pick's CPU overflow hold, only a seat
-# whose brief's heading says review (spl_spawn_place_seat_pass), only when the
-# pick at the seats' own mark finds a box. Prints that pick, returns 0.
-spl_spawn_place_seat_past() {  # PLACEMENT WHY
-  local brief ovf pick
+# whose brief's heading says review (spl_spawn_place_seat_pass), only when a box
+# has room at the seats' own mark. Prints that box or pick, returns 0.
+# ONE RULE (SPL-6617): the box judged here is the box the launch goes to. A
+# seat with a launch box (BOX: the row's _b, set by a pin fall-over; else the
+# placement's hand-pinned box) is judged on that box at the seats' mark, as
+# spl_spawn_place_pin_hold judges it, and falls over the same way
+# (spl_spawn_place_pin_fallover); spl_spawn_place_take launches it on the box
+# printed here. Only a seat with no launch box is judged by the fleet pick, and
+# its launch re-runs that pick with the same BOX_PICK_OVERFLOW and
+# BOX_PICK_REVIEW_SEAT. Before, a pinned seat passed on the fleet pick (another
+# box) and launched on its pin (sat): ask adf2ed26.
+spl_spawn_place_seat_past() {  # PLACEMENT WHY [BOX]
+  local brief ovf pick box="${3:-}" vendor=""
   [[ "$2" == "the fleet load target says hold"*"overflow mark"* ]] || return 1
   brief="$(spl_spawn_place_brief "${1#*:}")"
   [[ -n "$brief" ]] && spl_spawn_place_seat_pass "$brief" || return 1
   ovf="$(spl_spawn_place_seat_overflow)" || return 1
+  [[ -n "$box" ]] || box="$(spl_spawn_place_slug "${1#*:}" | sed -n 1p)"
+  if [[ -n "$box" ]]; then
+    [[ "$1" != *:* ]] || vendor="${1%%:*}"
+    spl_spawn_place_pin_seat_full "$box" "$vendor" "$ovf" >/dev/null || { printf '%s' "$box"; return 0; }
+    spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf"
+    return
+  fi
   pick="$(BOX_PICK_OVERFLOW="$ovf" BOX_PICK_REVIEW_SEAT=1 spl_spawn_place_pick)"
   [[ -n "$pick" && "$pick" != hold* ]] || return 1
   printf '%s' "$pick"
 }
 
+# 2e. Prints why BOX takes no logged review seat of VENDOR now, at the seats'
+# mark OVF (spl_spawn_place_pin_full), and returns 0; 1 = it has room. The
+# pick runs as spl_spawn_place_pin_hold runs it: BOX_PICK_KIND and
+# BOX_PICK_REVIEW_SEAT=1, but not for agy (spl_spawn_place_agy_box_hold judges
+# its quota). PICK_OUT: do_spl_box_pick's output when the caller read it.
+spl_spawn_place_pin_seat_full() {  # BOX VENDOR OVF [PICK_OUT]
+  local kind="$2" seat=1 out="${4-}"
+  [[ "$kind" != agy ]] || { kind=""; seat=0; }
+  [[ -n "$out" ]] || out="$(BOX_PICK_KIND="$kind" BOX_PICK_REVIEW_SEAT="$seat" spl_spawn_place_pick_out)"
+  BOX_PICK_OVERFLOW="$3" spl_spawn_place_pin_full "$1" "$out"
+}
+
+# 2e. The box a logged review seat of VENDOR, pinned to BOX past the seats'
+# mark OVF, falls over to (SPL-6617): the fleet pick at that mark
+# (BOX_PICK_OVERFLOW=OVF, BOX_PICK_REVIEW_SEAT=1) with BOX_PICK_KIND=VENDOR, so
+# a box measured without the vendor's CLI is never picked. Prints the box,
+# returns 0; returns 1 when the pick holds, finds no box with the CLI, names
+# BOX itself, or VENDOR is empty. The brief is not copied: the launch reads it
+# on this box and spawn-remote.sh carries its text to SPAWN_BOX, as for every
+# remote placement.
+spl_spawn_place_pin_fallover() {  # VENDOR BOX OVF
+  local pick
+  [[ -n "$1" ]] || return 1
+  pick="$(BOX_PICK_KIND="$1" BOX_PICK_REVIEW_SEAT=1 BOX_PICK_OVERFLOW="$3" spl_spawn_place_pick)"
+  pick="${pick%% *}"
+  [[ "$pick" =~ ^[a-z0-9][a-z0-9-]*$ && "$pick" != hold && "$pick" != nokind && "$pick" != "$2" ]] || return 1
+  printf '%s' "$pick"
+}
+
 # 2a. Under the hold WHY, take the first logged review seat of ROWS when it may
 # pass (spl_spawn_place_seat_past); every other row holds. 1 = nothing taken.
+# A seat with a launch box (its _b, else its pin) launches on the box
+# spl_spawn_place_seat_past judged, carried as its _b (SPL-6617).
 spl_spawn_place_seat_take() {  # HOLDER ROWS WHY
-  local seat pick
+  local seat pick box
   seat="$(spl_spawn_place_seat "$2")"
   [[ -n "$seat" ]] || return 1
-  pick="$(spl_spawn_place_seat_past "$(jq -r '.placement' <<<"$seat")" "$3")" || return 1
+  box="$(jq -r '._b // ""' <<<"$seat")"
+  [[ -n "$box" ]] || box="$(spl_spawn_place_slug "$(jq -r '.placement // "" | sub("^[^:]*:"; "")' <<<"$seat")" | sed -n 1p)"
+  pick="$(spl_spawn_place_seat_past "$(jq -r '.placement' <<<"$seat")" "$3" "$box")" || return 1
+  [[ -z "$box" ]] || seat="$(jq -c --arg b "$pick" '._b = $b' <<<"$seat")"
   do_log "INFO review seat past the CPU overflow hold: ask $(jq -r '.ask_id[0:8]' <<<"$seat") launches on the review seats' overflow mark $(spl_spawn_place_seat_overflow)% (pick $pick); every other row holds: $3"
   spl_spawn_place_take "$1" "$(jq -c 'del(._l, ._h)' <<<"$seat")" || :
   return 0
@@ -866,11 +923,13 @@ spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
 }
 
 # 4. Take the head: placing, then launch it or hand it to the holder. A head
-# pinned to a full box never gets here (spl_spawn_place_pin_hold). Returns 10
+# pinned to a full box never gets here (spl_spawn_place_pin_hold). The launch
+# box (SPAWN_BOX) is the row's _b when a hold set one (an agy target, a review
+# seat's pin fall-over, SPL-6617), else its pin, else none. Returns 10
 # when the launcher says HOLD: .place.last is then put back as it was, a hold
 # burns no gap slot (SPL-4265).
 spl_spawn_place_take() {  # HOLDER HEAD
-  local holder="$1" id place brief vendor closed="" ps=() last prev rc=0
+  local holder="$1" id place brief vendor closed="" ps=() last prev rc=0 box
   spl_spawn_place_drop_archived "$holder" "$2" && return 10
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
@@ -887,7 +946,8 @@ spl_spawn_place_take() {  # HOLDER HEAD
     prev="$(stat -c %Y "$last" 2>/dev/null)"
     touch "$last"
     spl_spawn_place_category "$holder" "$id" "$brief"
-    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${ps[0]:-$(jq -r '._b // ""' <<<"$2")}" || rc=$?
+    box="$(jq -r '._b // ""' <<<"$2")"
+    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${box:-${ps[0]}}" || rc=$?
     (( rc == 10 )) || return "$rc"
     if [[ -n "$prev" ]]; then touch -d "@$prev" "$last"; else rm -f "$last"; fi
     return 10
@@ -1455,30 +1515,47 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
 # (spl_spawn_place_pin_seat) is judged at the seats' own overflow mark and
 # weekly mark, as an unpinned one is (spl_spawn_place_seat_past, SPL-6521):
 # before, a hand-<box>- seat held at 200% of the box's high and never reached
-# that pass. Prints ROWS minus the held ones.
+# that pass. A logged review seat whose pinned box is past the seats' mark
+# FALLS OVER (SPL-6617) to the fleet pick at that mark with BOX_PICK_KIND = its
+# vendor (spl_spawn_place_pin_fallover): another box under the mark that has
+# the vendor's CLI. The row then carries that box as _b, the launch's SPAWN_BOX
+# (spl_spawn_place_take: _b before the pin); no such box -> it holds as before.
+# Before, 10 agy R7 seats pinned to sat at 278..547% held up to 238 min while
+# another box had room and agy. Every other pinned row keeps its pin.
+# Prints ROWS minus the held ones, the fallen-over ones with _b.
 spl_spawn_place_pin_hold() {  # MARKED ROWS
-  local id vendor slug box why kind seat key held=() ps=() seats ovf
-  local -A outs=()
+  local id vendor slug box why kind seat rseat key held=() ps=() seats ovf alt to='{}'
+  local -A outs=() alts=()
   seats="$(spl_spawn_place_seats "$1" | jq -r '.[].ask_id')"
   while IFS=$'\t' read -r id vendor slug; do
     mapfile -t ps < <(spl_spawn_place_slug "$slug")
     box="${ps[0]}"
     [[ -n "$box" ]] || continue
-    seat=0; ovf=""
+    seat=0; rseat=0; ovf=""
     if spl_spawn_place_pin_seat "$seats" "$id" "$slug"; then
-      seat=1; ovf="$(spl_spawn_place_seat_overflow)"
+      seat=1; ovf="$(spl_spawn_place_seat_overflow)" && rseat=1
     fi
     [[ -n "$ovf" ]] || ovf="${BOX_PICK_OVERFLOW:-200}"
     kind="$vendor"; [[ "$kind" == agy ]] && { kind=""; seat=0; }
     key="$kind:$seat"
     [[ -v "outs[$key]" ]] || outs[$key]="$(BOX_PICK_KIND="$kind" BOX_PICK_REVIEW_SEAT="$seat" spl_spawn_place_pick_out)"
     why="$(BOX_PICK_OVERFLOW="$ovf" spl_spawn_place_pin_full "$box" "${outs[$key]}")" || continue
+    if (( rseat == 1 )); then
+      [[ -v "alts[$vendor:$box]" ]] || alts[$vendor:$box]="$(spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf")"
+      alt="${alts[$vendor:$box]}"
+      if [[ -n "$alt" ]]; then
+        do_log "INFO ask ${id:0:8} is a review seat pinned to $box: $why; it falls over to $alt (the fleet pick at the seats' mark ${ovf}%, with the $vendor CLI)" >&2
+        to="$(jq -c --arg i "$id" --arg b "$alt" '.[$i] = $b' <<<"$to")"
+        continue
+      fi
+    fi
     spl_spawn_place_wait "$id" "pinned to $box: $why"
     do_log "INFO hold: ask ${id:0:8} is pinned to $box: $why; it stays queued" >&2
     held+=("$id")
   done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(if (.placement | test(":")) then (.placement | sub(":.*$"; "")) else "" end)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "^pinned to [a-z0-9]+: "
-  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" --argjson to "$to" \
+    '[.[] | select(.ask_id as $i | $h | index($i) | not) | if $to[.ask_id] then ._b = $to[.ask_id] else . end]' <<<"$1"
 }
 
 # Returns 0 when the row ID (pinned SLUG) is a logged review seat: its ask id
@@ -1498,7 +1575,9 @@ spl_spawn_place_pin_seat() {  # SEAT_IDS ID SLUG
 # quota (2026-10-28: agy answered on sat while every a- seat on the main box
 # showed "Individual quota reached" until 11-03), and once those seats were
 # closed no record held, so sat launched a-097 onto the main box. While any
-# box is out (spl_spawn_place_agy_state), the target is the pinned slug's box,
+# box is out (spl_spawn_place_agy_state), the target is the box a review seat
+# fell over to (its _b from spl_spawn_place_pin_hold, judged as a pin,
+# SPL-6617), else the pinned slug's box,
 # else do_spl_box_pick's pick (BOX_PICK_KIND=agy). Target out: an unpinned row
 # goes to a box that is in and not full (spl_spawn_place_pin_full), this box
 # first, else to a steer box; else it HOLDS, queued, out of this tick's line,
@@ -1510,7 +1589,7 @@ spl_spawn_place_pin_seat() {  # SEAT_IDS ID SLUG
 # state, which runs the lane map (10.6 s on sat, n=1, on a 1-min cron).
 # Prints ROWS minus the held ones.
 spl_spawn_place_agy_box_hold() {  # MARKED ROWS
-  local st outs alt altout a id vendor slug brief pin box pout="" lout="" line sb why full held=() to='{}'
+  local st outs alt altout a id vendor slug fb brief pin box pout="" lout="" line sb why full held=() to='{}'
   local rx="^(agy on [a-z0-9-]+ is at its quota limit until |agy is out of quota until |the agy program or its login is missing on )"
   jq -e 'any(.[]; .state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))' <<<"$1" >/dev/null 2>&1 || {
     spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0
@@ -1520,7 +1599,7 @@ spl_spawn_place_agy_box_hold() {  # MARKED ROWS
   [[ -n "$outs" ]] || { spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0; }
   alt="$(spl_spawn_place_agy_alt "$st" in)" altout="$alt"
   [[ -n "$altout" ]] || altout="$(spl_spawn_place_agy_alt "$st" steer)"
-  while IFS=$'\t' read -r id vendor slug; do
+  while IFS=$'\t' read -r id vendor slug fb; do
     brief="$(spl_spawn_place_brief "$slug")"
     [[ -n "$brief" ]] || continue
     if [[ "$vendor" == mistral ]]; then
@@ -1530,7 +1609,7 @@ spl_spawn_place_agy_box_hold() {  # MARKED ROWS
         [[ "$lout" == - ]] || continue
       fi
     fi
-    pin="$(spl_spawn_place_slug "$slug" | sed -n 1p)" box="$pin"
+    pin="${fb:-$(spl_spawn_place_slug "$slug" | sed -n 1p)}" box="$pin"
     if [[ -z "$box" ]]; then
       [[ -n "$pout" ]] || pout="$(BOX_PICK_KIND=agy spl_spawn_place_pick_out)"
       box="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\).*$/\1/p' <<<"$pout" | tail -1)"
@@ -1553,7 +1632,7 @@ spl_spawn_place_agy_box_hold() {  # MARKED ROWS
     do_log "INFO hold: ask ${id:0:8}: $why; it stays queued" >&2
     held+=("$id")
   done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))
-    | "\(.ask_id)\t\(.placement | sub(":.*$"; ""))\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+    | "\(.ask_id)\t\(.placement | sub(":.*$"; ""))\t\(.placement | sub("^[^:]*:"; ""))\t\(._b // "")"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "$rx"
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" --argjson to "$to" \
     '[.[] | select(.ask_id as $i | $h | index($i) | not) | if $to[.ask_id] then ._b = $to[.ask_id] else . end]' <<<"$1"

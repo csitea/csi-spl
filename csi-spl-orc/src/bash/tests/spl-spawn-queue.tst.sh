@@ -2415,6 +2415,64 @@ out="$(tick41 SPAWN_PLACE_SEAT_OVERFLOW=300 WINDOWS=40)"
 [[ ! -s "$T/launch.log" && "$(alarms)" == 1 ]] && grep -q "held by: window ceiling; reviews: no Issue: line \"R7 reviewer, review only\"; seat: claude$" "$AS" &&
   pass "41g. CONTROL the window ceiling still holds a seat; its #alerts line says window ceiling" || fail "41g. $(cat "$T/launch.log") | $(cat "$AS" 2>/dev/null) | $out"
 seat_clear
+# 41h. SPL-6617 (c-317, SPL-6629): agy R7 seats queued as
+# agy:hand-sat-...-reviewer held on sat past the seats' own mark (270% of a 90%
+# high) on every tick, 278..547%, up to 238 min, while box-b had room and agy;
+# 10 alarmed in a day. A logged review seat pinned to a box past the seats' mark
+# now falls over to the fleet pick at that mark among the boxes with its
+# vendor's CLI, and launches there (SPAWN_BOX; spawn-remote carries the brief).
+# The stub: sat 296%, box-b 237%, both high 90; box-b has room below 264% of 90
+# (237 < 90 * o / 100), and no agy CLI with TNK_AGY=0.
+# Two ticks each: the alarm of a pinned seat comes from its hold line, written
+# on the first tick. RED CONTROL: on origin/master 7f0c93aa3 41h holds on sat
+# with 1 alarm (the first tick's check passed the seat on the fleet pick while
+# the pin held it; the second alarms on the hold line) and 41k holds; the
+# controls 41i and 41j pass on both trees.
+cat >"$T/bin/pick-fall" <<'STUB'
+#!/usr/bin/env bash
+o="${BOX_PICK_OVERFLOW:-200}" k="${BOX_PICK_KIND:-}" nc=""
+[ "$k" != agy ] || [ "${TNK_AGY:-1}" = 1 ] || nc="  no agy CLI"
+echo "BOX sat  load5 47.4  cpus 16  296%  full  band 50..90 (box)"
+echo "BOX box-b  load5 37.9  cpus 16  237%  full  band 50..90 (box)$nc"
+if [ -z "$nc" ] && [ $((237 * 100)) -lt $((90 * o)) ]; then echo "pick=box-b reason=box-b is the least past its band"
+else echo "pick=hold reason=no box with a sample is below its overflow mark (${o}% of its high): queue the lane, spawn nothing"; fi
+STUB
+chmod +x "$T/bin/pick-fall"
+fall_q() {  # ASK VENDOR SLUG MIN HEADING: brief SLUG, queued pinned as VENDOR:hand-sat-SLUG, MIN minutes ago
+  printf '# Lane brief: %s\nClass: bug\n%s\n' "$5" "$ES" >"$T/briefs/$3.md"
+  put "$1" c-002@box-desk "dispatch-$3" "SPAWN REQUEST hand-sat-$3"
+  on pc do_spl_spawn_enqueue ASK_ID="$1" SPAWN_CLASS=bug SPAWN_PLACE="$2:hand-sat-$3" >/dev/null 2>&1
+  jq --arg i "$1" --argjson t "$(( $(date +%s) - $4 * 60 ))" 'map(if .ask_id == $i then .q = $t else . end)' "$T/hub/main.json" >"$T/h.$$" && mv "$T/h.$$" "$T/hub/main.json"
+}
+tick41h() { : >"$T/launch.log"; tick40 SPAWN_PLACE_PICK_CMD="$T/bin/pick-fall" SPAWN_PLACE_SEAT_OVERFLOW=300 SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON='{"hub":"ok","load":[]}' "$@"; }
+seat_clear; fall_q "$K1" agy p41h-reviewer 31 "R7 reviewer for SPL-6617, review only"
+out="$(tick41h LAUNCH_ID=a-591)"; cp "$T/launch.log" "$T/launch41h.1"
+out+="$(tick41h LAUNCH_ID=a-593)"
+grep -qx "agy auto $T $T/briefs/p41h-reviewer.md p41h-reviewer SPAWN_BOX=box-b" "$T/launch41h.1" && [[ ! -s "$T/launch.log" ]] &&
+  [[ "$(alarms)" == 0 && "$(posts)" == 0 && "$(jq -r .reason <<<"$(hubrow "$K1")")" == "placed: a-591@box-desk" ]] &&
+  grep -q "ask ${K1:0:8} is a review seat pinned to sat: box sat at 296% is past its overflow mark (270%.*; it falls over to box-b" <<<"$out" &&
+  pass "41h. PROOF an agy review seat pinned to sat at 296% (past its 270%), 31 min in line, box-b at 237% with agy: placed on box-b, 0 alarms" ||
+  fail "41h. fall-over: launch=$(cat "$T/launch41h.1") then $(cat "$T/launch.log") alarms=$(alarms) | $(hubrow "$K1") | $out"
+seat_clear; fall_q "$K1" agy p41h-reviewer 31 "R7 reviewer for SPL-6617, review only"
+out="$(tick41h TNK_AGY=0)"
+out+="$(tick41h TNK_AGY=0)"
+[[ ! -s "$T/launch.log" && "$(alarms)" == 1 && "$(jq -r .state <<<"$(hubrow "$K1")")" == queued ]] &&
+  grep -q "ask ${K1:0:8} is pinned to sat: box sat at 296% is past its overflow mark (270%" <<<"$out" && ! grep -q 'falls over' <<<"$out" &&
+  pass "41i. CONTROL the same seat, box-b without the agy CLI: held on sat, one alarm (today's)" ||
+  fail "41i. no agy on box-b: launch=$(cat "$T/launch.log") alarms=$(alarms) | $(hubrow "$K1") | $out"
+seat_clear; fall_q "$K2" claude p41j-plain-fix 31 "fix the parser, commit and push"
+out="$(tick41h)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K2")")" == queued ]] &&
+  grep -q "ask ${K2:0:8} is pinned to sat: box sat at 296% is past its overflow mark (180%" <<<"$out" && ! grep -q 'falls over' <<<"$out" &&
+  pass "41j. CONTROL a non-review row pinned to sat at 296%, box-b with room: keeps its pin, held" ||
+  fail "41j. plain pinned: launch=$(cat "$T/launch.log") | $(hubrow "$K2") | $out"
+seat_clear; fall_q "$K1" claude p41k-reviewer 31 "R7 reviewer for SPL-6617, review only"
+out="$(tick41h LAUNCH_ID=c-592)"
+grep -qx "claude auto $T $T/briefs/p41k-reviewer.md p41k-reviewer SPAWN_BOX=box-b" "$T/launch.log" && [[ "$(alarms)" == 0 ]] &&
+  grep -q "review seat past the CPU overflow hold: ask ${K1:0:8} .*(pick box-b)" <<<"$out" &&
+  pass "41k. a claude review seat pinned to sat at 296% under the CPU overflow hold: judged on box-b and launched on box-b, the same box (pick and launch agree)" ||
+  fail "41k. pick/launch: launch=$(cat "$T/launch.log") alarms=$(alarms) | $(hubrow "$K1") | $out"
+seat_clear
 
 # SPL-6167 (bug round 33 row 01, rc01): a docs lane placed on an issue it
 # does not own shares it. A Kind: specs_and_docs brief with an Issue: key and

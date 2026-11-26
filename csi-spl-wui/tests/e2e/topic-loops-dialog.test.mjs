@@ -1,4 +1,4 @@
-// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6584, 6586, 6592): the
+// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6586, 6592): the
 // Discussion loops dialog after the owner's changes, in Chrome on the mock.
 //
 //   1  1440 px: the dialog is 70% of the viewport wide and its top is 10%
@@ -10,7 +10,8 @@
 //      prompt box is about 17% of the screen high and still resizable
 //      (change 7, msg ae3a2d5c)
 //   4  saved: the row's first line is the title, the prompt's line under it
-//      (change 2, msgs 7f3ebb17, 9e3161d9)
+//      (change 2, msgs 7f3ebb17, 9e3161d9); its Edit, Pause and Delete are
+//      icon buttons, the label on hover and on aria-label (change 6, 1822fb67)
 //   5  the header drags the dialog, and a drag past the edge keeps it on
 //      screen (change 4, msg e68509d5)
 //   6  a 390 px window: no break (desktop only, msg 5c03fa45): full width,
@@ -168,6 +169,15 @@ try {
   ok('4 the row is titled by its trigger', (await text(p, '[data-testid=topic-loops-row-title]')) === 'Before each agent reply')
   ok('4 the prompt line is under it', (await text(p, '[data-testid=topic-loops-row-prompt]')) === 'say hello')
   await shot(p, '1440-list')
+
+  /* ---- 4b. the row's Edit / Pause / Delete are icon buttons (SPL-6585) --- */
+  const btns = await p.evaluate(() => ['edit', 'pause', 'delete'].map((k) => {
+    const b = document.querySelector(`[data-testid=topic-loops-${k}]`)
+    return { k, icon: b?.classList.contains('icon-btn'), svg: !!b?.querySelector('svg'), text: b?.textContent.trim(), aria: b?.getAttribute('aria-label'), title: b?.title }
+  }))
+  ok('4b edit, pause, delete: an icon, no text, the label on aria-label and title',
+    btns.every((b) => b.icon && b.svg && b.text === '' && b.aria && b.aria === b.title)
+      && btns.map((b) => b.aria).join('|') === 'Edit|Pause|Delete', btns)
 
   /* ---- 5. drag by the header; it stays on screen ------------------------ */
   const head = await rect(p, '[data-testid=ui-dialog-head]')

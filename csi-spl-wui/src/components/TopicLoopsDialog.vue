@@ -103,11 +103,15 @@
               <span>{{ t('feed.topic_loops.by', { who: people.label(l.set_by) }) }}</span>
             </p>
             <div class="topic-loops__row-actions">
-              <button type="button" class="btn ghost" data-testid="topic-loops-edit" :disabled="!writable" :title="lockTitle" @click="openForm(l)">{{ t('feed.topic_loops.edit') }}</button>
-              <button type="button" class="btn ghost" data-testid="topic-loops-pause" :disabled="!writable" :title="lockTitle" @click="toggle(l)">
-                {{ t(l.state === 'paused' ? 'feed.topic_loops.resume' : 'feed.topic_loops.pause') }}
+              <button type="button" class="icon-btn" data-testid="topic-loops-edit" :disabled="!writable" :aria-label="t('feed.topic_loops.edit')" :title="lockTitle || t('feed.topic_loops.edit')" @click="openForm(l)">
+                <UiIcon name="pencil" :size="16" />
               </button>
-              <button type="button" class="btn ghost" data-testid="topic-loops-delete" :disabled="!writable" :title="lockTitle" @click="remove(l)">{{ t('feed.topic_loops.delete') }}</button>
+              <button type="button" class="icon-btn" data-testid="topic-loops-pause" :disabled="!writable" :aria-label="pauseLabel(l)" :title="lockTitle || pauseLabel(l)" @click="toggle(l)">
+                <UiIcon :name="l.state === 'paused' ? 'play' : 'pause'" :size="16" />
+              </button>
+              <button type="button" class="icon-btn" data-testid="topic-loops-delete" :disabled="!writable" :aria-label="t('feed.topic_loops.delete')" :title="lockTitle || t('feed.topic_loops.delete')" @click="remove(l)">
+                <UiIcon name="trash" :size="16" />
+              </button>
             </div>
           </li>
         </ul>
@@ -149,6 +153,8 @@ const editing = ref('')
 
 const writable = computed(() => mayEdit.value && !busy.value && !loading.value)
 const lockTitle = computed(() => (mayEdit.value ? undefined : t('feed.topic_loops.locked')))
+// Icon-only row buttons (SPL-6585): the label is the hover title and the aria-label.
+const pauseLabel = (l: TopicLoop) => t(l.state === 'paused' ? 'feed.topic_loops.resume' : 'feed.topic_loops.pause')
 
 /* a new loop's zone is the browser's (4.1 step 2); the list is read once, on the form */
 const tz = browserTimeZone() || 'UTC'

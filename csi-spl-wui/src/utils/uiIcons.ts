@@ -196,6 +196,9 @@ export const UI_ICON_PATHS = {
     "M10 11v6",
     "M14 11v6",
   ],
+  // SPL-6585: a Discussion loop row's Pause / Resume (lucide pause, play).
+  pause: ["M8 4h1a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z", "M15 4h1a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"],
+  play: ["M6 3l14 9-14 9V3z"],
   // SPL-983 (spec 041): the owner asked for Gmail's archive glyph (Material
   // Symbols "archive": a tray under a lid, an arrow going in). Stroke-drawn so
   // it matches the rest of the set. Also the left-rail Archive entry.

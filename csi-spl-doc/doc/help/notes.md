@@ -114,6 +114,7 @@ To delete several notes at once, check their rows first. A checked row is
 filled darker.
 
 - **Ctrl + click** (**Cmd + click** on a Mac) checks a row, or unchecks it.
+  A middle click still opens the note in a new tab.
 - **Shift + click** checks every row from the last one you checked to this one.
 - **Shift + J** / **Shift + K** (or **Shift + Down** / **Shift + Up**) checks
   the row and the next (or the previous) one, and moves the focus there.

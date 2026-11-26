@@ -17,8 +17,12 @@
 //   K4 Delete / Backspace while typing in the filter box deletes nothing,
 //      a row checked or not
 //   K5 390 px: Delete on a focused row deletes nothing
+//   K6 the hub refuses the DELETEs (5xx, network): once the snackbar
+//      closed, both rows come back and the "not saved" snackbar says so
+//      (R7 a-835 W1)
 // CONTROL: on origin/master (no row keydown for Delete, no selection) K1,
-// K2 and K3 FAIL; with the `phone` guard taken out of onRowKey, K5 FAILs.
+// K2 and K3 FAIL; with the `phone` guard taken out of onRowKey, K5 FAILs;
+// on 9b07d3764 (settle dropped the DELETE's answer) K6 FAILs.
 //
 // Run:
 //   node tests/e2e/notes-delete-key.test.mjs
@@ -179,6 +183,30 @@ async function phone(browser, base) {
   await p.close()
 }
 
+/* the store's DELETE answers false, as a hub 5xx or a network error does */
+const failDeletes = (p) => p.evaluate(() => {
+  const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes')
+  const remove = store.remove
+  store.remove = async (id, keepalive) => { await remove(id, keepalive); return false }
+})
+
+async function hubRefuses(browser, base) {
+  const p = await openPage(browser, base, 1440, false)
+  await failDeletes(p)
+  await ctrlClick(p, 'mock-note-1')
+  await ctrlClick(p, 'mock-note-3')
+  await focusRow(p, 'mock-note-3')
+  await p.keyboard.press('Delete')
+  await sleep(300)
+  check('K6: Delete with 2 checked takes those 2', same(await rows(p), ['mock-note-2']), await rows(p))
+  await p.click('[data-testid=notes-delete-toast-close]').catch(() => {})
+  await sleep(600)
+  check('K6: the hub refused both DELETEs: both rows are back', same(await rows(p), ALL), await rows(p))
+  const failed = await p.waitForSelector('[data-testid=notes-action-failed]', { visible: true, timeout: 3000 }).then(() => true, () => false)
+  check('K6: and the "not saved" snackbar shows', failed)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -191,6 +219,7 @@ try {
   await typing(p)
   await p.close()
   await phone(browser, server.base)
+  await hubRefuses(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

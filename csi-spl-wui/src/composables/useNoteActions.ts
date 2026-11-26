@@ -91,6 +91,13 @@ function hideAll(store: ReturnType<typeof useNotesStore>, ids: string[]): NoteSu
   return rows
 }
 
+/** One DELETE; false when the hub refused it (5xx, network) and the row is back in the list (not on pagehide). */
+async function dropRow(store: ReturnType<typeof useNotesStore>, row: NoteSummary, keepalive: boolean): Promise<boolean> {
+  if ((await store.remove(row.id, keepalive)) || keepalive) return true
+  if (!store.notes.some((n) => n.id === row.id)) store.notes = [...store.notes, row]
+  return false
+}
+
 /* the page goes (reload, tab closed) or unmounts: a pending DELETE still goes */
 function settleOnLeave(settle: (keepalive?: boolean) => void) {
   const onPageHide = () => settle(true)
@@ -115,7 +122,9 @@ export function useNoteActions(opts: { onOpenTopic: (taskId: string) => void }) 
     const last = toast.value
     toast.value = null
     if (last?.kind !== 'delete') return
-    for (const r of last.rows) if (store.hidden.includes(r.id)) void store.remove(r.id, keepalive)
+    for (const r of last.rows) {
+      if (store.hidden.includes(r.id)) void dropRow(store, r, keepalive).then((ok) => { if (!ok && !toast.value) show({ kind: 'failed', id: r.id }) })
+    }
   }
   type ToastIn = NoteToast extends infer T ? (T extends NoteToast ? Omit<T, 'seq'> : never) : never
   const show = (next: ToastIn) => { toast.value = { ...next, seq: ++seq } as NoteToast }

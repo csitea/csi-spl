@@ -341,7 +341,7 @@ function checkStep(id: string, dir: number) {
   checkAnchor = next
   focusRow(next)
 }
-const STEP_KEYS: Record<string, number> = { J: 1, ArrowDown: 1, K: -1, ArrowUp: -1 }
+const STEP_KEYS: Record<string, number> = { J: 1, j: 1, ArrowDown: 1, K: -1, k: -1, ArrowUp: -1 }
 function onRowKey(id: string, e: KeyboardEvent) {
   if (phone.value || e.isComposing || e.target !== e.currentTarget) return
   if (e.ctrlKey || e.metaKey || e.altKey) return
@@ -394,10 +394,11 @@ function onChoose(action: string) {
   else if (action === NOTE_MENU_DELETE) onDelete(id)
 }
 
-/* a plain link: a click opens the note in place (useNoteOpen), a
-   Ctrl / middle click still opens its address in a new tab. A NuxtLink's own
-   click pushed the route before the page could open it, so a phone got two
-   history entries and Back did not close the note. */
+/* a plain link: a click opens the note in place (useNoteOpen), a middle
+   click still opens its address in a new tab (Ctrl / Cmd + click checks the
+   row, SPL-6542). A NuxtLink's own click pushed the route before the page
+   could open it, so a phone got two history entries and Back did not close
+   the note. */
 function noteHref(id: string) {
   return router.resolve({ path: localePath('/notes'), query: { note: id } }).href
 }

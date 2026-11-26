@@ -228,7 +228,15 @@ row, batch, file list, vendor or question).
 
 ## Signature
 
-v1.0: pending (this seat signs the v1.0 sha the planner names, in a further
-commit to this file).
+**v1.0 signed: PASS** on `c05833b1c3a6f80a15078c930575f411a102abb3`
+(`origin/master`, `git merge-base --is-ancestor c05833b1c origin/master` -> rc 0).
 
-<!-- last-edit: 2026-11-26T06:00:00Z -->
+- v0.2 landed as `e6d3defb41c03eb5602d81be34823508dd875fd5`:
+  `git diff be601fc3d e6d3defb4 -- <plan> | wc -l` -> `0` (the body this
+  seat passed).
+- v1.0 on top of it: `git diff e6d3defb4 c05833b1c -- <plan>` -> +10/-7,
+  only the title, the status paragraph, the consensus table (this seat's
+  PASS, holder c-003's GO LAND `7d3347f9`) and the v1.0 version row; no row,
+  batch, file list, vendor, test or cite changed.
+
+<!-- last-edit: 2026-11-26T06:10:00Z -->

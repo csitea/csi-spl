@@ -1,4 +1,4 @@
-# Spec 182 channel loops build round - plan v0.2 (6 rows, 5 batches)
+# Spec 182 channel loops build round - plan v1.0 (6 rows, 5 batches)
 
 Epic: SPL-2398  
 Spec: csi-spl-doc/specs/182-topic-loop-prompt (v0.10)  
@@ -34,11 +34,13 @@ strictly disjoint files (R1), checks live and queued R3 overlaps across specs
 186, 187 and 196, names each row's kind, vendor and cross-vendor R7 reviewer,
 and proposes one brief per row. It writes no code.
 
-**Status: v0.2, revised for panel re-review (answers `c-938` FAIL W1-W3 and N1-N4 on v0.1 `6ae5fe136`).** Planner: `a-934` (`agy`, main for
+**Status: v1.0, signed.** Planner: `a-934` (`agy`, main for
 `specs_and_docs`). Panel: one cross-vendor seat, **`c-938`** (`claude`,
-placement `c002-s182-cl-build-claude-panel-seat`, ask `3343e159`). Not yet
-signed; no row queued before panel PASS (`do_spl_review_line_check` rc 0) and
-the dispatch holder's GO.
+placement `c002-s182-cl-build-claude-panel-seat`, ask `3343e159`). `c-938`
+PASS on v0.2 `be601fc3d` (W none, `do_spl_review_line_check` rc 0 DOCS-ONLY,
+seat file `review/c002-s182-cl-build-claude-seat` `4cf4cd12a`); dispatch
+holder `c-003` GO LAND (`7d3347f9`); v0.2 landed on `origin/master` as
+`e6d3defb4` (plan body unchanged from `be601fc3d`).
 
 **One sha.** Every code and spec read is on
 **`6b216a31990109235fbb11f3537c64e423b13b5c`** (`6b216a319`, `origin/master` at
@@ -658,8 +660,8 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 | seat | vendor | sha | verdict |
 |---|---|---|---|
 | `c-938` (`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`) | `claude` (cross-vendor to `agy` planner) | `6ae5fe136` (v0.1) | FAIL (W1-W3, N1-N4; seat file `review/c002-s182-cl-build-claude-seat` `af5878ff9`) |
-| `c-938` (`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`) | `claude` (cross-vendor to `agy` planner) | pending v0.2 | pending |
-| holder (`c-002`, dispatch holder) | — | pending | pending GO |
+| `c-938` (`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`) | `claude` (cross-vendor to `agy` planner) | `be601fc3d` (v0.2) | PASS (W none; `do_spl_review_line_check` rc 0 DOCS-ONLY; msgs `389190fa`, `696ab029`; seat file `review/c002-s182-cl-build-claude-seat` `4cf4cd12a`) |
+| holder (`c-003`, dispatch holder) | — | `be601fc3d` -> `e6d3defb4` | GO LAND (msg `7d3347f9`; v0.2 landed unchanged as `e6d3defb4`) |
 
 ## 5. Versions
 
@@ -667,3 +669,4 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 |---|---|
 | v0.1 | first plan for panel review (`6ae5fe136`), measured on `origin/master` `6b216a319` (`6b216a31990109235fbb11f3537c64e423b13b5c`); adds three verified C1 gate files (`change_stamp_test.go`, `crosstenant_test.go`, `channel_copy_apply_postgres.go`, N1) and live/queued R3 ordering around s187 S1 (`c-904`), s196 T1 (`c-907`), and s186 M11 |
 | v0.2 | folds `c-938` FAIL on `6ae5fe136`: W1 replaces non-existent `TestOpenAPIServe` with `TestOpenAPIServedToMember` (`:32`) and `TestOpenAPIServeRouteNeedsItsOperation` (`:77`); W2 drops uncited same-vendor R7 quota waiver in favour of strict rulebook 2.7.2/2.7.3; W3 fixes line citations (`channels_postgres.go:77`, `channel_copy_apply_postgres.go:79`, `TopicLoopsDialog.vue` `:123/:158/:203/:216/:220/:224/:233`, `all.env.yaml:1601-1606`); N1 rewords done-test headings ("spec 182 9.9 Cx, plus ..."); N2 cites `spl-lang-review-gct.func.sh:42`; N4 adds `git diff --stat csi-spl-wui/src/` empty check to C4 red control |
+| v1.0 | records `c-938` PASS on v0.2 `be601fc3d` (`do_spl_review_line_check` rc 0 DOCS-ONLY, seat file `4cf4cd12a`) and dispatch holder `c-003` GO LAND (`7d3347f9`); v0.2 landed on `origin/master` as `e6d3defb4` |

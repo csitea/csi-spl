@@ -15,8 +15,11 @@
 # @description SPL-5012), so a picture that never reached
 # @description blog/img still answered 200 and a link preview showed no
 # @description picture (2026-10-25-the-ai-software-making-machine, dev + prd,
-# @description owner HUM-10 topic 1a494e58). No index, or no post with a
-# @description picture: an INFO and rc 0. Reads only; changes nothing.
+# @description owner HUM-10 topic 1a494e58). An index that answers 404 or 410
+# @description (a site with no blog), or no post with a picture: an INFO and
+# @description rc 0. Any other failed read of the index (a curl failure such as
+# @description a timeout, a 5xx, any status but 200) fails, asked once
+# @description (SPL-6620). Reads only; changes nothing.
 # @description On a failure (SPL-4968) each line carries the answer's UTC time,
 # @description host, CDN node, x-cache and last-modified, and the first failing
 # @description URLs are re-asked as evidence, 10 s apart, 2 times. The check still
@@ -33,8 +36,9 @@ do_check_blog_media_served() {
   do_require_bin curl jq || return 1
   local site="${BLOG_SITE_URL%/}" index rows id img og u why n=0
   local -a bad=() ask=()
-  index="$(spl_blog_served_get "$site/blog-md/index.json")" ||
-    { do_log "INFO no blog index at $site/blog-md/index.json: no pictures to check"; return 0; }
+  index="$(spl_blog_served_index "$site/blog-md/index.json")" || {
+    (($? == 2)) && { do_log "INFO no blog index at $site/blog-md/index.json, it answers $index: no pictures to check"; return 0; }
+    do_log "FATAL the blog index $site/blog-md/index.json was not read, it answers $index"; return 1; }
   rows="$(jq -r '[.locales[]?[]? | select(.image != null) | [.id, .image]] | unique[] | @tsv' <<<"$index" 2>/dev/null)" ||
     { do_log "FATAL $site/blog-md/index.json is not the blog index"; return 1; }
   [[ -n "$rows" ]] || { do_log "INFO no post names a picture: nothing to check"; return 0; }
@@ -60,16 +64,30 @@ do_check_blog_media_served() {
   do_log "OK $n blog picture URL(s) on $site answer 200 image/* (each post's picture and its page's og:image)"
 }
 
-# spl_blog_served_get <url>: the body of a 200 answer, else rc 1.
-spl_blog_served_get() {
-  curl -fsS --max-time "${BLOG_SERVED_MAX_TIME:-20}" "$1" 2>/dev/null
+# spl_blog_served_index <url>: asks once. rc 0 and the body of a 200 answer curl
+# read whole; rc 2 and the answer on a 404 or 410, the site has no blog; else
+# rc 1 and the answer. A timeout or a 5xx is not "no blog" (SPL-6620).
+spl_blog_served_index() {
+  local body ans crc rc=1
+  body="$(mktemp)"
+  ans="$(spl_blog_served_answer "$1" "$body")"
+  crc="${ans%%$'\n'*}" ans="${ans#*$'\n'}"
+  if ((crc == 0)) && [[ "$ans" =~ ^200\  ]]; then cat "$body"; rc=0
+  else
+    ((crc == 0)) && [[ "$ans" =~ ^(404|410)\  ]] && rc=2
+    echo "$ans"
+  fi
+  rm -f "$body"
+  return "$rc"
 }
 
-# spl_blog_served_answer <url> [body file]: asks once; prints "<status> <type>
-# (at <utc>, host <host>[, node <x-served-by>][, x-cache <v>][, last-modified <v>][, curl rc <n>])".
+# spl_blog_served_answer <url> [body file]: asks once; prints curl's rc, then
+# "<status> <type> (at <utc>, host <host>[, node <x-served-by>][, x-cache <v>]
+# [, last-modified <v>][, curl rc <n>])". The rc has its own line: a header
+# holding ", curl rc " cannot read as a curl failure. -q: no .curlrc applies.
 spl_blog_served_answer() {
   local raw at host h v extra="" crc=0
-  raw="$(curl -sS -o "${2:-/dev/null}" -D - --max-time "${BLOG_SERVED_MAX_TIME:-20}" -w '%{http_code} %{content_type}' "$1" 2>/dev/null)" || crc=$?
+  raw="$(curl -q -sS -o "${2:-/dev/null}" -D - --max-time "${BLOG_SERVED_MAX_TIME:-20}" -w '%{http_code} %{content_type}' "$1" 2>/dev/null)" || crc=$?
   at="$(date -u +%FT%TZ)"
   host="${1#*://}"; host="${host%%/*}"
   for h in x-served-by x-cache last-modified; do
@@ -77,19 +95,20 @@ spl_blog_served_answer() {
     [[ -n "$v" ]] && extra+=", ${h/x-served-by/node} $v"
   done
   ((crc == 0)) || extra+=", curl rc $crc"
-  echo "$(tail -n 1 <<<"$raw") (at $at, host $host$extra)"
+  printf '%s\n%s\n' "$crc" "$(tail -n 1 <<<"$raw") (at $at, host $host$extra)"
 }
 
 # spl_blog_served_og <page url>: rc 0 and "<og:image URL>, page <answer>"; else
 # rc 1 and the page's answer. A page curl failed on is no page, even with the
 # og:image in the part that arrived.
 spl_blog_served_og() {
-  local body got meta
+  local body got crc meta
   body="$(mktemp)"
   got="$(spl_blog_served_answer "$1" "$body")"
+  crc="${got%%$'\n'*}" got="${got#*$'\n'}"
   meta="$(grep -m 1 -oE '<meta[^>]*property="og:image"[^>]*>' "$body" || true)"
   rm -f "$body"
-  if [[ "$got" =~ ^200\  && "$got" != *", curl rc "* && "$meta" =~ content=\"([^\"]+)\" ]]; then echo "${BASH_REMATCH[1]}, page $got"; return 0; fi
+  if [[ "$crc" == 0 && "$got" =~ ^200\  && "$meta" =~ content=\"([^\"]+)\" ]]; then echo "${BASH_REMATCH[1]}, page $got"; return 0; fi
   echo "$got"
   return 1
 }
@@ -98,6 +117,7 @@ spl_blog_served_og() {
 spl_blog_served_image() {
   local got
   got="$(spl_blog_served_answer "$1")"
+  got="${got#*$'\n'}"
   echo "$got"
   [[ "$got" =~ ^200\ image/ ]] && return 0
   return 1

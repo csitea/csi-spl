@@ -24,6 +24,15 @@
 #      (red)
 #   9. every failing-page case asks the page exactly 3 times, its first answer and
 #      2 re-asks, so an extra ask goes red whatever fires it. CONTROL (red)
+#  10. SPL-6620: the index read. 404 / 410 (no blog) stays green; a timeout, a
+#      connection error, a cut-off body, a 5xx or any other status is red, the
+#      index asked once. CONTROL: the old `return 0` on any failed read, and a
+#      re-ask of the index (red)
+#  11. every curl call starts with -q (no .curlrc); a page header holding
+#      ", curl rc " is no curl failure. CONTROL for each (red)
+#  12. a page whose first answer fails on any trigger (5xx, curl rc 6..56) and
+#      then answers right is red, asked 3 times. CONTROL: a re-ask on 502 only,
+#      on curl rc 56 only, and an extra first-pass ask with a dropped re-ask (red)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -40,13 +49,14 @@ mkdir -p "$T/stub" "$T/body"
 # stub curl: the last argument is the URL; its $MAP line "<url> <code> <type>
 # [body]" answers, or from its 2nd ask on its "$MAP.then" line if it has one.
 # -w prints "<code> <type>" after the -D headers ($MAP.node "<url> <node>"), and
-# the body goes to -o, and curl exits with its "$MAP.crc" line "<url> <rc>";
+# the body goes to -o, and curl exits with its "$MAP.crc" line "<url> <rc>"
+# (only on an answer from $MAP, never from $MAP.then);
 # otherwise the body ($T/body/<n>) on a 200 goes to stdout,
 # exit 22 (as -f) on anything else.
 cat >"$T/stub/curl" <<'SH'
 #!/bin/bash
 echo "curl $*" >>"$STUB_LOG"
-url="${!#}" w=0 out="" prev=""
+url="${!#}" w=0 out="" prev="" then=0
 for a in "$@"; do
   [[ "$a" == -w ]] && w=1
   [[ "$prev" == -o ]] && out="$a"
@@ -56,7 +66,7 @@ line="$(awk -v u="$url" '$1 == u { print; exit }' "$MAP")"
 asks="$(awk -v u="$url" '$NF == u { n++ } END { print n + 0 }' "$STUB_LOG")"
 if ((asks > 1)) && [[ -f "$MAP.then" ]]; then
   then_line="$(awk -v u="$url" '$1 == u { print; exit }' "$MAP.then")"
-  [[ -n "$then_line" ]] && line="$then_line"
+  [[ -n "$then_line" ]] && line="$then_line" then=1
 fi
 [[ -n "$line" ]] || line="- 200 text/html;charset=utf-8"
 read -r _ code type body <<<"$line"
@@ -65,7 +75,8 @@ if ((w)); then
   [[ -n "$node" ]] && printf 'HTTP/2 %s\r\nX-Served-By: %s\r\nx-cache: MISS\r\n\r\n' "$code" "$node"
   [[ "$out" != /dev/null && -n "$out" && -n "${body:-}" ]] && cat "$BODY_DIR/$body" >"$out"
   printf '%s %s' "$code" "$type"
-  crc="$(awk -v u="$url" '$1 == u { print $2; exit }' "$MAP.crc" 2>/dev/null)"
+  crc=""
+  ((then)) || crc="$(awk -v u="$url" '$1 == u { print $2; exit }' "$MAP.crc" 2>/dev/null)"
   exit "${crc:-0}"
 fi
 [[ "$code" == 200 ]] || exit 22
@@ -176,7 +187,7 @@ for crc in 18 28; do
   ((rc == 1)) && grep -q "$SITE/blog/$ID names no og:image, answers 200 text/html.*curl rc $crc" "$T/o" && [[ "$(page_asks)" == 3 ]] &&
     pass "a page with its og:image, cut off with curl rc $crc: rc 1, the rc logged, asked 3 times" || fail "cut off $crc: rc=$rc asks $(page_asks) $(cat "$T/o")"
 done
-sed 's/ && "$got" != \*", curl rc "\*//' "$ACTION" >"$T/m-crc.sh"
+sed 's/"$crc" == 0 && //' "$ACTION" >"$T/m-crc.sh"
 if cmp -s "$ACTION" "$T/m-crc.sh"; then fail "CONTROL cut off: the sed changed nothing"; else
   cs "$T/m-crc.sh"
   ((rc == 0)) && pass "CONTROL: a copy that ignores curl's rc passes the cut-off page (red)" || fail "CONTROL cut off: still rc=$rc"
@@ -240,6 +251,114 @@ if cmp -s "$ACTION" "$T/m-retry.sh"; then fail "CONTROL retry: the sed changed n
   site "$OG" 200 image/webp 200 image/webp; cs "$T/m-retry.sh"
   [[ "$(retries)" == 4 ]] && pass "CONTROL: a copy with a retry inside its curl is seen on all 4 asks (red)" || fail "CONTROL retry: $(retries) of $(curls)"
 fi
+
+# --- 10. the index read: no blog is green, a failed read is red (SPL-6620) ------
+# Measured 2026-11-26 (curl -q -sS -w '%{http_code} %{content_type}'): a site
+# with no blog-md/index.json and no catch-all answers 404 text/html
+# (csi-spl-dev-ws-hidden-12.web.app, csi-spl-prd-ws-hidden-12.web.app, a
+# web.app site that does not exist); our site's SPA catch-all answers a missing
+# .json 200 text/html (csi-spl-dev-site.web.app/blog-md/no-such-index.json),
+# which is not the index and stays red.
+IDX="$SITE/blog-md/index.json"
+index_site() { site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$IDX .*|$IDX $1|" "$MAP"; [[ -z "${2:-}" ]] || echo "$IDX $2" >"$MAP.crc"; }
+# rows: <name>|<index answer: code type [body]>|<curl rc or empty>|<rc>|<log line, ERE>
+NB="FATAL the blog index $IDX was not read, it answers"
+INDEX_ROWS=(
+  "no blog, 404|404 text/html||0|INFO no blog index at $IDX, it answers 404 text/html"
+  "no blog, 410|410 text/html||0|INFO no blog index at $IDX, it answers 410 text/html"
+  "timeout|000 -|28|1|$NB 000 - .*curl rc 28"
+  "connection refused|000 -|7|1|$NB 000 - .*curl rc 7"
+  "host not found|000 -|6|1|$NB 000 - .*curl rc 6"
+  "tls failure|000 -|35|1|$NB 000 - .*curl rc 35"
+  "reset mid-body|200 application/json index|56|1|$NB 200 application/json .*curl rc 56"
+  "cut off|200 application/json index|18|1|$NB 200 application/json .*curl rc 18"
+  "500|500 text/html||1|$NB 500 text/html"
+  "502|502 text/html||1|$NB 502 text/html"
+  "503|503 text/html||1|$NB 503 text/html"
+  "504|504 text/html||1|$NB 504 text/html"
+  "403|403 text/html||1|$NB 403 text/html"
+  "429|429 text/html||1|$NB 429 text/html"
+  "301|301 text/html||1|$NB 301 text/html"
+  "SPA catch-all, 200 html|200 text/html page||1|FATAL $IDX is not the blog index"
+)
+index_rows() { # <action>: runs every row; prints "<name>|<curl rc>|<want>|<rc>|<index asks>|<logged 0/1>"
+  local row name ans crc want line
+  for row in "${INDEX_ROWS[@]}"; do
+    IFS='|' read -r name ans crc want line <<<"$row"
+    index_site "$ans" "$crc"; cs "$1"
+    echo "$name|$crc|$want|$rc|$(asks "$IDX")|$(grep -qE -- "$line" "$T/o" && echo 1 || echo 0)"
+  done
+}
+index_rows "$ACTION" >"$T/idx.head"
+while IFS='|' read -r name crc want got n logged; do
+  ((got == want && n == 1 && logged == 1)) && pass "index ${name}${crc:+, curl rc $crc}: rc $want, asked once, the answer logged" ||
+    fail "index ${name}${crc:+, curl rc $crc}: rc=$got want $want, asks $n, logged $logged"
+done <"$T/idx.head"
+awk -F'|' 'BEGIN { printf "  | %-26s | %-7s | rc | asks\n", "index answer", "curl rc" } { printf "  | %-26s | %-7s | %-2s | %s\n", $1, $2, $4, $5 }' "$T/idx.head"
+
+sed 's/^    (($? == 2)) \&\& /    (($? != 0)) \&\& /' "$ACTION" >"$T/m-index.sh"
+if cmp -s "$ACTION" "$T/m-index.sh"; then fail "CONTROL index: the sed changed nothing"; else
+  index_rows "$T/m-index.sh" >"$T/idx.m"
+  greens=$(awk -F'|' '$1 !~ /^no blog/ && $1 !~ /catch-all/ && $4 == 0' "$T/idx.m" | wc -l)
+  ((greens == 13)) && pass "CONTROL: the old return 0 on any failed read greens all 13 failed-read rows (red)" ||
+    fail "CONTROL index: $greens of 13 green"
+fi
+sed 's/^  ans="$(spl_blog_served_answer "$1" "$body")"$/&\n  [[ "$ans" == *$'"'"'\\n'"'"'200\\ * ]] || ans="$(spl_blog_served_answer "$1" "$body")"/' "$ACTION" >"$T/m-idxretry.sh"
+if cmp -s "$ACTION" "$T/m-idxretry.sh"; then fail "CONTROL index re-ask: the sed changed nothing"; else
+  index_site "503 text/html"; echo "$IDX 200 application/json index" >"$MAP.then"; cs
+  ((rc == 1)) && [[ "$(asks "$IDX")" == 1 ]] && pass "an index answering 503 first and 200 right after: rc 1, asked once" || fail "index 503 then 200: rc=$rc asks $(asks "$IDX")"
+  cs "$T/m-idxretry.sh"
+  ((rc == 0)) && pass "CONTROL: a copy that re-asks the index passes that site (red)" || fail "CONTROL index re-ask: still rc=$rc"
+fi
+
+# --- 11. -q on every curl; a header holding ", curl rc " (c-292 N2, N3) -------
+noq() { grep '^curl ' "$T/calls.log" | grep -vc '^curl -q '; }
+site "$OG" 200 image/webp 200 image/webp; cs; good_noq=$(noq)
+site "$OG" 200 'text/html;charset=utf-8' 200 'text/html;charset=utf-8'; cs
+[[ "$good_noq" == 0 && "$(noq)" == 0 ]] && pass "every curl call starts with -q, on a good and a failing site" || fail "-q: $good_noq and $(noq) calls without it"
+sed 's/curl -q /curl /' "$ACTION" >"$T/m-q.sh"
+if cmp -s "$ACTION" "$T/m-q.sh"; then fail "CONTROL -q: the sed changed nothing"; else
+  site "$OG" 200 image/webp 200 image/webp; cs "$T/m-q.sh"
+  [[ "$(noq)" == 4 ]] && pass "CONTROL: a copy without -q is seen on all 4 asks (red)" || fail "CONTROL -q: $(noq) of $(grep -c '^curl ' "$T/calls.log")"
+fi
+site "$OG" 200 image/webp 200 image/webp; echo "$SITE/blog/$ID cache, curl rc 9" >"$MAP.node"; cs
+((rc == 0)) && pass "a page header holding ', curl rc ' is no curl failure: rc 0" || fail "header rc: rc=$rc $(cat "$T/o")"
+sed 's/"$crc" == 0 \&\& /"$got" != *", curl rc "* \&\& /' "$ACTION" >"$T/m-hdr.sh"
+if cmp -s "$ACTION" "$T/m-hdr.sh"; then fail "CONTROL header: the sed changed nothing"; else
+  cs "$T/m-hdr.sh"
+  ((rc == 1)) && pass "CONTROL: a copy reading the rc from the answer text is a false red on that header (red)" || fail "CONTROL header: rc=$rc"
+fi
+
+# --- 12. the page's first answer decides, whatever trigger (c-318 N1, N2) ----
+# rows: <first page answer: code type [body]>|<curl rc or empty>
+PAGE_ROWS=("500 text/html|" "502 text/html|" "503 text/html|" "504 text/html|"
+  "000 -|6" "000 -|7" "000 -|28" "000 -|35" "200 text/html page|18" "200 text/html page|56")
+page_rows() { # <action>: prints "<first answer>|<crc>|<rc>|<page asks>"
+  local row ans crc
+  for row in "${PAGE_ROWS[@]}"; do
+    IFS='|' read -r ans crc <<<"$row"
+    site "$OG" 200 image/webp 200 image/webp; sed -i "s|^$SITE/blog/$ID .*|$SITE/blog/$ID $ans|" "$MAP"
+    echo "$SITE/blog/$ID 200 text/html page" >"$MAP.then"; [[ -z "$crc" ]] || echo "$SITE/blog/$ID $crc" >"$MAP.crc"
+    cs "$1"; echo "$ans|$crc|$rc|$(page_asks)"
+  done
+}
+page_rows "$ACTION" >"$T/page.head"
+while IFS='|' read -r ans crc got n; do
+  ((got == 1 && n == 3)) && pass "a page answering '${ans%% page}'${crc:+, curl rc $crc} first and 200 after: rc 1, asked 3 times" ||
+    fail "page '$ans' crc '$crc': rc=$got asks $n"
+done <"$T/page.head"
+PAGE_ASK='^  got="$(spl_blog_served_answer "$1" "$body")"$'
+sed "s/$PAGE_ASK/"'&\n  [[ "${got#*$'"'"'\\n'"'"'}" =~ ^502\\  ]] \&\& got="$(spl_blog_served_answer "$1" "$body")"/' "$ACTION" >"$T/m-x1.sh"
+sed "s/$PAGE_ASK/"'&\n  [[ "${got%%$'"'"'\\n'"'"'*}" == 56 ]] \&\& got="$(spl_blog_served_answer "$1" "$body")"/' "$ACTION" >"$T/m-x2.sh"
+sed 's/^    og="$(spl_blog_served_og "$site\/blog\/$id")" ||$/    og="$(spl_blog_served_og "$site\/blog\/$id")" || { [[ "$og" == *", curl rc "* ]] \&\& X4=1 \&\& og="$(spl_blog_served_og "$site\/blog\/$id")"; } ||/
+  s/^  for round in 1 2; do$/  for round in 1 2; do [[ $round == 2 \&\& -n "${X4:-}" ]] \&\& continue/' "$ACTION" >"$T/m-x4b.sh"
+for m in x1:502 x2:56 x4b:28; do
+  f="$T/m-${m%%:*}.sh"
+  if cmp -s "$ACTION" "$f"; then fail "CONTROL ${m%%:*}: the sed changed nothing"; continue; fi
+  page_rows "$f" >"$T/page.m"
+  hit=$(awk -F'|' -v k="${m#*:}" '($1 ~ "^"k" " || $2 == k) && $3 == 0' "$T/page.m" | wc -l)
+  ((hit >= 1)) && pass "CONTROL ${m%%:*}: a copy with that plant goes green on the ${m#*:} row (red)" || fail "CONTROL ${m%%:*}: no row went green $(tr '\n' ' ' <"$T/page.m")"
+done
 
 # --- 5. wf 30 wiring ----------------------------------------------------------
 if command -v yq >/dev/null; then

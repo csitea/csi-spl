@@ -455,6 +455,15 @@ page with a `<script` in a post body, an `on*=` attribute or a
   time; that line is earlier in the same job log. A failing curl's rc is logged
   too (`curl rc <n>`), and a page curl failed on stays a failure even when its
   `og:image` arrived before the cut.
+- **A failed read of the index is red** (SPL-6620, 2026-11-26). Only a
+  404 or 410 for `blog-md/index.json` means the site has no blog: an INFO and
+  rc 0 (measured: a site without the SPA catch-all answers 404 `text/html`).
+  A curl failure (a timeout, a refused or reset connection, a cut-off body),
+  a 5xx or any status but 200 fails the check, asked once, its answer and curl
+  rc logged; before, it passed as "no pictures to check". A 200 that is not
+  the index (the SPA catch-all) stays red as before. Every ask runs `curl -q`,
+  so no `.curlrc` changes it, and the curl rc is read apart from the logged
+  headers, so a header holding `, curl rc ` is no failure.
 - **A missing picture is a 404** (SPL-5012). A path that ends in a media type
   of the hosting cache rule (`MEDIA_GLOB` in `render-wui-firebase-json.sh`) and
   matches no file answers 404, by a rewrite to a file that does not exist,

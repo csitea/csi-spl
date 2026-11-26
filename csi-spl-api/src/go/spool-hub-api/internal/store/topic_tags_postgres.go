@@ -134,7 +134,7 @@ func (s *Postgres) RemoveTopicTag(ctx context.Context, tenant, taskID, raw, _ st
 		return err
 	})
 	if err != nil {
-		return TopicTagChange{}, err
+		return TopicTagChange{}, mapFK(err)
 	}
 	return ch, nil
 }
@@ -209,14 +209,17 @@ func dropTopicTagsTx(ctx context.Context, tx pgx.Tx, tenant string, tasks []stri
 // tags in (added_at, slug) order, the rest are dropped. Each statement runs
 // on its own snapshot, in queue order:
 //
-//  1. B's stamp row, the lock, only when A has a tag
-//  2. B takes A's tags into its free places
-//  3. A's tags held FOR UPDATE (spec 196 2.3 rule 2)
-//  4. A's stamp goes
+//  1. A's stamp row, the lock, before any link or tag (the 2.3 order: an
+//     add or remove on A holds it first too, so the two queue, never
+//     deadlock, and no A link committed mid-merge is left out)
+//  2. B's stamp row, the lock, only when A has a tag
+//  3. B takes A's tags into its free places
+//  4. A's tags held FOR UPDATE (spec 196 2.3 rule 2)
 //  5. A's tags no other topic links are pruned (their A links cascade); its
-//     snapshot is taken after 3, so a link an add committed meanwhile counts
-//  6. A's remaining links go
+//     snapshot is taken after 4, so a link an add committed meanwhile counts
+//  6. A's remaining links go, then A's stamp
 func queueMergeTopicTags(b *pgx.Batch, tenant, src, target string, at time.Time) {
+	b.Queue(topicTagLock, tenant, src, at.UTC())
 	b.Queue(`INSERT INTO topic_tag_stamps (tenant_id, task_id, updated_at)
 		SELECT $1, $3::uuid, $4 WHERE EXISTS (SELECT 1 FROM topic_tag_links WHERE tenant_id = $1 AND task_id = $2::uuid)
 		ON CONFLICT (tenant_id, task_id) DO UPDATE SET updated_at = EXCLUDED.updated_at`, tenant, src, target, at.UTC())
@@ -231,12 +234,12 @@ func queueMergeTopicTags(b *pgx.Batch, tenant, src, target string, at time.Time)
 	b.Queue(`SELECT 1 FROM topic_tags WHERE tenant_id = $1
 		AND tag_id IN (SELECT tag_id FROM topic_tag_links WHERE tenant_id = $1 AND task_id = $2::uuid)
 		ORDER BY tag_id FOR UPDATE`, tenant, src)
-	b.Queue(`DELETE FROM topic_tag_stamps WHERE tenant_id = $1 AND task_id = $2::uuid`, tenant, src)
 	b.Queue(`DELETE FROM topic_tags t WHERE t.tenant_id = $1
 		AND t.tag_id IN (SELECT tag_id FROM topic_tag_links WHERE tenant_id = $1 AND task_id = $2::uuid)
 		AND NOT EXISTS (SELECT 1 FROM topic_tag_links l WHERE l.tenant_id = t.tenant_id AND l.tag_id = t.tag_id AND l.task_id <> $2::uuid)`,
 		tenant, src)
 	b.Queue(`DELETE FROM topic_tag_links WHERE tenant_id = $1 AND task_id = $2::uuid`, tenant, src)
+	b.Queue(`DELETE FROM topic_tag_stamps WHERE tenant_id = $1 AND task_id = $2::uuid`, tenant, src)
 }
 
 // ---- spec 169 channel move and copy -------------------------------------------

@@ -241,6 +241,9 @@ func (s *Memory) RemoveTopicTag(_ context.Context, tenant, taskID, raw, _ string
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.tenants[tenant]; !ok {
+		return TopicTagChange{}, ErrNotFound
+	}
 	tt, k := s.topicTagsLocked(), [2]string{tenant, task}
 	ch := TopicTagChange{TaskID: task, Slug: slug}
 	if _, ok := tt.links[k][slug]; ok {

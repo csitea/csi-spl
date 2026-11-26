@@ -51,6 +51,7 @@ func TestNormalizeTopicTag(t *testing.T) {
 	}
 	for _, raw := range []string{"", " ", "#", "-", "--", ".", "..", "_", "a,b", ",", "a/b", "a\\b", "\"a\"", "'a'",
 		"<b>", "a\tb\x00", "a​b", "́a", "1́", "a b,c", strings.Repeat("a", 41), strings.Repeat("ж", 41),
+		strings.Repeat("\U00020000", 33), // 33 runes, 132 bytes: over the 128-byte cap
 		"a:b", "a#b", "a?b", "a%b"} {
 		if got, err := NormalizeTopicTag(raw); !errors.Is(err, ErrBadTopicTag) {
 			t.Errorf("NormalizeTopicTag(%q) = %q, %v; want ErrBadTopicTag", raw, got, err)
@@ -158,6 +159,9 @@ func checkTopicTagRefusals(t *testing.T, ts TopicTagStore, tid, task string, at 
 	if _, err := ts.AddTopicTag(ctx, uid("t-"), task, "ok", "HUM-1", at); !errors.Is(err, ErrNotFound) {
 		t.Errorf("no workspace: %v, want ErrNotFound", err)
 	}
+	if _, err := ts.RemoveTopicTag(ctx, uid("t-"), task, "ok", "HUM-1", at); !errors.Is(err, ErrNotFound) {
+		t.Errorf("remove, no workspace: %v, want ErrNotFound", err)
+	}
 	if _, err := ts.AddTopicTag(ctx, "", task, "ok", "HUM-1", at); !errors.Is(err, ErrNoTenant) {
 		t.Errorf("empty tenant: %v, want ErrNoTenant", err)
 	}
@@ -250,7 +254,7 @@ func TestTopicTagPruneWaitsForAdd(t *testing.T) {
 		_, err := pg.RemoveTopicTag(ctx, tid, x, "shared", "HUM-1", at)
 		removeDone <- err
 	}()
-	waitTopicTagLockWait(t, pg)
+	waitTopicTagLockWait(t, pg, "%topic_tags%FOR UPDATE%")
 	close(release)
 	if err := <-addDone; err != nil {
 		t.Fatal(err)
@@ -267,14 +271,15 @@ func TestTopicTagPruneWaitsForAdd(t *testing.T) {
 }
 
 // waitTopicTagLockWait waits for the event the test then relies on: a
-// session of this database waiting on a row lock (the prune's FOR UPDATE).
-func waitTopicTagLockWait(t *testing.T, pg *Postgres) {
+// session of this database whose statement matches like waiting on a row
+// lock (the prune's FOR UPDATE, the merge's stamp upsert).
+func waitTopicTagLockWait(t *testing.T, pg *Postgres, like string) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		var n int
 		if err := pg.pool.QueryRow(context.Background(), `SELECT count(*) FROM pg_stat_activity
-			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%topic_tags%FOR UPDATE%'`).Scan(&n); err != nil {
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE $1`, like).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		if n > 0 {
@@ -282,7 +287,7 @@ func waitTopicTagLockWait(t *testing.T, pg *Postgres) {
 		}
 		time.Sleep(10 * time.Millisecond) // a poll step, the budget above is the cap
 	}
-	t.Fatal("the prune never waited on the held tag")
+	t.Fatalf("no statement like %q waited on a lock", like)
 }
 
 // TestTopicTagDeleteTopic: a deleted topic's links and stamp go, its tag no
@@ -323,9 +328,9 @@ func TestTopicTagDeleteTopic(t *testing.T) {
 	}
 }
 
-// TestTopicTagMergeCap: merging A (6 tags) into B (7 tags, 2 shared) gives
-// B its 7 and the 3 earliest-added of A's other 4, a tie on added_at broken
-// by slug; the 4th is dropped and pruned, A has none.
+// TestTopicTagMergeCap: merging A (6 tags) into B (8 tags, 2 shared) gives
+// B its 8 and the 2 earliest-added of A's other 4, the tie on added_at at the
+// cap broken by slug; the other 2 are dropped and pruned, A has none.
 func TestTopicTagMergeCap(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -342,29 +347,86 @@ func TestTopicTagMergeCap(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			for i, slug := range []string{"b1", "b2", "b3", "b4", "b5", "s1", "s2"} {
+			for i, slug := range []string{"b1", "b2", "b3", "b4", "b5", "b6", "s1", "s2"} {
 				add(B, slug, i)
 			}
 			add(A, "s1", 0)
 			add(A, "s2", 0)
 			add(A, "zz-late", 9) // dropped: the latest
-			add(A, "a-tie-y", 5) // kept: tie on 5, y after x
-			add(A, "a-tie-x", 5) // kept
+			add(A, "a-tie-y", 5) // dropped: tie on 5 at the cap, y after x
+			add(A, "a-tie-x", 5) // kept: the 10th
 			add(A, "m-early", 1) // kept: the earliest
 			if _, err := s.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: cardA, SrcTask: A, TargetTask: B, ToChannel: "ops", By: "HUM-1", At: at(20)}); err != nil {
 				t.Fatal(err)
 			}
-			want := []string{"a-tie-x", "a-tie-y", "b1", "b2", "b3", "b4", "b5", "m-early", "s1", "s2"}
+			want := []string{"a-tie-x", "b1", "b2", "b3", "b4", "b5", "b6", "m-early", "s1", "s2"}
 			if got := topicTagSlugsOf(t, s, tid, B); !reflect.DeepEqual(got, want) {
 				t.Errorf("B after the merge: %v, want %v", got, want)
 			}
 			if got := topicTagSlugsOf(t, s, tid, A); len(got) != 0 {
 				t.Errorf("A after the merge: %v, want none", got)
 			}
-			if topicTagExists(t, s, tid, "zz-late") {
-				t.Error("the dropped tag was not pruned")
+			for _, slug := range []string{"zz-late", "a-tie-y"} {
+				if topicTagExists(t, s, tid, slug) {
+					t.Errorf("the dropped tag %s was not pruned", slug)
+				}
 			}
 		})
+	}
+}
+
+// TestTopicTagMergeWaitsForAdd: a merge of A queues behind an add on A that
+// holds A's stamp row (spec 196 2.3 order: the stamp first, then the tag), so
+// the add may still hold A's tags without a deadlock, and the tag it linked
+// is merged into B, not lost.
+func TestTopicTagMergeWaitsForAdd(t *testing.T) {
+	pg := rlsStore(t)
+	ctx, at := context.Background(), time.Now().UTC().Truncate(time.Microsecond)
+	tid, A, B := newTenant(t, pg), uuid4(), uuid4()
+	cardA := putTagCard(t, pg, tid, A, at)
+	putTagCard(t, pg, tid, B, at.Add(time.Second))
+	if _, err := pg.AddTopicTag(ctx, tid, A, "a1", "HUM-1", at); err != nil {
+		t.Fatal(err)
+	}
+	held, release, addDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		addDone <- pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, topicTagLock, tid, A, at); err != nil {
+				return err
+			}
+			close(held)
+			<-release
+			for _, slug := range []string{"a1", "a-late"} {
+				tagID, err := topicTagHoldTx(ctx, tx, tid, slug, "HUM-2", at)
+				if err != nil {
+					return err
+				}
+				if _, err = topicTagLinkTx(ctx, tx, tid, A, tagID, "HUM-2", at); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}()
+	<-held
+	mergeDone := make(chan error, 1)
+	go func() {
+		_, err := pg.MergeTopic(ctx, tid, MergeTopicReq{SrcMsgID: cardA, SrcTask: A, TargetTask: B, ToChannel: "ops", By: "HUM-1", At: at.Add(2 * time.Second)})
+		mergeDone <- err
+	}()
+	waitTopicTagLockWait(t, pg, "%topic_tag_stamps%")
+	close(release)
+	if err := <-addDone; err != nil {
+		t.Fatalf("the add on A: %v", err)
+	}
+	if err := <-mergeDone; err != nil {
+		t.Fatalf("the merge: %v", err)
+	}
+	if got := topicTagSlugsOf(t, pg, tid, B); !reflect.DeepEqual(got, []string{"a-late", "a1"}) {
+		t.Errorf("B after the merge: %v, want [a-late a1]", got)
+	}
+	if got := topicTagSlugsOf(t, pg, tid, A); len(got) != 0 {
+		t.Errorf("A after the merge: %v, want none", got)
 	}
 }
 

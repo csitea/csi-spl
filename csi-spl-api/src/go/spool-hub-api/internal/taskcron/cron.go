@@ -120,7 +120,7 @@ func parseField(text string, lo, hi int) (uint64, string) {
 			return 0, reason
 		}
 		for v := a; v <= b; v += step {
-			bits |= 1 << uint(v)
+			bits |= 1 << v
 		}
 	}
 	return bits, ""
@@ -179,7 +179,7 @@ func number(s string) (int, string) {
 	return n, ""
 }
 
-func (s Schedule) has(f, v int) bool { return s.bits[f]&(1<<uint(v)) != 0 }
+func (s Schedule) has(f, v int) bool { return s.bits[f]&(1<<v) != 0 }
 
 // dayMatches applies the month and the either-day rule to a civil date:
 // when both day of month and day of week are restricted, either one

@@ -140,7 +140,7 @@ The application already defines single-letter shortcuts, Shift-letter shortcuts,
 | **`h`** | Any panel | None currently bound outside text fields. | **No conflict**. `h` moves focus to the left panel (`panel - 1`). Does not collide with `Shift + H` (which requires `shiftKey: true`). |
 | **`Shift + H`** | Message card | "Hide from flow" (`MSG_SHORTCUTS`) | **Preserved**. `Shift + H` continues to hide messages. Vim navigation only acts when `!ev.shiftKey` (for `h`). |
 | **`l`** | Issues view (Panel 2) | Opens "Label" picker menu (`issues.vue:2247`) | **Resolved**: In Issues view, universal `l` moves focus to Panel 3 (issue detail pane/modal). To edit labels without leaving the keyboard, users press `Shift + L` or edit via palette `>label` / cell edit. Across all other views, `l` moves to the right panel. |
-| **`Shift + L`** | Message card | "Copy link" (`MSG_SHORTCUTS`) | **Preserved**. Requires Shift; `l` requires no Shift. |
+| **`Shift + L`** | Message card | "Discussion loops…" on a topic card (`MSG_SHORTCUTS`; "Copy link" moved to `Shift + C`, SPL-6590) | **Preserved**. Requires Shift; `l` requires no Shift. |
 | **`j` / `k`** | Message feeds | Walks message cards (`useMsgShortcuts.ts`) | **Harmonized**. Existing message stepping becomes the standard implementation for Panel 2 and Panel 3 feeds. |
 | **`j` / `k`** | Channels list | Walks channel rows (`ChannelSidebar.vue`, `312ea460`) | **Harmonized**. Existing channel row stepping becomes the Panel 1 adapter. |
 | **`j` / `k`** | Issues grid | Walks issue rows (`issues.vue:2233`) | **Harmonized**. Adopts universal step behavior. |

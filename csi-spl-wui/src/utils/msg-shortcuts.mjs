@@ -27,6 +27,13 @@
 // Shift + N (spec 155 B8, SPL-4578) runs Add to note: the note picker, only
 // while the person's notes are on (the menu's `note` flag).
 //
+// Shift + C is Copy link and Shift + L opens Discussion loops… on a topic
+// card (HUM-10 t1 127f600b, msg 9eaac5cd, SPL-6590): "the discussion loops
+// should be accessible via the Shift + L, when the topic is selected, and
+// the current Copy Links should be accessible via Shift + C, if the Shift + C
+// is reserved for something else, it should be deprived from it". So Copy
+// text (the phone sheet's) has no key; issue rows and Flow lines follow.
+//
 // ArrowUp / ArrowDown and j / k move the selection; Shift + ? lists the keys.
 // The key map and the matching rules live here so node can test them; the
 // listener is composables/useMsgShortcuts.ts.
@@ -47,8 +54,8 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'P', items: ['parent'], labelKey: 'feed.msg_menu.open_parent' },
   { key: 'B', items: [], labelKey: 'feed.shortcuts.to_parent' },
   { key: 'U', items: [], labelKey: 'feed.shortcuts.back_to_reply' },
-  { key: 'L', items: ['copy'], labelKey: 'feed.msg_menu.copy_link' },
-  { key: 'C', items: ['copy-text'], labelKey: 'feed.msg_menu.copy_text' },
+  { key: 'C', items: ['copy'], labelKey: 'feed.msg_menu.copy_link' },
+  { key: 'L', items: ['topic-loops'], labelKey: 'feed.msg_menu.topic_loops' },
   { key: 'N', items: ['add-to-note'], labelKey: 'feed.msg_menu.add_to_note' },
   { key: 'K', items: ['kind'], labelKey: 'feed.msg_menu.kind' },
   { key: 'X', items: ['make-task'], labelKey: 'feed.msg_menu.make_task' },
@@ -321,7 +328,7 @@ export const ISSUE_SHORTCUTS = Object.freeze([
   { key: 'A', item: 'archive', labelKey: 'issues_menu.archive' },
   { key: 'O', item: 'open', labelKey: 'issues_menu.open' },
   { key: 'P', item: 'parent', labelKey: 'issues_menu.open_parent' },
-  { key: 'L', item: 'copy', labelKey: 'issues_menu.copy_link' },
+  { key: 'C', item: 'copy', labelKey: 'issues_menu.copy_link' },
   { key: 'K', item: 'kind', labelKey: 'feed.msg_menu.kind' },
   { key: 'M', item: 'move', labelKey: 'issues_menu.move' },
   { key: 'D', item: 'delete', labelKey: 'issues_menu.delete' },
@@ -400,14 +407,15 @@ export function issueShortcutsSection(label) {
  * newest message). The message keys with no meaning on a folded line (it
  * folds a topic's day, not one message): H (hide one message), E (edit),
  * A (archive: a topic card's author or an admin only), P / B / U (thread
- * jumps), T (promote), M (move), D (delete).
+ * jumps), T (promote), M (move), D (delete), L (Discussion loops: a topic
+ * card's). Copy text has no key (SPL-6590).
  */
 export const FLOW_LINE_ACTIONS = Object.freeze([
   { id: 'open', key: 'O', icon: 'messages', labelKey: 'flow.menu.open_discussion' },
   { id: 'issue', key: '', icon: 'issues', labelKey: 'flow.menu.open_issue' },
   { id: 'release', key: 'O', icon: 'tag', labelKey: 'flow.menu.open_release' },
-  { id: 'copy', key: 'L', icon: 'copy', labelKey: 'feed.msg_menu.copy_link' },
-  { id: 'copy-text', key: 'C', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' },
+  { id: 'copy', key: 'C', icon: 'copy', labelKey: 'feed.msg_menu.copy_link' },
+  { id: 'copy-text', key: '', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' },
   { id: 'read', key: '', icon: 'check', labelKey: 'flow.menu.mark_read' },
 ].map((s) => Object.freeze(s)))
 
@@ -418,7 +426,7 @@ export const FLOW_SHORTCUTS = Object.freeze([
   Object.freeze({ key: 'K', labelKey: 'feed.msg_menu.kind' }),
 ])
 
-/** The Flow line menu entry's hint ("⇧L"), '' when it has no key. */
+/** The Flow line menu entry's hint ("⇧C"), '' when it has no key. */
 export function flowShortcutHint(itemId) {
   const a = FLOW_LINE_ACTIONS.find((x) => x.id === String(itemId || ''))
   return a && a.key ? `⇧${a.key}` : ''

@@ -165,8 +165,8 @@ async function foldedLines(p, size, tag) {
     await rightClick(p, TOPIC_LINE)
     await p.waitForSelector('[data-testid=flow-menu]', { visible: true, timeout: 5000 }).catch(() => {})
     const topicMenu = Object.fromEntries(await menuIds(p).catch(() => []))
-    ok(`${tag}: a topic line's menu: Open discussion (Shift+O), Copy link (Shift+L), Copy text (Shift+C), Mark read; no release log`,
-      topicMenu.open === 'Shift+O' && topicMenu.copy === 'Shift+L' && topicMenu['copy-text'] === 'Shift+C' && 'read' in topicMenu && !('release' in topicMenu), topicMenu)
+    ok(`${tag}: a topic line's menu: Open discussion (Shift+O), Copy link (Shift+C), Copy text (no key, SPL-6590), Mark read; no release log`,
+      topicMenu.open === 'Shift+O' && topicMenu.copy === 'Shift+C' && topicMenu['copy-text'] === '' && 'read' in topicMenu && !('release' in topicMenu), topicMenu)
     await closeMenu(p)
     await rightClick(p, REL_LINE)
     await p.waitForSelector('[data-testid=flow-menu]', { visible: true, timeout: 5000 }).catch(() => {})
@@ -182,10 +182,10 @@ async function foldedLines(p, size, tag) {
     const topicKey = await p.$eval(TOPIC_LINE, (el) => el.getAttribute('data-key'))
     await p.evaluate((key) => { const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia; pinia._s.get('flow').select(key) }, topicKey)
     await sleep(100)
-    await shiftKey(p, 'L')
+    await shiftKey(p, 'C')
     await sleep(300)
     const copied = await p.evaluate(() => window.__copied)
-    ok(`${tag}: Shift+L on the selected line copies its link (/t/<topic>#<newest msg>)`, copied.some((u) => u.includes('/t/' + DM_TOPIC + '#' + MINE)), copied)
+    ok(`${tag}: Shift+C on the selected line copies its link (/t/<topic>#<newest msg>)`, copied.some((u) => u.includes('/t/' + DM_TOPIC + '#' + MINE)), copied)
     await shiftKey(p, 'R')
     const rMenu = await p.waitForSelector('[data-testid=flow-menu]', { visible: true, timeout: 3000 }).then(Boolean, () => false)
     ok(`${tag}: Shift+R opens the selected line's menu`, rMenu)

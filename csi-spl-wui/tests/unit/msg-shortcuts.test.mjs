@@ -129,10 +129,40 @@ describe('shortcutItem / offeredItems: the menu decides', () => {
   })
 })
 
+/* SPL-6590 (HUM-10 t1 127f600b, msg 9eaac5cd): Shift + L opens Discussion
+   loops… on a topic card, Shift + C copies the link, Copy text has no key */
+describe('Shift + L is Discussion loops, Shift + C is Copy link (SPL-6590)', () => {
+  it('Shift + L runs topic-loops on a topic card the menu offers it for, nothing elsewhere', () => {
+    assert.equal(shortcutItem('L', offeredItems({ loops: true })), 'topic-loops')
+    assert.equal(shortcutItem('L', offeredItems({ editable: true })), '', 'a reply offers no loops')
+    assert.equal(shortcutItem('L', offeredItems({ loops: false, locks: { loops: 'feed.msg_menu.why.loops_admins' } })), '',
+      'locked: the menu shows it disabled, the key does nothing')
+  })
+
+  it('Shift + C runs Copy link; Copy text keeps its phone-sheet item and has no key', () => {
+    const offered = offeredItems({ editable: true })
+    assert.ok(offered.has('copy-text'), 'still on the phone sheet')
+    assert.equal(shortcutItem('C', offered), 'copy')
+    assert.equal(MSG_SHORTCUTS.some((s) => s.items.includes('copy-text')), false)
+  })
+
+  it('no key is used twice in the message, issue or Flow maps; issue and Flow copy the link with C', () => {
+    const keys = MSG_SHORTCUTS.map((s) => s.key)
+    assert.equal(new Set(keys).size, keys.length, keys.join(''))
+    const ik = ISSUE_SHORTCUTS.map((s) => s.key)
+    assert.equal(new Set(ik).size, ik.length, ik.join(''))
+    assert.equal(ISSUE_SHORTCUTS.find((s) => s.item === 'copy').key, 'C')
+    assert.equal(FLOW_LINE_ACTIONS.find((a) => a.id === 'copy').key, 'C')
+    assert.equal(FLOW_LINE_ACTIONS.find((a) => a.id === 'copy-text').key, '')
+  })
+})
+
 describe('hints, the setting, the catalogue', () => {
   it('a menu item shows ⇧ + its letter, an item with no key shows nothing', () => {
     assert.equal(shortcutHint('hide-flow'), '⇧H')
-    assert.equal(shortcutHint('copy'), '⇧L')
+    assert.equal(shortcutHint('copy'), '⇧C')
+    assert.equal(shortcutHint('topic-loops'), '⇧L')
+    assert.equal(shortcutHint('copy-text'), '')
     assert.equal(shortcutHint('delete-topic'), '⇧D')
     assert.equal(shortcutHint('merge-topic'), '⇧M')
     assert.equal(shortcutHint('merge-prev'), '')
@@ -382,8 +412,9 @@ describe('Flow lines take the message keys (spec 130, owner t1 1cde1dd4 f9300a98
   it('Shift + O opens what the line points to; a key runs only an offered action', () => {
     assert.equal(flowShortcutItem('O', ['open', 'issue', 'copy']), 'open')
     assert.equal(flowShortcutItem('O', ['release', 'copy']), 'release')
-    assert.equal(flowShortcutItem('L', ['open', 'copy']), 'copy')
+    assert.equal(flowShortcutItem('C', ['open', 'copy']), 'copy')
     assert.equal(flowShortcutItem('C', ['open']), '')
+    assert.equal(flowShortcutItem('L', ['open', 'copy', 'copy-text']), '', 'SPL-6590: L is no Flow key, Copy text has none')
     assert.equal(flowShortcutItem('R', ['open']), '', 'Shift + R opens the menu, it runs no action')
     assert.equal(flowShortcutItem('A', ['open']), '', 'no archive on a folded line')
   })
@@ -405,7 +436,8 @@ describe('Flow lines take the message keys (spec 130, owner t1 1cde1dd4 f9300a98
   })
 
   it('the menu hints are the keys; every label exists', () => {
-    assert.equal(flowShortcutHint('copy'), '⇧L')
+    assert.equal(flowShortcutHint('copy'), '⇧C')
+    assert.equal(flowShortcutHint('copy-text'), '')
     assert.equal(flowShortcutHint('issue'), '')
     for (const a of FLOW_LINE_ACTIONS) assert.equal(typeof label(a.labelKey), 'string', a.labelKey)
     for (const s of FLOW_SHORTCUTS) assert.equal(typeof label(s.labelKey), 'string', s.labelKey)

@@ -135,8 +135,8 @@ try {
   const hint = Object.fromEntries(full)
   ok('4a the issue row menu also offers copy link and move',
     ['issues-ctxmenu-copy', 'issues-ctxmenu-move'].every((k) => k in hint), full)
-  ok('4b its entries name the message keys: archive Shift+A, delete Shift+D, copy link Shift+L, open Shift+O, edit Shift+E, move Shift+M',
-    hint['issues-ctxmenu-archive'] === 'Shift+A' && hint['issues-ctxmenu-delete'] === 'Shift+D' && hint['issues-ctxmenu-copy'] === 'Shift+L'
+  ok('4b its entries name the message keys: archive Shift+A, delete Shift+D, copy link Shift+C, open Shift+O, edit Shift+E, move Shift+M',
+    hint['issues-ctxmenu-archive'] === 'Shift+A' && hint['issues-ctxmenu-delete'] === 'Shift+D' && hint['issues-ctxmenu-copy'] === 'Shift+C'
       && hint['issues-ctxmenu-open'] === 'Shift+O' && hint['issues-ctxmenu-edit'] === 'Shift+E' && hint['issues-ctxmenu-move'] === 'Shift+M', hint)
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-ctxmenu]'), { timeout: 3000 }).catch(() => {})
@@ -157,13 +157,13 @@ try {
   await cancelCascade(p)
   ok('4e nothing was archived or deleted by the cancelled asks', Boolean(await p.$(rowSel(spl3))))
   await p.$eval(rowSel(spl3), (el) => el.focus())
-  await shiftKey(p, 'L')
+  await shiftKey(p, 'C')
   await sleep(200)
   const copied = await p.evaluate(() => window.__copied)
-  ok('4f Shift+L copies the issue\'s link', copied.some((u) => u.includes(`issue=${spl3}`)), copied)
+  ok('4f Shift+C copies the issue\'s link', copied.some((u) => u.includes(`issue=${spl3}`)), copied)
   // the focused row wins over the selected one (a fresh page selects none)
   await p.$eval(rowSel(spl2), (el) => el.focus())
-  await shiftKey(p, 'L')
+  await shiftKey(p, 'C')
   await sleep(200)
   const copied2 = await p.evaluate(() => window.__copied)
   const selNow = await p.$eval('[data-test=issues-row][data-selected=true]', (el) => el.getAttribute('data-key')).catch(() => '')

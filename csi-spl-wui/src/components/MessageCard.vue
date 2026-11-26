@@ -835,10 +835,12 @@ const { onKey } = useCardKeys({
   actions: {
     onMenuOpen, onMenuParent, onMenuEdit, copyMessageLink, copyBody, onMenuReply, onMenuKind,
     onMenuArchive, onMenuDelete, onMenuDeleteTopic, openMovePicker, onPromote, onMenuHide, onMakeTask,
+    /* SPL-6590: Shift + L opens Discussion loops… as the menu item does */
+    onMenuLoops: () => { loopsOpen.value = true },
   },
   flags: {
     showParent, parentKind, showTopicArchive, paneArchiveReply, showTopicDelete, kindSettable,
-    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks, canMakeTask,
+    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks, canMakeTask, showTopicLoops,
   },
 })
 

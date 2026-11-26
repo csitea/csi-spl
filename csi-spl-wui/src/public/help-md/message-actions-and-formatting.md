@@ -49,8 +49,8 @@ Every message row features a dedicated action menu. You can access it by clickin
 | **Open in channels view** / **Open in direct msg view** | On a thread line, opens the channel or the direct message the thread lives in, with the parent card selected and the thread kept open. An issue discussion keeps the words **Open parent section**. | `Shift + P` |
 | **Hide from flow** | On a reply in the topic view, hides that reply on this device only. A thicker line stands where a run of hidden replies was; tap the line to show them again. It is not an archive and not a delete. | `Shift + H` |
 | **Edit Message** | Enters inline editing mode (available on your own messages). | `Double-Click` / `e` / `Shift + E` |
-| **Copy Link to Message** | Copies a permanent direct deep-link URL to your clipboard. | `Shift + L` |
-| **Copy text** | Copies the message text. On a phone this is on the menu; on a desktop it is `Shift + C`. | `Shift + C` |
+| **Copy Link to Message** | Copies a permanent direct deep-link URL to your clipboard. | `Shift + C` |
+| **Copy text** | Copies the message text. On a phone this is on the menu. It has no key: `Shift + C` copies the link. | — |
 | **Reply** | Starts a reply. On a phone the menu begins with Reply, then **Add emoji**. | — |
 | **Change kind** | On a phone, when you may re-type the message, sets its kind. On a desktop the kind badge does this, and the key does it too. | `Shift + K` |
 | **Merge with Previous** | Combines this message into the preceding message in the same thread. | — |
@@ -58,6 +58,7 @@ Every message row features a dedicated action menu. You can access it by clickin
 | **Make it a topic** | Promotes a thread reply into a topic of its own. | `Shift + T` |
 | **Move to channel…** / **Move to topic…** | Moves a topic to another channel, or a reply to another topic. | `Shift + M` |
 | **Merge into…** | Merges this whole topic into another topic. | `Shift + M` |
+| **Discussion loops…** | On a topic card, on a desktop, opens the topic's loops: the prompts posted into it on a schedule or an event. Greyed, with the reason, for whom the topic's archive setting does not allow it; then the key does nothing too. | `Shift + L` |
 | **Archive** | Archives the topic. To bring it back, click **Undo** on the "Archived" note, or the topic's **Archived** label. On a phone it sits high in the menu, next to Edit. | `Shift + A` |
 | **Delete Message** | Removes the message, or the topic and its replies. Asks first. | `Shift + D` |
 

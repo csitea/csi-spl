@@ -5,7 +5,9 @@
 //
 // Against the lde mock (no hub), a 1280x800 desktop, no touch:
 //   - Shift + ? opens msg-shortcuts-help, naming Hide from flow for H
-//   - the reply's right-click menu shows "⇧H" (msg-menu-key-hide-flow) and "⇧L"
+//   - the reply's right-click menu shows "⇧H" (msg-menu-key-hide-flow) and "⇧C"
+//     on Copy link (SPL-6590); a topic card's shows "⇧L" on Discussion loops…
+//   - Shift + L on a selected middle (topic) card opens Discussion loops…
 //   - j / k move the selection between the starter and the reply
 //   - Shift + H on the selected reply hides it (the hidden-cards line stands in)
 //   - Shift + A on a selected middle card archives it (it leaves, Archived · Undo)
@@ -237,7 +239,7 @@ try {
 
   /* ---- the menu shows each item's key ---- */
   const keys = await menuKeys(p, card(R1))
-  ok('the reply menu shows ⇧H on Hide from flow and ⇧L on Copy link', keys && keys['msg-menu-key-hide-flow'] === '⇧H' && keys['msg-menu-key-copy'] === '⇧L' && keys['hide-flow-text'] === 'Hide from flow', keys)
+  ok('the reply menu shows ⇧H on Hide from flow and ⇧C on Copy link (SPL-6590)', keys && keys['msg-menu-key-hide-flow'] === '⇧H' && keys['msg-menu-key-copy'] === '⇧C' && keys['hide-flow-text'] === 'Hide from flow', keys)
 
   /* ---- j / k move the selection, in the feed's own (DOM) order, as ArrowDown / ArrowUp ---- */
   const order = await p.evaluate(() => [...document.querySelectorAll('.topic [role="feed"] article.msg')].map((e) => e.getAttribute('data-msg-id')))
@@ -287,6 +289,16 @@ try {
     ok('Shift + E in a text field types E and opens no editor', /E$/.test(val) && !(await has(p, '.msg-edit textarea, [data-testid=msg-edit]')), val)
     await p.evaluate(() => { const b = document.activeElement; if (b && 'value' in b) { b.value = ''; b.dispatchEvent(new Event('input', { bubbles: true })) } b?.blur() })
   }
+
+  /* ---- SPL-6590: Shift + L opens Discussion loops… on the selected topic card ---- */
+  ok('the middle card for the loops is there', await until(p, visible, midCard(T2), 6000))
+  const topicKeys = await menuKeys(p, midCard(T2))
+  ok('a topic card\'s menu shows ⇧L on Discussion loops… and ⇧C on Copy link', topicKeys && topicKeys['msg-menu-key-topic-loops'] === '⇧L' && topicKeys['msg-menu-key-copy'] === '⇧C', topicKeys)
+  await select(p, midCard(T2))
+  await shiftKey(p, 'L')
+  ok('Shift + L opens Discussion loops… for that topic', await until(p, visible, '[data-testid=topic-loops]', 5000))
+  await p.keyboard.press('Escape')
+  ok('Esc closes it', await until(p, (s) => !document.querySelector(s), '[data-testid=topic-loops]', 4000))
 
   /* ---- Shift + A archives the selected middle card ---- */
   ok('the middle card to archive is there', await until(p, visible, midCard(T2), 6000))

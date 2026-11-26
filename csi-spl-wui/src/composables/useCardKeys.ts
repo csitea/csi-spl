@@ -24,7 +24,7 @@ interface CardKeyActions {
   onMenuOpen: Handler, onMenuParent: Handler, onMenuEdit: Handler, copyMessageLink: Handler, copyBody: Handler,
   onMenuReply: Handler, onMenuKind: Handler, onMenuArchive: Handler, onMenuDelete: Handler, onMenuDeleteTopic: Handler,
   openMovePicker: (mode: 'channel' | 'topic' | 'merge') => unknown, onPromote: Handler, onMenuHide: Handler,
-  onMakeTask: Handler,
+  onMakeTask: Handler, onMenuLoops: Handler,
 }
 
 /** The card's menu flags, which useMsgShortcuts offers the same way. */
@@ -32,6 +32,7 @@ interface CardKeyFlags {
   showParent: Ref<boolean>, parentKind: Ref<Flags['parentKind']>, showTopicArchive: Ref<boolean>, paneArchiveReply: Ref<boolean>,
   showTopicDelete: Ref<boolean>, kindSettable: Ref<boolean>, canMoveTopic: Ref<boolean>, canMoveMsg: Ref<boolean>,
   canPromoteMsg: Ref<boolean>, menuHide: Ref<boolean>, menuLocks: Ref<Flags['locks']>, canMakeTask: Ref<boolean>,
+  showTopicLoops: Ref<boolean>,
 }
 
 /** What the card hands its keyboard: the row, its edit and delete state, and its menu. */
@@ -58,7 +59,7 @@ function shortcutRunOf(a: CardKeyActions): Record<string, () => unknown> {
     reply: a.onMenuReply, kind: a.onMenuKind, archive: a.onMenuArchive, delete: a.onMenuDelete, 'delete-topic': a.onMenuDeleteTopic,
     'move-channel': () => a.openMovePicker('channel'), 'move-topic': () => a.openMovePicker('topic'),
     'merge-topic': () => a.openMovePicker('merge'), 'promote-topic': a.onPromote, 'hide-flow': a.onMenuHide,
-    'make-task': a.onMakeTask,
+    'make-task': a.onMakeTask, 'topic-loops': a.onMenuLoops,
   }
 }
 
@@ -90,7 +91,7 @@ export function useCardKeys(deps: CardKeyDeps) {
   const { props, emit, rowEl, editing, removing, startEdit, canEdit, msgDeleteOpen, deleteUndo, actions } = deps
   const {
     showParent, parentKind, showTopicArchive, paneArchiveReply, showTopicDelete, kindSettable,
-    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks, canMakeTask,
+    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks, canMakeTask, showTopicLoops,
   } = deps.flags
 
   /* Delete / Backspace on the selected row. A topic-level message
@@ -153,7 +154,7 @@ export function useCardKeys(deps: CardKeyDeps) {
       topicArchive: showTopicArchive.value, paneArchive: paneArchiveReply.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
       moveChannel: canMoveTopic.value, mergeTopic: canMoveTopic.value, moveTopic: canMoveMsg.value,
       promoteTopic: canPromoteMsg.value, hide: menuHide.value, locks: menuLocks.value, toTask: canMakeTask.value,
-      note: note.offered.value,
+      note: note.offered.value, loops: showTopicLoops.value,
     }),
   })
 

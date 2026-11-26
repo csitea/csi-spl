@@ -98,8 +98,8 @@ These keys act on the **selected message**. They work on a desktop. Turn them of
 | **`Shift + P`** | Selected message, desktop | Open parent section |
 | **`Shift + B`** | Selected message, desktop | Go to the topic's first message in the list |
 | **`Shift + U`** | Selected message, desktop | Back to the reply |
-| **`Shift + L`** | Selected message, desktop | Copy link |
-| **`Shift + C`** | Selected message, desktop | Copy text |
+| **`Shift + C`** | Selected message, desktop | Copy link |
+| **`Shift + L`** | Selected message, desktop | Discussion loops… |
 | **`Shift + N`** | Selected message, desktop | Add to note |
 | **`Shift + K`** | Selected message, desktop | Change kind |
 | **`Shift + X`** | Selected message, desktop | Make it a task |
@@ -136,7 +136,7 @@ On the **Issues** list these keys act on the **selected issue row**, the same ke
 | **`Shift + A`** | Selected issue row, desktop | Archive |
 | **`Shift + O`** | Selected issue row, desktop | Open |
 | **`Shift + P`** | Selected issue row, desktop | Open parent |
-| **`Shift + L`** | Selected issue row, desktop | Copy link |
+| **`Shift + C`** | Selected issue row, desktop | Copy link |
 | **`Shift + K`** | Selected issue row, desktop | Change kind |
 | **`Shift + M`** | Selected issue row, desktop | Move to… |
 | **`Shift + D`** | Selected issue row, desktop | Delete |
@@ -150,8 +150,7 @@ In the **Flow** list these keys act on the **selected line**, the same keys the 
 | **`Shift + R`** | Selected Flow line, desktop | Open menu |
 | **`Shift + O`** | Selected Flow line, desktop | Open discussion |
 | **`Shift + O`** | Selected Flow line, desktop | Open release log |
-| **`Shift + L`** | Selected Flow line, desktop | Copy link |
-| **`Shift + C`** | Selected Flow line, desktop | Copy text |
+| **`Shift + C`** | Selected Flow line, desktop | Copy link |
 | **`Shift + K`** | Selected Flow line, desktop | Change kind |
 
 <!-- version: 1.2.5 · updated: 2026-10-11 -->

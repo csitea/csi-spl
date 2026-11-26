@@ -30,7 +30,9 @@ perf 36, refactor 111, 24.5%, 5 x 36 = 180 >= 147, floor-met, so this is a refac
 Both rows are **one fact, one copy** (developer guide 2.2.4), continuing directly from
 r02-02 (`8ff47fd73`) and r03-02 (`0fcaa450b`) and taking the top two candidates from r03
 section 7: duplicated `orc:src/bash/run/` scaffolding delegates to one shared helper in a
-sibling file, leaving every log line, exit code, env var, and path unchanged.
+sibling file, leaving every log line, env var, and path unchanged (row 01 also tightens a
+pre-existing `ISSUE_PLAN` file in `oq` to `0600`, enforcing the `0600` contract already
+documented at `oq:72`, and returns 1 if that `chmod` fails).
 **Row 01:** the two Postgres-read-then-desk-diss issue cleanup actions in
 `orc:src/bash/run/` — `spl-issue-blocker-rca-close.func.sh` and
 `spl-issue-owner-question-diss.func.sh` (r03 section 7 #2) — already share
@@ -57,9 +59,11 @@ callers stay untouched and byte-identical) lets all three wave-3 installers lazy
 `setup-box-stats-cron.func.sh` and pass `""` as arg 11.
 The rows share no file: both are batch 1.
 
-**Status: v0.1 draft (awaiting cross-vendor panel review).** Editor: **a-852** (agy).
-Cross-vendor claude panel seat **c-804** is live and will review this v0.1 sha on
-`review/c002-refactor-round-04-planner` before v1.0 signing and landing.
+**Status: v0.2 (folded panel FAIL W1, W2 and N1-N6; awaiting panel re-review).** Editor:
+**a-852** (agy). Cross-vendor claude panel seat **c-804** returned FAIL on v0.1
+(`4ded3bf46`, seat commit `16df4c069`) for W1 and W2; v0.2 folds W1 (option a), W2, and
+N1-N6 on `review/c002-refactor-round-04-planner` for re-review before v1.0 signing and
+landing.
 
 **One sha:** every count is measured on **`ffba81845`** (`ffba818456f9b6f171c0fac34a2d7c6d94918a02`,
 `origin/master` at 2026-11-26T00:47:49Z), n=1 per command unless stated. Reads are on
@@ -90,9 +94,10 @@ their own time.
 - `git log origin/master --since="$W" --oneline -E --grep='\(r04-' | wc -l` -> **0**.
 - `git ls-remote origin 'refs/heads/review/r04-*' 'refs/heads/*-r04-*' 'refs/heads/*refactor-round-04*' 'refs/heads/wip/*r04*'`
   -> nothing (before this plan's review branch push).
-- `ls /var/spool-hub/dispatch/briefs | grep -E 'r04-[0-9]{2}|refactor-round-04'` (on the
-  planner/holder box only) -> **2** briefs only: this planner's brief and the panel seat's
-  brief (`c002-refactor-round-04-claude-panel-seat.md`); 0 `r04-NN` row briefs.
+- `ls /var/spool-hub/dispatch/briefs | grep -E 'r04-[0-9]{2}|refactor-round-04'` (local to
+  the planner/holder box only, not on the panel seat's box; re-confirmed by the dispatch
+  holder at 01:4xZ) -> **2** briefs only: this planner's brief and the panel seat's brief
+  (`c002-refactor-round-04-claude-panel-seat.md`); 0 `r04-NN` row briefs.
 - `git ls-tree --name-only ffba81845 csi-spl-doc/doc/md/ | grep -c refactor-round-04`
   -> **0** (only `refactor-round-4-plan.md` exists, so `refactor-round-04-plan.md` is free
   with no date suffix per rulebook 5.3).
@@ -105,7 +110,9 @@ their own time.
     `spl-issue-owner-question-diss.func.sh`: 3 duplicated multi-line blocks (`do_spl_*`
     plan-read/verdicts/dry-run-or-apply driver, `*_plan_path`, and `_*_query`), pure-bash
     unit tests, already paired via `spl_issue_brc_one` (r90-02) -> measured here as
-    **row 01** (1.3).
+    **row 01** (1.3). The remaining `*_read` (`brc:81-86` vs `oq:83-89`) and `*_apply`
+    (`brc:126-151` vs `oq:136-162`) scaffolding also listed in r03 section 7 #2 stay out
+    of r04 and are accounted for in section 7 as `r05`+ candidates.
   - Remaining single-line cron installers matching `_spl_simple_cron_apply`
     (`setup-box-stats-cron.func.sh`): 6 remained after r03-02 (`0fcaa450b`). The 3
     cleanest pure-bash wave-3 matches (`spl-spawn-remote-install-cron.func.sh`,
@@ -131,7 +138,9 @@ their own time.
     "bug rows and test rows are not yours"), so it is accounted for in section 7 and stays
     out of r04.
 - **(c) The dispatcher's candidates file**
-  (`/var/spool-hub/dispatch/c002-next-round-candidates.md`, 142 lines, read 00:47Z):
+  (`/var/spool-hub/dispatch/c002-next-round-candidates.md`, local to the holder/planner
+  box only and not on the panel seat's box; 142 lines, 31,775 bytes, read 00:47Z and
+  re-confirmed by the dispatch holder at 01:4xZ):
   - Only addition since r03 is a bug-round-48 `spl-review-go.func.sh` false-hold item
     (lines 141-142, bug-shaped).
   - All earlier items remain served or out of scope (bug, perf, doc, test-hardening, or
@@ -153,8 +162,10 @@ their own time.
      `spl_issue_brc_read`/`verdicts`/`apply` vs `spl_issue_oq_read`/`verdicts`/`apply`, n=1).
   2. Plan file creation (`brc:71-77` vs `oq:73-79`, 7 lines each): `diff -u` -> 6 diff
      lines (function name, state subdir `issue-blocker-rca` vs `issue-owner-question`,
-     and `brc`'s explicit `&& chmod 600 "$p"` after `(umask 077; : >"$p")`, which
-     enforces the 0600 contract already documented in `oq:72`, n=1).
+     and `brc`'s explicit `&& chmod 600 "$p"` after `(umask 077; : >"$p")`). Base `oq:77`
+     omits `chmod 600 "$p"`, so a pre-existing `0644` `ISSUE_PLAN` stayed `644` on base
+     and is now tightened to `600` on head1 (enforcing the `0600` contract already
+     documented at `oq:72`, and returning 1 if `chmod` fails, n=1).
   3. Read-only SQL query execution and proxy stop (`brc:90-97` vs `oq:93-100`, 8 lines
      each): `diff -u` -> 4 diff lines (function name and `spl_issue_brc_sql` vs
      `spl_issue_oq_sql`, n=1).
@@ -173,9 +184,15 @@ their own time.
   `if spl_issue_brc_one "$key" "$why"; then` line untouched so standalone calls and the
   existing `r90-02` assertion in `spl-issue-owner-question-diss.tst.sh:74` remain intact).
 - `do_spl_cloud_cnf` stays in `do_spl_issue_blocker_rca_close` before `plan_path` and in
-  `spl_issue_oq_read` for `oq`, preserving exact execution order and test stubs. Neither
-  file handles credentials or secrets directly (non-secret; DB auth stays in
-  `spl_db_query_rc`).
+  `spl_issue_oq_read` for `oq`, preserving exact execution order and test stubs. Lazy-load
+  note (N4): sourcing `spl-issue-blocker-rca-close.func.sh` inside
+  `do_spl_issue_owner_question_diss` when `_spl_issue_brc_run_plan` is undefined also
+  (re)defines `spl_issue_brc_one` (previously sourced only inside `spl_issue_oq_apply`
+  when `spl_issue_brc_one` was undefined). Verified on `ffba81845`:
+  `git grep -n 'spl_issue_brc_one *()' ffba81845` -> 1 hit
+  (`spl-issue-blocker-rca-close.func.sh:154`, its own definition); no test or caller stubs
+  `spl_issue_brc_one` alone, so no separate stub or guard is needed. Neither file handles
+  credentials or secrets directly (non-secret; DB auth stays in `spl_db_query_rc`).
 - Line-cap check (`bash-cleancode.tst.sh`, cap 75): `do_spl_issue_blocker_rca_close`
   21 -> 8 lines; `_spl_issue_brc_run_plan` is 17 lines; `spl_issue_brc_plan_path` 7 -> 8
   lines; `_spl_issue_brc_query` stays 8 lines; `do_spl_issue_owner_question_diss` 20 -> 9
@@ -202,17 +219,19 @@ Shape (built as head1 of 1.5):
   `_spl_issue_brc_run_plan` dry/live check, direct `_spl_issue_brc_query` custom `SQL_FN`
   success and error checks (both stopping proxy), and 1 one-copy check. 130 -> 176 lines
   (`+46 -0`).
-- `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh`: append 3 checks before `:89`
+- `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh`: append 4 checks before `:89`
   (`[[ $fails -eq 0 ]]`): 1 one-copy check (no `spl_issue_oq_plan_path`, no duplicated
   `OK DRY_RUN nothing was moved. PLAN`, no duplicated `FATAL read-only query on`, calls
   all three brc helpers), 1 standalone `IN_ORC_RUN=spl-issue-owner-question-diss` dry-run
-  check asserting the default `issue-owner-question` subdir (0700 dir, 0600 file), and 1
+  check asserting the default `issue-owner-question` subdir (0700 dir, 0600 file), 1
   standalone `_spl_issue_oq_query` lazy-load check asserting `spl_issue_oq_sql` is passed
-  to `spl_psql_ro` and proxy stops. 89 -> 118 lines (`+29 -0`).
+  to `spl_psql_ro` and proxy stops, and 1 red-then-green plan-mode check asserting a
+  pre-existing `0644` `ISSUE_PLAN` is tightened to `0600` (base: `644`, head1: `600`).
+  89 -> 124 lines (`+35 -0`).
 - head1's files, sha256 (12 chars): `spl-issue-blocker-rca-close.func.sh` `c9476da5a155`,
   `spl-issue-owner-question-diss.func.sh` `3cfae296d937`,
   `spl-issue-blocker-rca-close.tst.sh` `29126e34f396`,
-  `spl-issue-owner-question-diss.tst.sh` `d880d5189ac1`.
+  `spl-issue-owner-question-diss.tst.sh` `fcd6c8c7efbd`.
 - Note for the row and its reviewer: build `gc1a`, `gc1b`, `m1a`, and `m1b` in detached
   git worktrees, not single-file temp copies, because the lazy-source guards load their
   sibling via `dirname "${BASH_SOURCE[0]}"`.
@@ -388,14 +407,23 @@ out=$(env PROJ_ROOT="$PROJ_ROOT" "${base[@]}" bash -c '
 [[ $rc -eq 0 && "$out" == *"STOPPED"* && "$out" == *"DSN=pg://local"* && "$out" == *"assignee = 'HUM-10'"* && "$out" != *"command not found"* ]] &&
   pass "r04-01 standalone query: _spl_issue_oq_query lazy-loads _spl_issue_brc_query and passes spl_issue_oq_sql" ||
   fail "r04-01 oq solo query (rc=$rc): $out"
+
+(umask 022; : >"$T/plan.tsv"; chmod 644 "$T/plan.tsv")
+run
+[[ $RC -eq 0 && "$(stat -c %a "$T/plan.tsv")" == 600 ]] &&
+  pass "r04-01 plan mode: an existing 0644 ISSUE_PLAN is tightened to 0600" ||
+  fail "r04-01 existing plan mode (rc=$RC): $(stat -c %a "$T/plan.tsv")"
 ```
 
-**Behaviour:** `_spl_issue_brc_run_plan`, `spl_issue_brc_plan_path`, and
-`_spl_issue_brc_query` execute the exact commands, file modes (0700 dir, 0600 plan),
-log lines, proxy stop, and exit codes previously duplicated across both files;
-`do_spl_cloud_cnf` ordering and `spl_issue_oq_apply`'s distinct re-read check stay
-unchanged. All row-01 and shared suites pass on base and head1 with identical counts plus
-the 4 + 3 new checks (1.5).
+**Behaviour:** one intentional tightening — routing `oq` through `spl_issue_brc_plan_path`
+runs `(umask 077; : >"$p") && chmod 600 "$p" || return 1`, so `oq`'s plan file is now
+`0600` also when `ISSUE_PLAN` names a pre-existing file (enforcing the `0600` contract
+already stated at `oq:72`; measured on a pre-existing `0644` `ISSUE_PLAN`: base `rc=0,
+mode=644`, head1 `rc=0, mode=600`, n=1 each), and a `chmod` failure on an existing file
+now returns 1 where base returned 0. All other commands, file modes (`0700` dir, `0600`
+fresh plan), log lines, proxy stop, exit codes, `do_spl_cloud_cnf` ordering, and
+`spl_issue_oq_apply`'s distinct re-read check stay unchanged. All row-01 and shared
+suites pass on base and head1 with identical counts plus the 4 + 4 new checks (1.5).
 
 ### 1.4 Row 02's site: `_spl_simple_cron_apply` optional `[noun]` and wave-3 delegation for `spl-spawn-remote-install-cron`, `spl-unanswered-sweep-install-cron`, and `spl-workspace-delivery-probe-install-cron`
 
@@ -654,7 +682,8 @@ on base and head2 with identical counts plus the 10 new checks in `box-stats-cro
 
 ### 1.5 Before and on the rows' heads
 
-2026-11-26T00:55:30Z-01:08:12Z, n=1, as the push user, `SPOOL_TEST=1` with
+2026-11-26T00:55:30Z-01:08:12Z (and head1 re-run at 01:45:30Z-01:47:38Z after adding the
+W1 `ISSUE_PLAN` mode check), n=1, as the push user, `SPOOL_TEST=1` with
 `SPOOL_BOX_TAG` and `SPOOL_AGENT_ID` unset and stdin from `/dev/null`; pass lines
 `grep -ciE '^ *(ok|pass)'`, fail lines `grep -ciE '^ *(not ok|fail)'`. "=" means equal
 to base: same rc, pass and fail counts; "-" means that row's head does not touch the
@@ -663,7 +692,7 @@ suite's tree.
 | suite | row | base rc / pass / fail | head1 | head2 |
 |---|---|---|---|---|
 | `orc:src/bash/tests/spl-issue-blocker-rca-close.tst.sh` | 01 | 0 / 18 / 0 | 0 / 22 / 0 (+4 new checks) | - |
-| `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh` | 01 | 0 / 11 / 0 | 0 / 14 / 0 (+3 new checks) | - |
+| `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh` | 01 | 0 / 11 / 0 | 0 / 15 / 0 (+4 new checks) | - |
 | `orc:src/bash/tests/box-stats-cron.tst.sh` | 02 | 0 / 44 / 0 | - | 0 / 54 / 0 (+10 new checks) |
 | `orc:src/bash/tests/spawn-remote-cron.tst.sh` | 02 | 0 / 8 / 0 | - | = |
 | `orc:src/bash/tests/unanswered-sweep.tst.sh` | 02 | 0 / 73 / 0 | - | = |
@@ -706,18 +735,20 @@ reconstructed from the verbatim blocks in 1.3 and 1.4):
   `spl_issue_brc_sql` with unbound `TENANT_ID`, `FAIL: r04-01 brc one copy`); head1:
   rc 0, 22 pass, 0 fail.
 - Row 01 red control b (`rc1b`, head1's `spl-issue-owner-question-diss.tst.sh` on base):
-  rc 1, 13 pass, 1 fail (`FAIL: r04-01 oq one copy: own=[38: plan="$(spl_issue_oq_plan_path)" ...]`;
-  the standalone dry-run and `_spl_issue_oq_query` checks pass on base, proving
-  equivalence); head1: rc 0, 14 pass, 0 fail.
+  rc 1, 13 pass, 2 fail (`FAIL: r04-01 oq one copy: own=[38: plan="$(spl_issue_oq_plan_path)" ...]`
+  and `FAIL: r04-01 existing plan mode (rc=0): 644`; the standalone dry-run and
+  `_spl_issue_oq_query` checks pass on base, proving equivalence); head1: rc 0, 15 pass,
+  0 fail.
 - Row 01 guard control a (`gc1a`, head1 with `declare -F _spl_issue_brc_run_plan` deleted
-  in `spl-issue-owner-question-diss.func.sh`): rc 1, 12 pass, 2 fail
+  in `spl-issue-owner-question-diss.func.sh`): rc 1, 13 pass, 2 fail
   (`FAIL: r90-02 sourced alone` and `FAIL: r04-01 oq solo dry`, both rc=1
   `spl-issue-owner-question-diss.func.sh: line 39: spl_issue_brc_plan_path: command not found`).
 - Row 01 guard control b (`gc1b`, head1 with `declare -F _spl_issue_brc_query` deleted in
-  `spl-issue-owner-question-diss.func.sh`): rc 1, 13 pass, 1 fail
+  `spl-issue-owner-question-diss.func.sh`): rc 1, 14 pass, 1 fail
   (`FAIL: r04-01 oq solo query (rc=127): spl-issue-owner-question-diss.func.sh: line 73: _spl_issue_brc_query: command not found`).
-- Row 02 red control (`rc2`, head2's `box-stats-cron.tst.sh` on base): rc 1, 53 `ok|pass`
-  lines (50 real `PASS:` + 3 `OK` lines dumped inside `5. empty noun`'s failure output),
+- Row 02 red control (`rc2`, head2's `box-stats-cron.tst.sh` on base): rc 1, 53 total
+  `grep -ciE '^ *(ok|pass)'` lines (50 real `PASS:` + 3 `OK` lines dumped inside
+  `5. empty noun`'s failure output; panel matched the total 53),
   4 fail (`FAIL: 5. empty noun: FAIL the widget cron is NOT installed ...`,
   `FAIL: 5. one copy spl-spawn-remote-install-cron.func.sh: own=[70: ...]`,
   `FAIL: 5. one copy spl-unanswered-sweep-install-cron.func.sh: own=[83: ...]`,
@@ -740,17 +771,18 @@ reconstructed from the verbatim blocks in 1.3 and 1.4):
 **Mutation checks** (n=1 each, detached worktrees of `ffba81845` with head1/head2
 applied, then one defect injected):
 - `m1a` (`spl-issue-owner-question-diss.func.sh` drops `issue-owner-question` from
-  `spl_issue_brc_plan_path`): `spl-issue-owner-question-diss.tst.sh` rc 1, 13 `ok|pass`
-  lines (12 `PASS:` + 1 `OK DRY_RUN ...` dumped inside `oq solo dry`'s failure output), 2
+  `spl_issue_brc_plan_path`): `spl-issue-owner-question-diss.tst.sh` rc 1, 14 `ok|pass`
+  lines (13 `PASS:` + 1 `OK DRY_RUN ...` dumped inside `oq solo dry`'s failure output), 2
   fail (`FAIL: r04-01 oq one copy` + `FAIL: r04-01 oq solo dry`).
 - `m1b` (`_spl_issue_oq_query` drops `spl_issue_oq_sql` from `_spl_issue_brc_query`):
-  `spl-issue-owner-question-diss.tst.sh` rc 1, 12 pass, 2 fail (`FAIL: r04-01 oq one copy`
+  `spl-issue-owner-question-diss.tst.sh` rc 1, 13 pass, 2 fail (`FAIL: r04-01 oq one copy`
   + `FAIL: r04-01 oq solo query`).
 - `m2a` (`spl-spawn-remote-install-cron.func.sh` omits 11th arg `""`, falling back to
   `" cron"`): `box-stats-cron.tst.sh` rc 1, 52 pass, 2 fail (`FAIL: 5. lazy sr` +
   `FAIL: 5. sr ok`).
-- `m2b` (`spl-unanswered-sweep-install-cron.func.sh` drops `miss_why`):
-  `box-stats-cron.tst.sh` rc 1, 53 pass, 1 fail (`FAIL: 5. lazy us`).
+- `m2b` (`spl-unanswered-sweep-install-cron.func.sh` replaces arg 10 `miss_why` with
+  `""`, keeping arg 11 `""`): `box-stats-cron.tst.sh` rc 1, 53 pass, 1 fail
+  (`FAIL: 5. lazy us`).
 - `m2c` (`spl-workspace-delivery-probe-install-cron.func.sh` omits 11th arg `""`, falling
   back to `" cron"`): `box-stats-cron.tst.sh` rc 1, 52 pass, 2 fail (`FAIL: 5. lazy dp` +
   `FAIL: 5. dp ok`).
@@ -773,8 +805,8 @@ files, 0 test hits). No new test file is added, so `orc-shard-weights.txt` needs
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r04-01-orc-issue-diss-shared-helpers)` | one fact, one copy (developer guide 2.2.4) | `spl-issue-blocker-rca-close.func.sh` and `spl-issue-owner-question-diss.func.sh` already share `spl_issue_brc_one` (r90-02) but duplicate the 14-line plan-read/verdicts/dry-run-or-apply driver (`brc:41-54` vs `oq:39-52`), 7-line `*_plan_path` (`brc:71-77` vs `oq:73-79`), and 8-line `_*_query` (`brc:90-97` vs `oq:93-100`) (1.3, r03 section 7 #2) | `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh:35-55,69-77,88-97`<br>`orc:src/bash/run/spl-issue-owner-question-diss.func.sh:34-53,71-80,91-100`<br>`orc:src/bash/tests/spl-issue-blocker-rca-close.tst.sh:130`<br>`orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh:89` | copies of plan-run driver, plan-path creator, and read-only SQL query wrapper across the 2 actions 2 -> 1 each (hosted in `spl-issue-blocker-rca-close.func.sh`) | 1.3's shape (verbatim blocks in 1.3; `do_spl_cloud_cnf` ordering and `spl_issue_oq_apply`'s distinct re-read check and `r90-02` `spl_issue_brc_one` call untouched). **Red control:** head's `spl-issue-blocker-rca-close.tst.sh` on parent FAILs 3 checks (`rc1a`, rc 1, 19 pass, 3 fail) and head's `spl-issue-owner-question-diss.tst.sh` on parent FAILs one-copy naming `:38` (`rc1b`, rc 1, 13 pass, 1 fail), then GREEN (`0/22/0` and `0/14/0`); guard controls (`gc1a` rc 1 12/2, `gc1b` rc 1 13/1, `declare -F` lines deleted in `oq`, built in worktrees); mutations `m1a`/`m1b` caught (rc 1 13\*/2, 12/2) (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 4 + 3 new checks. Tests: **`orc:.../spl-issue-blocker-rca-close.tst.sh`**, **`orc:.../spl-issue-owner-question-diss.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r04-02-orc-simple-cron-apply-wave3)` | one fact, one copy (developer guide 2.2.4) | `spl-spawn-remote-install-cron.func.sh:58-92`, `spl-unanswered-sweep-install-cron.func.sh:71-105`, and `spl-workspace-delivery-probe-install-cron.func.sh:64-94` duplicate the exact 31-35 line `check`/`DRY_RUN=1`/`remove`/`install` crontab state machine hosted in `_spl_simple_cron_apply` (`setup-box-stats-cron.func.sh:67-105`), differing only in omitting `" cron"` after the job subject (1.4, r03 section 7 #1) | `orc:src/bash/run/setup-box-stats-cron.func.sh:64-105`<br>`orc:src/bash/run/spl-spawn-remote-install-cron.func.sh:43,58-92`<br>`orc:src/bash/run/spl-unanswered-sweep-install-cron.func.sh:52,71-105`<br>`orc:src/bash/run/spl-workspace-delivery-probe-install-cron.func.sh:48,64-94`<br>`orc:src/bash/tests/box-stats-cron.tst.sh:273` | copies of the single-line periodic cron check/dry-run/remove/install state machine in these 3 installers 3 -> 0 own copies (delegated to `_spl_simple_cron_apply` with optional 11th arg `noun="${11- cron}"`; 6 existing callers untouched) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `box-stats-cron.tst.sh` on parent FAILs 4 checks (`rc2`, rc 1, 53\* `ok\|pass` lines, 4 fail: empty-noun + 3 one-copy naming `:70`, `:83`, `:73`), then GREEN (`0/54/0`); guard controls (`gc2a`, `gc2b`, `gc2c`, `declare -F _spl_simple_cron_apply` deleted in each wave-3 installer: rc 1, `52/2` each with `_spl_simple_cron_apply: command not found`), built in worktrees; mutations `m2a`/`m2b`/`m2c` caught (rc 1 `52/2`, `53/1`, `52/2`) (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 10 new checks in `box-stats-cron.tst.sh`. Tests: **`orc:.../box-stats-cron.tst.sh`**, `orc:.../spawn-remote-cron.tst.sh`, `orc:.../unanswered-sweep.tst.sh`, `orc:.../workspace-delivery-probe.tst.sh`, `orc:.../check-disk-headroom.tst.sh`, `orc:.../prune-go-build-cache.tst.sh`, `orc:.../check-env-order.tst.sh`, `orc:.../route-ci-overflow.tst.sh`, `orc:.../apply-gh-runner-cpu-budget.tst.sh`, `orc:.../setup-gh-runner-cpu-budget-cron.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r04-01-orc-issue-diss-shared-helpers)` | one fact, one copy (developer guide 2.2.4) | `spl-issue-blocker-rca-close.func.sh` and `spl-issue-owner-question-diss.func.sh` already share `spl_issue_brc_one` (r90-02) but duplicate the 14-line plan-read/verdicts/dry-run-or-apply driver (`brc:41-54` vs `oq:39-52`), 7-line `*_plan_path` (`brc:71-77` vs `oq:73-79`), and 8-line `_*_query` (`brc:90-97` vs `oq:93-100`) (1.3, r03 section 7 #2) | `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh:35-55,69-77,88-97`<br>`orc:src/bash/run/spl-issue-owner-question-diss.func.sh:34-53,71-80,91-100`<br>`orc:src/bash/tests/spl-issue-blocker-rca-close.tst.sh:130`<br>`orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh:89` | copies of plan-run driver, plan-path creator, and read-only SQL query wrapper across the 2 actions 2 -> 1 each (hosted in `spl-issue-blocker-rca-close.func.sh`) | 1.3's shape (verbatim blocks in 1.3; `do_spl_cloud_cnf` ordering and `spl_issue_oq_apply`'s distinct re-read check and `r90-02` `spl_issue_brc_one` call untouched; sourcing `brc` in `do_spl_issue_owner_question_diss` also redefines `spl_issue_brc_one`, verified 0 stubs on `ffba81845`). **Red control:** head's `spl-issue-blocker-rca-close.tst.sh` on parent FAILs 3 checks (`rc1a`, rc 1, 19 pass, 3 fail) and head's `spl-issue-owner-question-diss.tst.sh` on parent FAILs 2 checks (`rc1b`, rc 1, 13 pass, 2 fail: one-copy naming `:38` + pre-existing 0644 `ISSUE_PLAN` staying `644`), then GREEN (`0/22/0` and `0/15/0`); guard controls (`gc1a` rc 1 13/2, `gc1b` rc 1 14/1, `declare -F` lines deleted in `oq`, built in worktrees); mutations `m1a`/`m1b` caught (rc 1 14\*/2, 13/2) (1.5); outputs in the body. **Behaviour:** one intentional tightening — `oq`'s plan file is now `0600` also when `ISSUE_PLAN` names a pre-existing file (base `644` -> head1 `600`, enforcing `oq:72`; `chmod` failure returns 1); all other behaviour unchanged, column passes on parent and head with identical counts plus 4 + 4 new checks. Tests: **`orc:.../spl-issue-blocker-rca-close.tst.sh`**, **`orc:.../spl-issue-owner-question-diss.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r04-02-orc-simple-cron-apply-wave3)` | one fact, one copy (developer guide 2.2.4) | `spl-spawn-remote-install-cron.func.sh:58-92`, `spl-unanswered-sweep-install-cron.func.sh:71-105`, and `spl-workspace-delivery-probe-install-cron.func.sh:64-94` duplicate the exact 31-35 line `check`/`DRY_RUN=1`/`remove`/`install` crontab state machine hosted in `_spl_simple_cron_apply` (`setup-box-stats-cron.func.sh:67-105`), differing only in omitting `" cron"` after the job subject (1.4, r03 section 7 #1) | `orc:src/bash/run/setup-box-stats-cron.func.sh:64-105`<br>`orc:src/bash/run/spl-spawn-remote-install-cron.func.sh:43,58-92`<br>`orc:src/bash/run/spl-unanswered-sweep-install-cron.func.sh:52,71-105`<br>`orc:src/bash/run/spl-workspace-delivery-probe-install-cron.func.sh:48,64-94`<br>`orc:src/bash/tests/box-stats-cron.tst.sh:273` | copies of the single-line periodic cron check/dry-run/remove/install state machine in these 3 installers 3 -> 0 own copies (delegated to `_spl_simple_cron_apply` with optional 11th arg `noun="${11- cron}"`; 6 existing callers untouched) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head's `box-stats-cron.tst.sh` on parent FAILs 4 checks (`rc2`, rc 1, 53\* total `ok\|pass` lines = 50 `PASS:` + 3 `OK` in failure dump, 4 fail: empty-noun + 3 one-copy naming `:70`, `:83`, `:73`), then GREEN (`0/54/0`); guard controls (`gc2a`, `gc2b`, `gc2c`, `declare -F _spl_simple_cron_apply` deleted in each wave-3 installer: rc 1, `52/2` each with `_spl_simple_cron_apply: command not found`), built in worktrees; mutations `m2a`/`m2b` (arg 10 `""`)/`m2c` caught (rc 1 `52/2`, `53/1`, `52/2`) (1.5); outputs in the body. **Behaviour:** the column passes on parent and head with identical counts plus the 10 new checks in `box-stats-cron.tst.sh`. Tests: **`orc:.../box-stats-cron.tst.sh`**, `orc:.../spawn-remote-cron.tst.sh`, `orc:.../unanswered-sweep.tst.sh`, `orc:.../workspace-delivery-probe.tst.sh`, `orc:.../check-disk-headroom.tst.sh`, `orc:.../prune-go-build-cache.tst.sh`, `orc:.../check-env-order.tst.sh`, `orc:.../route-ci-overflow.tst.sh`, `orc:.../apply-gh-runner-cpu-budget.tst.sh`, `orc:.../setup-gh-runner-cpu-budget-cron.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 5 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
 
@@ -785,9 +817,14 @@ of the lines and function names, the body diff, the sourcing lines) on the
 **Subject** (R6 reads it): `<type>(r04-NN-<slug>, SPL-<row issue>): ...`; review branch
 `review/r04-NN` (R7, 2.7.4; the line box-free in a commit body).
 
-**Docs:** each row extracts or delegates duplicated bash scaffolding to a single shared
-helper; no output, exit code, env var, path or file a caller sees changes (1.3, 1.4, 1.5).
-Each: `Docs: none (<why>)`. The developer guide 2.2.4 names the rule, not its instances.
+**Docs:** row 01 extracts/delegates duplicated bash scaffolding and adds one intentional
+tightening (`oq`'s plan file is now `0600` also when `ISSUE_PLAN` names a pre-existing
+file, enforcing the `0600` contract already documented at `oq:72`, and `chmod` failure
+returns 1); no doc file changes -> `Docs: none (internal helper extraction; oq
+pre-existing ISSUE_PLAN chmod 600 tightening already documented at oq:72)`. Row 02
+delegates duplicated cron scaffolding with no change to any output, exit code, env var,
+path, or file a caller sees (1.4, 1.5) -> `Docs: none (internal helper delegation; no
+behaviour changes)`. The developer guide 2.2.4 names the rule, not its instances.
 
 ### 2.1 Batches (R1, R16)
 
@@ -811,6 +848,8 @@ Each: `Docs: none (<why>)`. The developer guide 2.2.4 names the rule, not its in
   `.shellcheck-warning-baseline.txt`, `orc-shard-weights.txt`, any `run.sh`,
   `csi-spl-cnf/`, terraform, `csi-spl-api/`, `csi-spl-iac/`, `csi-spl-utl/`, or
   `csi-spl-wui/`.
+- Note (N2): live lane `a-835` (`a-835-rotate`) has no remote branch on origin and
+  records no files in the lane map; see 2.2 for R3 verification.
 
 ### 2.2 Off every live lane, every queued row and every unlanded row (R3)
 
@@ -838,8 +877,11 @@ regression tests are read-only):
   `c-965`), r03 panel seat (`c-726`, closing), and b48 panel seat (`c-776`). Live lanes on
   this box (`a-852`, `a-808` r03 closing, `a-846` b48 planner — checked its draft plan
   paths at 00:51Z: `spl-review-go.func.sh`, `spl-customer-box-role-check.func.sh`,
-  `tf-plan-pending.func.sh`, 0 overlap — `a-835` SPL-6542 WUI notes Delete key, `a-826` /
-  `c-722` SPL-6517 latency action 7, `c-298` / `c-625` Reporting Taxes tab) and panel seat
+  `tf-plan-pending.func.sh`, 0 overlap — `a-835` (`a-835-rotate`, SPL-6542 WUI notes
+  Delete key; has no remote branch on origin: `git ls-remote origin '*a-835*' | wc -l` ->
+  0, and records no files in the lane map, so its paths could not be verified from origin;
+  holder re-checks R3 at placement), `a-826` / `c-722` SPL-6517 latency action 7, `c-298`
+  / `c-625` Reporting Taxes tab) and panel seat
   `c-804` touch none of the 12 paths. No live lane owns any of the 12 paths; the holder
   re-reads at placement per R3.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, at 2026-11-26T00:47:57Z):
@@ -872,10 +914,15 @@ regression tests are read-only):
   `spl_issue_brc_plan_path issue-owner-question` and `_spl_issue_brc_run_plan`) and in
   `_spl_issue_oq_query` (calling `_spl_issue_brc_query spl_issue_oq_sql`), drops
   `spl_issue_oq_plan_path`, and leaves `do_spl_cloud_cnf` ordering and `spl_issue_oq_apply`
-  (including `r90-02`'s `spl_issue_brc_one` call) untouched.
+  (including `r90-02`'s `spl_issue_brc_one` call) untouched. Routing `oq` through
+  `spl_issue_brc_plan_path` intentionally tightens a pre-existing `ISSUE_PLAN` file to
+  `0600` (enforcing `oq:72`, returning 1 if `chmod` fails), and sourcing `brc` in
+  `do_spl_issue_owner_question_diss` also redefines `spl_issue_brc_one` (verified 0 stubs
+  anywhere on `ffba81845`, so no separate stub/guard is needed).
   `orc:src/bash/tests/spl-issue-blocker-rca-close.tst.sh` appends 4 helper and one-copy
-  checks; `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh` appends 3 one-copy
-  and standalone lazy-load checks.
+  checks; `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh` appends 4 checks
+  (one-copy, standalone lazy-load dry-run and query, and pre-existing `0644` `ISSUE_PLAN`
+  tightened to `0600`).
 - **r04-02:** `orc:src/bash/run/setup-box-stats-cron.func.sh` adds optional 11th arg
   `noun="${11- cron}"` (defaulting to `" cron"` when unset, so all 6 wave-1 and wave-2
   callers stay untouched) and `local subj="${label}${noun}"` to `_spl_simple_cron_apply`.
@@ -894,7 +941,8 @@ regression tests are read-only):
 - Editor: **a-852** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-804**
-  (live on the other box, queued with this planner). Pending review of v0.1 on
+  (live on the other box, queued with this planner). Returned FAIL on v0.1 (`4ded3bf46`,
+  seat commit `16df4c069`) for W1 and W2; pending re-review of v0.2 on
   `review/c002-refactor-round-04-planner`. The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T00:49:10Z ->
@@ -933,14 +981,20 @@ first".
 query; leave `do_spl_cloud_cnf` ordering and `spl_issue_oq_apply` untouched),
 `csi-spl-orc/src/bash/tests/spl-issue-blocker-rca-close.tst.sh` (append 4 helper and
 one-copy checks before `:130`), and
-`csi-spl-orc/src/bash/tests/spl-issue-owner-question-diss.tst.sh` (append 3 one-copy and
-standalone lazy-load checks before `:89`). NOT `.shellcheck-warning-baseline.txt`, or any
-other file. Do: plan section 2 row 01 verbatim, 1.3's shape (verbatim blocks in 1.3); red
-controls (`rc1a` + `rc1b`, head's tests on parent) RED then GREEN in the body; guard
+`csi-spl-orc/src/bash/tests/spl-issue-owner-question-diss.tst.sh` (append 4 checks before
+`:89`: one-copy, standalone lazy-load dry-run and query, and pre-existing `0644`
+`ISSUE_PLAN` tightened to `0600`). NOT `.shellcheck-warning-baseline.txt`, or any other
+file. Do: plan section 2 row 01 verbatim, 1.3's shape (verbatim blocks in 1.3; note that
+`oq` pre-existing `ISSUE_PLAN` is now tightened to `0600` per `oq:72`, and sourcing `brc`
+in `do_spl_issue_owner_question_diss` also redefines `spl_issue_brc_one`, verified 0 stubs
+on `ffba81845`); red controls (`rc1a` + `rc1b`, head's tests on parent, with `rc1b`
+catching both one-copy and existing `0644` plan mode) RED then GREEN in the body; guard
 controls (`gc1a` + `gc1b`, `declare -F` lines deleted in `oq`, built in worktrees);
 mutations `m1a`/`m1b` caught by section tests. Gates: the row's tests (section 2,
 `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on the 4 files,
-`cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (...)`. Kind `simple_coding`,
+`cd csi-spl-iac && ./run -a do_check_pre_push`. `Docs: none (internal helper extraction;
+oq pre-existing ISSUE_PLAN chmod 600 tightening already documented at oq:72)`. Kind
+`simple_coding`,
 vendor claude; R7 **agy seat** (claude waiver backup only while agy is out of quota,
 valid only under ruling `dc84300a` — cite ruling `dc84300a` in the row brief if the
 claude backup is used; never mistral; re-checked at placement).
@@ -985,13 +1039,14 @@ placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of plan-run driver, plan-path creator, and read-only SQL query wrapper across `spl-issue-blocker-rca-close` and `spl-issue-owner-question-diss` (1.3) | 2 each on `ffba81845` -> 1 each (hosted in `spl-issue-blocker-rca-close.func.sh`) after row 01 |
 | copies of the periodic cron check/dry-run/remove/install block in row 02's 3 wave-3 installers (1.4) | 3 on `ffba81845` (`spl-spawn-remote`, `spl-unanswered-sweep`, `spl-workspace-delivery-probe`) -> 0 own copies (delegated to `_spl_simple_cron_apply`) after row 02 |
-| lines (`git diff --numstat` of each head) | row 01: `spl-issue-blocker-rca-close.func.sh` +20 -10, `spl-issue-owner-question-diss.func.sh` +9 -34, `spl-issue-blocker-rca-close.tst.sh` +46 -0, `spl-issue-owner-question-diss.tst.sh` +29 -0; row 02: `setup-box-stats-cron.func.sh` +9 -7, `spl-spawn-remote-install-cron.func.sh` +6 -36, `spl-unanswered-sweep-install-cron.func.sh` +6 -36, `spl-workspace-delivery-probe-install-cron.func.sh` +5 -32, `box-stats-cron.tst.sh` +92 -0 |
+| lines (`git diff --numstat` of each head) | row 01: `spl-issue-blocker-rca-close.func.sh` +20 -10, `spl-issue-owner-question-diss.func.sh` +9 -34, `spl-issue-blocker-rca-close.tst.sh` +46 -0, `spl-issue-owner-question-diss.tst.sh` +35 -0; row 02: `setup-box-stats-cron.func.sh` +9 -7, `spl-spawn-remote-install-cron.func.sh` +6 -36, `spl-unanswered-sweep-install-cron.func.sh` +6 -36, `spl-workspace-delivery-probe-install-cron.func.sh` +5 -32, `box-stats-cron.tst.sh` +92 -0 |
 | measured on | `ffba81845`; n=1 per command unless stated |
 
 ## 7. Left out, measured
 
 | what | why | measured by |
 |---|---|---|
+| `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh` and `spl-issue-owner-question-diss.func.sh` `*_read` (`brc:81-86` vs `oq:83-89`) and `*_apply` (`brc:126-151` vs `oq:136-162`) scaffolding (r03 section 7 #2 remainder) | left out of r04-01 because `spl_issue_oq_read` calls `do_spl_cloud_cnf` inside `*_read` (whereas `brc` calls it in `do_spl_issue_blocker_rca_close` before `plan_path`, relied on by `oq` test stubs) and `spl_issue_oq_apply` carries distinct re-read / status-check semantics (`diff -u` of `brc:126-151` vs `oq:136-162` -> 15 differing lines); `r05`+ candidates once r04-01 lands | file reads and `diff -u` on `ffba81845` (`brc:81-86` vs `oq:83-89`; `brc:126-151` vs `oq:136-162`: 15 diff lines, n=1) |
 | Remaining cron installers carrying `spl_desk_cron_checkout` + read-back: `orc:src/bash/run/spl-orch-rotate-install-cron.func.sh` (89 lines), `spl-dispatch-rotate-install-cron.func.sh` (134 lines, 2 lines rotate+heal), `spl-agent-boot-restore-install-cron.func.sh` (177 lines, retire/removed markers) | `spl-orch-rotate-install-cron` is a direct `_spl_simple_cron_apply` wave-4 candidate (with `noun=""`, once r04-02 lands; deferred here because row 02 already hits rulebook 3.1's 5-file cap and `orch-rotate.tst.sh` is 1,255 lines); `spl-dispatch-rotate` (2-line crontab) and `spl-agent-boot-restore` (retire/removed branches) need separate inspection | file reads on `ffba81845` (3 left after row 02) |
 | `orc:src/bash/tests/setup-gh-runner-cpu-budget-cron.tst.sh:83-91` section 4 vacuous red control (`r03-02` author `c-784` note / `r03` section 8) | test-bug fix, not a refactor row (brief: "bug rows and test rows are not yours"); belongs in a bug round | file read on `ffba81845` (`:83-91` copies `$FUNC` into `$T/nofloor.func.sh`, breaking relative `dirname "${BASH_SOURCE[0]}"` sources) |
 | `orc:src/bash/run/spl-msg-dedup.func.sh:46-65` and `spl-msg-wipe.func.sh:36-55` (20-line tenant/dry-run/confirm/pin/backup preflight) | unchanged since r03; `msg-dedup.tst.sh` and `msg-wipe.tst.sh` build `cmd/spool` and run against throwaway `postgres:16-alpine` containers (heavy PG R2 gate) | `git diff bfdbd57d5 ffba81845` (empty), r03 7 |
@@ -1008,14 +1063,35 @@ placement).
   controls (`rc1a`, `rc1b`, `gc1a`, `gc1b`, `rc2`, `gc2a`, `gc2b`, `gc2c`) and all 5
   mutation checks (`m1a`, `m1b`, `m2a`, `m2b`, `m2c`) run on detached worktrees and
   verified RED; all helper, caller, and test hunks included verbatim in 1.3 and 1.4.
-  Pushed to `review/c002-refactor-round-04-planner`.
+  Pushed to `review/c002-refactor-round-04-planner` (`4ded3bf46`).
+- v0.2 (a-852): folded cross-vendor claude panel FAIL (`c-804`, seat commit `16df4c069`)
+  and dispatch holder send-back:
+  - **W1 (option a):** named `oq`'s pre-existing `ISSUE_PLAN` `chmod 600` tightening
+    (base `644` -> head1 `600`, enforcing `oq:72`, `chmod` failure returns 1) in intro,
+    1.3 (bullet 2, Shape, Behaviour), section 2 row 01, section 2 Docs, section 3, and
+    section 5; added the red-then-green check to `spl-issue-owner-question-diss.tst.sh`
+    (re-verified head1 in detached worktree at 01:47Z: sha256 `fcd6c8c7efbd`, 124 lines,
+    `+35 -0`, `0/15/0`, `rc1b` `1/13/2` catching `644`, `gc1a` `1/13/2`, `gc1b` `1/14/1`,
+    `m1a` `1/14*/2`, `m1b` `1/13/2`, 11/11 suites green, `shellcheck` + `do_sec_shellcheck`
+    rc 0).
+  - **W2:** added section 7 row (and 1.2 (a) note) accounting for `brc`/`oq` `*_read`
+    (`brc:81-86` vs `oq:83-89`) and `*_apply` (`brc:126-151` vs `oq:136-162`, 15 diff
+    lines) scaffolding as `r05`+ candidates.
+  - **N1-N6:** noted holder-box locality and holder 01:4xZ confirmation for briefs (N1)
+    and candidates file (N3); noted `a-835` has no origin branch (`ls-remote` -> 0) and
+    records no files in 2.1 and 2.2 (N2); noted `spl_issue_brc_one` redefinition on
+    `oq` lazy-load with 0 stubs on `ffba81845` (N4); clarified `m2b` replaces arg 10 with
+    `""` keeping arg 11 `""` (N5) and `rc2` 53 total `ok|pass` lines = 50 `PASS:` + 3 `OK`
+    (N6). Confirmed 0 drift on all 12 row/test paths from `ffba81845` to `origin/master`
+    `7e7962df5`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-852 (agy): v0.1.
-- Panel reviewer seat: c-804 (claude): pending review of v0.1 on
-  `review/c002-refactor-round-04-planner`.
+- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2.
+- Panel reviewer seat: c-804 (claude):
+  - v0.1 `4ded3bf46a50baf4ace5e7919ea9720857af5db7`: **FAIL** (W1, W2; seat commit `16df4c069`).
+  - v0.2: pending re-review on `review/c002-refactor-round-04-planner`.
 - Row R7 seats: section 4; agy seat per row (claude waiver backup only while agy is out
   of quota under ruling `dc84300a`; never mistral).

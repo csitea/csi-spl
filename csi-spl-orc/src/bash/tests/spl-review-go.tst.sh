@@ -166,6 +166,12 @@
 #        them -> GO (was rc 4); controls: the 42 HOLD probes of rc01-b50.sh
 #        (a target word on the hunk line, a command on the line, its cell or
 #        the next line, any other words before check / test) -> rc 4
+#    35. the owner-go actions by their `./run -a` names (b51-03, panel N5):
+#        RED CONTROLS do_spl_desk_up, do_spl_desk_up_all, do_provision,
+#        do_provision_firebase_dns, do_tf_apply, do_tf_apply_target in a Do
+#        step with no Owner-go line -> rc 4 (was GO); controls: the six with
+#        an Owner-go line naming a HUM-10 message -> GO; the six only under
+#        Never, under Why or in a fenced block -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1416,6 +1422,37 @@ for p in 'Apply|ctrl_w1_sql_hunks' 'DRY_RUN=0|ctrl_w2_4col_next_cell'; do
   reset; abrief c-222 "$(cat "$B34/1-${p#*|}.md")"
   f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 34000000-0000-4000-8000-000000000002)
   run REVIEW_GO_MSG="$f"; refused "34. control: ${p#*|} still holds" $? 4 "owner-go keyword '${p%%|*}'"
+done
+
+# --- 35. the owner-go actions by their ./run -a names (b51-03) ------------------------------------------
+# The fixed list named the make targets do-provision / do-tf-apply only, so a
+# Do step running `./run -a do_provision`, `do_tf_apply` or `do_spl_desk_up`
+# (each with its prefix family, panel N5) passed with no Owner-go line.
+# The probes are rc03-b51.sh's (bug-round-51-plan.md section 4.3).
+A35='do_spl_desk_up do_spl_desk_up_all do_provision do_provision_firebase_dns do_tf_apply do_tf_apply_target'
+for a in $A35; do
+  kw=do_spl_desk_up; [[ $a == do_provision* ]] && kw=do_provision; [[ $a == do_tf_apply* ]] && kw=do_tf_apply
+  reset; abrief c-222 $'## Do\n1. Run `cd csi-spl-orc && ./run -a '"$a"$'`.'
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 35000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; refused "35. RED CONTROL: ./run -a $a in a Do step with no Owner-go line" $? 4 "owner-go keyword '$kw'"
+done
+reset
+abrief c-222 "## Do"$'\n'"$(for a in $A35; do printf '1. Run `./run -a %s`.\n' "$a"; done)"$'\nOwner-go: 4b8ef139-0000-4000-8000-000000000035'
+msg 20261028T110000Z HUM-10 "go for the provision" 4b8ef139-0000-4000-8000-000000000035 note archive >/dev/null
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 35000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 ]] && pass "35. control: the six actions with an Owner-go HUM-10 message -> GO" ||
+  fail "35. owner-go ok rc=$rc out=$(tail -3 "$T/out")"
+for c in 'Never|## Never\nNever run %s.\n## Do\n1. Fix the unit test.' \
+  'Why|## Why\nObserved after %s ran.\n## Do\n1. Fix the log format.' \
+  'fenced|## Do\n1. Fix the parser.\n```bash\n./run -a %s\n```'; do
+  reset; body=""
+  for a in $A35; do body+="$(printf "${c#*|}" "$a")"$'\n'; done
+  abrief c-222 "$body"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 35000000-0000-4000-8000-000000000003)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "35. control: the six actions only in ${c%%|*} -> GO" ||
+    fail "35. ${c%%|*} rc=$rc out=$(tail -3 "$T/out")"
 done
 
 echo "spl-review-go: ${fails} failure(s)"

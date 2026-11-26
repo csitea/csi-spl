@@ -797,10 +797,13 @@ for l in sys.stdin.read().split("\n"):
 # joins it to one (`apply-gh-runner-cpu-budget`, `IAM_ROLE`, `` `x/billing` ``);
 # a sentence's full stop (`then apply.`) still counts. A `/` joins only inside
 # a backticked span or a path token (_spl_review_go_prose_slash, SPL-5820):
-# `IAM/billing` and `plan/apply` in prose still hold.
+# `IAM/billing` and `plan/apply` in prose still hold. The owner-go actions
+# count by name as make target and `./run -a` action alike, with their
+# prefix family (b51-03): do-provision / do_provision*, do-tf-apply /
+# do_tf_apply* and do_spl_desk_up*, which the `_`-joined `apply` rule misses.
 _spl_review_go_owner_go() {
   local kw id text b='(^|[^-_./[:alnum:]]|(^|[^_[:alnum:]])[-./])' a='([^-_./[:alnum:]]|$|[-./]([^_[:alnum:]]|$))'
-  local fixed='do-provision|do-tf-apply|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|service account key|/etc/'
+  local fixed='do-provision|do_provision|do-tf-apply|do_tf_apply|do_spl_desk_up|PROBE_PRD_GO|DRY_RUN=0|ENV=prd|service account key|/etc/'
   text="$(_spl_review_go_instr "$1")" || text="$(cat "$1")"
   text="$(_spl_review_go_prose_slash <<<"$text")"
   kw="$(grep -oiE "${b}apply${a}" <<<"$text" | grep -oiE 'apply')"

@@ -1,6 +1,22 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.9 (2026-11-26, SPL-6543): folds the owner's answers Q6-Q9
+Version v2.0 (2026-11-26, SPL-6561): folds the owner's answers Q10-Q11
+(HUM-10, t1 `#spool-hub-biz` topic `c2838b08`, msg
+`fd876ec6-57c7-478b-bb81-a9982f99f0d3`, 2026-11-26T05:1xZ, form `2846b563`)
+into section 3.4.1, cases C411-C414b and C420, build rows B15b-B15c and
+B16a-B16c, and section 7: cnf-backed Q10 = C auto-unblock grace timeout
+(`env.box.spawn_priority.unblock_grace_min`, default 120 min / 2 h in
+`csi-spl-cnf/csi-spl/all.env.yaml`) for launchable lower-priority asks when
+blocking priority 1–4 asks are held on a box cordon or vendor quota outage
+(with held asks keeping their queue place, `.place.prio-hold` tracking,
+placer `INFO` logging and one-per-episode holder `note`), and Q11 = B holding
+priority 4–5 logged review seats behind queued priority 1–3 asks (plus the
+derived priority-5-behind-4 reading, author-idle risk, and how Q10 = C
+applies to waiting review seats), with two non-blocking follow-up questions
+(Q12, Q13). Every v2.0 `file:line` citation was verified on `origin/master`
+`6b216a319`.
+
+v1.9 (2026-11-26, SPL-6543): folds the owner's answers Q6-Q9
 (HUM-10, t1 `#spool-hub-biz` topic `c2838b08`, msg
 `9b05df65-2777-4d4e-843a-0dc6af103a36`, 2026-11-25T21:19Z, form `42eb27c6`)
 into section 3.4.1, cases C411-C414b, build rows B15a-B15b and B16a-B16c, and
@@ -108,6 +124,7 @@ origin/master `25e1686d6`; its code is that of `7ca2732e9`, which v0.1 cites
 | v1.8-4 | `c6438688`, `c4fbafb5` | 2026-11-25 | "each channel should have a default prio setable in the channels settings" / "create a new discussion about the last msg , as it seems to b e a new feature" (topic `b6c7b21c`) |
 | v1.8-5 | `81cbf77e` | 2026-11-25 | Poll `ab1b0c08` answer: a channel with no default set gets **3**; only **the workspace owner** may change a channel's default (topic `b6c7b21c`) |
 | v1.9-1 | `9b05df65` | 2026-11-25T21:19Z | Poll `42eb27c6` answers (spec 150 v1.8): **Q6 = A** (strict queue order inside priority 3; class bands do not reorder rows inside 3), **Q7 = A** (pause and auto-resume preempted 3-5 lanes at the front of their priority), **Q8 = A** (3-5 review seats paused only as a last resort, after every other 5, 4 and 3 lane), **Q9 = B** (any queued 1-3 ask blocks 4 and 5 asks, even when held; reverses v1.8 default A) (topic `c2838b08`) |
+| v2.0-1 | `fd876ec6` | 2026-11-26T05:1xZ | Poll `2846b563` answers (spec 150 v1.9 Q10-Q11): **Q10 = C** (auto-unblock launchable lower-priority asks after a grace time, e.g. 2 h, when the blocker is held on a box cordon or a vendor quota outage), **Q11 = B** (priority 4-5 review seats also wait behind any queued 1-3 ask) (topic `c2838b08`) |
 
 Two readings the text alone cannot settle:
 
@@ -799,12 +816,14 @@ configurable in channel settings; an unset channel defaults to **3**; only
      The box cron row `topic-prio-sync` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`)
      runs it with `DRY_RUN=0` every 5 minutes.
 
-#### 3.4.1 Meaning of priorities 1..5 and fleet execution (v1.8 / v1.9, topic `c2838b08`, SPL-6503, SPL-6543)
+#### 3.4.1 Meaning of priorities 1..5 and fleet execution (v1.8 / v1.9 / v2.0, topic `c2838b08`, SPL-6503, SPL-6543, SPL-6561)
 
 Confirmed by the owner (HUM-10, `c2838b08` msgs `ee20b1c9`, `d744269f`, poll
-`32527755` Q1 = A answer msg `3ed8fd13`, and poll `42eb27c6` Q6 = A, Q7 = A,
+`32527755` Q1 = A answer msg `3ed8fd13`, poll `42eb27c6` Q6 = A, Q7 = A,
 Q8 = A, Q9 = B answer msg `9b05df65-2777-4d4e-843a-0dc6af103a36`,
-2026-11-25T21:19Z; citations verified on `origin/master` `bfdbd57d5`):
+2026-11-25T21:19Z, and poll `2846b563` Q10 = C, Q11 = B answer msg
+`fd876ec6-57c7-478b-bb81-a9982f99f0d3`, 2026-11-26T05:1xZ; citations verified
+on `origin/master` `6b216a319`):
 
 | prio | meaning |
 |---|---|
@@ -814,7 +833,7 @@ Q8 = A, Q9 = B answer msg `9b05df65-2777-4d4e-843a-0dc6af103a36`,
 | 4 | start when there are resources and nothing at 1-3 is queued |
 | 5 | start when there are resources and nothing at 1-4 is queued |
 
-**Hard unfiltered priority barrier across the queue and the placer (Q9 = B, reversing v1.8 default A).**
+**Hard unfiltered priority barrier across the queue and the placer (Q9 = B, with Q10 = C grace auto-unblock and Q11 = B review-seat barrier).**
 
 Every queued ask's effective priority is computed by `store/fleet_ask.go:274-310`
 (`askFillPriorities`, `askPrio`: newer of `OwnPriority` vs its `Discussion`'s
@@ -822,91 +841,221 @@ Every queued ask's effective priority is computed by `store/fleet_ask.go:274-310
 1 so trunk red never waits behind a priority 1 feature). In the placer
 (`orc/spl-spawn-place.func.sh:260-301`), `rows="$(spl_spawn_q_rows)"` (`:271`)
 reads the **unfiltered** hub queue before the six pre-line hold filters run
-(`:284-289`: `spl_spawn_place_agy_hold` `:1378-1400`,
-`spl_spawn_place_away_hold` `:1411-1423`, `spl_spawn_place_pin_hold`
-`:1437-1453`, `spl_spawn_place_agy_box_hold` `:1484-1532`,
-`spl_spawn_place_dark_hold` `:1689-1706`, `spl_spawn_place_after_hold`
+(`:284-289`: `spl_spawn_place_agy_hold` `:1382-1404`,
+`spl_spawn_place_away_hold` `:1415-1427`, `spl_spawn_place_pin_hold`
+`:1444-1467`, `spl_spawn_place_agy_box_hold` `:1497-1545`,
+`spl_spawn_place_dark_hold` `:1702-1719`, `spl_spawn_place_after_hold`
 `orc/spl-spawn-after.func.sh:252-269`) and before `spl_spawn_place_line`
 (`:290`, `:349-357`).
 
-Under **Q9 = B** (msg `9b05df65`), the placer computes the minimum effective
-priority across ALL queued rows in that **unfiltered** queue BEFORE filtering
-holds (`unfiltered_min_prio = min(class == "ci" ? 1 : (priority // 3))` over
-`.state == "queued"`):
+Under **Q9 = B** (msg `9b05df65`) combined with **Q10 = C** and **Q11 = B**
+(msg `fd876ec6`), the placer evaluates the **unfiltered** queue BEFORE
+filtering holds and computes `effective_barrier_prio = min(class == "ci" ? 1 : (priority // 3))`
+over all queued rows (`.state == "queued"`) that are **not** Q10 = C
+grace-exempt (defined below):
 
-- **Any queued priority 1–3 ask blocks priority 4 and 5 asks, even when it cannot start.**
-  Whenever `unfiltered_min_prio <= 3`, **no priority 4 or 5 ask may launch** —
-  even if every queued priority 1–3 ask is held (unmet `After:` prerequisite,
-  pinned box full/cordoned/degraded/recovering/at cap, silent/dark box, brief
-  on another box, agy or vendor weekly quota out, or missing vendor CLI).
+- **Any non-grace-exempt queued priority 1–3 ask blocks priority 4 and 5 asks, even when it cannot start.**
+  Whenever `effective_barrier_prio <= 3`, **no priority 4 or 5 ask may launch**
+  — including priority 4–5 logged review seats (Q11 = B) — even if every queued
+  priority 1–3 ask is held (unmet `After:` prerequisite, pinned box
+  full/degraded/recovering/at cap, silent/dark box, brief on another box,
+  missing vendor CLI/login, or a box cordon / vendor quota outage still within
+  the Q10 = C grace window).
 - **Derived reading for priority 4 blocking priority 5 (not asked separately in Q9):**
   Q9 itself asked only about held priority 1–3 asks vs priority 4 and 5 asks.
   Applying Q9's unfiltered definition of "queued" consistently to the
   owner-approved table row 5 ("nothing at 1–4 is queued", poll `32527755`
-  Q1 = A, msg `3ed8fd13`), whenever `unfiltered_min_prio <= 4`, **no priority
-  5 ask may launch** — even when the queued priority 4 ask is held.
+  Q1 = A, msg `3ed8fd13`), whenever `effective_barrier_prio <= 4`, **no
+  priority 5 ask may launch** — even when the queued priority 4 ask is held
+  (until that priority 4 ask clears or crosses the Q10 = C grace timeout).
 - **Runtime launcher holds (`rc == 10`) honour the same barrier.** When
   `spl_spawn_place_take_next` (`orc/spl-spawn-place.func.sh:307-320`) gets a
-  runtime `HOLD` (`rc == 10` from `spl_spawn_place_launch` `:1616-1634`:
-  vendor weekly quota, box past load mark, dark box exit 8, missing vendor
-  CLI exit 13) on a priority 1–3 row, the retry loop drops that row from this
-  tick's candidate list (`:313`) but **never** falls through to a priority 4
-  or 5 row (and a runtime hold on a priority 4 row never falls through to a
-  priority 5 row).
+  runtime `HOLD` (`rc == 10` from `spl_spawn_place_launch` `:1629-1647`:
+  vendor weekly quota, box cordoned, box past load mark, dark box exit 8,
+  missing vendor CLI exit 13) on a priority 1–3 row, the retry loop drops that
+  row from this tick's candidate list (`:313`) but **never** falls through to a
+  priority 4 or 5 row unless that held row is already Q10 = C grace-exempt AND
+  no other non-exempt priority 1–3 row remains in the unfiltered queue (and the
+  same for a runtime hold on priority 4 vs priority 5).
 - **Priorities 1–3 among themselves**: among launchable rows within priorities
   1–3, a held priority 1 or 2 ask (non-capacity hold such as `After:` or
-  vendor quota) still blocks 4–5, while launchable priority 1–3 rows continue
-  to launch in priority order (1 before 2 before 3) rather than freezing all
-  1–3 work behind an unrelated vendor or `After:` hold. Priority-1 preemption
-  still triggers only for a *launchable* priority 1 head on a capacity hold,
-  never for a non-capacity hold.
+  vendor quota) still blocks 4–5 while non-exempt, while launchable priority
+  1–3 rows continue to launch in priority order (1 before 2 before 3) rather
+  than freezing all 1–3 work behind an unrelated vendor or `After:` hold.
+  Priority-1 preemption still triggers only for a *launchable* priority 1 head
+  on a capacity hold, never for a non-capacity hold.
 - **Placer log when 4–5 wait on held 1–3 (or 5 waits on held 1–4)**: when
-  launchable 4–5 rows are present but blocked by the unfiltered barrier, the
-  placer places nothing that tick and logs one `INFO` line naming the blocking
-  priority tier, the held ask id(s), and their hold reason from `.place.wait`.
+  launchable 4–5 rows are present but blocked by the barrier, the placer places
+  nothing that tick and logs one `INFO` line naming the blocking priority tier,
+  the held ask id(s), and their hold reason from `.place.wait`.
 
-**Starvation risk under Q9 = B and what this spec does about it.**
+**Q10 = C: auto-unblock grace time for prolonged box cordon or vendor quota holds (msg `fd876ec6`).**
 
-Because a held priority 1–3 ask blocks all priority 4 and 5 asks even when it
-cannot start, a long-lived hold on a single priority 1–3 ask — for example, a
-box left cordoned for hours, a vendor out of quota overnight, a silent box, or
-a stuck `After:` prerequisite — **can starve all queued priority 4 and 5 asks
-indefinitely**, even while other boxes and vendors have idle capacity. (A
-stuck held priority 4 ask carries the same risk for priority 5.)
+Under Q9 = B, a prolonged hold on a single priority 1–3 ask (or priority 4 ask
+for priority 5) can starve all launchable lower-priority asks while other boxes
+and vendors sit idle. Owner answer **Q10 = C** (msg `fd876ec6`) resolves this
+by auto-unblocking launchable lower-priority asks after a configurable grace
+time when the blocking ask(s) are held on a box cordon or a vendor quota outage:
 
-- Existing hold alarms already surface three subsets of stuck holds to the
-  dispatch lease holder: `spl_spawn_after_alarm`
-  (`orc/spl-spawn-after.func.sh:321-354`: dead prerequisite checked every 15
-  min, or held >= `SPAWN_AFTER_ALARM_MIN`, default 1440 min),
-  `spl_spawn_place_dark_alarm` (`orc/spl-spawn-place.func.sh:1712-1722`:
-  silent box >= `SPAWN_PLACE_DARK_ALARM_MIN`, default 120 min), and
-  `spl_spawn_place_seat_alarm` (`:624-667`: held review seat >= 30 min).
-- No alarm today fires specifically for a cordoned-box or vendor-quota hold on
-  a priority 1–3 ask that is starving queued priority 4–5 asks, and no timeout
-  or automatic escape hatch exists.
-- Because the owner's Q9 = B answer leaves prolonged-starvation handling open,
-  B15b enforces the strict unfiltered barrier with **zero** silent timeout
-  override, logs the blocking held ask each tick, and records **open question
-  Q10** (section 7, covering both held 1–3 asks starving 4–5 and held 4 asks
-  starving 5) for the owner to decide whether to add a starvation alert
-  (recommended) or a timeout override. **Open question Q11** (section 7) asks
-  whether a priority 4–5 logged review seat keeps launching on the standing
-  review-seat GO or also waits behind a held 1–3 ask (B15b keeps v1.8's
-  standing review-seat GO precedence unless Q11 answers B).
+- **Grace time configuration (cnf, default 2 h / 120 min)**:
+  - Lives in `csi-spl-cnf/csi-spl/all.env.yaml` under `env.box` (where `Box` in
+    `csi-spl-cnf/src/python/conf-validator/EnvModels/agent_split.py:65` carries
+    `extra=Extra.allow`) as:
+    `env.box.spawn_priority.unblock_grace_min: 120` (whole minutes; default
+    `120` = 2 h).
+  - Read by a helper `spl_spawn_place_unblock_grace_min` in
+    `orc/spl-spawn-place.func.sh` via `SPAWN_PLACE_CNF` (default
+    `$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml`), with env-var override
+    `SPAWN_PRIO_UNBLOCK_GRACE_MIN` (matching `spl_spawn_after_alarm_min` at
+    `orc/spl-spawn-after.func.sh:293-298` and `spl_spawn_place_seat_overflow`
+    at `orc/spl-spawn-place.func.sh:526-533`).
+  - `0` disables auto-unblock (the strict Q9 = B barrier always holds); an
+    invalid non-numeric value logs one `WARN` and falls back to `120`.
+- **Which holds count (qualifying holds)**: ONLY the two hold causes named by
+  the owner in Q10 = C:
+  1. **Box cordon**: hold reason matching `*CORDONED*` — from
+     `spl_spawn_place_pin_full:843` (`"box <box> is CORDONED (do_spl_box_cordon)"`),
+     `orc/spl-box-pick.func.sh:279` (`"every box with a sample is CORDONED ..."`),
+     or `spawn-agents/scripts/spawn-window.sh:222` (`"is CORDONED (do_spl_box_cordon)"`),
+     matching hold class `"box cordoned"` (`spl_spawn_place_hold_class:572`).
+  2. **Vendor quota outage**: hold reason matching `*"agy "*quota*` — from
+     `spl_spawn_place_agy_out:1237` (`"agy is out of quota until ..."`) or
+     `spl_spawn_place_agy_state:1298` (`"agy on <box> is at its quota limit until ..."`)
+     — or `*weekly*` — from `spl_spawn_place_pin_full:847`
+     (`"<vendor> weekly ...: not picked"`) or `orc/spl-box-pick.func.sh:287`
+     (`"waiting: <vendor> weekly >= ..."`). Explicitly **excludes** missing agy
+     CLI/login (`"the agy program or its login is missing on ..."`,
+     `:1292,:1302`), which `spl_spawn_place_hold_class:569` currently groups
+     under `"agy quota"` — a missing CLI/login is a box-setup fault, not a
+     vendor quota outage.
+- **Which holds do NOT count (stay strictly blocking unless widened by Q12)**:
+  - **Dark (silent) box** (`spl_spawn_place_dark_hold:1702-1719`, `"no reply from ..."`):
+    does **not** auto-unblock under Q10 = C as answered; relies on its existing
+    120-min blocker alarm `spl_spawn_place_dark_alarm:1725-1735`. Because Q10's
+    question stem named dark boxes and stuck `After:` while option C named only
+    box cordon and vendor quota outage, **Open Question Q12** (section 7) asks
+    whether dark-box and/or stuck-`After:` holds should also auto-unblock after
+    the grace time.
+  - **Stuck `After:` prerequisite** (`spl_spawn_place_after_hold`,
+    `orc/spl-spawn-after.func.sh:252-269`, `"held: waiting on ..."`): does
+    **not** auto-unblock under Q10 = C as answered (an `After:` line is an
+    intentional dependency; dead prerequisites and long waits already fire
+    `spl_spawn_after_alarm:321-354`). Included in **Open Question Q12**.
+  - **All other holds** (`brief on another box` `spl_spawn_place_away_hold:1415-1427`,
+    `DEGRADED` / `RECOVERING` box health, `DISK`, `CPU overflow` / `CI cap` /
+    `window ceiling`, and missing vendor CLI / login): never auto-unblock.
+- **How hold age is tracked**: because `spl_spawn_place_wait`
+  (`orc/spl-spawn-place.func.sh:1739-1744`) overwrites each ask's timestamp on
+  every tick (`:1742`), `.place.wait` cannot measure continuous hold duration.
+  The placer keeps `<asks dir>/.place.prio-hold` with one tab-separated line
+  per currently held priority 1–4 ask on a qualifying hold:
+  `<ask_id>\t<hold_class>\t<first_epoch>\t<notified 0|1>` (parallel to
+  `.place.dark` at `:1668-1678`). Each tick prunes rows no longer queued and
+  clears any ask that became launchable or switched to a non-qualifying hold;
+  an ask staying on a qualifying hold keeps its original `first_epoch`. Both
+  pre-line holds (`:284-289`) and runtime `rc == 10` holds (`:1629-1634`,
+  which write `.place.wait` at `:1631`) feed `.place.prio-hold`. An ask is
+  **grace-exempt** when `unblock_grace_min > 0` and
+  `now - first_epoch >= unblock_grace_min * 60`.
+- **What auto-unblock does**:
+  - `effective_barrier_prio` ignores only grace-exempt asks. Launchable
+    priority 4 asks auto-unblock **only** when every queued priority 1–3 ask is
+    grace-exempt (`effective_barrier_prio >= 4`); launchable priority 5 asks
+    auto-unblock **only** when every queued priority 1–4 ask is grace-exempt
+    (`effective_barrier_prio == 5`, including any held priority 4 ask under the
+    derived row-5 reading). If even one higher-priority ask is launchable, on a
+    non-qualifying hold, or on a qualifying hold still under `unblock_grace_min`,
+    lower priorities remain blocked.
+  - **Only launchable lower-priority asks start; every held higher-priority ask
+    keeps its exact queue position, effective priority, `.place.wait` reason,
+    and `queued` state** (never declined, moved, or demoted). The moment the
+    cordon lifts or vendor quota resets, the held ask becomes launchable, its
+    `.place.prio-hold` row is cleared, it re-engages the barrier immediately,
+    and it launches ahead of all lower-priority asks on the next tick.
+  - Normal room checks (`spl_spawn_place_no_room`), tier ordering (4 before 5),
+    and within-tier picking still apply to unblocked lower-priority asks.
+- **What is logged and posted when auto-unblock fires**:
+  - **Placer log (`INFO`)**: every tick a lower-priority ask launches while a
+    grace-exempt higher-priority ask is still queued, log one `INFO` line
+    naming the launched ask (`<ask8>`, priority `4` or `5`), the grace-exempt
+    blocking ask id(s) (`<ask8>`), their priority tier, hold class
+    (`box cordoned` / `agy quota` / `weekly quota`), and elapsed hold minutes
+    vs `unblock_grace_min`.
+  - **Dispatch lease holder spool `note` (once per blocking ask per continuous
+    hold episode)**: the first time a grace-exempt priority 1–4 ask triggers
+    auto-unblock of a launchable lower-priority ask, send ONE spool `note`
+    (task `spawn-queue`) to `spl_spawn_place_dispatch` (`:436-442`, fallback
+    `holder`) naming the held ask id(s), priority, hold class, elapsed hold
+    minutes, and configured `unblock_grace_min`, noting that launchable
+    lower-priority asks are now auto-unblocking while the held ask keeps its
+    queue position. Stamp `notified = 1` in `.place.prio-hold` so it never
+    repeats every tick. Routine auto-unblock does **not** post to `#alerts` or
+    to any customer/owner topic.
+
+**Q11 = B: priority 4–5 review seats wait behind queued priority 1–3 asks (msg `fd876ec6`).**
+
+- **Rule**: priority **1–3** logged review seats (`spl_spawn_place_seats:503-511`,
+  on the standing review-seat GO `SPL_SPAWN_REVIEW_SEAT_GO`) keep their
+  existing precedence ahead of priority 2–3 non-review asks (yielding only to
+  `ci`, flagged head, and priority 1), their CPU overflow pass
+  (`spl_spawn_place_seat_take:295,552-560`), and their weekly review-seat mark
+  (`env.box.quota.review_seat_max_pct`). By contrast, under **Q11 = B**,
+  **priority 4–5 logged review seats also wait behind any non-grace-exempt
+  queued priority 1–3 ask**: while `effective_barrier_prio <= 3`, no priority
+  4 or 5 review seat may launch — neither via `spl_spawn_place_band:465-469`
+  nor via `spl_spawn_place_seat_take:295,552-560` past CPU overflow.
+- **Derived reading for priority 5 review seats behind priority 4 (not asked separately in Q11)**:
+  applying Q11 = B consistently to table row 5 ("nothing at 1–4 is queued"), a
+  priority 5 logged review seat also waits behind any non-grace-exempt queued
+  priority 4 ask (`effective_barrier_prio <= 4`). Recorded as non-blocking
+  **Open Question Q13** (section 7).
+- **Precedence once a tier unblocks**: once tier 4 unblocks
+  (`effective_barrier_prio >= 4`) — or tier 5 unblocks
+  (`effective_barrier_prio == 5`) — a launchable logged review seat of that
+  tier launches **first within its tier** (ahead of `Resume-Lane:` asks,
+  non-review asks, and within-tier class-band picking), and regains its
+  review-seat overflow and weekly marks for that launch.
+- **Review-seat 30-min alarm (`spl_spawn_place_seat_alarm:624-667`)**:
+  suppresses the 30-min holder blocker and `#alerts` post while a priority 4–5
+  review seat is waiting **only** on the intentional Q11 = B priority barrier
+  (parallel to `:631`, which suppresses it for intended `After:` holds). Once
+  the barrier clears, if a box/quota/capacity hold stops the seat, the alarm
+  fires normally.
+- **Author-idle risk**: because a priority 4–5 review seat now waits behind any
+  queued priority 1–3 ask, **written priority 4–5 work can sit unreviewed while
+  its author lane idles** (occupying a window slot toward
+  `SPOOL_AGENT_CEILING`, accumulating trunk rebase drift, and becoming an idle
+  non-review priority 4–5 preemption candidate under Q8 = A if a priority-1
+  capacity hold fires — though Q7 = A preserves its WIP and resumes it at the
+  front of its tier).
+- **How Q10 = C grace time applies to waiting priority 4–5 review seats**:
+  - Behind *launchable* (draining) priority 1–3 asks: Q10 = C does not apply;
+    the priority 4–5 review seat waits until the priority 1–3 queue drains.
+  - Behind *held* priority 1–3 asks on a qualifying hold (box cordon or vendor
+    quota outage): once every blocking priority 1–3 ask has been held for
+    `>= unblock_grace_min` (default 2 h), tier 4 auto-unblocks (and tier 5
+    auto-unblocks once every queued priority 1–4 ask is grace-exempt). Because
+    logged review seats lead within their unblocked tier, the waiting priority
+    4–5 review seat launches **ahead of unblocked lower-priority coding asks**,
+    clearing the idling author lane first while the held higher-priority ask
+    keeps its queue place.
+  - Behind *non-qualifying* holds (dark box, stuck `After:`, pending Q12): the
+    priority 4–5 review seat stays blocked until the hold clears or the
+    dispatch holder resolves the existing dark-box / `After:` alarm.
 
 **Fleet behaviour per priority:**
 
 | prio | queue order (`store/fleet_ask.go`) | placer when resources are free (`spl_spawn_place_band`) | placer when no resources are free (`spl_spawn_place_no_room`) |
 |---|---|---|---|
-| **1** | Leads all rows (`ci` first among 1, then dragged `QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of review seats, class bands, and prio 2..5. | On a capacity hold (window ceiling or fleet load/overflow hold), triggers **preemption** (below) to pause a running prio 5, 4, or 3 lane and launches immediately once a slot frees (skipping `SPAWN_PLACE_GAP_MIN`). Never preempts for non-capacity holds (quota, missing CLI, `After:`, cordoned box); a held prio 1 ask still blocks prio 4..5 (Q9 = B). |
-| **2** | After 1, ahead of 3..5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of class bands and ahead of every prio 3..5 row ("bypass others in the queue"). Logged review seats on the owner's review-seat GO (`spl_spawn_place_seat`, `spl-spawn-place.func.sh:465-469`) keep their existing place ahead of prio 2..5 (yielding only to `ci`, flagged, and prio 1, as today). | Waits at the head behind any prio 1 row until resources free up. Never preempts running lanes. A held prio 2 ask still blocks prio 4..5 (Q9 = B). |
-| **3** | After 1..2, ahead of 4..5. **Strict queue order (Q6 = A)**: explicit `QueueRank` (admin/owner drag or Q7 resume front-of-tier), then `EnqueuedAt`, then `AskID` — `askBefore` (`store/fleet_ask.go:350-367`) skips `askQueueRank` (`:360-362`), so refactor/bug/feature rows never jump each other inside 3. | Taken only when zero launchable prio 1..2 rows are queued, strictly in queue `Position` order (`HEAD` directly — `spl_spawn_place_band` `:472-482` does **not** run class-band deficit sorting on prio 3; Q6 = A). | Waits in line. A held prio 3 ask still blocks prio 4..5 (Q9 = B). |
-| **4** | After 1..3, ahead of 5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken **only** when resources are free AND zero prio 1..3 rows are queued in the **unfiltered** queue, held or launchable (`unfiltered_min_prio >= 4`; Q9 = B). Once unblocked, class-band sorting (`:472-482`) may reorder only among launchable prio 4 rows (and never crosses priority tiers). | Waits in line. |
-| **5** | Last (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken **only** when resources are free AND zero prio 1..4 rows are queued in the **unfiltered** queue, held or launchable (`unfiltered_min_prio == 5`: prio 1..3 per Q9 = B; prio 4 derived from table row 5, poll `32527755` Q1 = A, under Q9's definition of "queued"). Once unblocked, class-band sorting (`:472-482`) may reorder only among launchable prio 5 rows (and never crosses priority tiers). | Waits in line. |
+| **1** | Leads all rows (`ci` first among 1, then dragged `QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of review seats, class bands, and prio 2..5. | On a capacity hold (window ceiling or fleet load/overflow hold), triggers **preemption** (below) to pause a running prio 5, 4, or 3 lane and launches immediately once a slot frees (skipping `SPAWN_PLACE_GAP_MIN`). Never preempts for non-capacity holds (quota, missing CLI, `After:`, cordoned box); a held prio 1 ask blocks prio 4..5 (Q9 = B) until Q10 = C grace expiry if held on a box cordon or vendor quota outage. |
+| **2** | After 1, ahead of 3..5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken immediately ahead of class bands and ahead of every prio 3..5 row ("bypass others in the queue"). Logged review seats **at priority 1–3** on the owner's review-seat GO (`spl_spawn_place_seat`, `spl-spawn-place.func.sh:465-469`) keep their existing place ahead of prio 2..3 non-review asks (yielding only to `ci`, flagged, and prio 1); priority 4–5 review seats wait behind queued 1–3 asks (Q11 = B). | Waits at the head behind any prio 1 row until resources free up. Never preempts running lanes. A held prio 2 ask blocks prio 4..5 (Q9 = B) until Q10 = C grace expiry if held on a box cordon or vendor quota outage. |
+| **3** | After 1..2, ahead of 4..5. **Strict queue order (Q6 = A)**: explicit `QueueRank` (admin/owner drag or Q7 resume front-of-tier), then `EnqueuedAt`, then `AskID` — `askBefore` (`store/fleet_ask.go:350-367`) skips `askQueueRank` (`:360-362`), so refactor/bug/feature rows never jump each other inside 3. | Taken only when zero launchable prio 1..2 rows and zero prio 1–3 logged review seats are queued, strictly in queue `Position` order (`HEAD` directly — `spl_spawn_place_band` `:472-482` does **not** run class-band deficit sorting on prio 3; Q6 = A). | Waits in line. A held prio 3 ask blocks prio 4..5 (Q9 = B) until Q10 = C grace expiry if held on a box cordon or vendor quota outage. |
+| **4** | After 1..3, ahead of 5 (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken **only** when resources are free AND `effective_barrier_prio >= 4` — zero prio 1..3 rows in the unfiltered queue, or every queued prio 1..3 row is Q10 = C grace-exempt (box cordon or vendor quota held `>= unblock_grace_min`, default 120 min). Priority 4 logged review seats obey the same barrier (Q11 = B). Once unblocked, precedence within tier 4 is: launchable prio 4 logged review seat -> prio 4 `Resume-Lane:` ask -> class-band sorting (`:472-482`) strictly among launchable prio 4 rows. | Waits in line (prio 4 review seats may use `spl_spawn_place_seat_take` past CPU overflow only when `effective_barrier_prio >= 4`; Q11 = B). |
+| **5** | Last (`QueueRank`, class/flag, `EnqueuedAt`, `AskID`). | Taken **only** when resources are free AND `effective_barrier_prio == 5` — zero prio 1..4 rows in the unfiltered queue, or every queued prio 1..4 row is Q10 = C grace-exempt (prio 1..3 per Q9 = B; prio 4 derived from table row 5, poll `32527755` Q1 = A, under Q9's definition of "queued"). Priority 5 logged review seats wait behind queued 1..3 (Q11 = B) and (derived, Q13) behind queued 4. Once unblocked, precedence within tier 5 is: launchable prio 5 logged review seat -> prio 5 `Resume-Lane:` ask -> class-band sorting (`:472-482`) strictly among launchable prio 5 rows. | Waits in line (prio 5 review seats may use `spl_spawn_place_seat_take` past CPU overflow only when `effective_barrier_prio == 5`; Q11 = B + derived row 5). |
 
 **Reconciling Q6 = A (strict queue order inside priority 3) with the 20–30% class bands.**
 
-Today (`origin/master` `bfdbd57d5`), the 20–30% refactor / 20–30% bug class
+Today (`origin/master` `6b216a319`), the 20–30% refactor / 20–30% bug class
 bands (`SPL_SPAWN_BANDS` 24 h, `SPL_SPAWN_BANDS_DAY` / `SPL_SPAWN_BANDS_NIGHT`
 in `orc/spl-spawn-share.func.sh:44-46`) are enforced in five places:
 
@@ -943,9 +1092,9 @@ and 5 — plus within-tier 4 and 5 picking — keep the 20–30% bands alive:
   asks have effective priority `3`, so queued priority 3 rows order strictly
   by explicit `QueueRank`, then `EnqueuedAt`, then `AskID`. In
   `spl_spawn_place_band` (`orc/spl-spawn-place.func.sh:452-483`), once `ci`,
-  flagged head, prio 1, logged review seats, and prio 2 are checked, if the
-  launchable head has priority `3`, the placer returns `HEAD` directly and
-  bypasses the `:472-482` band-deficit sort.
+  flagged head, prio 1, logged review seats (priority 1–3 only under Q11 = B),
+  and prio 2 are checked, if the launchable head has priority `3`, the placer
+  returns `HEAD` directly and bypasses the `:472-482` band-deficit sort.
 - **Where the bands remain enforced**:
   - **Supply & admission**: `spl_spawn_place_supply` (`:366-394`) and
     `spl_spawn_place_supply_lead` (`:401-433`) keep nudging the dispatch
@@ -955,7 +1104,8 @@ and 5 — plus within-tier 4 and 5 picking — keep the 20–30% bands alive:
   - **Idle filler**: `do_spl_spawn_fill` (`orc/spl-spawn-fill.func.sh:85,194-203`)
     continues filling empty-queue idle capacity by under-band class (and
     priority 1 first among open issues).
-  - **Within tiers 4 and 5**: when unblocked by the Q9 = B barrier,
+  - **Within tiers 4 and 5**: when unblocked by the Q9 = B / Q10 = C barrier
+    (and after any launchable review seat or `Resume-Lane:` row in that tier),
     `spl_spawn_place_band` (`:472-482`) still applies class-band deficit
     sorting strictly *within* launchable priority 4 rows (or strictly *within*
     launchable priority 5 rows), never across priority tiers.
@@ -964,7 +1114,8 @@ and 5 — plus within-tier 4 and 5 picking — keep the 20–30% bands alive:
     continue sampling and reporting live and 24 h shares unchanged.
 - `csi-spl-doc/doc/md/fleet-rules-index.md:57` (edited via Qto doc
   `9d7d5428-f4b3-45bb-9217-de2d10bcef8b` and exported by
-  `do_spl_doctree_export_md`) is updated in B15b to record this split.
+  `do_spl_doctree_export_md`) is updated in B15b (tiers, Q6 A, Q9 B, Q11 B)
+  and B15c (Q10 C grace auto-unblock) to record this behaviour.
 
 **Priority-1 preemption: pausing, resuming, and notifying (`do_spl_lane_preempt`).**
 
@@ -1000,7 +1151,7 @@ and 5 — plus within-tier 4 and 5 picking — keep the 20–30% bands alive:
         **zero** eligible non-review priority 5, 4, or 3 lanes exist on a
         qualifying box are eligible review seats (`-reviewer` slug or
         `Kind: review` / `code_review`, matching `spl_spawn_place_review_seat`
-        at `orc/spl-spawn-place.func.sh:1117-1120`) considered, ordered lowest
+        at `orc/spl-spawn-place.func.sh:1121-1124`) considered, ordered lowest
         priority first (**5**, then **4**, then **3**). Thus a priority 3
         coding lane is always paused before a priority 5 review seat.
      3. **Box load tie-break**: on a global overflow hold, within the same
@@ -1008,6 +1159,10 @@ and 5 — plus within-tier 4 and 5 picking — keep the 20–30% bands alive:
         highest load holding a candidate.
      4. **Pane state & age**: idle/waiting panes before active mid-turn panes;
         among equals, youngest (`AgeS` ascending) to minimize lost context.
+        (Under Q11 = B, a priority 4–5 author lane idling while its review seat
+        waits behind priority 1–3 asks naturally falls into this idle-pane tier
+        and is paused cleanly with WIP preserved before an active lane of the
+        same priority.)
    - **No eligible victim** (every running lane is prio 1..2 or protected):
      preempt nothing, log `INFO prio-1 preemption: no eligible prio 3..5 victim`,
      and send ONE rate-limited `blocker` to the dispatch lease holder naming
@@ -1061,10 +1216,12 @@ and 5 — plus within-tier 4 and 5 picking — keep the 20–30% bands alive:
      with a `P+1` ask as `after` (`store/fleet_ask.go:638-642` adopts `after`'s
      priority); the resume ask is already first in `P`, and
      `spl_spawn_place_band` (B16c) also prefers a queued `Resume-Lane:` row
-     first within its priority tier `P` ahead of unranked peers (including
-     within-tier class-band picks in tiers 4–5).
+     ahead of non-review unranked peers within its priority tier `P` (after any
+     launchable logged review seat of tier `P`, ahead of within-tier class-band
+     picks in tiers 4–5).
    - When resources free up and the placer reaches the resume ask under the
-     1..5 rules (including Q9 = B's unfiltered barrier for 4–5):
+     1..5 rules (including Q9 = B's unfiltered barrier and Q10 = C's grace
+     auto-unblock for tiers 4–5):
      - On the original box: restores the lane in its preserved worktree and
        branch (`restore-<vendor>.sh`, reusing `session_id` if present, else a
        fresh session on the same worktree with a resume prompt referencing
@@ -1251,11 +1408,12 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C408 | 4 | the 5-min sweep (v1.2) | `prio-sync` dry run lists the change and writes nothing; `--apply` writes it, counts the unset issues, walks every workspace from the operator one; a second run changes nothing | the op does not exist | `hub/topic_priority_follow_test.go` `TestTopicPrioritySyncOp`, `csi-spl-orc/src/bash/tests/spl-topic-prio-sync.tst.sh` |
 | C409 | 4 | the PUT agrees with the sweep (v1.2, R7 W1) | an operator issue on a far priority 1 topic and an own topic: the own topic's PUT to 3 leaves it at 1, the next sweep changes nothing | the PUT's operator run reads its own workspace only: prio 3 (ca1176c0f) | `hub/topic_priority_follow_test.go` `TestTopicPriorityPutAgreesWithSync` |
 | C410 | 4 | prio word rule retired (v1.8) | an owner browser post containing "prio", "priority one" or "urgent" leaves its topic at 3; a new topic ending with `prio:1` still sets 1; `priorityToOperator` still copies an operator owner's PUT across workspaces | restore `s.ownerPrioWord` call in `hub/wui.go` | `hub/topic_create_prio_test.go` `TestOwnerPrioWordRemoved`, `hub/topic_priority_test.go` `TestTopicPriorityOperatorQueue` (moved from `hub/owner_prio_word_test.go:234`) |
-| C411 | 4 | prio 2 jumps bands and 3..5; review-seat GO preserved (v1.8 / v1.9) | a queued prio 2 feature launches ahead of a queued prio 3 or 4 under-band refactor without preempting running lanes (`spl-spawn-place-owner-prio.tst.sh` case 3 `:72-76` flips from "goes through bands" to "launches ahead of bands"); a logged review seat on an owner GO keeps its existing place ahead of prio 2..5 | keep `bfdbd57d5` `spl_spawn_place_band` (ignores `.priority` for prio 2..5) | `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` |
-| C412 | 4 | prio 3 strict FIFO (Q6 = A); prio 4 & 5 unfiltered barrier (Q9 = B + derived row-5 reading) & review-seat case (v1.9) | prio 3 rows order and launch strictly in `QueueRank` / `EnqueuedAt` order with zero class-rank or class-band jump (`spl-spawn-place-owner-prio.tst.sh` case 2b `:66-70` flips from "band pick takes the bug" to "strict FIFO takes the prio 3 head"); a prio 4 row launches ONLY when zero prio 1..3 rows are queued in the unfiltered queue — a held prio 1, 2, or 3 row (`After:`, pinned cordoned/full box, agy/vendor quota out, dark box, brief on another box, or runtime launcher `HOLD` `rc == 10` in `spl_spawn_place_take_next`) blocks launchable prio 4 and 5 rows and logs the blocking held ask (Q9 = B); a prio 5 row launches ONLY when zero prio 1..4 rows are queued in the unfiltered queue, held or launchable (derived from table row 5 under Q9's definition of "queued"); a priority 4–5 logged review seat keeps its standing review-seat GO precedence past a held 1–3 ask unless Q11 answers B (explicitly pinned in `spl-spawn-place-prio-tiers.tst.sh`); once unblocked, class bands reorder only within prio 4 (or within prio 5) | filter holds (`:284-289`) before computing the 1..3 / 1..4 barrier (the rejected v1.8 default A), let `spl_spawn_place_take_next` (`:307-320`) fall through from a held prio 1..3 row to a prio 4..5 row, invert the pinned prio 4–5 review-seat GO check, or keep `askQueueRank` / `spl_spawn_place_band` class-band sorting active inside prio 3 | `store/fleet_ask_queue_test.go` `TestFleetAskQueuePrio3NoClassJump` (B15a), `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` (B15b) |
-| C413 | 4 | prio 1 preemption victim order, review-seat last resort (Q8 = A) & protections, dry run (v1.9) | on a capacity hold with a launchable prio 1 head, `do_spl_lane_preempt` (dry run) selects non-review worker lanes at prio 5 before 4 before 3 **ahead of any review seat** (a prio 3 coding lane is picked before a prio 5 review seat); selects a review seat (`-reviewer` / `Kind: review` / `code_review`, 5 before 4 before 3) only when zero eligible non-review prio 3..5 lanes exist on a qualifying box; never picks prio 1, prio 2, role seat, `.human-hold`, mid-push/gate, or `ACCEPTED` lane; when none is eligible, picks nothing and alerts the dispatch holder once | remove priority filter or protection guard in victim picker, or sort by priority ahead of non-review vs review (picking a prio 5 review seat before a prio 3 coding lane) | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
+| C411 | 4 | prio 2 jumps bands and 3..5; prio 1–3 review-seat GO preserved (v1.8 / v1.9 / v2.0) | a queued prio 2 feature launches ahead of a queued prio 3 or 4 under-band refactor without preempting running lanes (`spl-spawn-place-owner-prio.tst.sh` case 3 `:72-76` flips from "goes through bands" to "launches ahead of bands"); a logged review seat at priority 1–3 on an owner GO keeps its existing place ahead of prio 2–3 non-review asks (`spl-spawn-place-owner-prio.tst.sh` case 2 `:60-65`, whose seat is prio 3, stays green) | keep `6b216a319` `spl_spawn_place_band` (ignores `.priority` for prio 2..5) or drop prio 1–3 review-seat GO precedence | `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` |
+| C412 | 4 | prio 3 strict FIFO (Q6 = A); prio 4 & 5 unfiltered barrier (Q9 = B + derived row-5 reading) & prio 4–5 review-seat barrier (Q11 = B) (v2.0) | prio 3 rows order and launch strictly in `QueueRank` / `EnqueuedAt` order with zero class-rank or class-band jump (`spl-spawn-place-owner-prio.tst.sh` case 2b `:66-70` flips from "band pick takes the bug" to "strict FIFO takes the prio 3 head"); a prio 4 row — including a prio 4 logged review seat (Q11 = B, in both `spl_spawn_place_band:465-469` and `spl_spawn_place_seat_take:295,552-560`) — launches ONLY when zero non-grace-exempt prio 1..3 rows are queued in the unfiltered queue (`After:`, pinned full/cordoned box within grace, agy/vendor quota within grace, dark box, brief on another box, missing CLI, or runtime launcher `HOLD` `rc == 10` in `spl_spawn_place_take_next` blocks launchable prio 4–5 rows and logs the blocking held ask); a prio 5 row — including a prio 5 logged review seat (Q11 = B behind 1..3; derived from table row 5 behind 4, Q13) — launches ONLY when zero non-grace-exempt prio 1..4 rows are queued; `spl_spawn_place_seat_alarm:624-667` suppresses `#alerts` when a prio 4–5 review seat waits solely on the Q11 = B barrier; once unblocked, a tier's logged review seat launches ahead of non-review asks and class bands reorder only within prio 4 (or within prio 5) | filter holds (`:284-289`) before computing the 1..3 / 1..4 barrier, let `spl_spawn_place_take_next` (`:307-320`) fall through from a non-exempt held prio 1..3 row to a prio 4..5 row, let a prio 4–5 review seat launch via `spl_spawn_place_band:465-469` or `spl_spawn_place_seat_take:552-560` while a prio 1..3 ask is queued, fire `spl_spawn_place_seat_alarm` on an intentional Q11 = B wait, or keep `askQueueRank` / `spl_spawn_place_band` class-band sorting active inside prio 3 | `store/fleet_ask_queue_test.go` `TestFleetAskQueuePrio3NoClassJump` (B15a), `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` (B15b) |
+| C420 | 4 | Q10 = C auto-unblock after grace time for box cordon & vendor quota holds (v2.0) | reads `env.box.spawn_priority.unblock_grace_min` (default `120` min, `SPAWN_PRIO_UNBLOCK_GRACE_MIN` override, `0` = disabled); tracks first sighting in `<asks dir>/.place.prio-hold`; a prio 1..3 ask held on box cordon (`CORDONED`) or vendor quota outage (`agy ... quota` or `weekly`, excluding `"the agy program or its login is missing"`) stays blocking while `< unblock_grace_min` and becomes grace-exempt at `>= unblock_grace_min`, auto-unblocking launchable prio 4 asks (with a waiting prio 4 logged review seat picked ahead of prio 4 coding asks) and prio 5 asks when all prio 1..4 asks (including held prio 4) are grace-exempt — across both pre-line holds and runtime `rc == 10` holds in `spl_spawn_place_take_next`; every held higher-priority ask keeps its queue position, priority, `.place.wait` line, and `queued` state, and immediately re-engages the barrier when its hold clears; mixed blockers (one grace-exempt cordon hold + one non-exempt launchable, under-grace, dark-box, stuck-`After:`, or missing-CLI ask) keep lower priorities blocked; emits a placer `INFO` log every unblocked tick and ONE spool `note` to `spl_spawn_place_dispatch` per continuous hold episode (never `#alerts`) | skip the grace check or measure hold age from `.place.wait`'s overwritten epoch (`:1742`), treat dark box / `After:` / missing agy program as qualifying holds, unblock when a second 1..3 ask is still non-exempt, drop or demote the held ask on unblock, or send the holder `note` on every tick | `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-unblock.tst.sh` (B15c) |
+| C413 | 4 | prio 1 preemption victim order, review-seat last resort (Q8 = A) & protections, dry run (v1.9 / v2.0) | on a capacity hold with a launchable prio 1 head, `do_spl_lane_preempt` (dry run) selects non-review worker lanes at prio 5 before 4 before 3 **ahead of any review seat** (a prio 3 coding lane is picked before a prio 5 review seat; an idle prio 4–5 author lane waiting on a Q11 = B-blocked review seat ranks in the idle-pane tier ahead of active peers of the same priority); selects a review seat (`-reviewer` / `Kind: review` / `code_review`, 5 before 4 before 3) only when zero eligible non-review prio 3..5 lanes exist on a qualifying box; never picks prio 1, prio 2, role seat, `.human-hold`, mid-push/gate, or `ACCEPTED` lane; when none is eligible, picks nothing and alerts the dispatch holder once | remove priority filter or protection guard in victim picker, or sort by priority ahead of non-review vs review (picking a prio 5 review seat before a prio 3 coding lane) | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
 | C414a | 4 | prio 1 preemption WIP-safe pause & sweep guard (v1.9, Q7 = A) | under `DRY_RUN=0`, preempted lane receives a spool note, WIP is pushed to `refs/heads/wip/<branch>` (secret-scan hit aborts and tries next victim), `paused.json` is written, worktree is kept and protected by `workdir-sweep.sh` (`KEEP paused`), tmux window closes cleanly, holder + issue are notified, `queue.lane_preempted` is logged, and the prio 1 ask launches skipping `SPAWN_PLACE_GAP_MIN` | skip `do_spl_lane_wip_push`, skip `paused.json`, or let `workdir-sweep.sh` delete a paused worktree | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh`, `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` |
-| C414b | 4 | prio 1 preemption auto-resume front-of-tier & restore (v1.9, Q7 = A) | pause enqueues a resume ask (`Resume-Lane: <id>`) preserving original discussion, class, and priority, and places it at the **front** of its priority tier (`ask_op position` via `hub/fleet_ask_order.go:223-267` citing `9b05df65` when peers at `P` are queued, without demoting when none exist, plus `spl_spawn_place_band` resume-first within tier `P`); when room returns (and Q9 = B allows), placer restores the lane in its worktree via `restore-<vendor>.sh` (or `do_spl_lane_handover` Mode B from `wip_ref` if box unavailable), removes `paused.json`, notifies lane/holder/issue, and logs `queue.lane_resumed` | enqueue the resume ask at the back of its priority tier (omitting front-of-tier placement), demote it by passing a `P+1` ask as `after`, drop `Resume-Lane:` handling in `spawn-window.sh`, or leave `paused.json` stale after restore | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
+| C414b | 4 | prio 1 preemption auto-resume front-of-tier, barrier & restore (v1.9 / v2.0, Q7 = A, Q10 = C, Q11 = B) | pause enqueues a resume ask (`Resume-Lane: <id>`) preserving original discussion, class, and priority, and places it at the **front** of its priority tier (`ask_op position` via `hub/fleet_ask_order.go:223-267` citing `9b05df65` when peers at `P` are queued, without demoting when none exist); a prio 4–5 resume ask obeys the Q9 = B / Q10 = C barrier (blocked behind non-exempt higher-priority asks, eligible once higher tiers drain or cross Q10 = C grace expiry); within an unblocked tier `P`, a launchable prio-`P` logged review seat launches ahead of a non-review `Resume-Lane:` ask, which launches ahead of other tier-`P` class-band peers; on restore, placer restores the lane in its worktree via `restore-<vendor>.sh` (or `do_spl_lane_handover` Mode B from `wip_ref` if box unavailable), removes `paused.json`, notifies lane/holder/issue, and logs `queue.lane_resumed` | enqueue the resume ask at the back of its priority tier (omitting front-of-tier placement), demote it by passing a `P+1` ask as `after`, let a prio 4–5 resume ask bypass a non-exempt prio 1–3 ask or jump a prio-`P` logged review seat once unblocked, drop `Resume-Lane:` handling in `spawn-window.sh`, or leave `paused.json` stale after restore | `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` |
 | C415 | 3 | channel default priority store & RLS (v1.8) | unset channel returns `nil` (effective 3); set 1..5 round-trips on Memory and Postgres (including unseeded default channel); 0 and 6 refused; `nil` clears back to unset; tenant B reads none of tenant A's rows | widen `CHECK` or drop tenant scope | `store/channel_default_priority_test.go` (Memory + Postgres) |
 | C416 | 3 | channel default priority API & owner-only gate (v1.8) | `PUT /v1/channels/{ch}/default-priority` succeeds for workspace owner (`TenantOwner`); returns 403 `tenant.owner` for admin, member, channel creator (non-owner), and demo visitor; 404 for unknown/archived; `GET /v1/channels/{ch}/members` and `GET /v1/tenant/channels` expose it with constant DB round trips | check `rbac.TenantSettings` instead of `s.workspaceOwner` | `hub/channel_default_priority_test.go`, `hub/n_plus_1_rt_test.go` |
 | C417 | 3 | new topic inherits channel default; existing topics untouched (v1.8) | a new topic (browser or box send) in a channel with `default_priority = 2` starts at 2 and propagates to linked issues; a channel set explicitly to `4` (or `3`) writes a `topic_priorities` row that intentionally overrides SPL-4725's `bug`/`refactor` = 2 class default on issues born from it; a trailing `prio:4` token overrides the channel default; changing the channel's default later to 5 leaves previously created topics at 2; an unset channel (`null`) writes no `topic_priorities` row so SPL-4725 class defaults survive; a non-operator workspace owner's channel default never reorders the operator queue | skip the new-topic hook, backfill existing topics on PUT, or copy non-operator owner's default to op | `hub/channel_default_priority_test.go` |
@@ -1286,20 +1444,21 @@ before a row that depends on it starts.
 | B13 (v1.2, SPL-4813) | 4 | issues and lanes follow the discussion's priority: at the PUT and by the 5-min `prio-sync` sweep; C407, C408 | `hub/topic_priority_follow.go`, `hub/topic_priority.go`, `hub/issues_agent.go`, `api/cmd/spool/issue.go`, `api/internal/action/issue.go`, `orc/spl-topic-prio-sync.func.sh`, `csi-spl-orc/src/bash/scripts/topic-prio-sync-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, and their tests | B1, B9 |
 | B14 (v1.8) | 4 | retire the "prio" word rule: relocate `operatorOwner` / `priorityOperatorTenant` to `topic_priority.go`, move `TestTopicPriorityOperatorQueue` (`owner_prio_word_test.go:234`) into `topic_priority_test.go`, relocate `prioOwnText` to `topic_create_prio.go`, delete `owner_prio_word.go` / `owner_prio_word_test.go` / `SPOOL_HUB_OWNER_PRIO_WORDS`, update `spl-spawn-place-owner-prio.tst.sh` header, update spec 157 §4.1, `fleet-rules-index.md:56`, `rounds-rulebook.md:320` (via Qto doc `e621cc32` + `do_spl_doctree_export_md`), `spec 153:2603`, and `spec 177 checklist.md:151`; C410 | `hub/owner_prio_word.go` (delete), `hub/owner_prio_word_test.go` (delete), `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/topic_create_prio.go`, `hub/topic_create_prio_test.go`, `hub/topic_priority_follow.go`, `hub/wui.go`, `hub/server.go`, `api/cmd/spool/hub.go`, `api/internal/config/config.go`, `api/internal/config/owner_prio_words_test.go` (delete), `example.env.yaml`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh` (header only), `csi-spl-doc/specs/157-dispatch-automation/spec.md`, `csi-spl-doc/doc/md/fleet-rules-index.md`, `csi-spl-doc/doc/md/rounds-rulebook.md`, `csi-spl-doc/specs/153-monitoring-lanes-tab/spec.md`, `csi-spl-doc/specs/177-reporter-role/checklist.md` | - |
 | B15a (v1.9) | 4 | hub queue **Q6 = A** strict FIFO inside priority 3: skip `askQueueRank` (`store/fleet_ask.go:360-362`) when both asks have effective priority 3 so tier 3 orders strictly by `QueueRank`, `EnqueuedAt`, `AskID` (`PRE_PUSH_TIER=full`); done test & red control: C412 (store half: `TestFleetAskQueuePrio3NoClassJump`) | `store/fleet_ask.go`, `store/fleet_ask_queue_test.go` | - |
-| B15b (v1.9) | 4 | placer 1..5 priority barrier & tier rules + docs: prio 2 jumps bands/3..5 while preserving logged review-seat GO order; flip `spl-spawn-place-owner-prio.tst.sh` case 2b (`:66-70`, prio 3 FIFO) and case 3 (`:72-76`, prio 2 ahead of bands); **Q6 = A** bypass `spl_spawn_place_band:472-482` for prio 3 (keep bands in supply blockers, idle filler, and within tiers 4–5); **Q9 = B** unfiltered barrier before `:284-289` hold filters and in `spl_spawn_place_take_next` (`:307-320`) so any queued prio 1..3 ask (held or launchable) blocks 4..5, and (derived from table row 5 under Q9's definition of "queued") any queued prio 1..4 ask blocks 5, logging the blocking held ask and pinning the prio 4–5 review-seat GO check (Q11); update `fleet-rules-index.md:57` (via Qto doc `9d7d5428` + `do_spl_doctree_export_md`); done tests & red controls: C411, C412 (placer half) | `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B14, B15a |
-| B16a (v1.9) | 4 | priority-1 preemption victim picker & protections (`do_spl_lane_preempt` dry-run log only: reads `GET /v1/operator/fleet-lanes`, protects prio 1–2 / role seats / `.human-hold` / mid-gate / `ACCEPTED`, **Q8 = A** picks non-review worker lanes 5 -> 4 -> 3 before any review seat 5 -> 4 -> 3 as last resort, alerts holder once when no victim exists); done test & red control: C413 | `orc/spl-lane-preempt.func.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` | B15b |
+| B15b (v2.0) | 4 | placer 1..5 priority barrier, tier rules & **Q11 = B** review-seat barrier + docs: prio 2 jumps bands/3..5 while preserving **prio 1–3** logged review-seat GO order; flip `spl-spawn-place-owner-prio.tst.sh` case 2b (`:66-70`, prio 3 FIFO) and case 3 (`:72-76`, prio 2 ahead of bands; case 2 `:60-65` prio-3 seat stays green); **Q6 = A** bypass `spl_spawn_place_band:472-482` for prio 3 (keep bands in supply blockers, idle filler, and within tiers 4–5); **Q9 = B** unfiltered barrier before `:284-289` hold filters and in `spl_spawn_place_take_next` (`:307-320`) so any queued prio 1..3 ask (held or launchable) blocks 4..5 and (derived from table row 5 under Q9's definition of "queued") any queued prio 1..4 ask blocks 5, logging the blocking held ask; **Q11 = B** block prio 4–5 logged review seats behind queued 1..3 asks (and derived: prio 5 behind queued 4) in both `spl_spawn_place_band:465-469` and `spl_spawn_place_seat_take:295,552-560`, suppress `spl_spawn_place_seat_alarm:624-667` on intentional barrier waits, and pick a tier's review seat first once its tier unblocks; update `fleet-rules-index.md:57` (via Qto doc `9d7d5428` + `do_spl_doctree_export_md`); done tests & red controls: C411, C412 (placer half) | `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-owner-prio.tst.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-tiers.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B14, B15a |
+| B15c (v2.0) | 4 | **Q10 = C** auto-unblock grace timeout + docs: add cnf `env.box.spawn_priority.unblock_grace_min: 120` in `csi-spl-cnf/csi-spl/all.env.yaml` (check `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code`), read with `SPAWN_PRIO_UNBLOCK_GRACE_MIN` override (`0` = off); track qualifying holds (box cordon `*CORDONED*`, vendor quota `*"agy "*quota*` / `*weekly*`, excluding missing agy program/login, dark box, `After:`, and other holds) in `<asks dir>/.place.prio-hold`; compute `effective_barrier_prio` ignoring only grace-exempt asks across pre-line holds and runtime `rc == 10` holds in `spl_spawn_place_take_next` while held asks keep their queue place; emit placer `INFO` log per unblocked tick and ONE dispatch holder `note` per continuous hold episode (never `#alerts`); update `fleet-rules-index.md:57` (via Qto doc `9d7d5428` + `do_spl_doctree_export_md`); done test & red control: C420 | `csi-spl-cnf/csi-spl/all.env.yaml`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-place-prio-unblock.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B15b |
+| B16a (v2.0) | 4 | priority-1 preemption victim picker & protections (`do_spl_lane_preempt` dry-run log only: reads `GET /v1/operator/fleet-lanes`, protects prio 1–2 / role seats / `.human-hold` / mid-gate / `ACCEPTED`, **Q8 = A** picks non-review worker lanes 5 -> 4 -> 3 before any review seat 5 -> 4 -> 3 as last resort — including idle prio 4–5 author lanes waiting on Q11 = B-blocked review seats in the idle-pane tie-break, alerts holder once when no victim exists); done test & red control: C413 | `orc/spl-lane-preempt.func.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` | B15c |
 | B16b (v1.9) | 4 | priority-1 live pause protocol (`DRY_RUN=0`, **Q7 = A**): spool notice, event-driven grace poll, WIP push (calling `orc/spl-lane-wip-push.func.sh`), `paused.json`, clean window close (calling `tmux-close-window.sh`), disk-sweep `KEEP paused` rule, placer capacity-hold trigger skipping `SPAWN_PLACE_GAP_MIN`, holder/issue notifications & `queue.lane_preempted` event; done test & red control: C414a | `orc/spl-lane-preempt.func.sh`, `orc/spl-spawn-place.func.sh`, `csi-spl-utl/src/bash/scripts/workdir-sweep.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh`, `csi-spl-orc/src/bash/tests/workdir-sweep.tst.sh` (calls existing `orc/spl-lane-wip-push.func.sh` and `spawn-agents/scripts/tmux-close-window.sh`, unmodified) | B16a |
-| B16c (v1.9) | 4 | priority-1 auto-resume ask & lane restore (**Q7 = A**, mandatory): enqueue resume ask (`Resume-Lane: <id>`) and place at the front of its priority tier (`ask_op position` via `hub/fleet_ask_order.go:223-267` using `9b05df65` as standing `owner_msg` authorisation when peers at `P` exist, plus `spl_spawn_place_band` resume-first within tier `P`), restore in preserved worktree via `restore-<vendor>.sh` or handover Mode B fallback from `wip_ref`, clear `paused.json`, resume notifications & `queue.lane_resumed` event; done test & red control: C414b | `orc/spl-lane-preempt.func.sh`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` (calls existing `spawn-agents/scripts/restore-{agy,claude,codex,grok,mistral,qwen}.sh`, `restore-core.inc.sh`, and `orc/spl-lane-handover{,-agy,-mistral,-wip}.func.sh`) | B16b |
+| B16c (v2.0) | 4 | priority-1 auto-resume ask & lane restore (**Q7 = A**, mandatory; **Q10 = C** & **Q11 = B** barrier-aware): enqueue resume ask (`Resume-Lane: <id>`) and place at the front of its priority tier (`ask_op position` via `hub/fleet_ask_order.go:223-267` using `9b05df65` as standing `owner_msg` authorisation when peers at `P` exist), keep prio 4–5 resume asks subject to the Q9 = B / Q10 = C barrier and order unblocked tier `P` as `logged review seat -> Resume-Lane: -> class-band peers` in `spl_spawn_place_band`, restore in preserved worktree via `restore-<vendor>.sh` or handover Mode B fallback from `wip_ref`, clear `paused.json`, resume notifications & `queue.lane_resumed` event; done test & red control: C414b | `orc/spl-lane-preempt.func.sh`, `orc/spl-spawn-place.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh`, `csi-spl-orc/src/bash/tests/spl-lane-preempt.tst.sh` (calls existing `spawn-agents/scripts/restore-{agy,claude,codex,grok,mistral,qwen}.sh`, `restore-core.inc.sh`, and `orc/spl-lane-handover{,-agy,-mistral,-wip}.func.sh`) | B16b |
 | B17 (v1.8) | 3 | channel `default_priority` migration (`rdb/<NNNN>_channel_default_priority.sql`) and store (`ChannelDefaultPriority`, batch read in `SetReads`); C415 (`PRE_PUSH_TIER=full`) | `rdb/<NNNN>_channel_default_priority.sql`, `store/channel_default_priority.go`, `store/channel_default_priority_test.go`, `store/channels.go`, `store/channels_memory.go`, `store/channels_postgres.go` | - |
 | B18 (v1.8) | 3 | `PUT /v1/channels/{channel}/default-priority` (workspace owner only), read fields on channel members & tenant channels, new-topic inherit hook (browser & box), OpenAPI; C416, C417 | `hub/channel_default_priority.go`, `hub/channel_default_priority_test.go`, `hub/channel_members.go`, `hub/tenant_settings.go`, `hub/wui.go`, `hub/ws.go`, `hub/server.go`, `hub/openapi.json` | B14, B17 |
 | B19 (v1.8) | 3 | v1.8 i18n keys (8 channel-default keys + updated `topic.priority.hint`) in all 19 locales; C419 | `csi-spl-wui/i18n/locales/*.json` | - |
 | B20 (v1.8) | 3 | WUI channel default priority control in Channel Properties -> Settings and Workspace Settings -> Channels, client & mock helpers; C418 | `wui/components/ChannelPropertiesDialog.vue`, `wui/pages/tenant-settings/channels.vue`, `wui/utils/spool-client-lazy.mjs`, `wui/utils/spool-client.mjs`, `wui/utils/spool-client-mock.mjs`, `wui/utils/tenant-settings.mjs`, `wui/utils/tenant-settings-mock.mjs`, `wui/types/mjs-shims.d.ts`, `csi-spl-wui/tests/e2e/channel-default-priority.test.mjs` | B18 (live on dev & prd), B19 |
 | B21 (v1.8) | 3 | language review of the v1.8 keys across all 19 locales (`do_spl_lang_review_gct` / agy); C419 | `csi-spl-wui/i18n/locales/*.json` | B20 |
 
-**v1.8 / v1.9 build order and gates.**
+**v1.8 / v1.9 / v2.0 build order and gates.**
 
 - Four independent starters can run immediately in parallel: **B14** (drop prio word), **B15a** (store Q6 strict FIFO inside prio 3, `PRE_PUSH_TIER=full`), **B17** (channel default rdb + store), and **B19** (i18n keys).
-- Track A (priority semantics, Q6–Q9 all decided in msg `9b05df65`): `(B14 + B15a) -> B15b -> B16a -> B16b -> B16c` (B16c is mandatory under Q7 = A). B15a touches `store/fleet_ask.go`, so run `PRE_PUSH_TIER=full` on B15a; B15b is placer + docs only. B14 and B18 both touch `hub/wui.go` and `hub/server.go`, so B18 runs after B14 lands.
+- Track A (priority semantics, Q6–Q11 all decided in msgs `9b05df65` and `fd876ec6`): `(B14 + B15a) -> B15b -> B15c -> B16a -> B16b -> B16c` (B16c is mandatory under Q7 = A). B15a touches `store/fleet_ask.go`, so run `PRE_PUSH_TIER=full` on B15a; B15b is placer + docs only; B15c touches `csi-spl-cnf/csi-spl/all.env.yaml`, so run `ENV=<env> ./run -a do_tpl_gen` then `git diff --exit-code` alongside orc tests. B14 and B18 both touch `hub/wui.go` and `hub/server.go`, so B18 runs after B14 lands.
 - Track B (channel default priority): `B17 (+ B14) -> B18 -> (wait for dev & prd deploy) -> B20 (+ B19) -> B21`. B17 touches a migration and store (`PRE_PUSH_TIER=full`, claim migration number via `do_rdb_migration_next`); B20 runs WUI e2e on the generated bundle (`pnpm run test:e2e`); B21 runs `do_spl_lang_review_gct` last.
 
 - Every row runs the module gate of the repo CLAUDE.md before its push.
@@ -1449,7 +1608,7 @@ Q9. When a queued priority 1–3 ask cannot start right now (waits on After:, pi
 
 Q9 answered **B** (msg `9b05df65`; reverses v1.8's default reading A).
 
-### v1.9 open questions (non-blocking for B15a–B15b / B16a–B16c)
+### v1.9 questions (all answered in poll `2846b563`, msg `fd876ec6`, 2026-11-26T05:1xZ; folded into v2.0)
 
 ```poll
 Q10. Under Q9 = B (and the derived row-5 reading for held priority 4 asks), a held priority 1–4 ask (cordoned box, vendor out of quota, dark box, or stuck After:) can starve queued lower-priority (4–5) asks indefinitely. How should prolonged starvation be handled?
@@ -1458,10 +1617,29 @@ Q10. Under Q9 = B (and the derived row-5 reading for held priority 4 asks), a he
 (C) Auto-unblock launchable lower-priority asks after a grace timeout (e.g. 2 h) when the blocking 1–4 ask is held on a box cordon or vendor quota outage
 ```
 
+Q10 answered **C** (msg `fd876ec6`).
+
 ```poll
 Q11. Under Q9 = B, if a priority 1–3 ask is queued (and held) while a priority 4–5 logged review seat (-reviewer on the standing review-seat GO) is launchable, should that review seat still launch?
 (A) Yes: review seats keep the standing review-seat GO so already-written work finishes and frees author lanes
 (B) No: priority 4–5 review seats also wait behind any queued 1–3 ask
+```
+
+Q11 answered **B** (msg `fd876ec6`).
+
+### v2.0 open questions (non-blocking for B15a–B15c / B16a–B16c)
+
+```poll
+Q12. Q10 C auto-unblocks launchable lower-priority asks after the grace time (default 2 h) when a blocking priority 1–4 ask is held on a box cordon or a vendor quota outage. Should a dark (silent) box hold or a stuck After: prerequisite hold also auto-unblock after the same grace time?
+(A) Keep Q10 C strictly to box cordon and vendor quota outage (dark box and After: keep blocking and rely on their existing alarms)
+(B) Also auto-unblock on a dark (silent) box hold after the grace time (keep After: strictly blocking)
+(C) Auto-unblock on both dark (silent) box and stuck After: holds after the grace time
+```
+
+```poll
+Q13. Q11 B holds priority 4–5 review seats behind any queued priority 1–3 ask. When no priority 1–3 ask is queued, should a priority 5 review seat also wait behind a queued priority 4 ask (matching table row 5), or launch ahead of priority 4 non-review asks?
+(A) Wait behind any queued priority 4 ask too (consistent with table row 5; subject to Q10 C grace time if all priority 4 asks are held on cordon/quota)
+(B) Launch ahead of priority 4 non-review asks (only priority 1–3 asks block priority 4–5 review seats)
 ```
 
 ## 8. Signatures

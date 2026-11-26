@@ -194,10 +194,12 @@ func TestBoxFleetAskQueuePosition(t *testing.T) {
 	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a2, By: "c-001@box-c", Class: "feature"}).Asks[0]; r.Position != 2 || r.QueueLen != 2 || r.Placement != "" {
 		t.Fatalf("queue a2: %+v", r)
 	}
-	// SPL-1817: a later refactor row goes ahead of the older bug (FIFO would not)
+	// spec 150 row B15a (Q6 = A): at the default priority 3 a later refactor
+	// waits behind the older rows, no class jump (SPL-1817's class order holds
+	// only outside 3)
 	const a3 = "a3a3a3a3-0000-4000-8000-000000000003"
 	askCall(t, home, action.AskArgs{Fleet: "main", Op: "put", AskID: a3, Kind: "task", From: "c-002@box-b", Summary: "SPAWN REQUEST a3"})
-	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a3, By: "c-001@box-c", Class: "refactor"}).Asks[0]; r.Position != 1 || r.QueueLen != 3 {
+	if r := askCall(t, sat, action.AskArgs{Fleet: "main", Op: "queue", AskID: a3, By: "c-001@box-c", Class: "refactor"}).Asks[0]; r.Position != 3 || r.QueueLen != 3 {
 		t.Fatalf("queue a3 refactor: %+v", r)
 	}
 	askCall(t, sat, action.AskArgs{Fleet: "main", Op: "ack", AskID: a3, By: "c-001@box-c"})

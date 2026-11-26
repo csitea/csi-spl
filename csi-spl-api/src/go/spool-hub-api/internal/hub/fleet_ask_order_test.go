@@ -434,7 +434,7 @@ func TestFleetAskRankAgainstArrivals(t *testing.T) {
 	if got := r.order(t, names); got != "C B A" {
 		t.Fatalf("after the moves: %s, want C B A", got)
 	}
-	n := r.queue(t, "refactor", "") // a refactor before a feature by class, but after the ranked rows
+	n := r.queue(t, "refactor", "") // after the ranked rows (and, at 3, no class jump: spec 150 B15a)
 	names[n] = "N"
 	if got := r.order(t, names); got != "C B A N" {
 		t.Fatalf("a same-priority arrival: %s, want C B A N", got)
@@ -466,8 +466,8 @@ func TestFleetAskRankAgainstArrivals(t *testing.T) {
 	if br := r.row(t, b); br.QueueRank != 0 || br.PrioritySource != store.AskPrioDiscussion {
 		t.Fatalf("its discussion's newer set kept the rank %d (%s)", br.QueueRank, br.PrioritySource)
 	}
-	if got := r.order(t, names); got != "H A N B C" {
-		t.Fatalf("after the clears: %s, want H A N B C", got)
+	if got := r.order(t, names); got != "H A B C N" { // Q6 = A: queue order inside 3, N no longer jumps by class
+		t.Fatalf("after the clears: %s, want H A B C N", got)
 	}
 }
 

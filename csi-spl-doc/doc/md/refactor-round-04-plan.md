@@ -59,11 +59,13 @@ callers stay untouched and byte-identical) lets all three wave-3 installers lazy
 `setup-box-stats-cron.func.sh` and pass `""` as arg 11.
 The rows share no file: both are batch 1.
 
-**Status: v0.2 (folded panel FAIL W1, W2 and N1-N6; awaiting panel re-review).** Editor:
-**a-852** (agy). Cross-vendor claude panel seat **c-804** returned FAIL on v0.1
-(`4ded3bf46`, seat commit `16df4c069`) for W1 and W2; v0.2 folds W1 (option a), W2, and
-N1-N6 on `review/c002-refactor-round-04-planner` for re-review before v1.0 signing and
-landing.
+**Status: v1.0 (panel PASS on v0.2 `84178fd66` with review-line check rc 0; awaiting
+final panel signature on v1.0 sha before landing).** Editor: **a-852** (agy).
+Cross-vendor claude panel seat **c-804** passed v0.2 (`84178fd66`, seat commit
+`ef74aaa7a`, `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`);
+v1.0 folds N7 (option a ruling) and notes N8 with all 12 fenced `bash` blocks
+byte-identical to v0.2, pushed to `review/c002-refactor-round-04-planner` for final
+signature.
 
 **One sha:** every count is measured on **`ffba81845`** (`ffba818456f9b6f171c0fac34a2d7c6d94918a02`,
 `origin/master` at 2026-11-26T00:47:49Z), n=1 per command unless stated. Reads are on
@@ -415,12 +417,14 @@ run
   fail "r04-01 existing plan mode (rc=$RC): $(stat -c %a "$T/plan.tsv")"
 ```
 
-**Behaviour:** one intentional tightening — routing `oq` through `spl_issue_brc_plan_path`
+**Behaviour:** one stated, tested tightening under the dispatch holder's **option (a)
+ruling** (send-back `78253b0d`, panel N7) — routing `oq` through `spl_issue_brc_plan_path`
 runs `(umask 077; : >"$p") && chmod 600 "$p" || return 1`, so `oq`'s plan file is now
 `0600` also when `ISSUE_PLAN` names a pre-existing file (enforcing the `0600` contract
 already stated at `oq:72`; measured on a pre-existing `0644` `ISSUE_PLAN`: base `rc=0,
-mode=644`, head1 `rc=0, mode=600`, n=1 each), and a `chmod` failure on an existing file
-now returns 1 where base returned 0. All other commands, file modes (`0700` dir, `0600`
+mode=644`, head1 `rc=0, mode=600`, n=1 each; panel extra mutation `m1c` dropping `brc`'s
+`&& chmod 600 "$p"` caught by both `oq` `1/14/1` and `brc` `1/21/1`), and a `chmod`
+failure on an existing file now returns 1 where base returned 0. All other commands, file modes (`0700` dir, `0600`
 fresh plan), log lines, proxy stop, exit codes, `do_spl_cloud_cnf` ordering, and
 `spl_issue_oq_apply`'s distinct re-read check stay unchanged. All row-01 and shared
 suites pass on base and head1 with identical counts plus the 4 + 4 new checks (1.5).
@@ -942,8 +946,10 @@ regression tests are read-only):
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-804**
   (live on the other box, queued with this planner). Returned FAIL on v0.1 (`4ded3bf46`,
-  seat commit `16df4c069`) for W1 and W2; pending re-review of v0.2 on
-  `review/c002-refactor-round-04-planner`. The seat reviews this plan only.
+  seat commit `16df4c069`) for W1 and W2, then **PASS** on v0.2 (`84178fd66`, seat commit
+  `ef74aaa7a`; `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`).
+  Pending final panel signature on v1.0 (`review/c002-refactor-round-04-planner`). The seat
+  reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T00:49:10Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -1085,13 +1091,33 @@ placement).
     (N6). Confirmed 0 drift on all 12 row/test paths from `ffba81845` to `origin/master`
     `7e7962df5`.
 
+- v1.0 (a-852): prepared on dispatch holder GO (`a3d25e55`) after cross-vendor claude
+  panel **PASS** on v0.2 (`84178fd66`, seat commit `ef74aaa7a`, msg `6e9e8fe8` / holder
+  copy `ad38e6e0`; `do_spl_review_line_check` rc 0 on the panel's box, `DOCS-ONLY`,
+  `MISSING 0`, msg `b24acad9`):
+  - **N7 folded:** named row 01's one stated, tested tightening (pre-existing `ISSUE_PLAN`
+    file tightened to `0600`, plus rc 1 on `chmod` failure) explicitly as the dispatch
+    holder's **option (a) ruling** (`78253b0d`) in 1.3 Behaviour (and noted panel's extra
+    mutation `m1c` dropping `brc`'s `&& chmod 600 "$p"`, caught by both `oq` `1/14/1` and
+    `brc` `1/21/1`).
+  - **N8 noted:** N1 (brief count = 2) and N3 (candidates file 142 lines, 31,775 B) rest
+    on the dispatch holder's reads on the holder box; the panel seat did not read those
+    local files on its own box.
+  - All 12 fenced `bash` blocks (and all row sites, sha256s, test counts, controls, and
+    mutations) are **byte-identical** to v0.2 (`84178fd66`). Pushed fast-forward to
+    `review/c002-refactor-round-04-planner` for final panel signature before landing.
+
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2.
+- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2 (`84178fd66`), v1.0.
 - Panel reviewer seat: c-804 (claude):
   - v0.1 `4ded3bf46a50baf4ace5e7919ea9720857af5db7`: **FAIL** (W1, W2; seat commit `16df4c069`).
-  - v0.2: pending re-review on `review/c002-refactor-round-04-planner`.
+  - v0.2 `84178fd66cb774ff2b05402815cc7da78f880833`: **PASS** (seat commit
+    `ef74aaa7ab078ff0eb71307e644994f29a597484`, msg `6e9e8fe8` / `ad38e6e0`;
+    `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `b24acad9`; zero open
+    W; N7 option (a) ruling folded, N8 noted).
+  - v1.0: pending final signature on `review/c002-refactor-round-04-planner`.
 - Row R7 seats: section 4; agy seat per row (claude waiver backup only while agy is out
   of quota under ruling `dc84300a`; never mistral).

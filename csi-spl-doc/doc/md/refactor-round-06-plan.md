@@ -57,8 +57,10 @@ guards with one call (leaving the remaining 8 cron installers + `install-box-cro
 section 7 for `r07`+ so row 02 stays within rulebook 3.1's 5-file cap).
 The rows share no file: both are batch 1.
 
-**Status: v0.1 draft for panel review.** Editor: **a-942** (agy). Cross-vendor claude
-panel seat: **c-917** (placed on the other box).
+**Status: v1.0 ready for final panel signature.** Editor: **a-942** (agy). Cross-vendor
+claude panel seat: **c-917** (placed on the other box; PASS on v0.1 `9c39b5d2f`, seat
+commit `bdddcc409`, msg `9319e614` / `f8f607aa`; W1 and N1-N3 folded here, pending full
+review-line check and final v1.0 signature).
 
 **One sha:** every count is measured on **`f9521a941`**
 (`f9521a941c810423b14249f6707f6cf8ede00a5f`, `origin/master` at 2026-11-26T05:38:25Z),
@@ -469,7 +471,7 @@ Shape (built as head2 of 1.5):
   `cron_refuse_linked_worktree` checks (main checkout, non-git dir, linked worktree
   `dry=0`, linked worktree `dry=1`, linked worktree `allow=1`), 4 one-copy checks (host +
   3 wave-1 installers), and 3 standalone installer linked-worktree checks (`git-prune-merged`
-  `DRY_RUN=0`/`DRY_RUN=1` and `cost-rollup` `DRY_RUN=0`). 70 -> 106 lines (`+36 -0`).
+  `DRY_RUN=0`/`DRY_RUN=1` and `cost-rollup` `DRY_RUN=0`). 70 -> 123 lines (`+53 -0`).
   Total edited files: **5** (within rulebook 3.1's max 5; the sibling test suites run
   unmodified in the test column).
 - head2's files, sha256 (12 chars): `cron-tagged-line.func.sh` `393ecc8a586d`,
@@ -833,7 +835,10 @@ test column):
 - Editor: **a-942** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat, asked of the holder (rulebook 3.2; brief
   step 5; mistral sits on no review since 2026-11-25): claude panel seat **c-917** (live on
-  the other box, placed for ask `e919eb62`). The seat reviews this plan only.
+  the other box, placed for ask `e919eb62`). Returned **PASS** on v0.1
+  (`9c39b5d2f76b8d19b60024754bcc59908c90b5e4`, seat commit `bdddcc409`, msg `9319e614` /
+  `f8f607aa`; W1 and N1-N3 folded in v1.0; pending full review-line check and final v1.0
+  signature). The seat reviews this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-26T05:39:26Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -929,7 +934,7 @@ if the claude backup is used; never mistral; re-checked at placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of the `./run`/flock cron check/dry-run/remove/install state machine and `spl_*_cron_check` across row 01's 3 wave-2 installers + host (1.3) | 4 on `f9521a941` (`spl-spawn-fill` host + `spl-spawn-place`, `spl-review-go`, `spl-topic-archive-suggest`) -> 1 (`_spl_run_cron_apply`, 7/7 wave-1..2 consolidated) after row 01 |
 | copies of the linked-worktree cron guard across row 02's 3 wave-1 installers (1.4) | 3 on `f9521a941` (`spl-box-update`, `spl-cost-rollup`, `git-prune-merged`) -> 1 (`cron_refuse_linked_worktree` in `cron-tagged-line.func.sh`; fleet total 12 -> 10) after row 02 |
-| lines (`git diff --numstat` of each head) | row 01: `spl-spawn-fill-install-cron.func.sh` +7 -5, `spl-spawn-place-install-cron.func.sh` +7 -34, `spl-review-go-install-cron.func.sh` +7 -34, `spl-topic-archive-suggest-install-cron.func.sh` +7 -34, `spl-spawn-fill.tst.sh` +92 -0; row 02: `cron-tagged-line.func.sh` +16 -0, `spl-box-update-install-cron.func.sh` +2 -7, `spl-cost-rollup-install-cron.func.sh` +2 -7, `git-prune-merged-install-cron.func.sh` +2 -7, `cron-tagged-line.tst.sh` +36 -0 |
+| lines (`git diff --numstat` of each head) | row 01: `spl-spawn-fill-install-cron.func.sh` +7 -5, `spl-spawn-place-install-cron.func.sh` +7 -34, `spl-review-go-install-cron.func.sh` +7 -34, `spl-topic-archive-suggest-install-cron.func.sh` +7 -34, `spl-spawn-fill.tst.sh` +92 -0; row 02: `cron-tagged-line.func.sh` +16 -0, `spl-box-update-install-cron.func.sh` +2 -7, `spl-cost-rollup-install-cron.func.sh` +2 -7, `git-prune-merged-install-cron.func.sh` +2 -7, `cron-tagged-line.tst.sh` +53 -0 |
 | measured on | `f9521a941`; n=1 per command unless stated |
 
 ## 7. Left out, measured
@@ -954,13 +959,35 @@ if the claude backup is used; never mistral; re-checked at placement).
   controls (`rc1`, `gc1a`, `gc1b`, `gc1c`, `rc2`) and all 7 mutation checks (`m1a`, `m1b`,
   `m1c`, `m2a`, `m2b`, `m2c`, `m2d`) run on detached worktrees and verified RED; all
   helper, caller, and test hunks included verbatim in 1.3 and 1.4. Pushed to
-  `review/c002-refactor-round-06-planner`.
+  `review/c002-refactor-round-06-planner` (`9c39b5d2f`).
+- v1.0 (a-942): folded cross-vendor claude panel (`c-917`, PASS on v0.1 `9c39b5d2f`,
+  seat commit `bdddcc409`, msg `9319e614` / `f8f607aa`; dispatch holder `c-002` msg
+  `f010f49e`) W1 and recorded N1-N3 (no row change; all 10 fenced `bash` blocks
+  **byte-identical** to v0.1 `9c39b5d2f`; zero drift across all 17 row/test/host files
+  from `f9521a941` to `origin/master` `551b3c601`):
+  - **W1:** fixed row 02's `cron-tagged-line.tst.sh` line count in section 1.4 and
+    section 6 from `70 -> 106` (`+36 -0`) to `70 -> 123` (`+53 -0`: 52 hunk lines + 1
+    trailing blank line; rebuilt sha256 `57bffcc274b4` unchanged).
+  - **N1:** recorded that neither row edits its test file's header comment
+    (`spl-spawn-fill.tst.sh` already lacks section 11; `cron-tagged-line.tst.sh:3-11`
+    lists 1-6); no row change.
+  - **N2:** recorded that the panel seat did not re-run `spl-spawn-queue.tst.sh`,
+    `gcloud-account-pinned.tst.sh`, `do_sec_shellcheck`, `do_check_pre_push`, or
+    `gc1a`/`gc1b`/`m1a`/`m1b`/`m2b`/`m2c` (all run by the planner in 1.5 and by the
+    row lanes at landing).
+  - **N3:** recorded that `spl-spawn-fill.tst.sh` takes > 2 min under load; row lanes
+    should not run the column in a 120 s foreground call.
+  Pushed fast-forward to `review/c002-refactor-round-06-planner`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-942 (agy): v0.1 (pending panel review).
-- Panel reviewer seat: c-917 (claude): pending review of v0.1.
+- Editor seat: a-942 (agy): v1.0 (W1 and N1-N3 folded; pending full review-line check
+  and final v1.0 signature).
+- Panel reviewer seat: c-917 (claude): **PASS** on v0.1
+  (`9c39b5d2f76b8d19b60024754bcc59908c90b5e4`, seat commit `bdddcc409`, msg `9319e614` /
+  `f8f607aa`; W1 and N1-N3 folded in v1.0; pending full review-line check and final v1.0
+  signature).
 - Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
   never mistral).

@@ -105,7 +105,7 @@
       <template v-else>
         <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
         <p v-else-if="!loops.length" class="muted" data-testid="topic-loops-empty">{{ t('feed.topic_loops.empty') }}</p>
-        <ul v-else class="topic-loops__list">
+        <ul v-else class="topic-loops__list" data-testid="topic-loops-list">
           <li v-for="l in loops" :key="l.loop_id" class="topic-loops__row" data-testid="topic-loops-row" :data-state="loopRowState(l).state">
             <p class="topic-loops__first" data-testid="topic-loops-row-title">{{ loopTitle(l, t, locale) }}</p>
             <p class="topic-loops__prompt" data-testid="topic-loops-row-prompt">{{ loopFirstLine(l.prompt) }}</p>
@@ -268,6 +268,8 @@ onUnmounted(() => offFrame())
 <style scoped>
 .topic-loops { display: flex; flex-direction: column; gap: 12px; padding: 14px; min-width: 0; }
 .topic-loops__error { color: var(--color-danger); margin: 0; }
+/* SPL-6593: no text in the dialog under the omnibox's size; fields do not inherit font-size */
+.topic-loops :is(textarea, input, select) { font-size: var(--omnibox-fs); }
 .topic-loops__form { display: flex; flex-direction: column; gap: 12px; }
 .topic-loops__field { display: flex; flex-direction: column; gap: 4px; }
 /* v0.11 change 7 (msg ae3a2d5c, SPL-6586): still resizable; by default about
@@ -284,12 +286,12 @@ onUnmounted(() => offFrame())
 .topic-loops__keyword { flex: 1 1 10em; min-width: 0; }
 .topic-loops__zone { flex: 1 1 12em; min-width: 0; }
 .topic-loops__time { flex: 0 0 auto; width: 6ch; font-variant-numeric: tabular-nums; }
-.topic-loops__note { flex-basis: 100%; padding-left: 24px; font-size: 0.8125rem; color: var(--color-muted); }
+.topic-loops__note { flex-basis: 100%; padding-left: 24px; font-size: var(--omnibox-fs); color: var(--color-muted); }
 .topic-loops__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .topic-loops__row { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px; }
 .topic-loops__title { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-heading); overflow-wrap: anywhere; }
 .topic-loops__first { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .topic-loops__prompt { margin: 2px 0 0; overflow-wrap: anywhere; }
-.topic-loops__meta { margin: 4px 0; font-size: 0.8125rem; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.topic-loops__meta { margin: 4px 0; font-size: var(--omnibox-fs); display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .topic-loops__row-actions, .topic-loops__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 </style>

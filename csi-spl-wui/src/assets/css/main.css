@@ -639,7 +639,7 @@ html.pane-dragging * {
   resize: none;
   min-height: var(--tap);
   outline: none;
-  font-size: 0.875rem;
+  font-size: var(--omnibox-fs);
   overflow-wrap: anywhere;
   /* a ``` block is many lines, so the box that holds it has to be
      many lines. The top-bar Omnibox got this in 022; the IN-PAGE composers

@@ -1,4 +1,4 @@
-// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6586, 6589, 6592): the
+// Spec 182 v0.11 (HUM-10, t1 6e8c1cdb; SPL-6580..6586, 6589, 6592, 6593): the
 // Discussion loops dialog after the owner's changes, in Chrome on the mock.
 //
 //   1  1440 px: the dialog is 70% of the viewport wide and its top is 10%
@@ -15,6 +15,8 @@
 //      icon buttons, the label on hover and on aria-label (change 6, 1822fb67)
 //   5  the header drags the dialog, and a drag past the edge keeps it on
 //      screen (change 4, msg e68509d5)
+//   7  no text in the form or the list is smaller than the omnibox's
+//      (change 12, --omnibox-fs)
 //   6  a 390 px window: no break (desktop only, msg 5c03fa45): full width,
 //      no page x-scroll, the radios are there
 //
@@ -107,6 +109,17 @@ const rect = (p, sel) => p.evaluate((sel) => {
   return r ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height } : null
 }, sel)
 const text = (p, sel) => p.evaluate((sel) => document.querySelector(sel)?.textContent?.trim() ?? null, sel)
+/* the smallest font of the dialog's own text (every element with a text
+   node, the list rows, labels, radios, fields and notes) against the
+   omnibox's (change 12): each composer textarea on the page */
+const fonts = (p) => p.evaluate((sel) => {
+  const px = (e) => parseFloat(getComputedStyle(e).fontSize)
+  const body = document.querySelector(sel)
+  const own = [...body.querySelectorAll('*')].filter((e) => e.offsetParent && ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) || /^(INPUT|TEXTAREA)$/.test(e.tagName)))
+  const min = own.reduce((m, e) => (px(e) < m.px ? { px: px(e), el: e.className || e.tagName } : m), { px: 99, el: '' })
+  const omni = [...document.querySelectorAll('.composer textarea')].map(px)
+  return { min, omni }
+}, '[data-testid=topic-loops-form], [data-testid=topic-loops-list]')
 const clickTrigger = (p, k) => p.evaluate((k) => document.querySelector(`[data-testid=topic-loops-trigger-${k}]`)?.click(), k)
 
 const srv = await startServer()
@@ -171,6 +184,8 @@ try {
   ok('3 the prompt box is about 17% of the screen high', prompt && near(prompt.height, 900 * 0.17, 4), prompt?.height)
   const resize = await p.evaluate(() => getComputedStyle(document.querySelector('[data-testid=topic-loops-prompt]')).resize)
   ok('3 the prompt box is still resizable', resize === 'vertical', resize)
+  const ff = await fonts(p)
+  ok('7 the smallest form text is at least the omnibox size', ff.omni.length > 0 && ff.min.px >= Math.max(...ff.omni) - 0.01, ff)
   await shot(p, '1440-form')
 
   /* ---- 4. saved: the title on the row ----------------------------------- */
@@ -190,6 +205,8 @@ try {
   ok('4b edit, pause, delete: an icon, no text, the label on aria-label and title',
     btns.every((b) => b.icon && b.svg && b.text === '' && b.aria && b.aria === b.title)
       && btns.map((b) => b.aria).join('|') === 'Edit|Pause|Delete', btns)
+  const lf = await fonts(p)
+  ok('7 the smallest list text is at least the omnibox size', lf.omni.length > 0 && lf.min.px >= Math.max(...lf.omni) - 0.01, lf)
 
   /* ---- 5. drag by the header; it stays on screen ------------------------ */
   const head = await rect(p, '[data-testid=ui-dialog-head]')

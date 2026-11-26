@@ -109,6 +109,9 @@
   /* A tool, not a magazine: display and UI share the grotesque. */
   --font-ui: var(--font-stack);
   --font-display: var(--font-stack);
+  /* The omnibox's (message composer's) text size; the Discussion loops
+     dialog's text is never smaller (spec 182 change 12, SPL-6593). */
+  --omnibox-fs: 0.875rem;
   --letter-spacing-display: -0.005em;
   --letter-spacing-ui: -0.01em;
 }

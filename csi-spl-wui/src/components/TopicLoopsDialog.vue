@@ -25,6 +25,8 @@
       <p v-if="error" class="topic-loops__error" role="alert" data-testid="topic-loops-error">{{ t(error) }}</p>
       <form v-if="form" class="topic-loops__form" data-testid="topic-loops-form" @submit.prevent="save">
         <h3 v-if="formTitle" class="topic-loops__title" data-testid="topic-loops-form-title">{{ formTitle }}</h3>
+        <!-- v0.11 change 11 (msgs 534340d9, ca849d36, SPL-6592): two columns on a desktop, the prompt left, Run it right -->
+        <div class="topic-loops__cols" data-testid="topic-loops-cols">
         <label class="topic-loops__field">
           <span>{{ t('feed.topic_loops.prompt') }}</span>
           <textarea
@@ -83,6 +85,7 @@
             <small v-if="k === 'after_agent_reply'" class="topic-loops__note">{{ t('feed.topic_loops.self_fire_note') }}</small>
           </div>
         </fieldset>
+        </div>
         <div class="topic-loops__actions">
           <button type="button" class="btn ghost" data-testid="topic-loops-cancel" :disabled="busy" @click="closeForm">{{ t('common.cancel') }}</button>
           <button type="submit" class="btn primary" data-testid="topic-loops-save" :disabled="busy">{{ t('feed.topic_loops.save') }}</button>
@@ -253,6 +256,10 @@ onUnmounted(() => offFrame())
 /* v0.11 change 7 (msg ae3a2d5c, SPL-6586): still resizable; by default about
    17% of the screen's height (the owner's hand-sized box, ~11 lines) */
 .topic-loops__field textarea { width: 100%; resize: vertical; height: 17vh; min-height: 6lh; }
+.topic-loops__cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+@media (min-width: 601px) {
+  .topic-loops__cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
 .topic-loops__triggers { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
 .topic-loops__trigger { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .topic-loops__trigger label { display: inline-flex; align-items: center; gap: 6px; }

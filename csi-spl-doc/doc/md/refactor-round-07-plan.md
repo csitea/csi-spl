@@ -56,10 +56,14 @@ bypass is byte-identical):
   section `9` in `orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh`.
 The two rows share no file: both are **Batch 1**.
 
-**Status: v1.0 ready for final panel signature.** Editor: **a-071** (agy).
-Cross-vendor claude panel seat: **c-073** (placed 12:54Z; reviewed v0.1 `21c3e6ce3`, seat
-commit `10e6f8072`, msg `4159c478`; W1 and N1-N6 folded here, pending final v1.0
-signature and `do_spl_review_line_check` rc 0).
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r07-01` `bab949a92` SPL-6601, `r07-02` `e5af88d93` SPL-6602; section 8). Editor:
+**a-071** (agy). Plan v1.0 (`34d67a385`) was signed by cross-vendor claude panel seat
+**c-073** (`bbbbe0cfca4c076798e322f8f2b1762bbdb4faaa`, seat commit `f49be8735`, msg
+`918f1fa3` / `633960d3`; `do_spl_review_line_check` rc 0, `OK 1 of 1`; dispatch holder
+`c-002` GO LAND `8e8017a3`). Zero drift on all 9 row files + `cron-tagged-line.func.sh`
+from `13293131f` to `origin/master` `444c80979` at plan landing, and zero drift on all 9
+edited files from their landed shas to `origin/master` `a5bb05350` at close.
 
 **One sha:** every count is measured on **`13293131f`**
 (`13293131fbed4e7c3f8ec5c8e689d203546fd4ea`, `origin/master` at 2026-11-26T12:50:08Z),
@@ -800,17 +804,80 @@ claude backup is used; never mistral; re-checked at placement).
   - **N6:** recorded that row 02's test column runs `cron-tagged-line.tst.sh`, which row
     01 edits; R1 holds (edited files are disjoint), and the second row to land re-runs
     `cron-tagged-line.tst.sh` after its rebase onto `origin/master`.
-  Pushed fast-forward to `review/c002-refactor-round-07-planner`.
+  Pushed fast-forward to `review/c002-refactor-round-07-planner` (`bbbbe0cfc`), signed by
+  `c-073` (seat commit `f49be8735`, msg `918f1fa3` / `633960d3`, `do_spl_review_line_check`
+  rc 0, `OK 1 of 1`, holder `c-002` GO LAND `8e8017a3`), and landed on `origin/master` at
+  `34d67a385`.
+- closed (a-071): both rows landed on `origin/master`, cross-vendor agy R7 PASS, CI green
+  (measured on `origin/master` `a5bb05350` at `2026-11-26T15:32Z`, n=1):
+  - r07-01 `bab949a92` (`bab949a927583ffa7e202629e1119b49a62c8870`, SPL-6601, author
+    `c-097` claude, committed `2026-11-26T16:26:26+02:00`): R7 `a-106` agy **PASS** on
+    `ec10a6d2f` (`ec10a6d2f9503522453155ed238722c2e0d50b57`; `do_spl_review_line_check`
+    rc 0, `OK 17 of 17`, 13 commands read); `git patch-id --stable`
+    `80969f6d6ba817930e6cf3377891355a5b9f935a` equal on both, `git diff ec10a6d2f
+    bab949a92 -- <5 files>` empty (C7), zero drift to `a5bb05350`. CI on `bab949a92`: push
+    workflows 10 (`45839215788`), 15 (`45839215977`), 25 (`45839215767`), 26
+    (`45839215926`), 64 (`45839216101`), 67 (`45839215797`) **success** (plus schedule 21
+    `45841275908`, 40 `45841065762` **success**; 6 skipped workflow 12 runs). Direct gate
+    10 (`45839215788`) **success** (R11). Diff (`git show --numstat`, exact 5 files):
+    `orc:src/bash/run/box-disk-sweep-install-cron.func.sh` `+2 -7` (sha256 `bad65d0ead26`),
+    `orc:src/bash/run/prune-docker-images-install-cron.func.sh` `+2 -7` (sha256
+    `e606ca00b683`), `orc:src/bash/run/tmp-scratch-sweep-install-cron.func.sh` `+2 -7`
+    (sha256 `21909802651d`), `orc:src/bash/run/spl-agent-id-reap-install-cron.func.sh`
+    `+2 -7` (sha256 `ab9a944d995e`), `orc:src/bash/tests/cron-tagged-line.tst.sh` `+44 -0`
+    (sha256 `7fb8a154c186`), matching plan 1.3 head1 / section 6 verbatim.
+  - r07-02 `e5af88d93` (`e5af88d937230224ba556e6f2753b0356a4a1dd0`, SPL-6602, author
+    `c-136` claude, committed `2026-11-26T15:54:13+01:00`): R7 `a-115` agy **PASS** on
+    `d881eb399` (`d881eb399156477a4b79876ea03be3defb9c3383`; `do_spl_review_line_check`
+    rc 0, `OK 13 of 13`, 12 commands read); `git patch-id --stable`
+    `f654826bc896986bf055136bc17000cf546aa1a6` equal on both, `git diff d881eb399
+    e5af88d93 -- <4 files>` empty (C7), zero drift to `a5bb05350`. CI on `e5af88d93`: push
+    workflows 10 (`45844096717`), 15 (`45844097226`), 25 (`45844096788`), 26
+    (`45844096756`), 64 (`45844097178`), 67 (`45844097169`) **success** (6 skipped workflow
+    12 runs). Direct gate 10 (`45844096717`) **success** (R11). Diff (`git show --numstat`,
+    exact 4 files): `orc:src/bash/run/spl-od-pool-supervise-install-cron.func.sh` `+2 -7`
+    (sha256 `1e79cd6fde5e`), `orc:src/bash/run/spl-shadow-feed-install-cron.func.sh`
+    `+2 -7` (sha256 `3eeef539533d`),
+    `orc:src/bash/run/spl-cost-labels-translate-install-cron.func.sh` `+2 -7` (sha256
+    `c9fb79e3b2fb`), `orc:src/bash/tests/spl-cost-labels-translate-install-cron.tst.sh`
+    `+40 -0` (sha256 `6b7526acd24c`), matching plan 1.4 head2 / section 6 verbatim.
+  - **R5, R6, 2.7.5, and post-land verification on `a5bb05350`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`a5bb05350`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-26T09:49:33+02:00" --format='%H %cI %s' -E
+    --grep='\(r07-'`) returns both rows (`e5af88d93`, `bab949a92`) and the 2 plan commits
+    (`34d67a385`, `acc688ed5`). Review count (2.7.5): 2 of 2 row reviews
+    (`review: a-106 agy PASS`, `review: a-115 agy PASS`), both cross-vendor to their claude
+    authors (`c-097`, `c-136`); no claude waiver seat was needed. Post-land `git grep` on
+    `a5bb05350`: `git grep -n "is a linked worktree: install from the main checkout"
+    origin/master -- csi-spl-orc/src/bash/run/` returns only the 2 deferred/excluded files
+    (`install-box-crons.func.sh:68`, `spl-private-overlay-install-cron.func.sh:70`, down
+    from 9 on `13293131f`); `cron_refuse_linked_worktree` exists once at
+    `csi-spl-orc/lib/bash/funcs/cron-tagged-line.func.sh:45` and is called by all **10/10**
+    non-secret verbatim cron installers in `csi-spl-orc/src/bash/run/` (3 wave-1 from
+    `r06-02`, 4 wave-2 from `r07-01`, 3 wave-3 from `r07-02`).
+  - **Round close & teardown:** orchestrator GC (`c-001`, msg `20bacb4b`) confirmed both
+    rows landed on `origin/master` and requested the close record with `Closes: SPL-6579`.
+    `do_spl_lane_map --all` at `15:32Z` shows editor `a-071` and panel seat `c-073` still
+    live for r07 (`c-097`, `c-136`, `a-106`, `a-115` already gone). Remote branches
+    remaining on `origin` for R8 prune (`PRUNE_SINCE=2026-11-26T09:49:33+02:00`):
+    `review/c002-refactor-round-07-claude-seat` (`f49be8735`) and `review/r07-02`
+    (`d881eb399`); `review/r07-01` and `review/c002-refactor-round-07-planner` are already
+    pruned.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-071 (agy): v1.0 (W1 and N1-N6 folded; pending final v1.0 panel
-  signature and `do_spl_review_line_check` rc 0).
-- Panel reviewer seat: c-073 (claude): reviewed v0.1
-  (`21c3e6ce33a51d9a803543c87c6bbb2a9bc0b748`, seat commit `10e6f8072`, msg `4159c478`;
-  W1 and N1-N6 folded in v1.0; pending final v1.0 signature and
-  `do_spl_review_line_check` rc 0).
-- Row R7 seats: section 4 (agy per row, claude waiver backup only under ruling `dc84300a`;
-  never mistral).
+- Editor seat: a-071 (agy): v0.1 (`21c3e6ce3`), v1.0 (`bbbbe0cfc`, landed `34d67a385`),
+  close record.
+- Panel reviewer seat: c-073 (claude, seat `f49be87354073866824c71ad402c0de2ed1027b1` on
+  `review/c002-refactor-round-07-claude-seat`):
+  - v0.1 `21c3e6ce33a51d9a803543c87c6bbb2a9bc0b748`: review (seat commit `10e6f8072`, msg
+    `4159c478`; W1 and N1-N6 folded in v1.0).
+  - v1.0 `bbbbe0cfca4c076798e322f8f2b1762bbdb4faaa`: **PASS** (seat commit
+    `f49be87354073866824c71ad402c0de2ed1027b1`, msg `918f1fa3` / `633960d3`;
+    `do_spl_review_line_check` rc 0, `OK 1 of 1`; holder `c-002` GO LAND `8e8017a3`; 9/9
+    fenced `bash` blocks byte-identical, zero open W).
+- Row R7 seats: section 4; both agy: a-106 (r07-01), a-115 (r07-02) (section 8, round
+  closed).

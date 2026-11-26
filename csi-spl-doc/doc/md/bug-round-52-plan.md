@@ -10,7 +10,7 @@ Consensus: **no owner go, no question to the owner** (rulebook 1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md), linked here, not copied.  
 Model: [bug-round-51-plan.md](bug-round-51-plan.md).
 
-**Status: v0.1 draft for cross-vendor panel review (`c-129@sat`, claude).**
+**Status: v0.2 draft for cross-vendor panel re-review (`c-129@sat`, claude; folded FAIL W1 + N1-N5 from `26beba8c`/`efaffb65` on `1d0f7ec93`).**
 
 Editor: **a-264@sat** (agy, `specs_and_docs`).  
 Panel: **c-129@sat** (claude, cross-vendor; placed on `dispatch-bug-r52`, msg `bf1826bf`, live in `do_spl_lane_map` at `22:59Z`; mistral sits on no review since 2026-11-25).
@@ -85,27 +85,27 @@ Panel: **c-129@sat** (claude, cross-vendor; placed on `dispatch-bug-r52`, msg `b
 - **Fix scope.**
   - `csi-spl-wui/src/utils/mobile-stack.mjs:147-149`: add pure helper `mobilePopAfterNav({ target, to, redirectedFrom, failure })` returning `'land' | 'cancel' | 'wait'` (1 object param, <= 75 lines): `'cancel'` on `'aborted'` when `to === target || redirectedFrom === target`; `'wait'` on `'cancelled'`, `'other'`, or mismatched target; `'land'` on `null`/`'duplicated'` matching `target` (or `redirectedFrom === target`).
   - `csi-spl-wui/src/composables/useMobileStack.ts:377-398`: add `popFailureKind(failure)` using the already-imported `isNavigationFailure` / `NavigationFailureType`; bump `const seq = ++popSeq` BEFORE `if (tagged === null) return`; resolve `target = router.resolve(router.options.history.location).fullPath`; wait in `router.afterEach((to, _from, failure) => ...)` using `mobilePopAfterNav` (`'land'` applies & clears timer, `'cancel'` unsubscribes & clears timer without applying, `'wait'` stays subscribed); keep the `POP_ROUTE_WAIT_MS` (3 s) fallback timer for a genuinely hanging guard. Keep every function <= 75 lines and <= 5 params.
-  - `csi-spl-wui/tests/unit/mobile-stack.test.mjs`: add unit tests for `mobilePopAfterNav` (cancelled nav1 -> `'wait'`, aborted target -> `'cancel'`, aborted other -> `'wait'`, unrelated route -> `'wait'`, exact target / redirect / duplicated target -> `'land'`).
+  - `csi-spl-wui/tests/unit/mobile-stack.test.mjs`: add unit tests for `mobilePopAfterNav` (cancelled nav1 -> `'wait'`, aborted target -> `'cancel'`, aborted other -> `'wait'`, unrelated route -> `'wait'`, exact target / redirect / duplicated target -> `'land'`) AND a named unit case `untagged-popstate-cancels-waiting-level` pinning early `++popSeq` before `if (tagged === null) return`.
   - `csi-spl-wui/tests/e2e/mobile-back-wait.test.mjs:91-101,180-194`: record every `selectChannel(name)` call during the Back off level 1 in `plantSlow` and assert `calls.join(',') === 'alerts'` in `slowBack` (author + R7 prove W2 red control in Chrome by temporarily returning `false` from `mobilePopWaitsRoute` on a scratch bundle -> `#lobby` read caught red, then green on fix). Note: **never** touch `stores/channel.ts`. Keep `Docs: none` (bug fix to internal SPL-5232 route-wait guard and its e2e; spec 087 3.4 already states the Back behaviour) or add one line to spec 087 if needed. Use existing issue **SPL-5254** (or link it per holder placement).
 
-### 3.2 b52-02: `do_spl_review_go` (`spl-review-go.func.sh:864-866`) sends `GO <sha>` on `do_spl_review_line_check` rc 0 without verifying the author brief's required tests appear in `ran:` (C4, c-001 ruling `ee10c09a`)
+### 3.2 b52-02: `do_spl_review_go` (`spl-review-go.func.sh:864-866`) sends `GO <sha>` on `do_spl_review_line_check` rc 0 without verifying the author brief's required tests appear in `ran:` or `read: NOT RUN` (C4, c-001 ruling `ee10c09a`)
 
-- **What happens.** `_spl_review_go_one` (`csi-spl-orc/src/bash/run/spl-review-go.func.sh:839-876`) resolves `$abrief` at `:858` and runs `do_spl_review_line_check` at `:864`, which only checks that whatever tests the reviewer chose to list in `ran:` were actually run in the reviewer's log (plus the WUI e2e map). Nothing compares the **author brief's required tests** (`*.tst.sh`, `test-*.sh` excl. `*.inc.sh`, `*.test.mjs`, `rc[0-9][0-9]*.sh`, exact `do_check_pre_push`, unconditional `PRE_PUSH_TIER=full`, `shellcheck`) against `ran:` (rulebook 2.7.7 C4, `rounds-rulebook.md:126`).
+- **What happens.** `_spl_review_go_one` (`csi-spl-orc/src/bash/run/spl-review-go.func.sh:839-876`) resolves `$abrief` at `:858` and runs `do_spl_review_line_check` at `:864`, which only checks that whatever tests the reviewer chose to list in `ran:` were actually run in the reviewer's log (plus the WUI e2e map). Nothing compares the **author brief's required tests** (`*.tst.sh`, `test-*.sh` excl. `*.inc.sh`, `*.test.mjs`, `rc[0-9][0-9]*.sh`, exact `do_check_pre_push`, unconditional `PRE_PUSH_TIER=full`, `shellcheck`) against `ran:` or a `NOT RUN <item>: <why>` entry in `read:` (rulebook 2.7.7 C4, `rounds-rulebook.md:126`).
   As a result, the relay sent automatic `GO <sha>` messages on reviews missing required tests (**n=2 live misses on 2026-11-26**):
   1. `14:23:48Z` GO `d8bfb277` to `c-068@<box2>` on `a-099` PASS `02ccf2c7` (`85644770a`, landed `92830c078` before holder send-back): brief `c002-6e8c1cdb-wui-loops-dialog-radio-title-drag.md:45` required `cd csi-spl-iac && ./run -a do_check_pre_push`, while `a-099`'s `ran:` had only `do_check_pre_push_lint ; do_check_dist_hygiene`.
   2. `14:59:04Z` GO `245ec817` to `c-076@sat` on `a-113` PASS `c2a02a11` (`6767a387e`, spec 153 Q3): brief `c002-s153-q3-queue-route-holds.md:43` required `cd csi-spl-iac && ./run -a do_check_pre_push; this row touches the store/hub: run it with PRE_PUSH_TIER=full.`, while `a-113`'s `ran:` had only `./run -a do_check_pre_push_lint`.
-  3. Earlier `04:4xZ` GOs on `b49-01`, `b49-02`, and `r05-02` omitted `do_check_pre_push` and 3 iac `*.tst.sh` tests named in the brief.
+  3. Earlier `04:4xZ` GOs on `b49-01`, `b49-02` (landed), and `r05-02` omitted `do_check_pre_push` (and `r05-02` also omitted 3 iac `*.tst.sh` tests), caught by author `c-914` (`c002-next-round-candidates.md:162`).
 - **Zero false holds on passing round rows (empirically audited on sat `23:06Z`):**
   Audited the proposed extractor against 7 real `(abrief, review line)` pairs from 2026-11-26 on sat:
   - Both evidence misses (`a-099` loops part 1, `a-113` s153 Q3) -> **HOLD** (`missing: do_check_pre_push, PRE_PUSH_TIER=full`).
   - All 3 passing b51 rows (`b51-01` `a-088` 8/8, `b51-02` `a-096` 7/7, `b51-03` `a-104` 7/7) -> **0 missing (GO)**.
-  - Passing r08 rows (`r08-01` `a-230` 23/23, `r08-02` `a-242` 14/14): initially flagged sibling-row exclusions (`r08-01:37` ``NOT `test-y16-git-pager-off.sh` ``; `r08-02:35` ``NOT `cron-tagged-line.tst.sh` ``); stripping inline `NOT`/`never`/`except`/`excluding`/`stay off` file tokens + non-instruction headings (`## Never`, `## Files you must NOT touch`, `## Why`, `## At queue/brief time`, `## Lane-map clearance`, fenced blocks, `>` quotes) brings both to **0 missing (GO)**.
+  - Passing r08 rows (`r08-01` `a-230` 23/23, `r08-02` `a-242` 14/14): initially flagged sibling-row exclusions (`r08-01:37` ``NOT `test-y16-git-pager-off.sh` ``; `r08-02:35` ``NOT `cron-tagged-line.tst.sh` ``); stripping inline `NOT`/`never`/`except`/`excluding`/`stay off` file tokens, sibling-row `rc[0-9]{2}-*.sh` passing mentions (whose row number differs from the brief's own `[br]NN-MM` id or appears in a `sibling`/`other row`/`another row` clause), and non-instruction headings (`## Never`, `## Files you must NOT touch`, `## Why`, `## At queue/brief time`, `## Lane-map clearance`, fenced blocks, `>` quotes) brings both to **0 missing (GO)**. Per rulebook C4 (`rounds-rulebook.md:126`), an item also counts as satisfied when `read:` carries `NOT RUN <item>: <why>` (while a plain mention in `read:` without `NOT RUN` still holds `rc 12`).
   - Existing test fixture note: `spl-review-go.tst.sh:1148` (case 27) places `` `spl-billing-sa.tst.sh` `` inside `## Do` solely to test joined-name owner-go parsing while its default `line` has `ran: bash spl-x.tst.sh`; update case 27 `:1148-1151` to include `spl-billing-sa.tst.sh` in its test line/log (keeping the owner-go assertion unchanged) so all 35 existing cases remain green.
-- **Seen.** c-001 explicit ruling `ee10c09a` (`14:43:52Z`, *"please make it a bug round 52 row"*), `a7f0d4b7`, `c002-next-round-candidates.md:159-163`. `b51-03` (`a5bb05350`, SPL-6600) has already landed, so `spl-review-go.func.sh` and `spl-review-go.tst.sh` are **free for Batch 1**. Reproduced live on `ecc05e480` (`rc02-b52.sh` `23:18Z`): all 3 missing-test probes return `rc=0 gos=1` (GO) on `ecc05e480` and `rc=12 gos=0` (HOLD naming the missing tests) on `fix-shape`, with both controls passing `rc=0 gos=1`. Baseline `spl-review-go.tst.sh` -> `0 failure(s)`, `spl-accepted-close.tst.sh` -> `0 failure(s)`.
-- **Red control** (`rc02-b52.sh`, section 4.2): self-contained (extracts `csi-spl-orc` review-go files into `mktemp -d`, builds a temp git repo + spool root, runs `do_spl_review_go` with `REVIEW_GO_MSG`). Probes: `red_a099_missing_pre_push`, `red_a113_missing_full_tier`, `red_round_missing_tst_and_rc` (all want HOLD `rc != 0, gos=0` naming the missing test), plus `ctrl_all_present` and `ctrl_exclusions_ignored` (both want GO `rc=0, gos=1`). On `ecc05e480`: all 3 red probes send GO (`rc02 exit 1`). **Control (`fix-shape`):** adds `_spl_review_go_c4_missing` (<= 75 lines) wired into `_spl_review_go_one` after `do_spl_review_line_check` (skipping `DOCS-ONLY`), holding `rc 12` -> all 5 cases match -> `rc02 exit 0`.
+- **Seen.** c-001 explicit ruling `ee10c09a` (`14:43:52Z`, *"please make it a bug round 52 row"*), `a7f0d4b7`, `c002-next-round-candidates.md:159-163`. `b51-03` (`a5bb05350`, SPL-6600) has already landed, so `spl-review-go.func.sh` and `spl-review-go.tst.sh` are **free for Batch 1**. Reproduced live on `ecc05e480` (`rc02-b52.sh` `23:37Z`): all 4 missing-test probes (including plain mention in `read:` without `NOT RUN`) return `rc=0 gos=1` (GO) on `ecc05e480` and `rc=12 gos=0` (HOLD naming the missing tests) on `fix-shape`, with all 4 controls (`ctrl_all_present`, `ctrl_exclusions_ignored`, `ctrl_not_run_in_read`, `ctrl_sibling_rc_ignored`) passing `rc=0 gos=1`. Baseline `spl-review-go.tst.sh` -> `0 failure(s)`, `spl-accepted-close.tst.sh` -> `0 failure(s)`.
+- **Red control** (`rc02-b52.sh`, section 4.2): self-contained (extracts `csi-spl-orc` review-go files into `mktemp -d`, builds a temp git repo + spool root, runs `do_spl_review_go` with `REVIEW_GO_MSG`). Probes: `red_a099_missing_pre_push`, `red_a113_missing_full_tier`, `red_round_missing_tst_and_rc`, and `red_plain_read_mention_holds` (all want HOLD `rc != 0, gos=0` naming the missing test), plus `ctrl_all_present`, `ctrl_exclusions_ignored`, `ctrl_not_run_in_read` (W1: `NOT RUN <item>: <why>` in `read:`), and `ctrl_sibling_rc_ignored` (N1: sibling `rc02-b52.sh` named in passing on a `b52-01` brief) (all want GO `rc=0, gos=1`). On `ecc05e480`: all 4 red probes send GO (`rc02 exit 1`). **Control (`fix-shape`):** adds `_spl_review_go_c4_missing` (<= 75 lines, accepting `ran:` or `read:` `NOT RUN <item>: <why>`, ignoring sibling-row `rc*.sh` mentions) wired into `_spl_review_go_one` after `do_spl_review_line_check` (skipping `DOCS-ONLY`), holding `rc 12` -> all 8 cases match -> `rc02 exit 0`.
 - **Fix scope.**
-  - `csi-spl-orc/src/bash/run/spl-review-go.func.sh`: add `_spl_review_go_c4_missing <abrief> <line>` (<= 75 lines) and wire it in `_spl_review_go_one` right after `do_spl_review_line_check` (`:866`), skipped when `do_spl_review_line_check` output contains `DOCS-ONLY `; on missing required test(s), call `_spl_review_go_hold "$@" 12 "review ran: misses brief-named test(s) (C4): $why"; return 12`. Document check `[12]` in the `@description` header. Keep `_spl_review_go_one` <= 75 lines (38 -> 42 lines).
-  - `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`: keep case 27 (`:1148-1151`) passing by adding `spl-billing-sa.tst.sh` to its stub line/log; add case 36 after case 35 (`:1456`) covering `do_check_pre_push` missing (when only `do_check_pre_push_lint` ran, a-099 shape), `PRE_PUSH_TIER=full` missing (a-113 shape), named `*.tst.sh`/`rc*.sh`/`shellcheck` missing (round row shape), all-present GO control, exclusion controls (`NOT`, `## Never`, `## Files you must NOT touch`, conditional `If ... PRE_PUSH_TIER=full`), and `DOCS-ONLY` skip control. `Docs: none` (enforces existing rulebook C4 gate in spec 157 rule 1 automation).
+  - `csi-spl-orc/src/bash/run/spl-review-go.func.sh`: add `_spl_review_go_c4_missing <abrief> <line>` (<= 75 lines) and wire it in `_spl_review_go_one` right after `do_spl_review_line_check` (`:866`), skipped when `do_spl_review_line_check` output contains `DOCS-ONLY `; an item counts as satisfied when `ran:` names it OR `read:` carries `NOT RUN <item>: <why>` (per rulebook 2.7.7 C4, `rounds-rulebook.md:126`; a plain mention in `read:` without `NOT RUN` still holds `rc 12`); ignore sibling-row `rc[0-9]{2}*.sh` passing mentions (whose row number differs from the brief's own `[br]NN-MM` id or appears in a `sibling`/`other row`/`another row` clause). On missing required test(s), call `_spl_review_go_hold "$@" 12 "review ran:/read: misses brief-named test(s) (C4): $why"; return 12`. Document check `[12]` in the `@description` header. Keep `_spl_review_go_one` <= 75 lines (38 -> 42 lines).
+  - `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`: keep case 27 (`:1148-1151`) passing by adding `spl-billing-sa.tst.sh` to its stub line/log; add case 36 after case 35 (`:1456`) covering `do_check_pre_push` missing (when only `do_check_pre_push_lint` ran, a-099 shape), `PRE_PUSH_TIER=full` missing (a-113 shape), named `*.tst.sh`/`rc*.sh`/`shellcheck` missing (round row shape), plain `read:` mention without `NOT RUN` (HOLD `rc 12`), `NOT RUN <item>: <why>` in `read:` (GO `rc 0`), sibling-row `rc02-b52.sh` named in passing on a `b52-01` brief (GO `rc 0`), all-present GO control, exclusion controls (`NOT`, `## Never`, `## Files you must NOT touch`, conditional `If ... PRE_PUSH_TIER=full`), and `DOCS-ONLY` skip control. R7 also runs `_spl_review_go_c4_missing` against the b52 row briefs (0 false holds). `Docs: none` (enforces existing rulebook C4 gate in spec 157 rule 1 automation).
 
 ### 3.3 b52-03: `spawn-remote.sh` `handle()` / `handle_issue()` / `note_cancel()` (`:274-282,484-491,682-691`) read `$f` in 4 separate disk calls after marking `$STATE/seen`, so a mid-read ack turns valid requests into `REJECTED bad kind ''` and `reply()` (`:255-261`) mints a random task id on empty `$task`
 
@@ -123,13 +123,14 @@ Panel: **c-129@sat** (claude, cross-vendor; placed on `dispatch-bug-r52`, msg `b
   - In `reply()` (`:255-261`): `send ... --task ""` passes an empty `--task` to `spool-send.sh`, which mints a **brand-new random task UUID** on the wire (breaking request/reply correlation — the requester waits until timeout on its original task).
   - In `note_cancel()` (`:684-691`): the same mid-read ack marks `$msg` seen and logs `CANCELLED ... ignored (not the holder, or a bad task)`, permanently dropping a spawn cancellation!
   - In `handle_issue()` (`:486-491`): identical race drops remote issue placement/end requests permanently.
-- **Seen.** Live incident today (`2026-11-26T15:19:02Z`, `<box2>` `serve.log:3728`, `c-001@<box2>` root-cause `42ac9aad`, c-001 go `e1db57c6`, `c002-next-round-candidates.md:167`): b52's own panel spawn request `82416aaf` (task `f41bc755`) was acked by `c-001@<box2>` at `15:19:02.405Z` mid-`handle()`, logging `REJECTED 82416aaf c-001@sat spawn-remote: bad kind ''` and replying on minted task `765fe1de`. Reproduced live on `ecc05e480` (`rc03-b52.sh` `23:12Z`): Cases A (`handle_ack_race`), A2 (`handle_archive_fallback`), B (`note_cancel_ack_race`), and C (`reply_empty_task`) all fail on `ecc05e480` (`rc03 exit 1`) and all pass on `fix-shape` (`rc03 exit 0`). Baseline `test-spawn-remote.sh` -> `127 passed, 0 failed`; `spawn-remote-cron.tst.sh` -> `fails=0`.
-- **Red control** (`rc03-b52.sh`, section 4.3): self-contained (extracts `spawn-agents` from `ecc05e480` into `mktemp -d`; uses a 1-shot `jq` shim that moves the inbox JSON to `archive/` immediately after a `.msg_id` file read, reproducing the exact `15:19:02Z` ack race).
-  - **Case A (`handle_ack_race`):** file in `inbox/` moves to `archive/` on first `.msg_id` read -> requires `calls=1, rej=0, good_task=1, minted=0`. On `ecc05e480`: `calls=0, good_task=0` (RED).
-  - **Case A2 (`handle_archive_fallback`):** file already moved to `archive/` before `handle()` starts -> requires `calls=1, good_task=1`. On `ecc05e480`: `calls=0, good_task=0` (RED).
-  - **Case B (`note_cancel_ack_race`):** cancel in `inbox/` moves to `archive/` on first `.msg_id` read -> requires `cancelled_recorded=1`. On `ecc05e480`: `cancelled_recorded=0` (RED).
-  - **Case C (`reply_empty_task`):** `reply c-001 c-001@sat "" refused ...` -> requires `sent=0` (refused, never mints random task). On `ecc05e480`: `sent=1` (RED).
-  - **Control (`fix-shape`):** adds `read_msg_fields` (single atomic `cat` with `archive/` fallback, parses `msg`/`from`/`task`/`body` from that in-memory snapshot BEFORE writing `$STATE/seen`), uses it in `handle()`, `handle_issue()`, and `note_cancel()`, and guards `reply()` on `[ -n "$task" ]` -> A, A2, B, C all pass -> `rc03 exit 0`.
+- **Seen.** Live incident today (`2026-11-26T15:19:02Z`, `<box2>` `serve.log:3728`, `c-001@<box2>` root-cause `42ac9aad`, c-001 go `e1db57c6`, `c002-next-round-candidates.md:167`): b52's own panel spawn request `82416aaf` (task `f41bc755`) was acked by `c-001@<box2>` at `15:19:02.405Z` mid-`handle()`, logging `REJECTED 82416aaf c-001@sat spawn-remote: bad kind ''` and replying on minted task `765fe1de`. Interim operational workaround in place (`c002-next-round-candidates.md:167`): both orchs leave `spawn-request`/`spawn-cancel` unacked for one serve tick; the code race remains unfixed on master. Reproduced live on `ecc05e480` (`rc03-b52.sh` `23:37Z`): Cases A (`handle_ack_after_mid`, REFUSED path), A1b (`handle_ack_after_from_live_path`, exact live `REJECTED bad kind ''` + minted task path), A2 (`handle_archive_fallback`, RED on base because no archive/ fallback exists), B (`note_cancel_ack_race`), and C (`reply_empty_task`) all fail on `ecc05e480` (`rc03 exit 1`) and all pass on `fix-shape` (`rc03 exit 0`). Baseline `test-spawn-remote.sh` -> `127 passed, 0 failed`; `spawn-remote-cron.tst.sh` -> `fails=0`.
+- **Red control** (`rc03-b52.sh`, section 4.3): self-contained (extracts `spawn-agents` from `ecc05e480` into `mktemp -d`; uses a 1-shot `jq` shim triggered by `RACE_TRIGGER` that moves the inbox JSON to `archive/` immediately after `.msg_id` or `.from` is read).
+  - **Case A (`handle_ack_after_mid`):** file moves to `archive/` right after `.msg_id` read -> on `ecc05e480` `from=""` hits the `REFUSED` path (`calls=0, ref=1, good_task=0`, RED).
+  - **Case A1b (`handle_ack_after_from_live_path`):** file moves to `archive/` right after `.from` read -> on `ecc05e480` reproduces the exact live `15:19:02Z` path (`REJECTED ... bad kind ''` + `reply` minting a random task: `calls=0, rej=1, good_task=0, minted=1`, RED).
+  - **Case A2 (`handle_archive_fallback`):** file already moved to `archive/` before `handle()` starts -> RED on `ecc05e480` (`calls=0, good_task=0`, no archive/ fallback) and GREEN on `fix-shape` (`calls=1, good_task=1`).
+  - **Case B (`note_cancel_ack_race`):** cancel in `inbox/` moves to `archive/` after `.msg_id` read -> on `ecc05e480` `cancelled_recorded=0` (RED).
+  - **Case C (`reply_empty_task`):** direct `reply c-001 c-001@sat "" refused ...` -> on `ecc05e480` `sent=1` (RED, mints random task).
+  - **Control (`fix-shape`):** adds `read_msg_fields` (single atomic `cat` with `archive/` fallback, parses `msg`/`from`/`task`/`body` from that in-memory snapshot BEFORE writing `$STATE/seen`), uses it in `handle()`, `handle_issue()`, and `note_cancel()`, and guards `reply()` on `[ -n "$task" ]` -> A, A1b, A2, B, C all pass -> `rc03 exit 0`.
 - **Fix scope.**
   - `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh`:
     - Add helper `read_msg_fields <me> <file>` (~14 lines): reads `$f` once into memory (`cat -- "$f"`), falling back to `$SPOOL_ROOT/$me/archive/${f##*/}` if vanished; if still empty/unreadable, returns 1 WITHOUT touching `$STATE/seen` so the next tick retries; parses `msg_id`, `from`, `task_id`, `body` (through `strip_from_agent`) from the in-memory snapshot and validates `msg_id`.
@@ -516,7 +517,7 @@ Output on `ecc05e480` (sat, `23:09Z`):
 | `bash rc01-b52.sh ecc05e480` | `rc01 sites: listenPopState=1 mobilePopWaitsRoute=1 plantSlow=1` / `rc01 A(two_pops_nav1_cancelled): premature=1 (want 0) final=[2] (want [2])` / `rc01 B(aborted_guard): immediate=1 (want 0) after_timer=1 (want 0)` / `rc01 C(unrelated_route_first): premature=1 (want 0) final=[2] (want [2])` / `rc01 D(controls): normal=true redirect=true fallback=true untagged_cancels=false` / `rc01 E(w2_e2e_selectChannel_assert): records=false asserts=false (want true true)` / `rc01 F(unit_suite): rc=0 (want 0)` / `rc01 exit 1` |
 | `bash rc01-b52.sh ecc05e480 fix-shape` | `rc01 sites: listenPopState=1 mobilePopWaitsRoute=1 plantSlow=1` / `rc01 fix-shape: mobilePopAfterNav + listenPopState route/failure guard + mobile-back-wait selectChannel assertion` / `rc01 A(two_pops_nav1_cancelled): premature=0 (want 0) final=[2] (want [2])` / `rc01 B(aborted_guard): immediate=0 (want 0) after_timer=0 (want 0)` / `rc01 C(unrelated_route_first): premature=0 (want 0) final=[2] (want [2])` / `rc01 D(controls): normal=true redirect=true fallback=true untagged_cancels=true` / `rc01 E(w2_e2e_selectChannel_assert): records=true asserts=true (want true true)` / `rc01 F(unit_suite): rc=0 (want 0)` / `rc01 exit 0` |
 
-### 4.2 `rc02-b52.sh` (b52-02, review-go C4), sha256 first 12 hex `1aad8be673cb`, 11166 B
+### 4.2 `rc02-b52.sh` (b52-02, review-go C4), sha256 first 12 hex `41a03d4059c1`, 13146 B
 
 Run from any checkout: `bash rc02-b52.sh ecc05e480` (exit 1), then `bash rc02-b52.sh ecc05e480 fix-shape` (exit 0). Under 5 s each. Self-contained (zero box paths).
 
@@ -527,10 +528,11 @@ Run from any checkout: `bash rc02-b52.sh ecc05e480` (exit 1), then `bash rc02-b5
 # sends `GO <sha>` whenever `do_spl_review_line_check` exits 0, without
 # comparing the author brief's required tests (`*.tst.sh`, `test-*.sh`,
 # `*.test.mjs`, `rc[0-9][0-9]*.sh`, `do_check_pre_push`, unconditional
-# `PRE_PUSH_TIER=full`, `shellcheck`) against the review line's `ran:` (C4,
-# rounds-rulebook.md:126). Evidence n=2 on 2026-11-26: GO d8bfb277 on a-099
-# (missing `do_check_pre_push`) and GO 245ec817 on a-113 (missing
-# `do_check_pre_push` and `PRE_PUSH_TIER=full`), plus b49-01/r05-02.
+# `PRE_PUSH_TIER=full`, `shellcheck`) against the review line's `ran:` or a
+# `NOT RUN <item>: <why>` entry in `read:` (C4, rounds-rulebook.md:126).
+# Evidence n=2 on 2026-11-26: GO d8bfb277 on a-099 (missing `do_check_pre_push`)
+# and GO 245ec817 on a-113 (missing `do_check_pre_push` and `PRE_PUSH_TIER=full`),
+# plus b49-01/b49-02/r05-02.
 # Extracts csi-spl-orc from <sha> into mktemp -d. Self-contained (no box paths).
 set -uo pipefail
 sha="${1:?usage: rc02-b52.sh <sha> [fix-shape]}"
@@ -560,26 +562,37 @@ p = sys.argv[1]; s = open(p).read()
 anchor = '  (( rc == 0 )) || { _spl_review_go_hold "$@" 8 "review line check failed (rc $rc): $(tail -n2 <<<"$why" | paste -sd\' \')"; return 8; }\n'
 hook = anchor + '''  if [[ "$why" != *"DOCS-ONLY "* ]]; then
     why="$(_spl_review_go_c4_missing "$abrief" "$line")" ||
-      { _spl_review_go_hold "$@" 12 "review ran: misses brief-named test(s) (C4): $why"; return 12; }
+      { _spl_review_go_hold "$@" 12 "review ran:/read: misses brief-named test(s) (C4): $why"; return 12; }
   fi
 '''
 helper = r'''
 # _spl_review_go_c4_missing <author brief> <review line>: rc 0 when every test
 # the author brief's instruction text requires (*.tst.sh, test-*.sh excl
 # *.inc.sh, *.test.mjs, rc[0-9][0-9]*.sh, exact do_check_pre_push, unconditional
-# PRE_PUSH_TIER=full, shellcheck) is named in the line's ran:; else prints the
-# missing comma-separated list on stdout and returns 1 (b52-02, rulebook C4).
+# PRE_PUSH_TIER=full, shellcheck) is named in ran: OR as `NOT RUN <item>: <why>`
+# in read: (b52-02, rulebook C4 rounds-rulebook.md:126); else prints missing
+# comma-separated items on stdout and returns 1.
 _spl_review_go_c4_missing() {
   python3 - "$1" "$2" <<'EOF_PY'
 import re, sys
 brief_path, line = sys.argv[1:3]
 if " ran: " not in line:
     sys.exit(0)
-ran = line.split(" ran: ", 1)[1].split(" | read: ", 1)[0].split(" | log: ", 1)[0]
+after_ran = line.split(" ran: ", 1)[1]
+ran = after_ran.split(" | read: ", 1)[0].split(" | log: ", 1)[0]
+read_part = after_ran.split(" | read: ", 1)[1].split(" | log: ", 1)[0] if " | read: " in after_ran else ""
+not_run = " ; ".join(re.findall(r"(?i)\bNOT RUN\s+([^:;|]+):\s*\S", read_part))
+covered = ran + " ; " + not_run if not_run else ran
 try:
     lines = open(brief_path, encoding="utf-8", errors="replace").read().splitlines()
 except OSError:
     sys.exit(0)
+own_row = None
+for l in lines[:12]:
+    m = re.search(r"\b[br]\d{2}-(\d{2})\b", l)
+    if m:
+        own_row = m.group(1)
+        break
 NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured|at (?:queue|brief) time|lane-map clearance)\b")
 NEVER = re.compile(r"(?i)^(never|don['\u2019]t|do not|out of scope|files you must not touch|must not touch|owned elsewhere)\b")
 out, skip, fence = [], 0, False
@@ -599,11 +612,17 @@ for l in lines:
     elif fence or skip or re.match(r"\s*>", l):
         continue
     cleaned = re.sub(r"(?i)\b(?:not|never|except|excluding|stay off)\s+`?[A-Za-z0-9._/-]+\.(?:tst\.sh|test\.mjs|sh)`?", "", l)
+    cleaned = re.sub(r"(?i)\b(?:sibling|other row|another row)\b[^.;\n]*\brc[0-9]{2}[A-Za-z0-9._-]*\.sh\b", "", cleaned)
     out.append(cleaned)
 txt = "\n".join(out)
 req = []
 for m in re.findall(r"(?<![\w/.-])(?:[A-Za-z0-9._-]+/)*([A-Za-z0-9._-]+\.(?:tst\.sh|test\.mjs)|test-[A-Za-z0-9._-]+\.sh|rc[0-9]{2}[A-Za-z0-9._-]*\.sh)(?![\w.-])", txt):
-    if not m.endswith(".inc.sh") and m not in req:
+    if m.endswith(".inc.sh"):
+        continue
+    rm = re.match(r"^rc(\d{2})", m)
+    if rm and own_row and rm.group(1) != own_row:
+        continue
+    if m not in req:
         req.append(m)
 if re.search(r"(?<![\w])do_check_pre_push(?![\w])", txt):
     req.append("do_check_pre_push")
@@ -616,13 +635,13 @@ if re.search(r"(?<![\w.-])shellcheck(?![\w.-])", txt):
 miss = []
 for item in req:
     if item == "do_check_pre_push":
-        ok = bool(re.search(r"(?<![\w])do_check_pre_push(?![\w])", ran))
+        ok = bool(re.search(r"(?<![\w])do_check_pre_push(?![\w])", covered))
     elif item == "PRE_PUSH_TIER=full":
-        ok = "PRE_PUSH_TIER=full" in ran
+        ok = "PRE_PUSH_TIER=full" in covered
     elif item == "shellcheck":
-        ok = bool(re.search(r"(?<![\w.-])shellcheck(?![\w.-])", ran))
+        ok = bool(re.search(r"(?<![\w.-])shellcheck(?![\w.-])", covered))
     else:
-        ok = bool(re.search(r"(?<![\w.-])" + re.escape(item) + r"(?![\w.-])", ran))
+        ok = bool(re.search(r"(?<![\w.-])" + re.escape(item) + r"(?![\w.-])", covered))
     if not ok:
         miss.append(item)
 if miss:
@@ -638,7 +657,7 @@ assert s.count(fn_anchor) == 1, f"fn_anchor count={s.count(fn_anchor)}"
 s = s.replace(fn_anchor, helper + "\n" + fn_anchor, 1)
 open(p, "w").write(s)
 PY
-  echo "rc02 fix-shape: _spl_review_go_c4_missing wired in _spl_review_go_one after do_spl_review_line_check (rc 12)"
+  echo "rc02 fix-shape: _spl_review_go_c4_missing (ran: or read: NOT RUN + sibling rc exclusion) wired in _spl_review_go_one (rc 12)"
 fi
 
 # Build a minimal throwaway git repo + spool root and drive do_spl_review_go
@@ -680,11 +699,11 @@ cat >"$tmp/a-111.jsonl" <<'EOF'
 EOF
 
 run_case() {
-  local lbl="$1" want_go="$2" want_tok="$3" abrief_txt="$4" ran_txt="$5" mid="$6"
+  local lbl="$1" want_go="$2" want_tok="$3" abrief_txt="$4" ran_txt="$5" read_txt="$6" mid="$7"
   rm -f "$tmp/sends.log" "$tmp/spool/dispatch/automation.log"
   printf '%s\n' "$abrief_txt" >"$tmp/spool/c-222/lifetime/brief.md"
   local mf="$tmp/spool/c-002/archive/20261126T120000Z--a-111--${mid}.json"
-  local rline="review: a-111@boxa agy PASS $SHA ran: $ran_txt | read: ok | log: a-111@boxa:$tmp/a-111.jsonl"
+  local rline="review: a-111@boxa agy PASS $SHA ran: $ran_txt | read: $read_txt | log: a-111@boxa:$tmp/a-111.jsonl"
   python3 - "$mf" "$mid" "$rline" <<'PY'
 import json, sys
 json.dump({"v":1,"msg_id":sys.argv[2],"task_id":"dispatch-c4","from":"a-111@boxa","to":"c-002","kind":"result","ts":"2026-11-26T12:00:00Z","body":sys.argv[3]}, open(sys.argv[1],"w"))
@@ -719,44 +738,70 @@ rc=0
 run_case "red_a099_missing_pre_push" 0 "do_check_pre_push" \
   $'## Do\n1. Run `node --test foo.test.mjs` and `cd csi-spl-iac && ./run -a do_check_pre_push`.' \
   "node --test foo.test.mjs ; do_check_pre_push_lint ; do_check_dist_hygiene" \
+  "ok" \
   "11111111-1111-4111-8111-111111111111"
 
 # RED 2 (Evidence 2: a-113 s153 Q3 — ran: lacks PRE_PUSH_TIER=full)
 run_case "red_a113_missing_full_tier" 0 "PRE_PUSH_TIER=full" \
   $'## Do\n1. `bash spl-spawn-queue.tst.sh`.\n2. `cd csi-spl-iac && ./run -a do_check_pre_push`; this row touches the store/hub: run it with PRE_PUSH_TIER=full.' \
   "bash spl-spawn-queue.tst.sh; cd csi-spl-iac && ./run -a do_check_pre_push" \
+  "ok" \
   "22222222-2222-4222-8222-222222222222"
 
 # RED 3 (Evidence 3: round row — ran: omits bar.tst.sh and rc01-b52.sh)
 run_case "red_round_missing_tst_and_rc" 0 "bar.tst.sh" \
   $'## Do\n1. Run `bash rc01-b52.sh <sha>`, `foo.tst.sh`, `bar.tst.sh`, `shellcheck -S warning a.sh`, and `cd csi-spl-iac && ./run -a do_check_pre_push`.' \
   "bash foo.tst.sh; shellcheck -S warning a.sh; cd csi-spl-iac && ./run -a do_check_pre_push" \
+  "ok" \
   "33333333-3333-4333-8333-333333333333"
+
+# RED 4 (W1 negative control: plain mention in read: WITHOUT NOT RUN still holds)
+run_case "red_plain_read_mention_holds" 0 "do_check_pre_push" \
+  $'## Do\n1. Run `bash foo.tst.sh` and `cd csi-spl-iac && ./run -a do_check_pre_push`.' \
+  "bash foo.tst.sh" \
+  "checked brief naming do_check_pre_push" \
+  "44444444-4444-4444-8444-444444444444"
 
 # CTRL 1: all required items present in ran: -> GO
 run_case "ctrl_all_present" 1 "" \
   $'## Do\n1. Run `bash rc01-b52.sh <sha>`, `foo.tst.sh`, `bar.tst.sh`, `shellcheck -S warning a.sh`, and `PRE_PUSH_TIER=full ./run -a do_check_pre_push`.' \
   "bash rc01-b52.sh; bash foo.tst.sh; bash bar.tst.sh; shellcheck -S warning a.sh; PRE_PUSH_TIER=full ./run -a do_check_pre_push" \
-  "44444444-4444-4444-8444-444444444444"
+  "ok" \
+  "55555555-5555-4555-8555-555555555555"
 
 # CTRL 2: NOT / Never / Files you must NOT touch / conditional PRE_PUSH_TIER=full -> GO
 run_case "ctrl_exclusions_ignored" 1 "" \
   $'## Do\n1. Edit a.sh, NOT `bar.tst.sh`. Run `bash own.tst.sh` and `do_check_pre_push`.\n2. If change 3 needs a migration, run `PRE_PUSH_TIER=full`.\n## Files you must NOT touch\n`foo.tst.sh`\n## Never\nNever edit `rc01-b52.sh`.' \
   "bash own.tst.sh; ./run -a do_check_pre_push" \
-  "55555555-5555-4555-8555-555555555555"
+  "ok" \
+  "66666666-6666-4666-8666-666666666666"
+
+# CTRL 3 (W1): rulebook C4 NOT RUN <item>: <why> in read: -> GO
+run_case "ctrl_not_run_in_read" 1 "" \
+  $'## Do\n1. Run `bash foo.tst.sh` and `cd csi-spl-iac && ./run -a do_check_pre_push`.' \
+  "bash foo.tst.sh" \
+  "NOT RUN do_check_pre_push: reviewer box lacks local pg" \
+  "77777777-7777-4777-8777-777777777777"
+
+# CTRL 4 (N1): sibling row rc02-b52.sh named in passing on a b52-01 brief -> GO
+run_case "ctrl_sibling_rc_ignored" 1 "" \
+  $'# Lane brief: b52-01-wui-popstate-land-guard-spl5254\n## Do\n1. Run `node --test foo.test.mjs`, `bash rc01-b52.sh <sha>` and `cd csi-spl-iac && ./run -a do_check_pre_push`. Plan also has b52-02 (`rc02-b52.sh`).' \
+  "node --test foo.test.mjs; bash rc01-b52.sh; ./run -a do_check_pre_push" \
+  "ok" \
+  "88888888-8888-4888-8888-888888888888"
 
 echo "rc02 exit $rc"
 exit "$rc"
 ```
 
-Output on `ecc05e480` (sat, `23:18Z`):
+Output on `ecc05e480` (sat, `23:37Z`):
 
 | run | output |
 |---|---|
-| `bash rc02-b52.sh ecc05e480` | `rc02 sites: one=1 owner_go=1 instr=1` / `rc02 red_a099_missing_pre_push: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 red_a113_missing_full_tier: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 red_round_missing_tst_and_rc: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 ctrl_all_present: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_exclusions_ignored: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 exit 1` |
-| `bash rc02-b52.sh ecc05e480 fix-shape` | `rc02 sites: one=1 owner_go=1 instr=1` / `rc02 fix-shape: _spl_review_go_c4_missing wired in _spl_review_go_one after do_spl_review_line_check (rc 12)` / `rc02 red_a099_missing_pre_push: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 red_a113_missing_full_tier: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 red_round_missing_tst_and_rc: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 ctrl_all_present: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_exclusions_ignored: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 exit 0` |
+| `bash rc02-b52.sh ecc05e480` | `rc02 sites: one=1 owner_go=1 instr=1` / `rc02 red_a099_missing_pre_push: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 red_a113_missing_full_tier: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 red_round_missing_tst_and_rc: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 red_plain_read_mention_holds: rc=0 gos=1 (want_go=0) tok_ok=0` / `rc02 ctrl_all_present: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_exclusions_ignored: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_not_run_in_read: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_sibling_rc_ignored: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 exit 1` |
+| `bash rc02-b52.sh ecc05e480 fix-shape` | `rc02 sites: one=1 owner_go=1 instr=1` / `rc02 fix-shape: _spl_review_go_c4_missing (ran: or read: NOT RUN + sibling rc exclusion) wired in _spl_review_go_one (rc 12)` / `rc02 red_a099_missing_pre_push: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 red_a113_missing_full_tier: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 red_round_missing_tst_and_rc: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 red_plain_read_mention_holds: rc=12 gos=0 (want_go=0) tok_ok=1` / `rc02 ctrl_all_present: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_exclusions_ignored: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_not_run_in_read: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 ctrl_sibling_rc_ignored: rc=0 gos=1 (want_go=1) tok_ok=1` / `rc02 exit 0` |
 
-### 4.3 `rc03-b52.sh` (b52-03, spawn-remote atomic read), sha256 first 12 hex `8d2ec920278d`, 12260 B
+### 4.3 `rc03-b52.sh` (b52-03, spawn-remote atomic read), sha256 first 12 hex `0ee4e89f1d90`, 13673 B
 
 Run from any checkout: `bash rc03-b52.sh ecc05e480` (exit 1), then `bash rc03-b52.sh ecc05e480 fix-shape` (exit 0). Under 4 s each. Self-contained (zero box paths).
 
@@ -766,11 +811,12 @@ Run from any checkout: `bash rc03-b52.sh ecc05e480` (exit 1), then `bash rc03-b5
 # On <sha>'s tree, spawn-remote.sh handle() (:274-282), handle_issue() (:484-491),
 # and note_cancel() (:682-691) read the inbox JSON file with separate jq / body_of
 # calls and append msg_id to $STATE/seen before reading .from / .task_id / .body.
-# If the agent acks the message (moving inbox -> archive) between the first jq and
-# the next read (live hit 2026-11-26T15:19:02Z on 82416aaf, serve.log:3728),
-# handle() sees task="" and body="" -> `REJECTED ... bad kind ''` while $msg is
-# already in $STATE/seen, and reply() calls spool-send with --task "" which mints
-# a brand-new task id. Same race in note_cancel() drops the cancel permanently.
+# If the agent acks the message (moving inbox -> archive) between .msg_id and
+# .from (Case A: REFUSED path) or between .from and .task_id/.body (Case A1b:
+# exact 2026-11-26T15:19:02Z hit on 82416aaf, serve.log:3728 -> `REJECTED ...
+# bad kind ''` while $msg is already in $STATE/seen, and reply() passes --task ""
+# to spool-send which mints a random task id), the request is dropped. Same race
+# in note_cancel() drops the cancel permanently; no archive/ fallback exists (Case A2).
 # Extracts spawn-agents from <sha> into mktemp -d. Self-contained (no box paths).
 set -uo pipefail
 sha="${1:?usage: rc03-b52.sh <sha> [fix-shape]}"
@@ -892,7 +938,7 @@ printf 'SPOOL_DESK_BOX=home\n' >"$A/box.env"
 printf 'LEASE_ORCH=c-001\n' >"$A/dispatch/lease.conf"
 printf 'c-001@sat 1790995313\n' >"$A/dispatch/lease.orch"
 
-# Stub spool-send.sh in $tmp/csi-spl-orc/.../scripts so reply() writes to $B/c-001/inbox
+# Stub spool-send.sh in $tmp/csi-spl-orc/.../scripts so reply() writes to $tmp/replies.tsv
 cat >"$tmp/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh" <<EOF
 #!/usr/bin/env bash
 task="" kind="" body=""
@@ -914,18 +960,17 @@ printf '%s\n' "\$*" >>"$tmp/spawn.calls"
 echo "c-009 %42"
 EOF
 REAL_JQ="$(command -v jq)"
-# 1-shot jq shim: when jq is called with a .msg_id query on a file inside
-# $A/c-001/inbox/, after running the real jq call it simulates `spool recv --ack`
-# moving that file into archive/ right between the msg_id read and the next read
-# (the exact 2026-11-26T15:19:02Z race on 82416aaf).
+# 1-shot jq shim: triggers inbox -> archive move right after jq reads the field
+# named by $RACE_TRIGGER (".msg_id" or ".from") from a file in $A/c-001/inbox/.
 cat >"$tmp/racebin/jq" <<EOF
 #!/usr/bin/env bash
 "$REAL_JQ" "\$@"; r=\$?
-has_mid=0
+trig="\${RACE_TRIGGER:-.msg_id}"
+hit=0
 for a in "\$@"; do
-  [[ "\$a" == *".msg_id"* ]] && has_mid=1
+  [[ "\$a" == *"\$trig"* ]] && hit=1
 done
-if [ "\$has_mid" = 1 ]; then
+if [ "\$hit" = 1 ]; then
   for a in "\$@"; do
     if [[ "\$a" == "$A/c-001/inbox/"*.json && -f "\$a" ]]; then
       mv -- "\$a" "$A/c-001/archive/\${a##*/}" 2>/dev/null || true
@@ -944,7 +989,7 @@ rc=0
 sr_lib="$(dirname "$sr")/sr_lib.sh"
 sed '/^case "\${1:-}" in$/,$d' "$sr" >"$sr_lib"
 
-# Case A (RED 1): handle() ack-race (inbox -> archive right after .msg_id read)
+# Case A (RED 1a): handle() ack-race right after .msg_id (base takes REFUSED path: from="")
 TASK_A="f41bc755-1111-4111-8111-111111111111"
 MSG_A="82416aaf-2b2b-454a-955c-728677879f58"
 python3 - "$A/c-001/inbox/$MSG_A.json" "$MSG_A" "$TASK_A" "$WORK" <<'PY'
@@ -953,16 +998,33 @@ body = f"spawn-request v1\nkind: claude\ntitle: auto\nworkdir: {sys.argv[4]}\nsl
 json.dump({"v":1,"msg_id":sys.argv[2],"task_id":sys.argv[3],"from":"c-001@sat","to":"c-001","kind":"task","ts":"2026-11-26T15:19:02Z","body":body}, open(sys.argv[1],"w"))
 PY
 rm -f "$tmp/replies.tsv" "$tmp/spawn.calls" "$A/spawn-remote/serve.log" "$A/spawn-remote/seen"
-env SPOOL_ROOT="$A" SPAWN_REMOTE_WINDOW_CMD="$tmp/spawn-stub" PATH="$tmp/racebin:$PATH" \
+env SPOOL_ROOT="$A" SPAWN_REMOTE_WINDOW_CMD="$tmp/spawn-stub" RACE_TRIGGER=".msg_id" PATH="$tmp/racebin:$PATH" \
   bash -c 'source "$1"; mkdir -p "$STATE/briefs"; handle c-001 "$2"' _ "$sr_lib" "$A/c-001/inbox/$MSG_A.json" >"$tmp/a.out" 2>&1 || true
 callsA=$([ -f "$tmp/spawn.calls" ] && wc -l <"$tmp/spawn.calls" || echo 0)
-bad_taskA=$(cnt "$tmp/replies.tsv" "MINTED-RANDOM-TASK")
+refA=$(cnt "$A/spawn-remote/serve.log" "REFUSED")
 good_taskA=$(cnt "$tmp/replies.tsv" "$TASK_A")
-rejA=$(cnt "$A/spawn-remote/serve.log" "REJECTED")
-echo "rc03 A(handle_ack_race): calls=$callsA (want 1) rej=$rejA (want 0) good_task=$good_taskA (want 1) minted=$bad_taskA (want 0)"
-[ "$callsA" = 1 ] && [ "$rejA" = 0 ] && [ "$good_taskA" = 1 ] && [ "$bad_taskA" = 0 ] || rc=1
+echo "rc03 A(handle_ack_after_mid): calls=$callsA (want 1) ref=$refA (want 0) good_task=$good_taskA (want 1)"
+[ "$callsA" = 1 ] && [ "$refA" = 0 ] && [ "$good_taskA" = 1 ] || rc=1
 
-# Case A2 (control): handle() when file already moved to archive/ before handle() starts
+# Case A1b (RED 1b): handle() ack-race right after .from (exact 15:19:02Z live path: REJECTED bad kind '' + minted task)
+TASK_A1B="f41bc755-1b1b-4111-8111-111111111111"
+MSG_A1B="82416aaf-1b1b-454a-955c-728677879f58"
+python3 - "$A/c-001/inbox/$MSG_A1B.json" "$MSG_A1B" "$TASK_A1B" "$WORK" <<'PY'
+import json, sys
+body = f"spawn-request v1\nkind: claude\ntitle: auto\nworkdir: {sys.argv[4]}\nslug: b52-panel-live\n---\n# brief\n"
+json.dump({"v":1,"msg_id":sys.argv[2],"task_id":sys.argv[3],"from":"c-001@sat","to":"c-001","kind":"task","ts":"2026-11-26T15:19:02Z","body":body}, open(sys.argv[1],"w"))
+PY
+rm -f "$tmp/replies.tsv" "$tmp/spawn.calls" "$A/spawn-remote/serve.log" "$A/spawn-remote/seen"
+env SPOOL_ROOT="$A" SPAWN_REMOTE_WINDOW_CMD="$tmp/spawn-stub" RACE_TRIGGER=".from" PATH="$tmp/racebin:$PATH" \
+  bash -c 'source "$1"; mkdir -p "$STATE/briefs"; handle c-001 "$2"' _ "$sr_lib" "$A/c-001/inbox/$MSG_A1B.json" >"$tmp/a1b.out" 2>&1 || true
+callsA1b=$([ -f "$tmp/spawn.calls" ] && wc -l <"$tmp/spawn.calls" || echo 0)
+rejA1b=$(cnt "$A/spawn-remote/serve.log" "REJECTED")
+bad_taskA1b=$(cnt "$tmp/replies.tsv" "MINTED-RANDOM-TASK")
+good_taskA1b=$(cnt "$tmp/replies.tsv" "$TASK_A1B")
+echo "rc03 A1b(handle_ack_after_from_live_path): calls=$callsA1b (want 1) rej=$rejA1b (want 0) good_task=$good_taskA1b (want 1) minted=$bad_taskA1b (want 0)"
+[ "$callsA1b" = 1 ] && [ "$rejA1b" = 0 ] && [ "$good_taskA1b" = 1 ] && [ "$bad_taskA1b" = 0 ] || rc=1
+
+# Case A2 (RED 2): handle() when file already moved to archive/ before handle() starts (RED on base: no archive/ fallback)
 TASK_A2="f41bc755-2222-4222-8222-222222222222"
 MSG_A2="82416aaf-2222-4222-8222-222222222222"
 python3 - "$A/c-001/archive/$MSG_A2.json" "$MSG_A2" "$TASK_A2" "$WORK" <<'PY'
@@ -978,7 +1040,7 @@ good_taskA2=$(cnt "$tmp/replies.tsv" "$TASK_A2")
 echo "rc03 A2(handle_archive_fallback): calls=$callsA2 (want 1) good_task=$good_taskA2 (want 1)"
 [ "$callsA2" = 1 ] && [ "$good_taskA2" = 1 ] || rc=1
 
-# Case B (RED 2): note_cancel() ack-race -> cancel MUST still record task in $STATE/cancelled
+# Case B (RED 3): note_cancel() ack-race -> cancel MUST still record task in $STATE/cancelled
 TASK_B="c41bc755-3333-4333-8333-333333333333"
 MSG_B="c2416aaf-3333-4333-8333-333333333333"
 python3 - "$A/c-001/inbox/$MSG_B.json" "$MSG_B" "$TASK_B" <<'PY'
@@ -987,13 +1049,13 @@ body = f"spawn-cancel v1\ntask: {sys.argv[3]}\n---\n"
 json.dump({"v":1,"msg_id":sys.argv[2],"task_id":sys.argv[3],"from":"c-001@sat","to":"c-001","kind":"note","ts":"2026-11-26T15:19:03Z","body":body}, open(sys.argv[1],"w"))
 PY
 rm -f "$A/spawn-remote/cancelled" "$A/spawn-remote/seen"
-env SPOOL_ROOT="$A" PATH="$tmp/racebin:$PATH" \
+env SPOOL_ROOT="$A" RACE_TRIGGER=".msg_id" PATH="$tmp/racebin:$PATH" \
   bash -c 'source "$1"; mkdir -p "$STATE/briefs"; note_cancel c-001 "$2"' _ "$sr_lib" "$A/c-001/inbox/$MSG_B.json" >"$tmp/b.out" 2>&1 || true
 gotB=$(cnt "$A/spawn-remote/cancelled" "$TASK_B")
 echo "rc03 B(note_cancel_ack_race): cancelled_recorded=$gotB (want 1)"
 [ "$gotB" = 1 ] || rc=1
 
-# Case C (RED 3): reply() refuses empty task (never mints random task id)
+# Case C (RED 4): reply() refuses empty task (never mints random task id)
 rm -f "$tmp/replies.tsv"
 outC="$(env SPOOL_ROOT="$A" bash -c 'source "$1"; reply c-001 c-001@sat "" refused "reason: test"' _ "$sr_lib" 2>&1)"
 sentC=$([ -f "$tmp/replies.tsv" ] && wc -l <"$tmp/replies.tsv" || echo 0)
@@ -1004,12 +1066,12 @@ echo "rc03 exit $rc"
 exit "$rc"
 ```
 
-Output on `ecc05e480` (sat, `23:12Z`):
+Output on `ecc05e480` (sat, `23:37Z`):
 
 | run | output |
 |---|---|
-| `bash rc03-b52.sh ecc05e480` | `rc03 sites: handle=1 handle_issue=1 note_cancel=1 reply=1` / `rc03 A(handle_ack_race): calls=0 (want 1) rej=0 (want 0) good_task=0 (want 1) minted=0 (want 0)` / `rc03 A2(handle_archive_fallback): calls=0 (want 1) good_task=0 (want 1)` / `rc03 B(note_cancel_ack_race): cancelled_recorded=0 (want 1)` / `rc03 C(reply_empty_task): sent=1 (want 0) []` / `rc03 exit 1` |
-| `bash rc03-b52.sh ecc05e480 fix-shape` | `rc03 sites: handle=1 handle_issue=1 note_cancel=1 reply=1` / `rc03 fix-shape: read_msg_fields single atomic read with archive/ fallback + reply empty-task guard` / `rc03 A(handle_ack_race): calls=1 (want 1) rej=0 (want 0) good_task=1 (want 1) minted=0 (want 0)` / `rc03 A2(handle_archive_fallback): calls=1 (want 1) good_task=1 (want 1)` / `rc03 B(note_cancel_ack_race): cancelled_recorded=1 (want 1)` / `rc03 C(reply_empty_task): sent=0 (want 0) [spawn-remote: WARN reply to c-001@sat skipped: empty task]` / `rc03 exit 0` |
+| `bash rc03-b52.sh ecc05e480` | `rc03 sites: handle=1 handle_issue=1 note_cancel=1 reply=1` / `rc03 A(handle_ack_after_mid): calls=0 (want 1) ref=1 (want 0) good_task=0 (want 1)` / `rc03 A1b(handle_ack_after_from_live_path): calls=0 (want 1) rej=1 (want 0) good_task=0 (want 1) minted=1 (want 0)` / `rc03 A2(handle_archive_fallback): calls=0 (want 1) good_task=0 (want 1)` / `rc03 B(note_cancel_ack_race): cancelled_recorded=0 (want 1)` / `rc03 C(reply_empty_task): sent=1 (want 0) []` / `rc03 exit 1` |
+| `bash rc03-b52.sh ecc05e480 fix-shape` | `rc03 sites: handle=1 handle_issue=1 note_cancel=1 reply=1` / `rc03 fix-shape: read_msg_fields single atomic read with archive/ fallback + reply empty-task guard` / `rc03 A(handle_ack_after_mid): calls=1 (want 1) ref=0 (want 0) good_task=1 (want 1)` / `rc03 A1b(handle_ack_after_from_live_path): calls=1 (want 1) rej=0 (want 0) good_task=1 (want 1) minted=0 (want 0)` / `rc03 A2(handle_archive_fallback): calls=1 (want 1) good_task=1 (want 1)` / `rc03 B(note_cancel_ack_race): cancelled_recorded=1 (want 1)` / `rc03 C(reply_empty_task): sent=0 (want 0) [spawn-remote: WARN reply to c-001@sat skipped: empty task]` / `rc03 exit 0` |
 
 ---
 
@@ -1017,15 +1079,15 @@ Output on `ecc05e480` (sat, `23:12Z`):
 
 | # | id | practice | sites (file:line on `ecc05e480`) | evidence | red control (fails on `ecc05e480`) | test column (R2; R7 must run EVERY entry in `ran:`) | fix scope | box | vendor | R7 reviewer | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 01 | `b52-01-wui-popstate-land-guard-spl5254` | Phone Back off level 1 applies its level only when its own route resolves (ignoring cancelled/unrelated `afterEach` and cancelling on aborted guard), and `mobile-back-wait.test.mjs` asserts zero stale `#lobby` reads | `csi-spl-wui/src/utils/mobile-stack.mjs:147-149`; `csi-spl-wui/src/composables/useMobileStack.ts:377-398`; `csi-spl-wui/tests/unit/mobile-stack.test.mjs:207-218`; `csi-spl-wui/tests/e2e/mobile-back-wait.test.mjs:91-101,180-194` | Owner order HUM-10 t1 `3fbb2b1b` msg `452c25df` poll `8c3f32b4` A; SPL-5254 (`onhold`); SPL-5232 (`d70f6c5fb`) R7 `c-531@sat` (`4fe0af88`) W2 + W3; section 4.1 | `bash rc01-b52.sh ecc05e480` -> `rc01 exit 1`; control `fix-shape` -> `rc01 exit 0` (plus Chrome W2 red control on scratch bundle with `mobilePopWaitsRoute` returning `false`) | `cd csi-spl-wui && pnpm run typecheck`; `node --test csi-spl-wui/tests/unit/mobile-stack.test.mjs`; `node --test csi-spl-wui/tests/unit/cleancode.test.mjs`; `bash rc01-b52.sh <fix sha>` -> exit 0 (without `fix-shape`); `cd csi-spl-iac && WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e` (on `ecc05e480` selects 10 files: `mobile-back-wait.test.mjs`, `release-notes.test.mjs`, `top-bar-mobile.test.mjs`, `calendar-phone-peek.test.mjs`, `issues-crud-modal.test.mjs`, `workspace-doctree.test.mjs`, `users-admin.test.mjs`, `version-v-prefix.test.mjs`, `tenant-switcher.test.mjs`, `thread-jump-edit.test.mjs` — run all selected files against generated mock bundle); `cd csi-spl-iac && ./run -a do_check_pre_push` | section 3.1: add `mobilePopAfterNav` in `mobile-stack.mjs`; add `popFailureKind`, early `++popSeq`, and target/failure check in `useMobileStack.ts` `listenPopState` (keep 3 s fallback); add unit cases in `mobile-stack.test.mjs`; record/assert `selectChannel` calls `['alerts']` in `mobile-back-wait.test.mjs`; never touch `stores/channel.ts`; cite **SPL-5254**; `Docs: none` | sat or `<box2>` (`do_spl_box_pick` claude `23:01Z`: sat 107% / 92% weekly pick, `<box2>` 205% / 92% weekly) | claude (WUI never mistral) | agy (preferred; non-secret-class, `BOX_PICK_KIND=agy` `23:01Z`: sat 107% pick, both `agy weekly unknown`, placed anyway), else claude waiver fallback (`c-001` `77ba5669`) | `simple_coding` | 1 |
-| 02 | `b52-02-orc-review-go-c4-test-column` | `do_spl_review_go` verifies every test required by the author brief's instruction text (`*.tst.sh`, `test-*.sh`, `*.test.mjs`, `rc[0-9][0-9]*.sh`, exact `do_check_pre_push`, unconditional `PRE_PUSH_TIER=full`, `shellcheck`) is named in `ran:`, holding `rc 12` naming missing tests | `csi-spl-orc/src/bash/run/spl-review-go.func.sh:839-876`; `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh:1148-1151` & new case 36 after `:1456` | c-001 ruling `ee10c09a` (`a7f0d4b7`); n=2 live misses 2026-11-26: GO `d8bfb277` (`a-099` `02ccf2c7`, landed `92830c078` missing `do_check_pre_push`) + GO `245ec817` (`a-113` `c2a02a11`, missing `do_check_pre_push` & `PRE_PUSH_TIER=full`), plus `b49-01`/`r05-02`; `b51-03` landed `a5bb05350`; 0 false holds on b51-01..03 & r08-01..02; section 4.2 | `bash rc02-b52.sh ecc05e480` -> `rc02 exit 1`; control `fix-shape` -> `rc02 exit 0` | `bash csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`; `bash csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh`; `bash rc02-b52.sh <fix sha>` -> exit 0 (without `fix-shape`); `shellcheck -S warning -x csi-spl-orc/src/bash/run/spl-review-go.func.sh csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`; `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`; `bash csi-spl-iac/src/bash/tests/action-header-tags.tst.sh`; `cd csi-spl-iac && ./run -a do_check_pre_push` | section 3.2: add `_spl_review_go_c4_missing` (<= 75 lines), wire into `_spl_review_go_one` after `do_spl_review_line_check` (skip `DOCS-ONLY`), hold `rc 12` naming missing tests, document `[12]` in header; update case 27 `:1148-1151` fixture line/log for `spl-billing-sa.tst.sh`; add case 36 covering missing `do_check_pre_push`, missing `PRE_PUSH_TIER=full`, missing `*.tst.sh`/`rc*.sh`/`shellcheck`, all-present GO, `NOT`/Never/`Files you must NOT touch`/conditional exclusions, and `DOCS-ONLY` skip; `Docs: none` | sat or `<box2>` (`do_spl_box_pick` `23:01Z`: sat pick) | claude | agy (preferred; non-secret-class), else claude waiver fallback (`c-001` `77ba5669`) | `simple_coding` | 1 |
+| 01 | `b52-01-wui-popstate-land-guard-spl5254` | Phone Back off level 1 applies its level only when its own route resolves (ignoring cancelled/unrelated `afterEach` and cancelling on aborted guard), and `mobile-back-wait.test.mjs` asserts zero stale `#lobby` reads | `csi-spl-wui/src/utils/mobile-stack.mjs:147-149`; `csi-spl-wui/src/composables/useMobileStack.ts:377-398`; `csi-spl-wui/tests/unit/mobile-stack.test.mjs:207-218`; `csi-spl-wui/tests/e2e/mobile-back-wait.test.mjs:91-101,180-194` | Owner order HUM-10 t1 `3fbb2b1b` msg `452c25df` poll `8c3f32b4` A; SPL-5254 (`onhold`); SPL-5232 (`d70f6c5fb`) R7 `c-531@sat` (`4fe0af88`) W2 + W3; section 4.1 | `bash rc01-b52.sh ecc05e480` -> `rc01 exit 1`; control `fix-shape` -> `rc01 exit 0` (plus Chrome W2 red control on scratch bundle with `mobilePopWaitsRoute` returning `false`) | `cd csi-spl-wui && pnpm run typecheck`; `node --test csi-spl-wui/tests/unit/mobile-stack.test.mjs`; `node --test csi-spl-wui/tests/unit/cleancode.test.mjs`; `bash rc01-b52.sh <fix sha>` -> exit 0 (without `fix-shape`); `cd csi-spl-iac && WUI_E2E_RANGE=<sha>^..<sha> ./run -a do_check_pre_push_e2e` (on `ecc05e480` selects 10 files: `mobile-back-wait.test.mjs`, `release-notes.test.mjs`, `top-bar-mobile.test.mjs`, `calendar-phone-peek.test.mjs`, `issues-crud-modal.test.mjs`, `workspace-doctree.test.mjs`, `users-admin.test.mjs`, `version-v-prefix.test.mjs`, `tenant-switcher.test.mjs`, `thread-jump-edit.test.mjs` — run all selected files against generated mock bundle); `cd csi-spl-iac && ./run -a do_check_pre_push` | section 3.1: add `mobilePopAfterNav` in `mobile-stack.mjs`; add `popFailureKind`, early `++popSeq`, and target/failure check in `useMobileStack.ts` `listenPopState` (keep 3 s fallback); add unit cases in `mobile-stack.test.mjs` (incl. `untagged-popstate-cancels-waiting-level`); record/assert `selectChannel` calls `['alerts']` in `mobile-back-wait.test.mjs`; never touch `stores/channel.ts`; cite **SPL-5254**; `Docs: none` | sat or `<box2>` (`do_spl_box_pick` claude `23:01Z`: sat 107% / 92% weekly pick, `<box2>` 205% / 92% weekly) | claude (WUI never mistral) | agy (preferred; non-secret-class, `BOX_PICK_KIND=agy` `23:01Z`: sat 107% pick, both `agy weekly unknown`, placed anyway), else claude waiver fallback (`c-001` `77ba5669`) | `simple_coding` | 1 |
+| 02 | `b52-02-orc-review-go-c4-test-column` | `do_spl_review_go` verifies every test required by the author brief's instruction text (`*.tst.sh`, `test-*.sh`, `*.test.mjs`, `rc[0-9][0-9]*.sh`, exact `do_check_pre_push`, unconditional `PRE_PUSH_TIER=full`, `shellcheck`) is named in `ran:` OR as `NOT RUN <item>: <why>` in `read:` (rulebook C4), holding `rc 12` naming missing tests | `csi-spl-orc/src/bash/run/spl-review-go.func.sh:839-876`; `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh:1148-1151` & new case 36 after `:1456` | c-001 ruling `ee10c09a` (`a7f0d4b7`); n=2 live misses 2026-11-26: GO `d8bfb277` (`a-099` `02ccf2c7`, landed `92830c078` missing `do_check_pre_push`) + GO `245ec817` (`a-113` `c2a02a11`, missing `do_check_pre_push` & `PRE_PUSH_TIER=full`), plus `b49-01`/`b49-02`/`r05-02`; `b51-03` landed `a5bb05350`; 0 false holds on b51-01..03 & r08-01..02; section 4.2 | `bash rc02-b52.sh ecc05e480` -> `rc02 exit 1`; control `fix-shape` -> `rc02 exit 0` | `bash csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`; `bash csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh`; `bash rc02-b52.sh <fix sha>` -> exit 0 (without `fix-shape`); run `_spl_review_go_c4_missing` against the b52 row briefs (0 false holds); `shellcheck -S warning -x csi-spl-orc/src/bash/run/spl-review-go.func.sh csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`; `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`; `bash csi-spl-iac/src/bash/tests/action-header-tags.tst.sh`; `cd csi-spl-iac && ./run -a do_check_pre_push` | section 3.2: add `_spl_review_go_c4_missing` (<= 75 lines, accepts `ran:` or `read:` `NOT RUN <item>: <why>`, ignores sibling-row `rc*.sh` passing mentions), wire into `_spl_review_go_one` after `do_spl_review_line_check` (skip `DOCS-ONLY`), hold `rc 12` naming missing tests, document `[12]` in header; update case 27 `:1148-1151` fixture line/log for `spl-billing-sa.tst.sh`; add case 36 covering missing `do_check_pre_push`, missing `PRE_PUSH_TIER=full`, missing `*.tst.sh`/`rc*.sh`/`shellcheck`, plain `read:` mention without `NOT RUN` (HOLD), `NOT RUN <item>: <why>` in `read:` (GO), sibling-row `rc*.sh` mention on a `b52-01` brief (GO), all-present GO, `NOT`/Never/`Files you must NOT touch`/conditional exclusions, and `DOCS-ONLY` skip; `Docs: none` | sat or `<box2>` (`do_spl_box_pick` `23:01Z`: sat pick) | claude | agy (preferred; non-secret-class), else claude waiver fallback (`c-001` `77ba5669`) | `simple_coding` | 1 |
 | 03 | `b52-03-orc-spawn-remote-handle-atomic-read` | `spawn-remote.sh` `handle()`, `handle_issue()`, and `note_cancel()` read the message JSON once atomically (with `archive/` fallback) before marking `$STATE/seen`, and `reply()` refuses an empty `--task` | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh:255-261,274-282,484-491,682-691`; `csi-spl-orc/src/bash/features/spawn-agents/tests/test-spawn-remote.sh` (new case 16 at end) | c-001 `e1db57c6`, `c-001@<box2>` `42ac9aad`, live hit `2026-11-26T15:19:02Z` on b52 panel request `82416aaf` (`serve.log:3728`, minted task `765fe1de`); `c002-next-round-candidates.md:167`; section 4.3 | `bash rc03-b52.sh ecc05e480` -> `rc03 exit 1`; control `fix-shape` -> `rc03 exit 0` | `bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-spawn-remote.sh`; `bash csi-spl-orc/src/bash/tests/spawn-remote-cron.tst.sh`; `bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-lane-issue-remote-desk.sh`; `bash rc03-b52.sh <fix sha>` -> exit 0 (without `fix-shape`); `shellcheck -S warning -x csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh csi-spl-orc/src/bash/features/spawn-agents/tests/test-spawn-remote.sh`; `bash csi-spl-iac/src/bash/tests/bash-cleancode.tst.sh`; `cd csi-spl-iac && ./run -a do_check_pre_push` | section 3.3: add `read_msg_fields` (single atomic `cat` + `archive/` fallback, unpacks `msg`/`from`/`task`/`body` from snapshot, returns 1 without touching `$STATE/seen` when unreadable); wire into `handle()` (73 -> 71 lines <= 75), `handle_issue()` (50 -> 48 lines), and `note_cancel()` (17 -> 15 lines); guard `reply()` on `[ -n "$task" ]` (7 -> 8 lines); add case 16 in `test-spawn-remote.sh` covering mid-read inbox->archive move for `handle()` and `note_cancel()`, archive fallback, unreadable-not-seen, and empty-task `reply()` refusal; `Docs: none` | sat or `<box2>` (`do_spl_box_pick` `23:01Z`: sat pick) | claude | agy (preferred; non-secret-class), else claude waiver fallback (`c-001` `77ba5669`) | `simple_coding` | 1 |
 
 - **R1 (disjoint files):** all three rows are Batch 1 and share 0 files:
   - b52-01: `csi-spl-wui/src/utils/mobile-stack.mjs`, `csi-spl-wui/src/composables/useMobileStack.ts`, `csi-spl-wui/tests/unit/mobile-stack.test.mjs`, `csi-spl-wui/tests/e2e/mobile-back-wait.test.mjs`
   - b52-02: `csi-spl-orc/src/bash/run/spl-review-go.func.sh`, `csi-spl-orc/src/bash/tests/spl-review-go.tst.sh`
   - b52-03: `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh`, `csi-spl-orc/src/bash/features/spawn-agents/tests/test-spawn-remote.sh`
-- **R3** (checked `2026-11-26T23:03:38Z`): `lane-map.sh --check csi-spl-wui/src/composables/useMobileStack.ts,csi-spl-wui/src/utils/mobile-stack.mjs,csi-spl-wui/tests/unit/mobile-stack.test.mjs,csi-spl-wui/tests/e2e/mobile-back-wait.test.mjs,csi-spl-orc/src/bash/run/spl-review-go.func.sh,csi-spl-orc/src/bash/tests/spl-review-go.tst.sh,csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh,csi-spl-doc/doc/md/bug-round-52-plan.md --agent a-264` -> **exit 4**: 0 live lanes list these paths, and 20 live lanes on `<box2>` record no files (`unknown:` at `23:03:38Z`: `c-029`, `c-041`, `c-068`, `c-079`, `c-086`, `c-146`, `c-187`, `c-211`, `c-264`, `c-339`, `c-407`, `c-416`, `c-474`, `c-535`, `c-728`, `c-904`, `c-927`, `c-936`, `c-957`, `c-971`): **not free until the holder re-runs `--check` at placement**. By `do_spl_lane_map` scopes (`22:59Z`), live lanes on sat (`c-119`/`a-262` SPL-6605 `MessageFeed.vue` snackbar, `c-171` CI A6 workflows, `a-260` r09 planner, `c-197` s150 B15a, `c-195`/`a-240` s150 B14, `a-934` spec 182 planner, `c-129` b52 panel) and `<box2>` (`c-342` r09 panel, `c-339` SPL-6633 reflection brief budget, `c-068` loops dialog, `c-264` s158 P2, `c-244` CI A8, `c-904` s187 S1, private workspace seats) touch none of these 8 row files. The queue (`do_spl_spawn_queue`, `23:00Z`, 78 queued asks, incl. 7 bug asks `9ad7f690`, `c921839d`, `6e647b48`, `625e0dcd`, `6ecb3881`, `077e04ae`, `c8ed77c7`) is disjoint by slug; r09 has not published a plan yet, so the holder re-checks R3 at placement.
+- **R3** (re-checked on all 8 actual row files at `2026-11-26T23:34:57Z`; independently checked by `c-129@sat` at `23:29:55Z`): `lane-map.sh --check csi-spl-wui/src/utils/mobile-stack.mjs,csi-spl-wui/src/composables/useMobileStack.ts,csi-spl-wui/tests/unit/mobile-stack.test.mjs,csi-spl-wui/tests/e2e/mobile-back-wait.test.mjs,csi-spl-orc/src/bash/run/spl-review-go.func.sh,csi-spl-orc/src/bash/tests/spl-review-go.tst.sh,csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-remote.sh,csi-spl-orc/src/bash/features/spawn-agents/tests/test-spawn-remote.sh --agent a-264` -> **exit 4**: 0 live lanes list any of the 8 row files, and 20 live lanes on `<box2>` record no files (`unknown:` at `23:34:57Z`: `c-029`, `c-041`, `c-068`, `c-079`, `c-086`, `c-146`, `c-187`, `c-211`, `c-264`, `c-358`, `c-407`, `c-416`, `c-474`, `c-535`, `c-728`, `c-904`, `c-927`, `c-936`, `c-957`, `c-971`; `c-129` at `23:29:55Z` saw exit 4, 21 `<box2>` unknowns, 0 lanes listing a row file): **not free until the holder re-runs `--check` at placement**. Since `ecc05e480`, SPL-6633 landed (`7f0c93aa3`) and refactor round 09 plan v1.0 landed (`861ad6d57`, touching `spl-{grok,agy}-memory-install.func.sh`, `test-y18-grok-memory.sh`, `wui-{dev,build,test}.func.sh`, `wui-actions.tst.sh` — **0 overlap** with our 8 row files); `git diff --name-only ecc05e480 861ad6d57 -- <8 row files>` -> empty (0 drift). The queue (`do_spl_spawn_queue`, `23:00Z`, 78 queued asks, incl. 7 bug asks `9ad7f690`, `c921839d`, `6e647b48`, `625e0dcd`, `6ecb3881`, `077e04ae`, `c8ed77c7`) is disjoint by slug; the holder re-checks R3 at placement.
 - **R7:** claude-authored code rows (all 3 non-secret-class): prefer **agy** R7 seat (`BOX_PICK_KIND=agy ./run -a do_spl_box_pick` `23:01Z`: sat 107% pick, `<box2>` 205%, both `agy weekly unknown`, placed anyway), else claude waiver fallback citing `c-001` `77ba5669`. No grok (`c-001` `dc84300a`). No mistral (no review seat since 2026-11-25, no coding kind, never WUI). Every test in the row's R2 test column (including `cd csi-spl-iac && ./run -a do_check_pre_push`, `rc0N-b52.sh <fix sha>`, and for b52-01 all `do_check_pre_push_e2e`-selected e2e files) MUST appear in R7's `ran:` (rulebook C4).
 - **Rhythm (1.4) & c-001 ruling `b1141868`:** rows queue once the panel signs and `do_spl_review_line_check` exits 0; all b51 rows have already landed (`49f7f487a`, `ba36f4d24`, `a5bb05350`); rows run at night through the placer load guard.
 - **Pushes:** aim 1 per row (1.2).
@@ -1051,7 +1113,7 @@ Output on `ecc05e480` (sat, `23:12Z`):
 | item | count |
 |---|---|
 | rows | 3 (all Batch 1, R1 disjoint; within rulebook 5.1 cap of 3; bug share UNDER: live 19% vs 30-40% night band, 24 h 12% vs 20-30% band) |
-| inputs re-measured | 10 sources; 56 prd ERROR entries in 10 h (29 since W: 22 ad-hoc Cloud SQL, 7 transient Cloud Run 503s); 1636 prd WARNING entries in 10 h (401s left out, cap not reached; 1349 since W; 0 `hours/minutes` 400s); 9 alert policies (0 incidents); 4 open t1 bug-labelled issues + SPL-6606 (SPL-5254 taken as b52-01, SPL-6633 & SPL-6605 live, SPL-4994 onhold terraform); 100 wf 10 runs (78 success, 17 cancelled, 4 failure, 1 running; 3 failed since W: 2 served by `81fea84a1`, 1 single sighting green since); 2 failed non-wf10 master runs since W (both wf 20 on `4609bb49`/`075c1bab`, served by `81fea84a1`); 27 commits in `2485f3956..ecc05e480` + `c-001`/`c-002` archives + `automation.log` tail + 7 real `(abrief, review line)` C4 audit pairs; 0 HUM posts after `12:00:00Z`; round 51's first inputs; holder's candidate list (167 lines on sat); `rc01-b52.sh` (`642aa582b7a6`, 15243 B), `rc02-b52.sh` (`1aad8be673cb`, 11166 B), and `rc03-b52.sh` (`8d2ec920278d`, 12260 B) n=1 each way on `ecc05e480` (`shellcheck -S warning` rc 0 on all 3); baselines `mobile-stack.test.mjs` (`42/42`), `spl-review-go.tst.sh` (`0 failure(s)`), `spl-accepted-close.tst.sh` (`0 failure(s)`), `test-spawn-remote.sh` (`127/127`), `spawn-remote-cron.tst.sh` (`fails=0`), `bash-cleancode.tst.sh` (`7578 functions in 1263 files`, all assertions), `action-header-tags.tst.sh` (`ALL PASS`) |
+| inputs re-measured | 10 sources; 56 prd ERROR entries in 10 h (29 since W: 22 ad-hoc Cloud SQL, 7 transient Cloud Run 503s); 1636 prd WARNING entries in 10 h (401s left out, cap not reached; 1349 since W; 0 `hours/minutes` 400s); 9 alert policies (0 incidents); 4 open t1 bug-labelled issues + SPL-6606 (SPL-5254 taken as b52-01, SPL-6633 & SPL-6605 live, SPL-4994 onhold terraform); 100 wf 10 runs (78 success, 17 cancelled, 4 failure, 1 running; 3 failed since W: 2 served by `81fea84a1`, 1 single sighting green since); 2 failed non-wf10 master runs since W (both wf 20 on `4609bb49`/`075c1bab`, served by `81fea84a1`); 27 commits in `2485f3956..ecc05e480` + `c-001`/`c-002` archives + `automation.log` tail + 7 real `(abrief, review line)` C4 audit pairs; 0 HUM posts after `12:00:00Z`; round 51's first inputs; holder's candidate list (167 lines on sat); `rc01-b52.sh` (`642aa582b7a6`, 15243 B), `rc02-b52.sh` (`41a03d4059c1`, 13146 B), and `rc03-b52.sh` (`0ee4e89f1d90`, 13673 B) n=1 each way on `ecc05e480` (`shellcheck -S warning` rc 0 on all 3); baselines `mobile-stack.test.mjs` (`42/42`), `spl-review-go.tst.sh` (`0 failure(s)`), `spl-accepted-close.tst.sh` (`0 failure(s)`), `test-spawn-remote.sh` (`127/127`), `spawn-remote-cron.tst.sh` (`fails=0`), `bash-cleancode.tst.sh` (`7578 functions in 1263 files`, all assertions), `action-header-tags.tst.sh` (`ALL PASS`) |
 | slug proof | `git log origin/master --since="$W" --oneline -E --grep='\(b52-'` -> 0 (also 0 since `ae8fd2278`); `git ls-remote origin 'refs/heads/review/b52-*' 'refs/heads/wip/*b52*' 'refs/heads/*-b52-*' 'refs/heads/*bug-round-52*'` -> nothing (rc 0); briefs on sat matching `*b52*` / `*bug-round-52*`: only `hand-sat-c002-bug-round-52-planner.md` and `c002-bug-round-52-claude-panel-seat.md` (`22:59Z`) |
 | R7 seat | agy preferred (non-secret-class; `BOX_PICK_KIND=agy` `23:01Z`: sat 107% pick, both boxes `agy weekly unknown`, placed anyway), else claude waiver fallback (`c-001` `77ba5669`) |
 | first inputs for round 53 | `MessageCard.vue` M3 select box (`c-123` `8e965469`, `c-001` `e1db57c6`: `MessageCard.vue:1121` `content-visibility: auto` on `.msg:not(:focus-within)`, 4/4 miss at 1280x800 when clicking 2nd box while 1st holds focus — isolate exact rule in Chrome first); `review-go` owner-go false holds (`do_rdb_migration_next` `b4952880`, `a-104` N1 `## At brief time` `db300104`, another round's `DRY_RUN=0` `3748a973`, prose/backtick/identifier `apply`/`Apply`, 4 more rc 4 holds `20:27Z..22:12Z`; edits `spl-review-go.func.sh`, b52-02's file, so places only after b52-02 lands); seat-rotation poke reporting exit 0 without reaching the new pane (`c-001` `a1a5d394` + `2f3a505e`, spec 060, cause unchecked on `<box2>`); `a-767` N2 (`spool-agent-hook.sh:807-813` stale `stop_denies`) & `a-823` N2 (`PreInvocation` at `:140`); `a-769` N1 (`check-pre-push-lint.func.sh:618-643` `_ppl_run_timed` 124 vs 137) & N2 (`tenant-host-reserve.tst.sh` symlink control); `a4b540f6` (`spool-mirror.py:795` dangling `.mirror`); `c-625` N1-N3 (Taxes tab `/v1/view/tax/overview`); `a-995` N1 (`internal/taskcron/cron_test.go:209-229` malformed step tokens in `TestRefusals`); plus carried b51 items (`a-911` N2, `a-790` N1, `hours/minutes` whole-batch 400 follow-up, `c-708` N1, `a-683` N3, `a-490` N1, `a-480` N1, `TestHiddenUnreadBufferBudget`/`TestMarkedUnreadBufferBudget`, `unknown_token` box, hub dir mode, hermetic 2/4 timeout, composed testids, `i18n-lang-review-exempt.json:2`, SPL-6277 N2, SPL-6174, b34-01 N2, SPL-6212 N2, r87-01 N2, `run.sh:797`) |
@@ -1064,4 +1126,6 @@ Output on `ecc05e480` (sat, `23:12Z`):
 - **Panel:** c-129@sat (claude, cross-vendor; placed on `dispatch-bug-r52`, msg `bf1826bf`).
 - **Row reviewer (R7):** section 5.
 - **Review history:**
-  - 2026-11-26 23:18Z: v0.1 drafted on `ecc05e480`, pushed to `review/c002-bug-round-52-planner` (3 rows: b52-01, b52-02, b52-03), sent to panel `c-129@sat` and holder `c-002@sat` on task `dispatch-bug-r52`.
+  - 2026-11-26 23:27Z: v0.1 (`1d0f7ec93`) drafted on `ecc05e480`, pushed to `review/c002-bug-round-52-planner` (3 rows: b52-01, b52-02, b52-03), sent to panel `c-129@sat` (`229d8abf`) and holder `c-002@sat` (`67de09ca`) on task `dispatch-bug-r52`.
+  - 2026-11-26 23:34Z: panel `c-129@sat` (seat file `review/c002-bug-round-52-claude-seat` `34b425414`) returned FAIL on `1d0f7ec93` (`26beba8c`/`efaffb65`, relayed by `c-002@sat` `062e4c3f`) with 1 blocking finding W1 (b52-02 C4 helper must also accept `NOT RUN <item>: <why>` in `read:` per `rounds-rulebook.md:126`) + N1-N5; confirmed b52-01 and b52-03 ready as written.
+  - 2026-11-26 23:38Z: v0.2 folded W1 (`ctrl_not_run_in_read` + `red_plain_read_mention_holds` in `rc02-b52.sh`, section 3.2, section 5, case 36) and N1-N5 (`ctrl_sibling_rc_ignored` + R7 check on b52 row briefs; `rc03-b52.sh` Case A1b live `bad kind ''` + minted path + A2 comment + interim workaround; R3 `lane-map.sh --check` on all 8 actual row files incl. `test-spawn-remote.sh` + r09 `861ad6d57` 0-overlap; `untagged-popstate-cancels-waiting-level` unit case in b52-01; N5 `r05-02` precision); pushed fast-forward to `review/c002-bug-round-52-planner`.

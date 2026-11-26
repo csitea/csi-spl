@@ -124,6 +124,7 @@ var operatorCallers = map[string]string{
 	"OperatorTenant":             "which workspace is the operator one (rdb 0116, spec 074): one flagged row of the instance, unknown until read; returns its id only",
 	"keyLiveElsewhere":           "POST /v1/pins/join (spec 073 T003, spec 108 3.1): whether a box key is live in any other workspace; a bool, never which workspace",
 	"TenantsMissingPublicNotice": "retention sweeper + hub start (rdb 0173): which tenants lack the #public notice; a primary-key probe per tenant, returns tenant ids only; no route",
+	"TenantsMissingWUIPin":       "retention sweeper (spec 158 P2, SPL-5020, cnf hub.box_wui_pin_sweep): which live, paid tenants have no box-wui pins row; returns tenant ids only; no route",
 	"TenantsMissingIssueBacklog": "retention sweeper + hub start (rdb 0194): which tenants link their issues to the Issue backlog topic while it is missing; returns tenant ids only; no route",
 	"ClaimOperatorTenant":        "hub start (spec 074): flags the cnf operator workspace while no row is flagged; no route",
 

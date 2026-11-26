@@ -17,8 +17,8 @@ import (
 // revoked pin stay as they are (PutPin unforced answers ErrConflict for
 // both): a workspace that revoked box-wui is never re-pinned.
 //
-// Row P2's sweep (beside PostPublicNotices) calls ensureWUIPin for every
-// workspace lacking the row, with its own wuiPinActor.
+// Row P2's sweep (SweepWUIPins, beside PostPublicNotices, SPL-5020) calls
+// ensureWUIPin for every workspace lacking the row, as wuiPinSweeper.
 
 // box_wui_pin statuses: the create's 201 body {"box_wui_pin":{"status":...}}.
 const (
@@ -69,4 +69,34 @@ func (s *Server) wuiPinAudit(ctx context.Context, tenant string, by wuiPinActor)
 		}
 	}
 	ev.Str("tenant", tenant).Str("by", by.hum).Msg("box_wui_pin.pinned")
+}
+
+// wuiPinSweeper is the actor the sweep's audit rows name: the hub itself.
+var wuiPinSweeper = wuiPinActor{tenant: store.SystemTenant, hum: PublicNoticeFrom}
+
+// SweepWUIPins pins the hub's box-wui key in every workspace with no box-wui
+// pin row, except the system, suspended, archived and unpaid ones (spec 158
+// 10.6 item 3, row P2), and answers how many it pinned. It runs only while
+// cnf hub.box_wui_pin_sweep is on (Options.BoxWUIPinSweep, default off): on
+// prd it changes pins in live workspaces, so the owner turns it on.
+func (s *Server) SweepWUIPins(ctx context.Context) int {
+	gaps, ok := s.o.Store.(store.WUIPinGaps)
+	if !s.o.BoxWUIPinSweep || !ok || s.wuiPub() == nil {
+		return 0
+	}
+	ids, err := gaps.TenantsMissingWUIPin(ctx, WUIBox)
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("box_wui_pin sweep: tenant list")
+		return 0
+	}
+	n := 0
+	for _, t := range ids {
+		if s.ensureWUIPin(ctx, t, wuiPinSweeper) == wuiPinPinned {
+			n++
+		}
+	}
+	if n > 0 {
+		s.o.Log.Info().Int("pinned", n).Int("gaps", len(ids)).Msg("box_wui_pin sweep")
+	}
+	return n
 }

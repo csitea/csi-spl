@@ -440,8 +440,17 @@ the hub holds no private key) is the same case.
 3. A sweep beside `PostPublicNotices` (same shape) pins every workspace with no
    box-wui pin row, except `system`, suspended, archived and unpaid. Its switch is
    cnf `hub.box_wui_pin_sweep`, default false.
+   Built (row P2, SPL-5020): `SweepWUIPins` in `hub/wui_pin.go` runs on every
+   retention sweep tick (10 min), after `PostPublicNotices`; the store read is
+   `TenantsMissingWUIPin` (`store/wui_pin_sweep.go`: no `pins` row for box-wui,
+   revoked rows count as a row; `billing_status` `unpaid`; archived is also
+   suspended). Each pin calls `ensureWUIPin`, so its audit row names actor
+   `system` / `HUB-0`. The cnf key reaches the hub as
+   `SPOOL_HUB_BOX_WUI_PIN_SWEEP` (step 030); off, or with no box-wui key, the
+   sweep does nothing.
 4. `do_spl_check_box_wui_pins` exempts `system` (no fleet seats, 0 unsigned
-   posts, M21), so its GAP count means something.
+   posts, M21), so its GAP count means something. Built (row P2): the row
+   reads `exempt (system: no fleet seats)` and is not counted as a gap.
 
 | create path | today | with this |
 |---|---|---|

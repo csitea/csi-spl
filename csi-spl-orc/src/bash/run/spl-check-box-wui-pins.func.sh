@@ -11,7 +11,9 @@
 # @description do_spl_cloud_pin_box_wui (the tenant root key signs the pin).
 # @description Prints one markdown row per workspace: the pin state and how
 # @description many human channel posts the hub stored unsigned in the last
-# @description PINS_DAYS days. Exit 1 when any row is a GAP.
+# @description PINS_DAYS days. Exit 1 when any row is a GAP. The system
+# @description workspace is exempt, never a GAP (spec 158 10.6 item 4: no
+# @description fleet seats, 0 unsigned posts), so the gap count means something.
 # @description Read-only: GET /v1/wui/pubkey, and one READ ONLY transaction in
 # @description operator RLS scope as the env SA.
 # @param ENV (required) - dev or prd
@@ -83,7 +85,8 @@ spl_box_wui_pins_table() {
   while IFS='|' read -r t pin rev uns; do
     [[ -n "$t" ]] || continue
     n=$((n + 1))
-    if [[ -z "$pin" ]]; then v="GAP no pin: do_spl_cloud_pin_box_wui"; pin=none
+    if [[ "$t" == system ]]; then v="exempt (system: no fleet seats)"; pin="${pin:+${pin:0:8}...}"; pin="${pin:-none}"
+    elif [[ -z "$pin" ]]; then v="GAP no pin: do_spl_cloud_pin_box_wui"; pin=none
     elif [[ -n "$rev" ]]; then v="GAP revoked: do_spl_cloud_pin_box_wui FORCE=1"; pin="${pin:0:8}... revoked"
     elif [[ "$pin" != "$hub" ]]; then v="GAP not the hub's key: do_spl_cloud_pin_box_wui FORCE=1"; pin="${pin:0:8}..."
     else v=ok; pin="${pin:0:8}..."; fi

@@ -7,6 +7,8 @@
 #   1. a workspace pinned to the hub's key is ok, also with old unsigned posts
 #   2. no pin, a revoked pin and a foreign key are each a GAP naming the fix
 #   3. any GAP exits 1; all pinned exits 0
+#   4. the system workspace is exempt, never a GAP (spec 158 10.6 item 4,
+#      SPL-5020: no fleet seats, 0 unsigned posts, M21)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -27,6 +29,7 @@ revoked|$HUB|revoked|0
 foreign|$OTHER||3
 EOF
 printf 'good|%s||0\n' "$HUB" >"$T/ok"
+printf 'good|%s||0\nsystem|||0\n' "$HUB" >"$T/sys"
 
 run() {
   env PROJ_PATH="$PROJ_ROOT" ENV=prd BOX_WUI_PUBKEY="$HUB" "$@" bash -c '
@@ -51,5 +54,10 @@ run PINS_ROWS_FILE="$T/ok"; rc=$?
   pass "3. all pinned exits 0" || fail "3. ok rc=$rc $(cat "$T/o")"
 run PINS_ROWS_FILE="$T/missing"; rc=$?
 [[ $rc -eq 1 ]] && pass "3. a missing rows file fails" || fail "3. missing rc=$rc"
+
+run PINS_ROWS_FILE="$T/sys"; rc=$?
+[[ $rc -eq 0 ]] && grep -qE '^\| system \| none \| 0 \| exempt \(system: no fleet seats\) \|$' "$T/o" &&
+  grep -q '2 workspace(s), 0 gap(s)' "$T/o" &&
+  pass "4. the system workspace with no pin is exempt, not a GAP" || fail "4. rc=$rc $(cat "$T/o")"
 
 (( fails == 0 )) && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

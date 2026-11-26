@@ -171,6 +171,10 @@ type Options struct {
 	// delivers a browser send that names an agent (SPOOL_HUB_WUI_DISPATCH).
 	WUIKey      ed25519.PrivateKey
 	WUIDispatch bool
+	// BoxWUIPinSweep is cnf hub.box_wui_pin_sweep (SPOOL_HUB_BOX_WUI_PIN_SWEEP,
+	// spec 158 10.6 item 3): the retention sweep pins the hub's box-wui key in
+	// every workspace with no box-wui pin row (SweepWUIPins). Default off.
+	BoxWUIPinSweep bool
 	// Payments is the M2 checkout surface (006 checkout-v1, /api/v1/checkout*
 	// and /api/v1/webhooks/payment); nil = not mounted. Not tenant-scoped.
 	Payments interface{ Register(mux *http.ServeMux) }
@@ -805,6 +809,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
 			s.SweepContacts(ctx)       // spec 154 2.6 B3: soft-deleted contacts, 30 days
 			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice
+			s.SweepWUIPins(ctx)        // spec 158 P2: a workspace with no box-wui pin row is pinned
 			s.PostIssueBacklogs(ctx)   // rdb 0194: a relink to a tenant's backlog topic
 		}
 	}

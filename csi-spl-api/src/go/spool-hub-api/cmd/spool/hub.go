@@ -327,7 +327,7 @@ func wuiKeyOptions(opts *hub.Options, hc *config.Hub, log zerolog.Logger) error 
 	if err != nil {
 		return err
 	}
-	opts.WUIKey, opts.WUIDispatch = wuiKey, hc.WUIDispatch
+	opts.WUIKey, opts.WUIDispatch, opts.BoxWUIPinSweep = wuiKey, hc.WUIDispatch, hc.BoxWUIPinSweep
 	if wuiKey != nil {
 		log.Info().Str("box_wui_pubkey", base64.StdEncoding.EncodeToString(wuiKey.Public().(ed25519.PublicKey))).
 			Bool("dispatch", hc.WUIDispatch).Bool("ephemeral", strings.TrimSpace(hc.WUIKey) == "").Msg("box-wui key loaded")

@@ -161,6 +161,9 @@ cost_labels_translate_daily_chars = {{ tr_cost.get("labels_translate_daily_chars
 {%- set _ = bl_ents.append(e["tenant"] ~ ":" ~ e["box"] ~ ":" ~ e["lock_pubkey"]) %}
 {%- endfor %}
 {%- set _ = run_env.update({"SPOOL_HUB_BOX_LOCKS_EXPECTED": bl_ents | join(",")}) %}
+{#- spec 158 10.6 item 3 (row P2, SPL-5020): cnf hub.box_wui_pin_sweep reaches
+    the hub as SPOOL_HUB_BOX_WUI_PIN_SWEEP, "true" or "false" (no key = "false") #}
+{%- set _ = run_env.update({"SPOOL_HUB_BOX_WUI_PIN_SWEEP": ((hub.get("box_wui_pin_sweep", false) | string | lower) == "true") | string | lower}) %}
 {#- SPL-5594 (owner poll answer B on SPL-5514): the take / ack deferral, cnf
     box.desk_ack_defer_s seconds, reaches the hub as a Go duration; the
     unanswered escalation waits it plus SPOOL_HUB_UNANSWERED_GRACE. No key =

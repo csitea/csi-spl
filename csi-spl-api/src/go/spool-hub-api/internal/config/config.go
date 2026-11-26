@@ -658,6 +658,11 @@ type Hub struct {
 	WUIDispatch     bool   `env:"SPOOL_HUB_WUI_DISPATCH" envDefault:"false"`
 	WUIKey          string `env:"SPOOL_HUB_WUI_KEY"`
 	WUIKeyEphemeral bool   `env:"SPOOL_HUB_WUI_KEY_EPHEMERAL" envDefault:"false"`
+	// BoxWUIPinSweep is cnf hub.box_wui_pin_sweep (spec 158 10.6 item 3, row
+	// P2): the retention sweep pins the hub's box-wui key in every workspace
+	// with no box-wui pin row. It changes pins in live workspaces: prd on is
+	// the owner's go.
+	BoxWUIPinSweep bool `env:"SPOOL_HUB_BOX_WUI_PIN_SWEEP" envDefault:"false"`
 	// 017 FR-SEC-006: how many proxies in front of the hub append to
 	// X-Forwarded-For; the client IP every per-IP limit keys on (edge and
 	// native auth) is the hops-th entry from the right. MEASURED per env with

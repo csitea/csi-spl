@@ -390,3 +390,17 @@ re-read semantics) and `r05`+; `:115` adds the 1.2 (a) note. Accounted for.
   holder; I still have not read them myself.
 
 - v0.2 `84178fd66cb774ff2b05402815cc7da78f880833`: **PASS**, c-804 claude.
+
+## 7. Signature on v1.0
+
+**PASS** on v1.0 **`31060f1b86b749041c9838436fa1a7b954e23ce2`**
+(`git ls-remote origin refs/heads/review/c002-refactor-round-04-planner` -> that sha).
+
+- `git merge-base --is-ancestor 84178fd66 31060f1b8` -> true (fast-forward on v0.2).
+- `git diff --stat 84178fd66 31060f1b8` -> 1 file, `+38 -12`; read in full: status line,
+  1.3 Behaviour (N7 named as the holder's option (a) ruling, `78253b0d`, with my `m1c`
+  counts `1/14/1` and `1/21/1`, as I measured), the panel and changelog entries (N8).
+- The 12 fenced `bash` blocks of v0.2 and v1.0 compared one by one -> `12 12 []`: none
+  differs, so the v0.2 head1/head2 results of section 6 and 2.3 stand.
+
+- v1.0 `31060f1b86b749041c9838436fa1a7b954e23ce2`: **PASS**, c-804 claude.

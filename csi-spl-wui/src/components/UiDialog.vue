@@ -29,13 +29,15 @@
     <div
       v-if="open"
       class="ui-dialog-backdrop"
+      :class="{ 'ui-dialog-backdrop--wide': size === 'wide' }"
       data-testid="ui-dialog-backdrop"
       @mousedown.self="onBackdrop"
     >
       <div
         ref="panelEl"
         class="ui-dialog"
-        :class="[size, { routed }]"
+        :class="[size, { routed, draggable }]"
+        :style="drag.offset.value.x || drag.offset.value.y ? { translate: `${drag.offset.value.x}px ${drag.offset.value.y}px` } : undefined"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="titleId"
@@ -43,7 +45,15 @@
         tabindex="-1"
         @keydown="onKeydown"
       >
-        <header class="ui-dialog__head">
+        <!-- spec 182 v0.11 change 4 (SPL-6583): a draggable dialog moves by its header -->
+        <header
+          class="ui-dialog__head"
+          data-testid="ui-dialog-head"
+          @pointerdown="drag.onDown"
+          @pointermove="drag.onMove"
+          @pointerup="drag.onUp"
+          @pointercancel="drag.onUp"
+        >
           <!-- SPL-993: on a phone the dialog is a full screen with a top bar,
                and Back (start edge) closes it; the X is the desktop's. -->
           <button
@@ -88,12 +98,14 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog; `sm` is a confirm (UiConfirm, SPL-1001); `card` is a compact, centred card that fades in (the logo, SPL-1150). */
-    size?: 'sm' | 'md' | 'lg' | 'xl' | 'card'
+    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `wide` is 70% of its width and starts 10% from its top (Discussion loops, SPL-6584); `md` is a plain dialog; `sm` is a confirm (UiConfirm, SPL-1001); `card` is a compact, centred card that fades in (the logo, SPL-1150). */
+    size?: 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'card'
+    /** SPL-6583: the header drags the dialog around the screen (desktop; useDialogDrag). */
+    draggable?: boolean
     /** CLE-77853: `open` IS the route (Settings, ?settings=): browser Back is the router's, so no overlay history entry of its own, and on a phone it keeps its X instead of the Back chevron. */
     routed?: boolean
   }>(),
-  { size: 'lg', routed: false },
+  { size: 'lg', routed: false, draggable: false },
 )
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -102,6 +114,7 @@ const titleId = useId()
 const panelEl = ref<HTMLElement | null>(null)
 const mounted = ref(false)
 let returnFocusTo: HTMLElement | null = null
+const drag = useDialogDrag(panelEl, () => props.draggable)
 
 onMounted(() => {
   mounted.value = true
@@ -201,6 +214,8 @@ function unlockScroll() {
 async function onOpenChange(isOpen: boolean) {
   if (!import.meta.client) return
   if (isOpen) {
+    drag.reset()
+    if (props.draggable) window.addEventListener('resize', drag.onResize)
     returnFocusTo = document.activeElement as HTMLElement | null
     // SPL-1234: Escape closes wherever focus is (see onWindowKeydown)
     window.addEventListener('keydown', onWindowKeydown)
@@ -218,6 +233,7 @@ async function onOpenChange(isOpen: boolean) {
     ;(first ?? panelEl.value)?.focus()
   } else {
     window.removeEventListener('keydown', onWindowKeydown)
+    window.removeEventListener('resize', drag.onResize)
     unlockScroll()
     returnFocusTo?.focus?.()
     returnFocusTo = null
@@ -229,6 +245,7 @@ watch(() => props.open, (isOpen) => { void onOpenChange(isOpen) })
 onUnmounted(() => {
   if (!import.meta.client) return
   window.removeEventListener('keydown', onWindowKeydown)
+  window.removeEventListener('resize', drag.onResize)
   unlockScroll()
   /* a Lazy<X> dialog is unmounted by the same v-if that closes it */
   returnFocusTo?.focus?.()
@@ -314,6 +331,15 @@ onUnmounted(() => {
   .ui-dialog-pop-leave-active .ui-dialog { transition: none; }
 }
 .ui-dialog.xl { width: 90vw; max-width: 90vw; height: 90vh; max-height: 90vh; }
+/* spec 182 v0.11 change 5 (HUM-10 msg ac0a7377, SPL-6584): 70% of the width,
+   its top 10% down the screen; its height is its content's, to 10% above the
+   bottom. A phone keeps the full screen below. */
+.ui-dialog-backdrop--wide { align-items: flex-start; padding-top: 10vh; }
+.ui-dialog.wide { width: 70vw; max-width: 70vw; max-height: 80vh; }
+/* SPL-6583: the header is the drag handle */
+@media (min-width: 601px) {
+  .ui-dialog.draggable .ui-dialog__head { cursor: move; touch-action: none; user-select: none; }
+}
 .ui-dialog:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .ui-dialog__head {
   display: flex;
@@ -388,12 +414,14 @@ onUnmounted(() => {
    full screen: a top bar (Back + title + the content's tools), the body
    scrolling under it, the footer above the home indicator. */
 @media (max-width: 600px) {
-  .ui-dialog-backdrop { padding: 0; }
+  .ui-dialog-backdrop,
+  .ui-dialog-backdrop--wide { padding: 0; }
   .ui-dialog,
   .ui-dialog.sm,
   .ui-dialog.md,
   .ui-dialog.lg,
   .ui-dialog.xl,
+  .ui-dialog.wide,
   .ui-dialog.card {
     width: 100%;
     max-width: 100%;

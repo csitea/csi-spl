@@ -19,7 +19,8 @@
      SPL-6580 / SPL-6581). A loop stored with several triggers names them on
      its row; its form opens on the first and says a save keeps only one. -->
 <template>
-  <UiDialog :open="open" :title="t('feed.topic_loops.title')" size="md" @update:open="emit('update:open', $event)">
+  <!-- v0.11 changes 4 and 5 (msgs e68509d5, ac0a7377): dragged by its header, 70% wide, 10% from the top -->
+  <UiDialog :open="open" :title="t('feed.topic_loops.title')" size="wide" draggable @update:open="emit('update:open', $event)">
     <div class="topic-loops" data-testid="topic-loops">
       <p v-if="error" class="topic-loops__error" role="alert" data-testid="topic-loops-error">{{ t(error) }}</p>
       <form v-if="form" class="topic-loops__form" data-testid="topic-loops-form" @submit.prevent="save">

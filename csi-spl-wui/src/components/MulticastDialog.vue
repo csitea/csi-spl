@@ -17,7 +17,8 @@
         <ul class="mc__list">
           <li v-for="l in g.lines" :key="l.task_id" class="mc__row" data-test="multicast-target" :data-task="l.task_id" :data-ok="l.ok === null ? '' : String(l.ok)" :data-state="l.state">
             <span class="mc__title">{{ l.title || l.task_id }}</span>
-            <span v-if="l.state" class="mc__state muted" data-test="multicast-state">{{ stateText(l) }}</span>
+            <UiIcon v-if="l.state === 'sent'" name="check" :size="16" class="mc__state" data-test="multicast-state" />
+            <span v-else-if="l.state" class="mc__state muted" data-test="multicast-state">{{ stateText(l) }}</span>
             <span v-else-if="l.ok === false" class="mc__state issues-error" data-test="multicast-refused">{{ t('multicast.refused', { topic: l.title || l.task_id, reason: l.error }) }}</span>
             <button v-if="phase === 'compose'" type="button" class="btn ghost mc__remove" data-test="multicast-remove" :aria-label="t('multicast.remove', { title: l.title || l.task_id })" :title="t('multicast.remove', { title: l.title || l.task_id })" @click="remove(l.task_id)">
               <UiIcon name="x" :size="16" />
@@ -56,8 +57,8 @@ const groups = computed(() => {
 })
 const sentCount = computed(() => lines.value.filter((l) => l.state === 'sent').length)
 
+/* a sent row shows a check mark; the count line under the list says it in words (7.1.4 has no one-topic key) */
 function stateText(l: McLine): string {
-  if (l.state === 'sent') return t('multicast.sent', { n: 1 })
   if (l.state === 'waiting') return t('composer.waiting_network')
   if (l.state === 'failed') return t('multicast.refused', { topic: l.title || l.task_id, reason: l.error })
   return t('composer.sending')

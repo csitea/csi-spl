@@ -255,6 +255,23 @@ describe('useMulticastSend: the dialog\'s check, send and results', () => {
     assert.equal(await closed, true)
   })
 
+  it('a Send the final check refused goes back to compose; the next Send uploads its own files (review N2)', async () => {
+    mc.start(sel)
+    await tick()
+    assert.equal(mc.canSend.value, true)
+    mc.api.setRefuse({ b: 'topic_archived' })
+    await mc.send('hi', [])
+    assert.equal(mc.phase.value, 'compose', 'the check refused: back to compose')
+    assert.equal(sends.length, 0)
+    mc.api.setRefuse({})
+    await mc.check()
+    await mc.send('hi', [{ name: 'late.txt' }])
+    assert.equal(uploads.length, 2, 'the second Send uploads again')
+    assert.equal(sends.length, 1)
+    assert.deepEqual(sends[0].files, [{ mode: 'blob', file_id: 'sha-late.txt', name: 'late.txt' }], 'the file attached after the refusal goes out')
+    assert.deepEqual(checks.at(-1).files, sends[0].files)
+  })
+
   it('an answer to an older req_id is dropped', async () => {
     const pending = []
     mc.api.multicastCheck = (f) => { checks.push(f); return new Promise((r) => pending.push(() => r(mockMulticastCheck(state, f, f.task_ids.length === 3 ? {} : { a: 'forbidden' })))) }

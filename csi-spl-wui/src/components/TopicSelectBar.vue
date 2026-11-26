@@ -82,7 +82,11 @@ const boxEl = ref<HTMLInputElement | null>(null)
 watchEffect(() => { if (boxEl.value) boxEl.value.indeterminate = store.page === 'some' })
 /* Esc clears, as on issues (not from a field, dialog or menu) */
 onMounted(() => document.addEventListener('keydown', onKey))
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKey)
+  /* the bar goes (a workspace switch) with the dialog open: close it, so the action settles and busy clears */
+  if (multicast.open.value) multicast.close()
+})
 </script>
 
 <style scoped>

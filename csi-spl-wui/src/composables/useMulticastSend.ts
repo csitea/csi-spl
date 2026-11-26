@@ -131,14 +131,18 @@ function useMcSend(s: McState, deps: McDeps, o: { newId: () => string, check: (f
     await deps.store.sendMulticast({ text: s.sentText.value, files: refs || [], mcId, copies, onResult })
     settle()
   }
-  /** Send: files once, the check with the real text and files, then one copy per target */
+  /**
+   * Send: files once per send, the check with the real text and files, then one copy per target.
+   * The upload runs on every Send: a Send the check refused goes back to compose, where the files
+   * may change. Only Retry reuses the refs, those of the copies already sent.
+   */
   async function send(text: string, files?: unknown[]) {
     if (!s.canSend.value) return
     s.phase.value = 'sending'
     s.sentText.value = text
     s.body.value = text
     try {
-      refs ??= await deps.store.uploadFiles(files)
+      refs = await deps.store.uploadFiles(files)
     } catch (e) {
       s.phase.value = 'compose'
       s.checkError.value = tokenOf(e)

@@ -99,6 +99,10 @@
 #      the gathered file stays whole in every case. Red control: the old
 #      paste-all (REFLECTION_BRIEF_GATHER_BYTES past the file) on both busy
 #      fixtures: rc 3, the FATAL line of that night
+#  20. section 2 counts a commit as a revert by its SUBJECT only (SPL-6639):
+#      a fixture repo with one real revert and one feat commit whose body has
+#      a "Reverted: postgres PASS" line lists exactly the revert. Red control:
+#      master's git log --grep='^Revert' (any message line) lists both
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -559,6 +563,30 @@ for case in grouped capped; do
     fail "19. red control ($case) did not go red: rc=$rc est=$erc $(cat "$T/est")"
 done
 cp "$T/owner.keep" "$T/owner.tsv"; cp "$T/ci.keep" "$T/ci.txt"
+
+# --- 20. section 2: a revert by its subject, never a body line (SPL-6639) ----------
+R2="$T/repo-rev"
+git init -q -b master "$R2"
+at2() { GIT_AUTHOR_DATE="$1" GIT_COMMITTER_DATE="$1" git -C "$R2" -c user.name='FirstName LastName' \
+  -c user.email=dev@example.com commit -q --allow-empty -m "$2" -m "${3:-}"; }
+at2 2026-01-15T08:00:00Z 'feat(x): a thing'
+at2 2026-01-15T09:00:00Z 'Revert "feat(x): a thing"' 'This reverts commit 0000000.'
+REAL_REV="$(git -C "$R2" rev-parse --short HEAD)"
+at2 2026-01-15T10:00:00Z 'feat(api, SPL-6568): a body line starts with Revert' 'Reverted: postgres PASS, memory PASS.'
+BODY_REV="$(git -C "$R2" rev-parse --short HEAD)"
+s2() { REFLECTION_REPO="$R2" REFLECTION_REF=master REFLECTION_FETCH=0 \
+  bash -c 'do_log() { :; }; source "$0"; spl_reflection_reverts 2026-01-15T00:00:00Z 2026-01-16T00:00:00Z' "$1" 2>&1; }
+got="$(s2 "$FUNC")"
+[[ "$(wc -l <<<"$got")" == 1 && "$got" == "- $REAL_REV 2026-01-15T09:00:00Z Revert \"feat(x): a thing\"" ]] &&
+  pass "20. a real revert and a body 'Reverted:' line: exactly the revert listed" || fail "20. reverts: $got"
+got="$(REFLECTION_REPO="$R2" REFLECTION_REF=master REFLECTION_FETCH=0 \
+  bash -c 'do_log() { :; }; source "$0"; spl_reflection_reverts 2026-01-16T00:00:00Z 2026-01-17T00:00:00Z' "$FUNC" 2>&1)"
+[[ "$got" == "(none)" ]] && pass "20. no commit in the window: (none)" || fail "20. empty: $got"
+sed -e "s|--until=\"\$2\" --format=|--until=\"\$2\" --grep='^Revert' --format=|" -e "/^  out=\"\$(awk '\$4 ~ \/^Revert\/'/d" \
+  "$FUNC" >"$T/reverts-old.func.sh"
+got="$(s2 "$T/reverts-old.func.sh")"
+grep -q -- "--grep='^Revert'" "$T/reverts-old.func.sh" && grep -q "^- $BODY_REV " <<<"$got" && grep -q "^- $REAL_REV " <<<"$got" &&
+  pass "20. red control: master's --grep='^Revert' lists both, the body line too" || fail "20. red control: $got"
 
 # --- 13. the owner SQL on a REAL Postgres: an admin owner listed, a tester not ------
 # (SPL-5460: prd t1's owner holds role admin, not owner; the old role = 'owner'

@@ -356,15 +356,19 @@ spl_reflection_ci_reds() {
     END { if (!n) print "(none)"; if (st) print st " stopped by fail-fast, not listed" }'
 }
 
-# spl_reflection_reverts <since iso> <until iso>: the reverts on REFLECTION_REF.
+# spl_reflection_reverts <since iso> <until iso>: the reverts on REFLECTION_REF,
+# the commits whose SUBJECT starts with Revert (as git revert writes it).
+# git log --grep reads every line of the message, so a body line such as
+# "Reverted: postgres PASS" listed a feat commit (2026-11-26, 6a8907804).
 spl_reflection_reverts() {
   local repo="${REFLECTION_REPO:-${APP_PATH:-.}}" ref="${REFLECTION_REF:-origin/master}" out
   if [[ "${REFLECTION_FETCH:-1}" != 0 && "$ref" == origin/* ]]; then
     timeout 120 git -c safe.directory='*' -C "$repo" fetch -q origin "${ref#origin/}" </dev/null >/dev/null 2>&1 ||
       echo "(fetch failed: $ref as of the last fetch)"
   fi
-  out="$(git -c safe.directory='*' -C "$repo" log "$ref" --since="$1" --until="$2" --grep='^Revert' --format='- %h %cI %s' 2>&1)" ||
+  out="$(git -c safe.directory='*' -C "$repo" log "$ref" --since="$1" --until="$2" --format='- %h %cI %s' 2>&1)" ||
     { echo "(not read: git log $ref: $(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
+  out="$(awk '$4 ~ /^Revert/' <<<"$out")"
   echo "${out:-(none)}"
 }
 

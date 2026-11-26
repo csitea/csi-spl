@@ -98,12 +98,82 @@ jobs:
     # four cold cross-builds ~47 s each) and the pg gate 333 s -> 346..625 s.
     # The cap stays 30 per leg; each leg is about half the old serial suite.
     timeout-minutes: 30
+    # actions: read for the wf 10 verdict lookup below; no id-token here.
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
         part: [plain, pg]
+        # The wf 10 job that runs this leg's HUB_SUITE_PART on the same sha
+        # (10_ci-quality.yml jobs hub-suite and hub-pg; the names are what the
+        # jobs API returns, wf20-reuse-wf10-hub-verdict.tst.sh keeps them in
+        # step with wf 10).
+        include:
+          - part: plain
+            wf10_job: "hub: gofmt, go vet, go test, smoke, GCS gate"
+          - part: pg
+            wf10_job: "hub: Postgres gate, pg coverage floor"
     steps:
+      # CI volume A5 (SPL-6385, ci-volume-2026-11-24.md section 3): wf 10
+      # already runs run-all-tests.sh on every hub push. When its job for this
+      # leg concluded `success` on this exact sha (every job of that name in
+      # the run's latest attempt), the suite steps below are skipped and the
+      # step summary names the reused run. Anything else runs the suite here
+      # as before: no wf 10 run, a run still going, cancelled, superseded,
+      # skipped, failed, or a lookup that errors. Only the literal output
+      # reuse=true skips; deploy still needs this job green.
+      #
+      # WAIT_S = 0: checked once, no wait. Measured 2026-11-26: on 31 push
+      # runs wf 10's job was never green when this job started (green 511 s
+      # at the earliest, median ~880 s plain / ~1040 s pg), about when this
+      # leg's own suite ends (882..1592 s); a poll holds the hosted runner as
+      # long as the suite it would save, and delays the deploy. On wf 21's
+      # catch-up dispatches (at trunk head) the verdict is mostly there
+      # already: 11 of 32 plain and 12 of 32 pg legs (11-19..11-26), ~450
+      # billed min. WAIT_S > 0 polls every POLL_S until the job is done or
+      # WAIT_S runs out.
+      - name: Reuse wf 10's green hub verdict on this sha
+        id: verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          WF10_JOB: ${{ matrix.wf10_job }}
+          PART: ${{ matrix.part }}
+          WAIT_S: "0"
+          POLL_S: "30"
+        run: |
+          set -uo pipefail
+          deadline=$((SECONDS + WAIT_S)) reuse=false why="no wf 10 run on $SHA"
+          while :; do
+            going=false
+            runs="$(gh api "repos/$GH_REPO/actions/workflows/10_ci-quality.yml/runs?head_sha=$SHA&per_page=20" \
+              --jq '.workflow_runs[] | "\(.id) \(.head_sha) \(.status)"')" || { runs=""; why="wf 10 run lookup failed"; }
+            while read -r id head status; do
+              [[ -n "$id" && "$head" == "$SHA" ]] || continue
+              v="$(gh api "repos/$GH_REPO/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[] | select(.name == env.WF10_JOB)]
+                | if length == 0 then "absent" elif all(.conclusion == "success") then "success"
+                  elif any(.status != "completed") then "going" else [.[].conclusion] | unique | join("+") end')" || v="lookup-failed"
+              [[ "$v" == absent && "$status" != completed ]] && v=going
+              case "$v" in
+                success) reuse=true why="reused wf 10 run $id ($WF10_JOB: success on $SHA)"; break ;;
+                going) going=true why="wf 10 run $id: $WF10_JOB not done" ;;
+                *) why="wf 10 run $id: $WF10_JOB $v" ;;
+              esac
+            done <<<"$runs"
+            [[ "$reuse" == true || "$going" == false ]] && break
+            ((SECONDS + POLL_S <= deadline)) || break
+            sleep "$POLL_S"
+          done
+          echo "reuse=$reuse" >>"$GITHUB_OUTPUT"
+          [[ "$reuse" == true ]] || why="$why; running the suite here"
+          echo "$why"
+          echo "hub suite $PART: $why" >>"$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.verdict.outputs.reuse != 'true'
 
       # cache: on this HOSTED runner GOCACHE/GOMODCACHE start empty every run,
       # so the suite's go build/test compiled the std lib + deps cold each time
@@ -113,6 +183,7 @@ jobs:
       # persists, so GOCACHE is already warm and actions/cache would only add a
       # 490 MB upload.
       - name: Set up Go (version from go.mod)
+        if: steps.verdict.outputs.reuse != 'true'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
@@ -120,11 +191,12 @@ jobs:
           cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
 
       - name: Download Go modules (the suite runs with GOPROXY=off)
+        if: steps.verdict.outputs.reuse != 'true'
         working-directory: csi-spl-api/src/go/spool-hub-api
         run: go mod download
 
       - name: Cache the fake-gcs emulator image
-        if: matrix.part == 'plain'
+        if: steps.verdict.outputs.reuse != 'true' && matrix.part == 'plain'
         # A cached copy is used as is (the tag is pinned); else it is pulled
         # through mirror.gcr.io: anonymous Docker Hub pulls hit
         # `toomanyrequests` (run 37992239649) and reset now and then (run
@@ -134,6 +206,7 @@ jobs:
           bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh "$img"
 
       - name: run-all-tests.sh
+        if: steps.verdict.outputs.reuse != 'true'
         env:
           HUB_SUITE_PART: ${{ matrix.part }}
         run: bash csi-spl-api/src/bash/tests/run-all-tests.sh

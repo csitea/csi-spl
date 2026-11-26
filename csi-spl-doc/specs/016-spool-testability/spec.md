@@ -47,7 +47,7 @@ grep -c wui-e2e .github/workflows/10_ci-quality.yml
 grep -n -- -race csi-spl-api/src/bash/tests/run-all-tests.sh
 ```
 
-`30_wui-build-deploy.yml` re-runs WUI unit + typecheck before generate. `20_hub-build-deploy.yml` re-runs the hub suite before deploy.
+`30_wui-build-deploy.yml` re-runs WUI unit + typecheck before generate. `20_hub-build-deploy.yml` runs the hub suite before deploy, unless wf 10's job for that leg (`hub-suite` for `plain`, `hub-pg` for `pg`) already concluded `success` on the same sha: then that leg reuses the verdict and names the wf 10 run in its step summary (CI volume A5, SPL-6385, `ci-volume-2026-11-24.md` section 3). It checks once and does not wait; any other wf 10 state runs the suite (`csi-spl-iac/src/bash/tests/wf20-reuse-wf10-hub-verdict.tst.sh`).
 
 ## 1. User stories
 

@@ -75,8 +75,27 @@ const PAGE_PUB = '[data-test=tenant-marketing-publish][data-channel="mch-fb-1"]'
 const LI_PUB = '[data-test=tenant-marketing-publish][data-channel=""]'
 const CARD = '[data-test=marketing-draft-handover]'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// scroll the target to the centre, then click once no CSS transition runs and its box has held
+// still for two frames. At 390 a scroll within 600 ms of p.type's keys counts as the reader's
+// (layouts/default onStripScroll), so the two mobile bars slide away (119 px, .2 s) and a click
+// aimed at the old box lands on the row below (check 3's Copy hit the Viber heading, SPL-6573)
 async function tap(p, sel) {
-  await p.$eval(sel, (e) => e.scrollIntoView({ block: 'center' }))
+  await p.$eval(sel, (e) => new Promise((done) => {
+    e.scrollIntoView({ block: 'center' })
+    let last = ''
+    let still = 0
+    let frames = 0
+    const sliding = () => document.getAnimations().some((a) => a instanceof CSSTransition && a.playState === 'running')
+    const step = () => {
+      const r = e.getBoundingClientRect()
+      const box = `${r.x},${r.y},${r.width},${r.height}`
+      still = box === last && !sliding() ? still + 1 : 0
+      last = box
+      if (still >= 2 || ++frames > 120) done()
+      else requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }))
   await p.click(sel)
 }
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
@@ -169,6 +188,8 @@ async function copySteps(p, w, base) {
   if (RED === 'copy') await p.evaluate(() => { const real = navigator.clipboard.writeText.bind(navigator.clipboard); navigator.clipboard.writeText = (s) => real(s.split('\n')[0]) })
   await tap(p, `${card} [data-test=handover-hashtags]`)
   await p.type(`${card} [data-test=handover-hashtags]`, 'camp, #kids')
+  // the 1440 run copied this same caption: empty the clipboard so only THIS copy can fill it
+  await p.evaluate(() => navigator.clipboard.writeText('')).catch(() => null)
   await tap(p, `${card} [data-test=handover-copy]`)
   const toast = await toastText(p)
   const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `read failed: ${e}`)

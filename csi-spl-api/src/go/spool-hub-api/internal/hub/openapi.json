@@ -15017,6 +15017,58 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fleet-queue": {
+      "get": {
+        "operationId": "getOperatorFleetQueue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "query",
+            "name": "fleet",
+            "required": false,
+            "schema": {
+              "default": "main",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "placed",
+            "required": false,
+            "schema": {
+              "default": "0",
+              "enum": [
+                "0",
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the operator workspace's spawn queue (spec 153 3.22.3-3.22.4, row Q3): as_of, fleet, total (the queued rows) and rows, the orch asks in the placer's line exactly as spl_spawn_q_rows reads them (state queued, or acked with an enqueued_at, sent as state placing), the placing ones first, then by position. Each row: ask_id, state, position and queue_len (queued), priority with priority_source (own, discussion or default) and priority_by, queue_rank and rank_by (a dragged row), class, flag, summary, discussion, issue_key, placement and vendor (before its colon), from, topic, enqueued_at, in_line_s (hub clock), hold_reason (spec 153 3.22.8: why the placer passed it over on its last tick, written by ask_op holds; absent = waits for room), reason, and lane. placed=1 adds the closed rows that were queued (kept a week), newest close first; lane = <ID>@<box> only for a row closed with reason exactly placed: <ID>@<box>, never another reason and never guessed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the fleet's spawn queue",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-roster": {
       "get": {
         "operationId": "getOperatorFleetRoster",

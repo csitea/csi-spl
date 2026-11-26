@@ -17,7 +17,8 @@ const askCols = `ask_id, role, kind, from_agent, topic, summary, state, deadline
 	raised_n, raised_at, escalated_at, writer_box, created_at, updated_at, enqueued_at, placement,
 	class, flag, flag_msg, flag_by, flag_at,
 	lock_until, lease_s, gen, dedupe_key, issue_key, vendor_allow, needs, not_by, COALESCE(discussion::text, ''),
-	COALESCE(priority, 0), COALESCE(priority_by, ''), priority_at, COALESCE(queue_rank, 0), COALESCE(rank_by, ''), rank_at`
+	COALESCE(priority, 0), COALESCE(priority_by, ''), priority_at, COALESCE(queue_rank, 0), COALESCE(rank_by, ''), rank_at,
+	COALESCE(hold_reason, '')`
 
 func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	a := FleetAsk{Fleet: fleet}
@@ -26,7 +27,7 @@ func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 		&a.Reason, &a.RaisedN, &raised, &escalated, &a.WriterBox, &a.CreatedAt, &a.UpdatedAt, &enqueued, &a.Placement,
 		&a.Class, &a.Flag, &a.FlagMsg, &a.FlagBy, &flagAt,
 		&lockUntil, &a.LeaseS, &a.Gen, &a.DedupeKey, &a.IssueKey, &a.VendorAllow, &a.Needs, &a.NotBy, &a.Discussion,
-		&a.OwnPriority, &a.PriorityBy, &prioAt, &a.QueueRank, &a.RankBy, &rankAt); err != nil {
+		&a.OwnPriority, &a.PriorityBy, &prioAt, &a.QueueRank, &a.RankBy, &rankAt, &a.HoldReason); err != nil {
 		return a, err
 	}
 	if a.NotBy == nil {

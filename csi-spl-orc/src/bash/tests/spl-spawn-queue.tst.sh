@@ -141,6 +141,15 @@
 #  20. spec 150 C405: do_spl_spawn_queue prints PRIO, the hub's discussion
 #      priority 1..5 (3 without one), next to POS; the json view carries it
 #      (RED CONTROL: the column dropped)
+#  23. spec 153 3.22.4 + 3.22.8 (row Q3, C103 + the holds send): on the C103
+#      golden (csi-spl-api .../hub/testdata/fleet-queue-c103.json, pinned to
+#      GET /v1/operator/fleet-queue by TestFleetQueueMatchesTheQueue)
+#      spl_spawn_q_rows lists the route's ask ids, order and count (RED
+#      CONTROL: a planted class filter on the route's side differs); the
+#      placer sends the .place.wait map as ONE ask holds, again only when it
+#      changed, {} when it emptied; a refused send WARNs once per map and is
+#      retried; a full tick ends with the send (CONTROL: before Q3 no holds
+#      call at all)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -228,6 +237,13 @@ if op == "put":
          "summary": kv.get("summary", ""), "discussion": kv.get("discussion", ""), "state": "open", "acked_by": "", "closed_by": "", "reason": "", "raised_n": 0,
          "placement": "", "writer_box": os.environ.get("SPOOL_DESK_BOX", "box-desk"), "c": now, "u": now}
     rows.append(r); save(); answer([r], True)
+if op == "holds":  # spec 153 3.22.8 (row Q3): the whole map; a row of the line it leaves out is cleared
+    if os.environ.get("HOLDS_LOG"): open(os.environ["HOLDS_LOG"], "a").write(kv["holds"] + "\n")
+    if os.environ.get("HOLDS_FAIL"): print("hub refused: bad_frame (400): ask_op must be put, list, ...", file=sys.stderr); sys.exit(1)
+    m = json.loads(kv["holds"])
+    for r in rows:
+        if r["role"] == "orch" and (r["state"] == "queued" or (r["state"] == "acked" and r.get("q"))): r["hold_reason"] = m.get(r["ask_id"], "")
+    save(); answer([])
 for r in rows:
     if r["ask_id"] != kv["id"]: continue
     if r["state"] not in OPEN:
@@ -2665,6 +2681,51 @@ out="$(tick44 LAUNCH_ID=c-582)"
 grep -qx "claude auto $T $T/briefs/p44-ok.md p44-ok SPAWN_BOX=sat" "$T/launch.log" && ! grep -q "pinned to sat" <<<"$out" &&
   pass "44f. CONTROL a claude row pinned to sat at claude weekly 10%, disk clear: placed on sat" ||
   fail "44f. clean box: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+seat_clear
+
+# 23. spec 153 row Q3: C103 against spl_spawn_q_rows, and the holds send ----------------
+G103="$PROJ_ROOT/../csi-spl-api/src/go/spool-hub-api/internal/hub/testdata/fleet-queue-c103.json"
+# the golden's list as the hub answers `ask list --role orch`
+# shellcheck disable=SC2016 # expanded by the stub, not here
+printf '#!/usr/bin/env bash\njq -c "{fleet: \\"main\\", created: false, asks: .list.asks}" "$G103"\n' >"$T/bin/hub103"; chmod +x "$T/bin/hub103"
+want="$(jq -r '.route | join(" ")' "$G103" 2>/dev/null)"
+got="$(on pc 'spl_spawn_q_init && spl_spawn_q_rows | jq -r "[.[].ask_id] | join(\" \")"' ASKS_HUB_CMD="$T/bin/hub103" G103="$G103" 2>&1)"
+[[ -n "$want" && "$got" == "$want" && "$(jq '.route | length' "$G103")" == 6 ]] &&
+  pass "23a. C103: spl_spawn_q_rows on the golden's list = the route's 6 ask ids, same order (placing first, then by position)" ||
+  fail "23a. C103: route [$want] vs spl_spawn_q_rows [$got]"
+planted="$(jq -r '[.list.asks as $l | .route[] | . as $i | select(($l[] | select(.ask_id == $i) | .class) != "ci")] | join(" ")' "$G103" 2>/dev/null)"
+[[ -n "$planted" && "$planted" != "$got" ]] &&
+  pass "23b. RED CONTROL C103: a route with a planted class filter (no ci row) differs from spl_spawn_q_rows" ||
+  fail "23b. RED CONTROL C103: the planted filter did not differ: [$planted]"
+seat_clear
+H1=23230000-0000-4000-8000-000000000001; H2=23230000-0000-4000-8000-000000000002
+holds23() { on pc 'spl_spawn_q_init && spl_spawn_place_holds_send c-001@box-desk' HOLDS_LOG="$T/holds.log" "$@" 2>&1; }
+: >"$T/holds.log"; rm -f "$Q40/.place.holds" "$Q40/.place.holds.fail"
+printf '%s\t%s\t%s\n' "$H1" 1 "pinned to sat: claude weekly 94% >= 90%" "$H2" 2 "agy is out of quota until 21:31Z" >"$Q40/.place.wait"
+o1="$(holds23)"; o2="$(holds23)"
+[[ "$(grep -c . "$T/holds.log")" == 1 ]] &&
+  [[ "$(jq -c . "$T/holds.log")" == "{\"$H1\":\"pinned to sat: claude weekly 94% >= 90%\",\"$H2\":\"agy is out of quota until 21:31Z\"}" ]] &&
+  grep -q "INFO the hub has the placer's holds: 2 ask(s) held" <<<"$o1" && [[ -z "$o2" ]] &&
+  pass "23c. the .place.wait map goes to the hub as ONE ask holds; the same map next tick sends nothing" ||
+  fail "23c. holds send: $(cat "$T/holds.log") | $o1 | $o2"
+printf '%s\t%s\t%s\n' "$H2" 2 "agy is out of quota until 21:31Z" >"$Q40/.place.wait"; holds23 >/dev/null
+rm -f "$Q40/.place.wait"; holds23 >/dev/null
+[[ "$(grep -c . "$T/holds.log")" == 3 && "$(sed -n 2p "$T/holds.log" | jq -c 'keys')" == "[\"$H2\"]" && "$(sed -n 3p "$T/holds.log")" == '{}' ]] &&
+  pass "23d. a changed map is sent again; an emptied .place.wait sends {} (the hub clears every hold)" ||
+  fail "23d. changed/emptied: $(cat "$T/holds.log")"
+printf '%s\t%s\t%s\n' "$H1" 1 "the brief is not here: it was queued on sat" >"$Q40/.place.wait"
+f1="$(holds23 HOLDS_FAIL=1)"; f2="$(holds23 HOLDS_FAIL=1)"; ok3="$(holds23)"
+[[ "$(grep -c "WARN the hub did not take the placer's holds" <<<"$f1$f2")" == 1 ]] &&
+  grep -q "INFO the hub has the placer's holds: 1 ask(s) held" <<<"$ok3" && [[ "$(grep -c . "$T/holds.log")" == 6 ]] &&
+  pass "23e. a refused send WARNs once per map and is retried each tick until the hub takes it" ||
+  fail "23e. refused: $(cat "$T/holds.log") | $f1 | $f2 | $ok3"
+seat_clear; : >"$T/holds.log"; rm -f "$Q40/.place.holds"
+pin44_q "$K1" claude p23-held "fix the parser, commit and push"
+out="$(tick44 PICK44=wk HOLDS_LOG="$T/holds.log")"
+[[ "$(grep -c . "$T/holds.log")" == 1 ]] && [[ "$(jq -r --arg i "$K1" '.[$i]' "$T/holds.log")" == *"claude weekly 94% >= 90%"* ]] &&
+  [[ "$(jq -r .hold_reason <<<"$(hubrow "$K1")")" == *"claude weekly 94% >= 90%"* ]] &&
+  pass "23f. a full tick that holds a pinned row ends with its holds send: the hub row carries the reason" ||
+  fail "23f. tick: holds=$(cat "$T/holds.log") row=$(hubrow "$K1") | $out"
 seat_clear
 
 echo

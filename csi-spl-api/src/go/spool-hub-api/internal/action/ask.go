@@ -22,6 +22,8 @@ import (
 //	queue                         a spawn request waits for room (rdb 0180), Placement optional;
 //	                              Class required unless stored, Flag urgent | bypass (+ FlagMsg) (rdb 0195)
 //	category                      a spawn request's WorkKind and CategoryPath, By acting (spec 143 4.4, rdb 0204)
+//	holds                         the placer's whole map of passed-over asks to reasons, By the placer,
+//	                              Role default orch (spec 153 3.22.8): the hub writes only what changed
 //
 // The OD pool's jobs, role od (spec 134 3.4, rdb 0183):
 //
@@ -70,7 +72,9 @@ type AskArgs struct {
 	CategoryPath string
 	// put (spec 150 row B10b, rdb 0241): the owner topic uuid it works for; "" = the hub resolves it from Topic
 	Discussion string
-	Hub        *hubclient.Client // nil = hubclient.New(cfg)
+	// holds (spec 153 3.22.8): ask id -> the reason the placer passed it over; empty = every row waits for room
+	Holds map[string]string
+	Hub   *hubclient.Client // nil = hubclient.New(cfg)
 }
 
 // Ask runs one op and returns the hub's answer {fleet, created, asks}. Hub
@@ -128,6 +132,18 @@ func askBody(in AskArgs) (json.RawMessage, error) {
 			return nil, fmt.Errorf("ask: %s", why)
 		}
 		v = map[string]any{"ask_id": in.AskID, "by": in.By, "work_kind": in.WorkKind, "category_path": in.CategoryPath}
+	case "holds":
+		if !store.ValidAskAgent(in.By) || in.By == "" {
+			return nil, fmt.Errorf("ask: holds needs --by, the placer <ID>@<box>")
+		}
+		if len(in.Holds) > store.AskHoldsMax {
+			return nil, fmt.Errorf("ask: --holds names at most %d asks", store.AskHoldsMax)
+		}
+		h := map[string]string{}
+		for k, x := range in.Holds {
+			h[k] = x
+		}
+		v = map[string]any{"by": in.By, "role": in.Role, "holds": h}
 	case "release":
 		if in.AskID == "" {
 			if !store.ValidAskAgent(in.By) || in.By == "" {

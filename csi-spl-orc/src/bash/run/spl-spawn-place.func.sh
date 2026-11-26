@@ -218,6 +218,13 @@
 # @description      After: line) or a hold SPAWN_AFTER_ALARM_MIN old gives the
 # @description      dispatch lease holder ONE blocker per ask (spl_spawn_after_alarm);
 # @description      such a row is no review-seat alarm and no supply of its class
+# @description   9. HOLDS (spec 153 3.22.8, row Q3) - after the tick, the whole map
+# @description      of .place.wait (ask id -> why it was passed over) goes to
+# @description      the hub as ONE `spool ask holds`, only when it differs from
+# @description      the map last sent (<asks dir>/.place.holds), so a quiet tick
+# @description      sends nothing; the Queue tab's "Waits on" reads it. A hub or
+# @description      spool binary that refuses the op: one WARN per map, the
+# @description      placing goes on as before
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_SEAT_ALARM_MIN (optional) - minutes in line after which a held logged review seat alarms, default 30
 # @param SPAWN_PLACE_SEAT_OVERFLOW (optional) - the review seats' overflow mark, % of a box's high, overrides cnf env.box.fleet_load.review_seat_overflow_pct; must be above BOX_PICK_OVERFLOW (200)
@@ -260,13 +267,21 @@ declare -F spl_spawn_place_after_hold >/dev/null ||
 do_spl_spawn_place() {
   spl_asks_init || return 1
   [[ "$LANE_MODE" == hub ]] || { do_log "INFO no fleet hub here: no spawn queue to place"; return 0; }
-  local holder rows head why
+  local holder
   SPAWN_PLACE_SHARE=""
   holder="$(spl_asks_holder)"
   [[ -n "$holder" ]] || { do_log "INFO nobody holds the orch role right now: nothing placed"; return 0; }
   [[ "${holder##*@}" == "$ASKS_BOX" ]] || { do_log "INFO the orch role is held on ${holder##*@} ($holder): its machine places"; return 0; }
   exec 6>>"$(spool_asks_dir)/.place.lock"
   flock -n 6 || { do_log "INFO another placer tick is running: skipped"; return 0; }
+  spl_spawn_place_tick "$holder"
+  spl_spawn_place_holds_send "$holder"
+  return 0
+}
+
+# 1-8. One tick under the lock, as the holder HOLDER.
+spl_spawn_place_tick() {  # HOLDER
+  local holder="$1" rows head why
   spl_spawn_group_feed "$holder"
   rows="$(spl_spawn_q_rows)" || { do_log "WARN the hub did not answer: nothing placed this tick"; return 0; }
   if spl_spawn_place_stalled "$holder" "$rows"; then
@@ -1755,6 +1770,31 @@ spl_spawn_place_wait_keep() {  # queued|held IDS [WHY_RX]
     BEGIN { n = split(ids, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") K[a[i]] = 1 }
     m == "queued" { if ($1 in K) print; next }
     !($3 ~ rx && !($1 in K))' "$f" >"$tmp"; then mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"; else rm -f "$tmp"; fi
+}
+
+# 9. The hold map to the hub (spec 153 3.22.8, ask_op holds): the
+# .place.wait reasons by ask id, one line each, sent only when they differ
+# from the map last sent (<asks dir>/.place.holds; none = {}). A refused
+# send keeps the old map, so the next tick tries again; its WARN is written
+# once per map (<asks dir>/.place.holds.fail).
+spl_spawn_place_holds_send() {  # HOLDER
+  local d map last
+  d="$(spool_asks_dir)"
+  map="$(jq -R -s -c -S '[split("\n")[] | split("\t") | select(length >= 3 and (.[0] | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")))
+    | {key: .[0], value: (.[2:] | join(" ") | gsub("[\r\n]"; " ") | .[0:240])} | select(.value != "")] | from_entries' "$d/.place.wait" 2>/dev/null)" || map='{}'
+  [[ -n "$map" ]] || map='{}'
+  last="$(cat "$d/.place.holds" 2>/dev/null)"
+  [[ -n "$last" ]] || last='{}'
+  [[ "$map" == "$last" ]] && return 0
+  if spl_asks_hub holds --fleet "$LANE_FLEET" --by "$1" --holds "$map" >/dev/null 2>"$d/.place.holds.err"; then
+    printf '%s\n' "$map" >"$d/.place.holds"; rm -f "$d/.place.holds.fail"
+    do_log "INFO the hub has the placer's holds: $(jq 'length' <<<"$map") ask(s) held"
+    return 0
+  fi
+  [[ "$(cat "$d/.place.holds.fail" 2>/dev/null)" == "$map" ]] && return 0
+  printf '%s\n' "$map" >"$d/.place.holds.fail"
+  do_log "WARN the hub did not take the placer's holds ($(head -c 200 "$d/.place.holds.err" 2>/dev/null | tr '\n' ' ')): the Queue tab's Waits on stays as it was; placing is not affected"
+  return 0
 }
 
 # 4b. The brief needs the orchestrator: one blocker to the holder.

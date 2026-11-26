@@ -73,9 +73,12 @@ type FleetAsk struct {
 	QueueRank   int64
 	RankBy      string
 	RankAt      time.Time
-	Position    int    // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
-	QueueLen    int    // the queued asks of its role (filled with Position)
-	WriterBox   string // the box that last wrote it (from the authenticated hello)
+	// HoldReason is why the placer passed the row over on its last tick
+	// (rdb 0323, spec 153 3.22.8, ask_op holds); "" = waiting for room.
+	HoldReason string
+	Position   int    // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
+	QueueLen   int    // the queued asks of its role (filled with Position)
+	WriterBox  string // the box that last wrote it (from the authenticated hello)
 	// The OD pool's columns (rdb 0183, spec 134 3.2), set on role 'od' rows.
 	LockUntil   time.Time // the lock's end on the hub clock; zero = no lease (a book ack holds until released)
 	LeaseS      int       // the lease lock-next and renew grant, seconds

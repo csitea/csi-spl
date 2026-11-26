@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -11,7 +12,7 @@ import (
 )
 
 // askOps is every `spool ask` op, for the usage line.
-const askOps = "list put ack done decline raise escalate release dead queue enqueue lock-next renew reopen pool category"
+const askOps = "list put ack done decline raise escalate release dead queue enqueue lock-next renew reopen pool category holds"
 
 // cmdAsk is `spool ask <op>` (CLE-77929): record, work or list the fleet's
 // asks to the orchestrator - the primitive do_spl_asks_* build on - and the
@@ -57,6 +58,7 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	lease := fs.Int("lease", 0, "enqueue: the lease in seconds, 15..86400 (default 120)")
 	needsOwner := fs.Bool("needs-owner", false, "enqueue: the job waits for a human (needs_owner), never locked")
 	set := fs.Bool("set", false, "pool: write the fields given below (with --by)")
+	holds := fs.String("holds", "", `holds: the placer's whole map as a JSON object {"<ask_id>": "<reason>"}; {} clears every hold`)
 	poolFields := askPoolFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -68,6 +70,10 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	if err := edgeIDs(cfg, map[string]*string{"from": from, "by": by, "seat": seat}); err != nil {
 		return fail(err)
 	}
+	holdMap, err := askHoldsFlag(op, *holds)
+	if err != nil {
+		return fail(err)
+	}
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Ask(ctx, cfg, action.AskArgs{Fleet: *fleet, Op: op, AskID: *id, Role: *role, Kind: *kind, From: *from,
@@ -75,12 +81,28 @@ func cmdAsk(cfg *config.Config, args []string) int {
 		Class: *class, Flag: *flagF, FlagMsg: *flagMsg,
 		Gen: *gen, Refuse: *refuse, Free: *free, Seat: *seat, Vendor: *vendor, Harness: *harness, Caps: splitList(*caps),
 		IssueKey: *issue, DedupeKey: *dedupe, VendorAllow: *vendorAllow, Needs: *needs, LeaseS: *lease, NeedsOwner: *needsOwner,
-		PoolSet: *set, Pool: poolFields(), WorkKind: *workKind, CategoryPath: *category})
+		PoolSet: *set, Pool: poolFields(), WorkKind: *workKind, CategoryPath: *category, Holds: holdMap})
 	if err != nil {
 		return fail(err)
 	}
 	fmt.Println(string(out))
 	return 0
+}
+
+// askHoldsFlag reads --holds: a JSON object of strings, required by the
+// holds op and refused with any other.
+func askHoldsFlag(op, raw string) (map[string]string, error) {
+	if op != "holds" {
+		if raw != "" {
+			return nil, fmt.Errorf("ask: --holds goes with holds only")
+		}
+		return nil, nil
+	}
+	m := map[string]string{}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return nil, fmt.Errorf("ask: --holds must be a JSON object of ask id to reason, e.g. {} or {\"<ask_id>\": \"<why>\"}")
+	}
+	return m, nil
 }
 
 // askPoolFlags declares the pool --set fields on fs; the func it returns,

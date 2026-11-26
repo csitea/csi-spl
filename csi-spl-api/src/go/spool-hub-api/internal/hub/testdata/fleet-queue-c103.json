@@ -1,0 +1,82 @@
+{
+  "list": {
+    "asks": [
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000001",
+        "class": "bug",
+        "enqueued_at": "2026-11-20T10:00:01Z",
+        "position": 3,
+        "priority": 3,
+        "queue_len": 4,
+        "role": "orch",
+        "state": "queued"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000002",
+        "class": "feature",
+        "enqueued_at": "2026-11-20T10:01:01Z",
+        "position": 2,
+        "priority": 1,
+        "queue_len": 4,
+        "role": "orch",
+        "state": "queued"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000003",
+        "class": "ci",
+        "enqueued_at": "2026-11-20T10:02:01Z",
+        "position": 1,
+        "priority": 3,
+        "queue_len": 4,
+        "role": "orch",
+        "state": "queued"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000004",
+        "class": "refactor",
+        "enqueued_at": "2026-11-20T10:03:01Z",
+        "priority": 3,
+        "role": "orch",
+        "state": "acked"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000005",
+        "class": "bug",
+        "enqueued_at": "2026-11-20T10:04:01Z",
+        "priority": 3,
+        "role": "orch",
+        "state": "acked"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000006",
+        "priority": 3,
+        "role": "orch",
+        "state": "open"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-000000000007",
+        "priority": 3,
+        "role": "orch",
+        "state": "acked"
+      },
+      {
+        "ask_id": "c1030000-0000-4000-8000-00000000000a",
+        "class": "bug",
+        "enqueued_at": "2026-11-20T10:09:01Z",
+        "position": 4,
+        "priority": 3,
+        "queue_len": 4,
+        "role": "orch",
+        "state": "queued"
+      }
+    ]
+  },
+  "route": [
+    "c1030000-0000-4000-8000-000000000004",
+    "c1030000-0000-4000-8000-000000000005",
+    "c1030000-0000-4000-8000-000000000003",
+    "c1030000-0000-4000-8000-000000000002",
+    "c1030000-0000-4000-8000-000000000001",
+    "c1030000-0000-4000-8000-00000000000a"
+  ]
+}

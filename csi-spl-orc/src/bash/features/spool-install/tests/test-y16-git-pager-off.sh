@@ -14,6 +14,7 @@
 #   6. install.sh calls the step once, only with --fleet
 #   7. do_spl_git_pager_off_install, dry run, for this user: rc 0, the real
 #      git config untouched
+#   8. _spl_user_step_install helper and wave-1 delegation (r08-02 one copy)
 # Parts 1 and 3 need `script` (util-linux); without it they SKIP.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2016  # the bash -c bodies expand in the child
@@ -98,6 +99,61 @@ out="$(env -u GIT_CONFIG_GLOBAL PROJ_PATH="$ORC" GIT_PAGER_OFF_USERS="$(id -un)"
   . "$1/src/bash/run/spl-git-pager-off-install.func.sh" && do_spl_git_pager_off_install' _ "$ORC" 2>&1)"; rc=$?
 if [ "$rc" = 0 ] && [[ "$out" == *"OK git pager off: $(id -un) (DRY_RUN=1)"* ]] && [ "$(git config --global --list 2>/dev/null | cksum)" = "$real" ]
 then pass "action dry run: rc 0, the real git config untouched"; else fail "action: rc=$rc $out"; fi
+
+# 8. _spl_user_step_install helper and wave-1 delegation (r08-02 one copy)
+me="$(id -un)"
+printf 'fake_step_fn() { echo "CALL:$*"; }\n' >"$T/fake-step.sh"
+printf 'SPOOL_AGENT_USER=%s\n' "$me" >"$T/box.env"
+step_run() {
+  env -u SPOOL_AGENT_USER SPOOL_BOX_ENV="$T/box.env" PROJ_PATH="$ORC" T_H="$T/h1" bash -c '
+    set -uo pipefail; do_log() { echo "$*"; }
+    getent() { [ "$2" = "'"$me"'" ] && printf "x:x:0:0::%s:/bin/sh\n" "$T_H" || return 2; }
+    . "$1/src/bash/run/spl-git-pager-off-install.func.sh" && _spl_user_step_install "${@:2}"' _ "$ORC" "$@" 2>&1
+}
+out="$(step_run "demo" "$T/no-such-step.sh" fake_step_fn "$me" 1)"; rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"FATAL the step $T/no-such-step.sh is not readable"* ]]
+then pass "8. _spl_user_step_install refuses an unreadable step"; else fail "8. unreadable step ($rc: $out)"; fi
+out="$(step_run "demo" "$T/fake-step.sh" fake_step_fn "no-such-user-r08" 1)"; rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"ERROR no passwd entry for no-such-user-r08"* ]]
+then pass "8. _spl_user_step_install reports a missing passwd entry"; else fail "8. missing user ($rc: $out)"; fi
+out="$(step_run "demo" "$T/fake-step.sh" fake_step_fn "$me $me" 1)"; rc=$?
+if [ "$rc" = 0 ] && [ "$(grep -c '^CALL:' <<<"$out")" = 1 ] && [[ "$out" == *"CALL:$T/h1 1"* ]] && [[ "$out" == *"INFO demo: $me ($T/h1), DRY_RUN=1"* ]] && [[ "$out" == *"OK demo: $me $me (DRY_RUN=1)"* ]]
+then pass "8. _spl_user_step_install deduplicates users and logs INFO/OK"; else fail "8. dedup ($rc: $out)"; fi
+out="$(step_run "demo" "$T/fake-step.sh" fake_step_fn "$me" 1 "/.vibe")"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"CALL:$T/h1/.vibe 1"* ]] && [[ "$out" == *"INFO demo: $me ($T/h1/.vibe), DRY_RUN=1"* ]]
+then pass "8. _spl_user_step_install appends optional home_suffix"; else fail "8. hsuf ($rc: $out)"; fi
+out="$(step_run "demo" "$T/fake-step.sh" fake_step_fn "$me" 1 "" "$R")"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"CALL:$T/h1 1 $R"* ]] && [[ "$out" == *"INFO demo: $me ($T/h1), repo $R, DRY_RUN=1"* ]]
+then pass "8. _spl_user_step_install forwards optional repo arg and logs it"; else fail "8. repo ($rc: $out)"; fi
+out="$(step_run "demo" "$T/fake-step.sh" fake_step_fn "" 1)"; rc=$?
+if [ "$rc" = 0 ] && [ "$(grep -c '^CALL:' <<<"$out")" = 1 ] && [[ "$out" == *"OK demo: $me $me (DRY_RUN=1)"* ]]
+then pass "8. _spl_user_step_install reads SPOOL_AGENT_USER from SPOOL_BOX_ENV when users unset"; else fail "8. box.env ($rc: $out)"; fi
+
+host_f="$ORC/src/bash/run/spl-git-pager-off-install.func.sh"
+if grep -q '^_spl_user_step_install()' "$host_f" && [ "$(grep -c 's/\^SPOOL_AGENT_USER=//p' "$host_f")" -eq 1 ]
+then pass "8. one copy: spl-git-pager-off-install.func.sh hosts _spl_user_step_install"; else fail "8. host one copy"; fi
+for sib in \
+  "$ORC/src/bash/run/spl-vibe-output-cap-install.func.sh" \
+  "$ORC/src/bash/run/spl-vibe-push-guard-install.func.sh"; do
+  own="$(grep -nE 's/\^SPOOL_AGENT_USER=|getent passwd|sudo -n -u' "$sib" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+  if [ -z "$own" ] && grep -q '_spl_user_step_install ' "$sib"
+  then pass "8. one copy: $(basename "$sib") delegates user loop to _spl_user_step_install"
+  else fail "8. one copy $(basename "$sib"): own=[$own]"; fi
+done
+
+VH="$T/vhome"; mkdir -p "$VH/.vibe"; : >"$VH/.vibe/hooks.toml"
+out="$(PROJ_PATH="$ORC" VIBE_OUTPUT_CAP_USERS="$me" DRY_RUN=1 VH="$VH" bash -c '
+  do_log() { echo "$*"; }; do_require_bin() { command -v "$1" >/dev/null; }
+  getent() { printf "x:x:0:0::%s:/bin/sh\n" "$VH"; }
+  . "$1/src/bash/run/spl-vibe-output-cap-install.func.sh" && do_spl_vibe_output_cap_install' _ "$ORC" 2>&1)"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"INFO vibe output cap: $me ($VH/.vibe), DRY_RUN=1"* ]] && [[ "$out" == *"would: write the spool-output-cap"* ]] && [[ "$out" == *"OK vibe output cap: $me (DRY_RUN=1)"* ]] && [ ! -e "$VH/.vibe/spool-output-cap" ]
+then pass "8. spl-vibe-output-cap-install sourced alone plans dry run via _spl_user_step_install"; else fail "8. vibe-output-cap ($rc: $out)"; fi
+out="$(PROJ_PATH="$ORC" VIBE_PUSH_GUARD_USERS="$me" DRY_RUN=1 VH="$VH" bash -c '
+  do_log() { echo "$*"; }; do_require_bin() { command -v "$1" >/dev/null; }
+  getent() { printf "x:x:0:0::%s:/bin/sh\n" "$VH"; }
+  . "$1/src/bash/run/spl-vibe-push-guard-install.func.sh" && do_spl_vibe_push_guard_install' _ "$ORC" 2>&1)"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"INFO vibe push guard: $me ($VH/.vibe), DRY_RUN=1"* ]] && [[ "$out" == *"would: write the spool-push-guard"* ]] && [[ "$out" == *"OK vibe push guard: $me (DRY_RUN=1)"* ]] && [ ! -e "$VH/.vibe/spool-push-guard" ]
+then pass "8. spl-vibe-push-guard-install sourced alone plans dry run via _spl_user_step_install"; else fail "8. vibe-push-guard ($rc: $out)"; fi
 
 echo "--- y16 git pager off: $((n - fails))/$n passed, $skips skipped"
 [ "$fails" = 0 ]

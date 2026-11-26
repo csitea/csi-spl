@@ -16,30 +16,12 @@
 # @example DRY_RUN=0 ./run -a do_spl_vibe_push_guard_install
 #------------------------------------------------------------------------------
 do_spl_vibe_push_guard_install() {
-  local dry="${DRY_RUN:-1}" me agent f users u home step seen=" " rc=0
+  local dry="${DRY_RUN:-1}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   do_require_bin python3 || return 1
-  step="$PROJ_PATH/src/bash/features/spool-install/steps/y12-vibe-push-guard.sh"
-  [[ -r "$step" ]] || { do_log "FATAL the step $step is not readable"; return 1; }
-  me="$(id -un)"
-  agent="${SPOOL_AGENT_USER:-}"
-  f="${SPOOL_BOX_ENV:-${SPOOL_ROOT:-/var/spool-hub}/box.env}"
-  if [[ -z "$agent" && -r "$f" ]]; then
-    agent="$(sed -n 's/^SPOOL_AGENT_USER=//p' "$f" | tail -1 | tr -d "\"'\r")"
-  fi
-  users="${VIBE_PUSH_GUARD_USERS:-$agent $me}"
-  for u in $users; do
-    [[ "$seen" == *" $u "* ]] && continue
-    seen+="$u "
-    home="$(getent passwd "$u" | cut -d: -f6)"
-    [[ -n "$home" ]] || { do_log "ERROR no passwd entry for $u"; rc=1; continue; }
-    do_log "INFO vibe push guard: $u ($home/.vibe), DRY_RUN=$dry"
-    if [[ "$u" == "$me" ]]; then
-      bash -c '. "$1" && spool_install_vibe_push_guard "$2" "$3"' _ "$step" "$home/.vibe" "$dry" || rc=1
-    else
-      sudo -n -u "$u" bash -c '. "$1" && spool_install_vibe_push_guard "$2" "$3"' _ "$step" "$home/.vibe" "$dry" || rc=1
-    fi
-  done
-  [[ "$rc" == 0 ]] && do_log "OK vibe push guard: $users (DRY_RUN=$dry)"
-  return "$rc"
+  # shellcheck source=spl-git-pager-off-install.func.sh
+  declare -F _spl_user_step_install >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-git-pager-off-install.func.sh" || return 1
+  _spl_user_step_install "vibe push guard" \
+    "$PROJ_PATH/src/bash/features/spool-install/steps/y12-vibe-push-guard.sh" \
+    spool_install_vibe_push_guard "${VIBE_PUSH_GUARD_USERS:-}" "$dry" "/.vibe"
 }

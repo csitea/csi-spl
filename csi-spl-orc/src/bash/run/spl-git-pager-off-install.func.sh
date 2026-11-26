@@ -14,30 +14,49 @@
 # @example DRY_RUN=0 ./run -a do_spl_git_pager_off_install
 #------------------------------------------------------------------------------
 do_spl_git_pager_off_install() {
-  local dry="${DRY_RUN:-1}" me agent f users u home step seen=" " rc=0
+  local dry="${DRY_RUN:-1}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   do_require_bin git || return 1
-  step="$PROJ_PATH/src/bash/features/spool-install/steps/y16-git-pager-off.sh"
+  _spl_user_step_install "git pager off" \
+    "$PROJ_PATH/src/bash/features/spool-install/steps/y16-git-pager-off.sh" \
+    spool_install_git_pager_off "${GIT_PAGER_OFF_USERS:-}" "$dry"
+}
+
+# _spl_user_step_install <label> <step_file> <fn> <users_override> <dry> [home_suffix] [repo]
+# Runs <fn> from <step_file> for each unique user in <users_override> (default:
+# SPOOL_AGENT_USER from env or box.env, plus the running user), via sudo -n -u
+# for another user. Passes "$home<home_suffix>" "$dry" [repo] to <fn>.
+_spl_user_step_install() {
+  local label="$1" step="$2" fn="$3" users="$4" dry="$5" hsuf="${6:-}" repo="${7:-}"
+  local me agent f u home target seen=" " rc=0
+  local -a args=()
   [[ -r "$step" ]] || { do_log "FATAL the step $step is not readable"; return 1; }
   me="$(id -un)"
-  agent="${SPOOL_AGENT_USER:-}"
-  f="${SPOOL_BOX_ENV:-${SPOOL_ROOT:-/var/spool-hub}/box.env}"
-  if [[ -z "$agent" && -r "$f" ]]; then
-    agent="$(sed -n 's/^SPOOL_AGENT_USER=//p' "$f" | tail -1 | tr -d "\"'\r")"
+  if [[ -z "$users" ]]; then
+    agent="${SPOOL_AGENT_USER:-}"
+    f="${SPOOL_BOX_ENV:-${SPOOL_ROOT:-/var/spool-hub}/box.env}"
+    if [[ -z "$agent" && -r "$f" ]]; then
+      agent="$(sed -n 's/^SPOOL_AGENT_USER=//p' "$f" | tail -1 | tr -d "\"'\r")"
+    fi
+    users="$agent $me"
   fi
-  users="${GIT_PAGER_OFF_USERS:-$agent $me}"
   for u in $users; do
     [[ "$seen" == *" $u "* ]] && continue
     seen+="$u "
     home="$(getent passwd "$u" | cut -d: -f6)"
     [[ -n "$home" ]] || { do_log "ERROR no passwd entry for $u"; rc=1; continue; }
-    do_log "INFO git pager off: $u ($home), DRY_RUN=$dry"
+    target="${home}${hsuf}"
+    args=("$step" "$fn" "$target" "$dry")
+    [[ -n "$repo" ]] && args+=("$repo")
+    do_log "INFO $label: $u ($target)${repo:+, repo $repo}, DRY_RUN=$dry"
     if [[ "$u" == "$me" ]]; then
-      bash -c '. "$1" && spool_install_git_pager_off "$2" "$3"' _ "$step" "$home" "$dry" || rc=1
+      # shellcheck disable=SC2016
+      bash -c '. "$1" && "$2" "${@:3}"' _ "${args[@]}" || rc=1
     else
-      sudo -n -u "$u" bash -c '. "$1" && spool_install_git_pager_off "$2" "$3"' _ "$step" "$home" "$dry" || rc=1
+      # shellcheck disable=SC2016
+      sudo -n -u "$u" bash -c '. "$1" && "$2" "${@:3}"' _ "${args[@]}" || rc=1
     fi
   done
-  [[ "$rc" == 0 ]] && do_log "OK git pager off: $users (DRY_RUN=$dry)"
+  [[ "$rc" == 0 ]] && do_log "OK $label: $users (DRY_RUN=$dry)"
   return "$rc"
 }

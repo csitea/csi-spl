@@ -4717,5 +4717,16 @@
     "none": "No topic matches",
     "clear": "Clear selection",
     "other_workspace": "Another workspace's topic: it cannot be selected here"
+  },
+  "multicast": {
+    "action": "Multicast",
+    "title": "Send to {n} topics",
+    "count": "{n} topics",
+    "send": "Send to {n} topics",
+    "remove": "Remove {title}",
+    "sent": "Sent to {n} topics",
+    "refused": "Not sent to {topic}: {reason}",
+    "retry": "Retry",
+    "none": "No topic selected"
   }
 }

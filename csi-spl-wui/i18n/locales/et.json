@@ -4717,5 +4717,16 @@
     "none": "Ükski teema ei sobi",
     "clear": "Tühjenda valik",
     "other_workspace": "Teise tööruumi teema: seda ei saa siin valida"
+  },
+  "multicast": {
+    "action": "Multisaade",
+    "title": "Saada {n} teemale",
+    "count": "{n} teemat",
+    "send": "Saada {n} teemale",
+    "remove": "Eemalda {title}",
+    "sent": "Saadetud {n} teemale",
+    "refused": "Ei saadetud teemale {topic}: {reason}",
+    "retry": "Proovi uuesti",
+    "none": "Teemat pole valitud"
   }
 }

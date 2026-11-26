@@ -4717,5 +4717,16 @@
     "none": "Inget ämne matchar",
     "clear": "Rensa markering",
     "other_workspace": "Ämne i en annan arbetsyta: det kan inte väljas här"
+  },
+  "multicast": {
+    "action": "Flersändning",
+    "title": "Skicka till {n} ämnen",
+    "count": "{n} ämnen",
+    "send": "Skicka till {n} ämnen",
+    "remove": "Ta bort {title}",
+    "sent": "Skickat till {n} ämnen",
+    "refused": "Inte skickat till {topic}: {reason}",
+    "retry": "Försök igen",
+    "none": "Inget ämne valt"
   }
 }

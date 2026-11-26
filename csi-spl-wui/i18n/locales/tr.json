@@ -4717,5 +4717,16 @@
     "none": "Eşleşen konu yok",
     "clear": "Seçimi temizle",
     "other_workspace": "Başka bir çalışma alanının konusu: burada seçilemez"
+  },
+  "multicast": {
+    "action": "Çoklu yayın",
+    "title": "{n} konuya gönder",
+    "count": "{n} konu",
+    "send": "{n} konuya gönder",
+    "remove": "{title} öğesini kaldır",
+    "sent": "{n} konuya gönderildi",
+    "refused": "{topic} konusuna gönderilmedi: {reason}",
+    "retry": "Tekrar dene",
+    "none": "Konu seçilmedi"
   }
 }

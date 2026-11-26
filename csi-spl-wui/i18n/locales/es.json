@@ -4717,5 +4717,16 @@
     "none": "Ningún tema coincide",
     "clear": "Borrar selección",
     "other_workspace": "Tema de otro espacio de trabajo: no se puede seleccionar aquí"
+  },
+  "multicast": {
+    "action": "Multidifusión",
+    "title": "Enviar a {n} temas",
+    "count": "{n} temas",
+    "send": "Enviar a {n} temas",
+    "remove": "Eliminar {title}",
+    "sent": "Enviado a {n} temas",
+    "refused": "No se envió a {topic}: {reason}",
+    "retry": "Reintentar",
+    "none": "No se ha seleccionado ningún tema"
   }
 }

@@ -175,4 +175,6 @@ export interface SendFrame {
   parent_task_id?: string
   is_parent?: 0 | 1
   msg_id?: string
+  /** spec 186 7.1.1: the multicast id shared by every copy of one multicast */
+  mc_id?: string
 }

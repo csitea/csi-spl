@@ -943,7 +943,7 @@ function sendMethods(mock, mk, conn) {
      * wui-live-ws §4 `send` frame via the injected sender; resolves with the
      * flat message plus the ack's cursor / received_at.
      */
-    async sendMessage({ channel, peer, text, task_id, parent_task_id, is_parent, files, from, msg_id } = {}) {
+    async sendMessage({ channel, peer, text, task_id, parent_task_id, is_parent, files, from, msg_id, mc_id } = {}) {
       const parsed = parseMention(text)
       const peerId = peer ? String(peer).split('@')[0] : ''
       const to = peer ? peerId : parsed.to
@@ -951,13 +951,15 @@ function sendMethods(mock, mk, conn) {
       const toBox = peer ? (String(peer).includes('@') ? String(peer).split('@')[1] : undefined) : parsed.toBox
       const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const body = peer ? String(text || '') : parsed.body
-      if (mock) return (await mk.answers()).mockSendMessage(mk.state, { channel, task_id, parent_task_id, is_parent, files, msg_id, to, toBox, kind, body }, uuid)
+      if (mock) return (await mk.answers()).mockSendMessage(mk.state, { channel, task_id, parent_task_id, is_parent, files, msg_id, mc_id, to, toBox, kind, body }, uuid)
       const { send } = conn
       if (typeof send !== 'function') {
         throw Object.assign(new Error('live send needs the WUI socket (setSender)'), { status: 0, token: 'no_socket' })
       }
       const frame = { task_id: task_id || uuid(), kind, body, files: files || [] }
       if (msg_id) frame.msg_id = msg_id
+      /* spec 186 7.1.1: one copy of a multicast; the same mc_id on every copy */
+      if (mc_id) frame.mc_id = String(mc_id)
       if (to && to !== '@channel') frame.to = to
       // specs/058: a DM peer is <ID>@<box>; the box pins the route, because the
       // reserved ids CLE-001..003 run on every box (a bare id would be ambiguous_to_box).
@@ -1007,6 +1009,19 @@ function selectMethods(mock, mk, conn) {
       if (mock) return (await mk.answers()).mockTopicSelect(mk.state, frame)
       if (typeof conn.request !== 'function') {
         throw Object.assign(new Error('topic_select needs the WUI socket (setRequester)'), { status: 0, token: 'no_socket' })
+      }
+      return conn.request(frame)
+    },
+    /** spec 186 M11: the Multicast dialog's check can run (the mock answers it; live needs the request half) */
+    canMulticastCheck() {
+      return Boolean(mock) || typeof conn.request === 'function'
+    },
+    /** spec 186 7.1.2: `multicast_check`, the dry run of one copy per task id; answers `multicast_checked` (never a pattern) */
+    async multicastCheck({ req_id, task_ids = [], files = [], body = '' } = {}) {
+      const frame = { type: 'multicast_check', req_id: String(req_id || uuid()), task_ids: [...task_ids], files: [...files], body: String(body) }
+      if (mock) return (await mk.answers()).mockMulticastCheck(mk.state, frame)
+      if (typeof conn.request !== 'function') {
+        throw Object.assign(new Error('multicast_check needs the WUI socket (setRequester)'), { status: 0, token: 'no_socket' })
       }
       return conn.request(frame)
     },

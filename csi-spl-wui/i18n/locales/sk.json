@@ -4717,5 +4717,16 @@
     "none": "Žiadna téma nezodpovedá",
     "clear": "Zrušiť výber",
     "other_workspace": "Téma iného pracovného priestoru: tu ju nemožno vybrať"
+  },
+  "multicast": {
+    "action": "Hromadné odoslanie",
+    "title": "Odoslať do {n} tém",
+    "count": "Témy: {n}",
+    "send": "Odoslať do {n} tém",
+    "remove": "Odstrániť {title}",
+    "sent": "Odoslané do {n} tém",
+    "refused": "Neodoslané na {topic}: {reason}",
+    "retry": "Skúsiť znova",
+    "none": "Žiadna vybratá téma"
   }
 }

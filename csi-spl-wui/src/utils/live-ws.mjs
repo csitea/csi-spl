@@ -664,7 +664,7 @@ function redialForToken(c) {
  * the box of `to`: CLE-001..003 run on every box, and a bare id announced
  * on two boxes is refused as ambiguous_to_box.
  */
-function send(c, { task_id, kind = 'note', body = '', files = [], to, to_box, channel, parent_task_id, is_parent, msg_id: givenId } = {}) {
+function send(c, { task_id, kind = 'note', body = '', files = [], to, to_box, channel, parent_task_id, is_parent, mc_id, msg_id: givenId } = {}) {
   const msg_id = givenId ? String(givenId) : newId()
   const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
   if (to) frame.to = to
@@ -672,6 +672,8 @@ function send(c, { task_id, kind = 'note', body = '', files = [], to, to_box, ch
   if (channel) frame.channel = String(channel)
   if (parent_task_id) frame.parent_task_id = String(parent_task_id)
   if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent
+  /* spec 186 7.1.1: a multicast copy carries the shared mc_id */
+  if (mc_id) frame.mc_id = String(mc_id)
   return new Promise((resolve, reject) => {
     const timer = c.o.setTimer(() => ackTimedOut(c, msg_id, reject), c.o.ackTimeoutMs)
     c.pending.set(msg_id, { resolve, reject, timer })

@@ -4717,5 +4717,16 @@
     "none": "Jokia tema neatitinka",
     "clear": "Išvalyti pasirinkimą",
     "other_workspace": "Kitos darbo srities tema: jos čia pasirinkti negalima"
+  },
+  "multicast": {
+    "action": "Daugiaadresis perdavimas",
+    "title": "Siųsti į {n} temas",
+    "count": "{n} temos",
+    "send": "Siųsti į {n} temas",
+    "remove": "Pašalinti {title}",
+    "sent": "Išsiųsta į {n} temas",
+    "refused": "Neišsiųsta į {topic}: {reason}",
+    "retry": "Bandyti dar kartą",
+    "none": "Nepasirinkta tema"
   }
 }

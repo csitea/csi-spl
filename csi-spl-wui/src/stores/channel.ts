@@ -471,12 +471,17 @@ function outboxSteps(s: ChannelState) {
      store that sends a frame (this one and stores/live.ts). */
   const sendNote = ref<{ key: string, params: { retired: string } } | null>(null)
   const heldText = new Map<string, { text: string, topicId?: string, channelId?: string }>()
+  /* spec 186 4.4: a multicast copy held for the network reports its end to the dialog, not to TopBar */
+  const mcHooks = new Map<string, (r: McOutcome) => void>()
   const queue = createSendQueue({
     stillOffline: (err) => isNetworkFailure(err, { offline: isOffline(), socket: api.mock ? 'open' : String(useLive().state.value) }),
     onFail: (msgId, err) => {
       messages.value = withoutMsg(messages.value, msgId) as FeedMessage[]
       const held = heldText.get(msgId)
       heldText.delete(msgId)
+      const mc = mcHooks.get(msgId)
+      mcHooks.delete(msgId)
+      if (mc) return mc({ state: 'refused', error: errToken(err) })
       if (held) queueFailure.value = { err, msgId, ...held }
     },
   })
@@ -522,7 +527,7 @@ function outboxSteps(s: ChannelState) {
     return refs
   }
 
-  return { queueFailure, sendNote, queue, holdForNetwork, toFileRefs }
+  return { queueFailure, sendNote, queue, holdForNetwork, toFileRefs, mcHooks }
 }
 
 /** Spec 189 B2: tell the tab's fresh-topics state (composables/useFreshTopics)
@@ -549,7 +554,7 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
   /* spec 117 FR-4: `dmPeer` is the other end of a DM topic answered from
      /t/<task_id>, where the store holds no peer; it is sent as on /dm */
   async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
-    if (!api.mock) return sendLive({ text, parentTaskId, files, channelId, isParent, dmPeer })
+    if (!api.mock) return sendLive({ text, parentTaskId, files, channelId, isParent, dmPeer, msgId: undefined, mcId: undefined })
     const req = {
       channel: channelId || active.value,
       peer: channelId ? undefined : (peer.value || dmPeer || undefined),
@@ -612,6 +617,8 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
 type LiveSendArgs = {
   text: string, parentTaskId: string | undefined, files: unknown[] | undefined,
   channelId: string | undefined, isParent: number | undefined, dmPeer: string | undefined,
+  /** spec 186 4.3: a multicast copy's own msg_id (kept for its resend and Retry) and the shared mc_id */
+  msgId: string | undefined, mcId: string | undefined,
 }
 
 /** The hub frame sendLive sends: who it goes to, on which box, in which channel. */
@@ -636,6 +643,7 @@ async function liveSendFrame(s: ChannelState, a: LiveSendArgs, toFileRefs: Outbo
      announce (ambiguous_to_box) */
   const toBox = asDm ? peerBox : parsed.toBox
   if (frame.to && toBox) frame.to_box = toBox
+  if (a.mcId) frame.mc_id = a.mcId
   const channelNow = channelId || active.value
   if (channelNow) frame.channel = channelNow
   return { frame, asDm, peerId, channelNow, parentBit }
@@ -663,7 +671,8 @@ function liveSendSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs'> & Pick<Cou
        sends. */
     if (isEmptySend(frame.body, frame.files)) throw emptySendError()
     /* 013 US7 FR-013: our card shows at once under the msg_id we send; echo / ack replace it */
-    frame.msg_id = takeMsgId(text, newId()) || undefined
+    if (a.msgId) frame.msg_id = a.msgId
+    else frame.msg_id = takeMsgId(text, newId()) || undefined
     const showHere = !channelId || channelId === active.value
     if (frame.msg_id && showHere) {
       const own = pendingRow({
@@ -710,9 +719,9 @@ function liveSendSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs'> & Pick<Cou
 }
 
 /** A sent frame waiting for the network, and the hub's ack of it. */
-function landedSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'holdForNetwork' | 'sendNote' | 'queue'>) {
+function landedSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, 'holdForNetwork' | 'sendNote' | 'queue' | 'mcHooks'>) {
   const { peer, messages, mentionPoke } = s
-  const { follow, holdForNetwork, sendNote, queue } = d
+  const { follow, holdForNetwork, sendNote, queue, mcHooks } = d
   /** 080 T006: hold a sent frame for the network; its row stays, marked waiting. */
   function waitForNetwork(sent: SentFrame, client: { send: (f: SendFrame) => Promise<unknown> }) {
     const msgId = String(sent.frame.msg_id)
@@ -737,6 +746,11 @@ function landedSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, '
     sendNote.value = sendFallbackNote(ack)
     const row = rowFromAck(ack as Parameters<typeof rowFromAck>[0], frame, { from: sent.from, channel: channelNow })
     if (!row.msg_id) row.msg_id = String(frame.msg_id || '')
+    /* spec 186 4.4: a held multicast copy landed after the reconnect */
+    const mcKey = String(row.msg_id || '')
+    const mc = mcHooks.get(mcKey)
+    mcHooks.delete(mcKey)
+    mc?.({ state: 'sent' })
     /* a held send lands later: its row is replaced only where it still shows */
     const shown = !queue.has(row.msg_id) || messages.value.some((m) => m.msg_id === row.msg_id)
     if (row.msg_id && sent.showHere && shown) {
@@ -747,6 +761,58 @@ function landedSteps(s: ChannelState, d: Pick<Follow, 'follow'> & Pick<Outbox, '
   }
 
   return { waitForNetwork, landed }
+}
+
+/** Spec 186 4.3: copies in flight at most. */
+const MC_PARALLEL = 4
+
+/** One copy of a multicast: its target topic, the topic's channel and the copy's own msg_id. */
+export type McCopy = { task_id: string, channel: string, msg_id: string }
+/** Where one copy ended: acked, held for the network (it goes again on reconnect), or refused. */
+export type McOutcome = { state: 'sent' | 'waiting' | 'refused', error?: string }
+/** sendMulticast's arguments: the text, the file refs (uploaded once), the shared mc_id, the copies, and the per-copy report. */
+export type McSend = { text: string, files: FileRef[], mcId: string, copies: McCopy[], onResult: (msgId: string, r: McOutcome) => void }
+
+function errToken(e: unknown): string {
+  const x = e as { token?: string, message?: string } | null
+  return String(x?.token || x?.message || 'error')
+}
+
+/**
+ * Spec 186 4.3 (row M11): a multicast is N ordinary sends, one sendLive per
+ * target, each with its own msg_id and the one mc_id, at most MC_PARALLEL in
+ * flight. A copy the network failed waits under its msg_id and reports
+ * `sent` when the reconnect lands it (mcHooks). The page's own send, draft
+ * and composer are not used.
+ */
+function multicastSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs' | 'mcHooks'> & ReturnType<typeof liveSendSteps>) {
+  const { api, active, messages } = s
+  const { toFileRefs, mcHooks, sendLive } = d
+  async function sendCopy(a: McSend, c: McCopy): Promise<McOutcome> {
+    if (api.mock) {
+      const row = await api.sendMessage({ channel: c.channel, task_id: c.task_id, text: a.text, is_parent: 0, files: a.files, msg_id: c.msg_id, mc_id: a.mcId }) as unknown as FeedMessage
+      if (c.channel === active.value) messages.value = mergeLive(withoutMsg(messages.value, c.msg_id), row) as FeedMessage[]
+      return { state: 'sent' }
+    }
+    const row = await sendLive({ text: a.text, parentTaskId: c.task_id, files: a.files, channelId: c.channel, isParent: 0, dmPeer: undefined, msgId: c.msg_id, mcId: a.mcId })
+    if (!(row as { waiting?: boolean }).waiting) return { state: 'sent' }
+    mcHooks.set(c.msg_id, (r) => a.onResult(c.msg_id, r))
+    return { state: 'waiting' }
+  }
+  async function sendMulticast(a: McSend) {
+    const todo = [...a.copies]
+    const worker = async () => {
+      for (let c = todo.shift(); c; c = todo.shift()) {
+        let r: McOutcome
+        try { r = await sendCopy(a, c) } catch (e) { r = { state: 'refused', error: errToken(e) } }
+        a.onResult(c.msg_id, r)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(MC_PARALLEL, todo.length) }, worker))
+  }
+  /** the picked files as refs, uploaded once for every copy (Q7 SHR) */
+  const uploadFiles = (files?: unknown[]) => toFileRefs(files)
+  return { sendMulticast, uploadFiles }
 }
 
 /** The reply count and the unread replies a topic card shows. */
@@ -778,11 +844,11 @@ function countSteps(s: ChannelState) {
 export const useChannelStore = defineStore('channel', () => {
   const s = channelState()
   const { follow, ...live } = followSteps(s)
-  const { queue, holdForNetwork, toFileRefs, ...outbox } = outboxSteps(s)
+  const { queue, holdForNetwork, toFileRefs, mcHooks, ...outbox } = outboxSteps(s)
   const counts = countSteps(s)
   const { resetView, ...view } = viewSteps(s, { follow })
   const page = pageSteps(s, { follow, queue, resetView })
-  const landing = landedSteps(s, { follow, holdForNetwork, queue, sendNote: outbox.sendNote })
+  const landing = landedSteps(s, { follow, holdForNetwork, queue, mcHooks, sendNote: outbox.sendNote })
   const sendLive = liveSendSteps(s, { toFileRefs, ...counts, ...landing })
   /* the steps share these; the store never exposed them */
   const { api, i18n, mentionPoke, visible, olderCursor, totals, view: rowsView, ...state } = s
@@ -796,5 +862,6 @@ export const useChannelStore = defineStore('channel', () => {
     ...sidebarSteps(s, page),
     ...rowSteps(s, { follow }),
     ...sendSteps(s, { holdForNetwork, toFileRefs, ...counts, ...sendLive }),
+    ...multicastSteps(s, { toFileRefs, mcHooks, ...sendLive }),
   }
 })

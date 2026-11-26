@@ -172,6 +172,8 @@ declare module '~/utils/spool-client.mjs' {
       files?: unknown[]
       from?: string
       msg_id?: string
+      /** spec 186 7.1.1: a multicast copy's shared id */
+      mc_id?: string
     }): Promise<import('./spool').SpoolMessage>
     createChannel(opts: { channel_id?: string, name?: string, description?: string }): Promise<import('./spool').ChannelRow>
     listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, created_by: string, agents: { id: string, box: string, online?: boolean, seated?: boolean }[], invited?: string[], invitees?: { id: string, label: string, masked: boolean }[] }>

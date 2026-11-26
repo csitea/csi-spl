@@ -4717,5 +4717,16 @@
     "none": "Neviena tēma neatbilst",
     "clear": "Notīrīt atlasi",
     "other_workspace": "Citas darbvietas tēma: to šeit nevar atlasīt"
+  },
+  "multicast": {
+    "action": "Multiraide",
+    "title": "Sūtīt uz {n} tēmām",
+    "count": "{n} tēmas",
+    "send": "Sūtīt uz {n} tēmām",
+    "remove": "Noņemt {title}",
+    "sent": "Nosūtīts {n} tēmām",
+    "refused": "Nav nosūtīts uz {topic}: {reason}",
+    "retry": "Mēģināt vēlreiz",
+    "none": "Nav izvēlēta tēma"
   }
 }

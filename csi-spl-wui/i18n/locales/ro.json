@@ -4717,5 +4717,16 @@
     "none": "Niciun subiect nu se potrivește",
     "clear": "Golește selecția",
     "other_workspace": "Subiect din alt spațiu de lucru: nu poate fi selectat aici"
+  },
+  "multicast": {
+    "action": "Trimitere multiplă",
+    "title": "Trimite către {n} subiecte",
+    "count": "{n} subiecte",
+    "send": "Trimite către {n} subiecte",
+    "remove": "Eliminați {title}",
+    "sent": "Trimis către {n} subiecte",
+    "refused": "Nu a fost trimis către {topic}: {reason}",
+    "retry": "Reîncercați",
+    "none": "Niciun subiect selectat"
   }
 }

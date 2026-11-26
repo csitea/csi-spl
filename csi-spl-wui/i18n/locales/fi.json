@@ -4717,5 +4717,16 @@
     "none": "Mikään aihe ei vastaa",
     "clear": "Tyhjennä valinta",
     "other_workspace": "Toisen työtilan aihe: sitä ei voi valita täällä"
+  },
+  "multicast": {
+    "action": "Monilähetys",
+    "title": "Lähetä {n} aiheeseen",
+    "count": "{n} aihetta",
+    "send": "Lähetä {n} aiheeseen",
+    "remove": "Poista {title}",
+    "sent": "Lähetetty {n} aiheeseen",
+    "refused": "Ei lähetetty aiheeseen {topic}: {reason}",
+    "retry": "Yritä uudelleen",
+    "none": "Ei valittua aihetta"
   }
 }

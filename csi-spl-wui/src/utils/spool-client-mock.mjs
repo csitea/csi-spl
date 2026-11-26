@@ -120,11 +120,13 @@ function seededTotals(rows) {
  * (to, toBox, kind, body); `uuid` is the client's id maker.
  */
 export function mockSendMessage(state, p, uuid) {
-  const { channel, task_id, parent_task_id, is_parent, files, msg_id, to, toBox, kind, body } = p
+  const { channel, task_id, parent_task_id, is_parent, files, msg_id, mc_id, to, toBox, kind, body } = p
   /* 080 T006: the hub de-dupes by msg_id, so a resend of a held send
      (same msg_id) stores nothing new - the mock does the same */
   const dup = msg_id ? state.messages.find((m) => m.msg_id === msg_id) : null
   if (dup) return dup
+  /* spec 186 7.1.1: a multicast copy goes into an existing channel topic only */
+  if (mc_id) mockMulticastDoor(state, task_id, is_parent)
   /* spec 117 FR-1: a reply with no channel and no `to` into a topic that has
      no single other end names nobody to deliver it to, and the hub refuses it
      (400 dm_needs_to). With one other end the hub re-addresses it; the mock
@@ -162,6 +164,8 @@ export function mockSendMessage(state, p, uuid) {
   }
   if (mockNoteToSelf(state.me.id, to, body)) row.note_to_self = true
   state.messages.push(row)
+  /* 7.1.3: the hub keeps mc_id in a column, on neither the row nor the frame */
+  if (mc_id) (state.multicast ||= {})[row.msg_id] = String(mc_id)
   mockNoteNonMembers(state, row)
   return row
 }
@@ -417,4 +421,43 @@ export function mockTopicSelect(state, { req_id, action, task_ids = [], patterns
     .filter((t) => all || ticks.has(String(t.task_id).toLowerCase()) || res.some((re) => re.test(String(t.subject || ''))))
     .map((t) => ({ task_id: t.task_id, channel: String(t.channel || ''), title: String(t.subject || '') }))
   return { type: 'topic_selected', req_id, ok: true, topics }
+}
+
+/**
+ * Spec 186 M11 e2e hook: `spool.mock.multicast-refuse` = { "<task_id or
+ * title>": "<token>" } makes the mock's multicast_check refuse those targets
+ * with that token, as the hub would for an archived or unreadable topic.
+ */
+const MULTICAST_REFUSE_MOCK_KEY = 'spool.mock.multicast-refuse'
+
+/** The mock tenant's multicast scope: its channel topics, never a DM, never `issues` (7.1.2, R1). */
+function mockMulticastScope(state) {
+  return topicsFromMessages(state.messages.filter((m) => m.channel && m.channel !== 'issues'))
+}
+
+/** A copy's target must be an existing channel topic of the mock tenant, as a reply (7.1.1); else the 404 that never says it exists. */
+function mockMulticastDoor(state, taskId, isParent) {
+  const known = mockMulticastScope(state).some((t) => t.task_id === String(taskId || ''))
+  if (isParent !== 0 || !known) throw Object.assign(new Error('no such topic'), { status: 404, token: 'multicast_no_topic' })
+}
+
+/**
+ * Spec 186 7.1.2 (row M11): the mock hub's `multicast_check`. Each selected
+ * task id in scope is ok unless the e2e hook refuses it; one out of scope is
+ * `multicast_no_topic`; none answers `multicast_none`. The mock has no
+ * quota. It stores nothing.
+ */
+export function mockMulticastCheck(state, { req_id, task_ids = [] } = {}, refuse = storageGetJson(MULTICAST_REFUSE_MOCK_KEY, {}) || {}) {
+  const answer = (ok, targets, error = '', detail = '') => ({ type: 'multicast_checked', req_id, ok, ...(error ? { error, detail } : {}), targets })
+  const ids = [...new Set(task_ids.map((id) => String(id)))]
+  if (!ids.length) return answer(false, [], 'multicast_none', 'no topic selected')
+  const scope = new Map(mockMulticastScope(state).map((t) => [t.task_id, t]))
+  const targets = ids.map((id) => {
+    const t = scope.get(id)
+    if (!t) return { task_id: id, channel: '', title: '', ok: false, error: 'multicast_no_topic' }
+    const title = String(t.subject || '')
+    const why = refuse[id] || refuse[title]
+    return { task_id: id, channel: String(t.channel || ''), title, ok: !why, ...(why ? { error: String(why) } : {}) }
+  })
+  return answer(targets.every((t) => t.ok), targets)
 }

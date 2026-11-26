@@ -4717,5 +4717,16 @@
     "none": "Geen onderwerp komt overeen",
     "clear": "Selectie wissen",
     "other_workspace": "Onderwerp van een andere werkruimte: kan hier niet worden geselecteerd"
+  },
+  "multicast": {
+    "action": "Multicast versturen",
+    "title": "Verzenden naar {n} onderwerpen",
+    "count": "{n} onderwerpen",
+    "send": "Verzenden naar {n} onderwerpen",
+    "remove": "Verwijder {title}",
+    "sent": "Verzonden naar {n} onderwerpen",
+    "refused": "Niet verzonden naar {topic}: {reason}",
+    "retry": "Opnieuw proberen",
+    "none": "Geen onderwerp geselecteerd"
   }
 }

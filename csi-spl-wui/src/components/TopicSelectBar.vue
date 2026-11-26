@@ -59,15 +59,19 @@
         <span v-if="store.result.failed.length">{{ ' ' + t('issues_bulk.result_failed', { count: store.result.failed.length, keys: store.result.failed.join(', ') }) }}</span>
       </p>
     </div>
+    <LazyMulticastDialog v-if="multicast.open.value" />
   </header>
 </template>
 
 <script setup lang="ts">
 import { useTopicSelect } from '~/composables/useTopicSelect'
+import { useMulticastAction } from '~/composables/useMulticastSend'
 
 defineProps<{ phone?: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
 const { store, runAction, canMatchAll, selectAllMatching, onKey, byTitleOn } = useTopicSelect()
+/* spec 186 M11: Multicast joins the bar's actions (7.1.6); its dialog opens on the selection */
+const multicast = useMulticastAction()
 const patternsOpen = ref(false)
 const countText = computed(() => store.channels > 1
   ? `${t('topic_select.count', { count: store.count })} ${t('topic_select.in_channels', { n: store.channels })}`

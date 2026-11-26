@@ -6,6 +6,8 @@
 // a module exporting that object's keys, other `~/` imports stay real, and any
 // other specifier throws, so a new import fails the test instead of hiding.
 // Not cached: each call is its own instance with its own stubs.
+// `{ client: true }` compiles `import.meta.client` (Nuxt's browser flag) as
+// true, so a store's browser-only wiring (a reconnect listener) runs too.
 //
 // Usage:
 //   import { importTsStubbed } from './lib/load-ts-stubbed.mjs'
@@ -27,24 +29,25 @@ function stubUrl(stub) {
 }
 
 /** The .ts at absolute `file`, transpiled, its specifiers swapped, as a data: URL. */
-function linkTs(file, stubs) {
+function linkTs(file, stubs, opts = {}) {
   const swap = (spec) => {
     if (Object.hasOwn(stubs, spec)) return stubUrl(stubs[spec])
     if (spec === 'vue') return import.meta.resolve('vue')
     const path = spec.startsWith('~/') ? join(WUI, 'src', spec.slice(2)) : ''
     if (path && existsSync(path)) return pathToFileURL(path).href
-    if (path && existsSync(path + '.ts')) return linkTs(path + '.ts', stubs)
+    if (path && existsSync(path + '.ts')) return linkTs(path + '.ts', stubs, opts)
     throw new Error(`importTsStubbed: ${file} imports ${spec}: stub it, or import a real ~/ file`)
   }
   const { outputText } = ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: file,
   })
-  return asModule(outputText.replace(/(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g,
+  const js = opts.client ? outputText.replace(/\bimport\.meta\.client\b/g, 'true') : outputText
+  return asModule(js.replace(/(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g,
     (_, head, q, spec) => head + q + swap(spec) + q))
 }
 
 /** The module at `rel` (relative to csi-spl-wui) with the imports named in `stubs` swapped. */
-export async function importTsStubbed(rel, stubs = {}) {
-  return import(linkTs(join(WUI, rel), stubs))
+export async function importTsStubbed(rel, stubs = {}, opts = {}) {
+  return import(linkTs(join(WUI, rel), stubs, opts))
 }

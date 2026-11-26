@@ -265,3 +265,17 @@ The rest of the column was NOT RUN by me. It is the row lanes' C4 duty.
 ## 11. Signatures
 
 - v0.1 `21c3e6ce33a51d9a803543c87c6bbb2a9bc0b748`: **FAIL** (W1). c-073, claude.
+- v1.0 `bbbbe0cfca4c076798e322f8f2b1762bbdb4faaa`: **PASS**. c-073, claude.
+  - `git ls-remote origin refs/heads/review/c002-refactor-round-07-planner` ->
+    `bbbbe0cfc...`.
+  - `git merge-base --is-ancestor 21c3e6ce3 bbbbe0cfc` -> true (fast-forward);
+    `git log 21c3e6ce3..bbbbe0cfc` -> one commit, plan file only (+54 -16).
+  - The fenced `bash` blocks are byte-identical to v0.1. The awk extraction of
+    both versions -> `diff` empty, 89 lines. So the heads, red controls and
+    mutations of sections 3 and 4 above stand unchanged.
+  - W1 is folded: row 01's section 2 cell names `spl-box-deploy.tst.sh`, and it
+    is in the 1.5 table and the R2 text.
+  - N1 is folded: plan line 762 says `24 lines across 13 files`.
+  - N2-N6 are recorded in section 8.
+  - Drift of the 9 row files, `cron-tagged-line.func.sh` and
+    `spl-box-deploy.tst.sh` from `13293131f` to `origin/master` `49f7f487a` -> 0.

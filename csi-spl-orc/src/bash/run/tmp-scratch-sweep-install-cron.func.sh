@@ -25,7 +25,7 @@ do_tmp_scratch_sweep_install_cron() {
   local dry="${DRY_RUN:-1}" act="${SCRATCH_CRON_ACTION:-install}" min="${SCRATCH_CRON_MINUTE:-17}"
   local live="${SCRATCH_CRON_DRY_RUN:-0}" box_env="${SPOOL_BOX_ENV-${SPOOL_ROOT:-/var/spool-hub}/box.env}"
   local agent="${SPOOL_AGENT_USER:-}" sudo_="${SCRATCH_SUDO:-sudo -n}" ct logdir
-  local tag="csi-spl:tmp-scratch-sweep" script want gd cd
+  local tag="csi-spl:tmp-scratch-sweep" script want
   [[ -n "$agent" || -z "$box_env" || ! -r "$box_env" ]] \
     || agent="$(sed -n 's/^SPOOL_AGENT_USER=//p' "$box_env" | tail -1 | tr -d "\"'\r")"
   agent="${agent:-$(id -un)}"
@@ -38,12 +38,7 @@ do_tmp_scratch_sweep_install_cron() {
   case "$act" in install|remove) ;; *) do_log "FATAL SCRATCH_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   [[ "$min" =~ ^[0-9]+$ ]] && (( min <= 59 )) || { do_log "FATAL SCRATCH_CRON_MINUTE must be 0..59, got: '$min'"; return 1; }
   script="$PROJ_PATH/src/bash/scripts/tmp-scratch-sweep.sh"
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${SCRATCH_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-  fi
+  [[ "$act" == install ]] && { cron_refuse_linked_worktree "$dry" "${SCRATCH_ALLOW_WORKTREE:-0}" || return 1; }
   want="$min * * * * DRY_RUN=$live bash $script >> $logdir/tmp-scratch-sweep.log 2>&1 # $tag"
   [[ "$act" == install ]] || want=""
   echo "INFO the crontab of the agent user $agent"

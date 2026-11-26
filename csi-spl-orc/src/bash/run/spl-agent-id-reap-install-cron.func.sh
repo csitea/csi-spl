@@ -24,18 +24,13 @@
 do_spl_agent_id_reap_install_cron() {
   local dry="${DRY_RUN:-1}" act="${REAP_CRON_ACTION:-install}" every="${REAP_CRON_EVERY:-15}"
   local live="${REAP_DRY_RUN:-0}" root="${SPOOL_ROOT:-/var/spool-hub}" ct="${REAP_CRONTAB:-crontab}"
-  local tag="csi-spl:agent-id-reap" script want gd cd
+  local tag="csi-spl:agent-id-reap" script want
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$live" == 0 || "$live" == 1 ]] || { do_log "FATAL REAP_DRY_RUN must be 0 or 1, got: '$live'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL REAP_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   [[ "$every" =~ ^[0-9]+$ ]] && (( every >= 1 && every <= 59 )) || { do_log "FATAL REAP_CRON_EVERY must be 1..59 minutes, got: '$every'"; return 1; }
   script="$PROJ_PATH/src/bash/features/spawn-agents/scripts/agent-id-reap.sh"
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${REAP_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-  fi
+  [[ "$act" == install ]] && { cron_refuse_linked_worktree "$dry" "${REAP_ALLOW_WORKTREE:-0}" || return 1; }
   want="*/$every * * * * DRY_RUN=$live bash $script >> $root/.reap/reap.log 2>&1 # $tag"
   [[ "$act" == install ]] || want=""
   cron_drop_tagged_line "$ct" "$tag" "$dry" "$root/.reap" "$want" || return $(( $? == 2 ? 0 : 1 ))

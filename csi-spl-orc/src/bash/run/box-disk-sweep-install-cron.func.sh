@@ -27,7 +27,7 @@
 do_box_disk_sweep_install_cron() {
   local dry="${DRY_RUN:-1}" act="${BOX_SWEEP_CRON_ACTION:-install}" min="${BOX_SWEEP_CRON_MINUTE:-41}"
   local live="${BOX_SWEEP_CRON_DRY_RUN:-0}" rla="${BOX_SWEEP_CRON_RUNLOG_APPLY:-1}" ct="${BOX_SWEEP_CRONTAB:-crontab}"
-  local logdir="${BOX_SWEEP_CRON_LOG_DIR:-}" tag="csi-spl:box-disk-sweep" script want gd cd jm="" l
+  local logdir="${BOX_SWEEP_CRON_LOG_DIR:-}" tag="csi-spl:box-disk-sweep" script want jm="" l
   if [[ -z "$logdir" ]]; then
     declare -F spl_var_app_subdir >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-run-paths.func.sh"
     spl_var_app_subdir logdir box-disk-sweep || { do_log "FATAL cannot derive the box disk sweep log dir (no tree for spl_run_paths): set BOX_SWEEP_CRON_LOG_DIR"; return 1; }
@@ -38,12 +38,7 @@ do_box_disk_sweep_install_cron() {
   case "$act" in install|remove) ;; *) do_log "FATAL BOX_SWEEP_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   [[ "$min" =~ ^[0-9]+$ ]] && (( min <= 59 )) || { do_log "FATAL BOX_SWEEP_CRON_MINUTE must be 0..59, got: '$min'"; return 1; }
   script="$PROJ_PATH/src/bash/scripts/box-disk-sweep.sh"
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${BOX_SWEEP_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-  fi
+  [[ "$act" == install ]] && { cron_refuse_linked_worktree "$dry" "${BOX_SWEEP_ALLOW_WORKTREE:-0}" || return 1; }
   while IFS= read -r l; do
     [[ "$l" == *" # $tag" && "$l" =~ [[:space:]](BOX_SWEEP_JOURNAL_MAX=[0-9]+[KMGT]?)[[:space:]] ]] && jm="${BASH_REMATCH[1]} "
   done < <($ct -l 2>/dev/null)

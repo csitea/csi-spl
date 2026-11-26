@@ -27,7 +27,7 @@ do_prune_docker_images_install_cron() {
   local dry="${DRY_RUN:-1}" act="${PRUNE_CRON_ACTION:-install}" live="${PRUNE_CRON_DRY_RUN:-0}"
   local dow="${PRUNE_CRON_DOW:-0}" hour="${PRUNE_CRON_HOUR:-4}" min="${PRUNE_CRON_MINUTE:-23}"
   local ct="${PRUNE_CRONTAB:-crontab}" logdir="${PRUNE_CRON_LOG_DIR:-}"
-  local tag="csi-spl:docker-prune" script want gd cd
+  local tag="csi-spl:docker-prune" script want
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$live" == 0 || "$live" == 1 ]] || { do_log "FATAL PRUNE_CRON_DRY_RUN must be 0 or 1, got: '$live'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL PRUNE_CRON_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
@@ -39,12 +39,7 @@ do_prune_docker_images_install_cron() {
     spl_var_app_subdir logdir docker-prune || { do_log "FATAL cannot derive the docker prune log dir (no tree for spl_run_paths): set PRUNE_CRON_LOG_DIR"; return 1; }
   fi
   script="$PROJ_PATH/src/bash/scripts/prune-docker-images.sh"
-  gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
-  cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-  if [[ "$act" == install && -n "$gd" && "$gd" != "$cd" && "${PRUNE_ALLOW_WORKTREE:-0}" != 1 ]]; then
-    [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
-    echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
-  fi
+  [[ "$act" == install ]] && { cron_refuse_linked_worktree "$dry" "${PRUNE_ALLOW_WORKTREE:-0}" || return 1; }
   want="$min $hour * * $dow PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin SPOOL_ROOT=/var/spool-hub DRY_RUN=$live bash $script >> $logdir/cron.out 2>&1 # $tag"
   [[ "$act" == install ]] || want=""
   cron_drop_tagged_line "$ct" "$tag" "$dry" "$logdir" "$want" || return $(( $? == 2 ? 0 : 1 ))

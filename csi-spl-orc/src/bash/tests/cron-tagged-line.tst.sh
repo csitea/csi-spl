@@ -120,4 +120,48 @@ out="$(env -u COST_ROLLUP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" EN
 [ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
   && pass "7. cost-rollup refuses a linked worktree when DRY_RUN=0" || fail "7. cost-rollup dry=0 ($rc: $out)"
 
+# 8. cron_refuse_linked_worktree wave-2 delegation (r07-01 one copy)
+for sib in \
+  "$PROJ_ROOT/src/bash/run/box-disk-sweep-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/prune-docker-images-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/tmp-scratch-sweep-install-cron.func.sh" \
+  "$PROJ_ROOT/src/bash/run/spl-agent-id-reap-install-cron.func.sh"; do
+  own="$(grep -nE 'is a linked worktree: install from the main checkout|--git-common-dir' "$sib" || true)"
+  [ -z "$own" ] && grep -q 'cron_refuse_linked_worktree ' "$sib" \
+    && pass "8. one copy: $(basename "$sib") delegates worktree check to cron_refuse_linked_worktree" \
+    || fail "8. one copy $(basename "$sib"): own=[$own]"
+done
+
+# standalone wave-2 installer linked-worktree checks (dry=0 refuses, dry=1 warns, remove skips)
+out="$(env -u BOX_SWEEP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" BOX_SWEEP_CRONTAB="$T/fake-crontab" BOX_SWEEP_CRON_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_box_disk_sweep_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/box-disk-sweep-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "8. box-disk-sweep refuses a linked worktree when DRY_RUN=0" || fail "8. box-disk-sweep dry=0 ($rc: $out)"
+out="$(env -u BOX_SWEEP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" BOX_SWEEP_CRONTAB="$T/fake-crontab" BOX_SWEEP_CRON_LOG_DIR="$T/log" DRY_RUN=1 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_box_disk_sweep_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/box-disk-sweep-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -qxF "WARN $T/wt-linked/csi-spl-orc is a linked worktree: the path below would vanish with it; install from the main checkout" <<<"$out" \
+  && pass "8. box-disk-sweep warns on a linked worktree when DRY_RUN=1" || fail "8. box-disk-sweep dry=1 ($rc: $out)"
+out="$(env -u BOX_SWEEP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" BOX_SWEEP_CRONTAB="$T/fake-crontab" BOX_SWEEP_CRON_LOG_DIR="$T/log" BOX_SWEEP_CRON_ACTION=remove DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_box_disk_sweep_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/box-disk-sweep-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && ! grep -q 'linked worktree' <<<"$out" \
+  && pass "8. box-disk-sweep remove skips worktree refusal" || fail "8. box-disk-sweep remove ($rc: $out)"
+out="$(env -u PRUNE_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" PRUNE_CRONTAB="$T/fake-crontab" PRUNE_CRON_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_prune_docker_images_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/prune-docker-images-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "8. prune-docker-images refuses a linked worktree when DRY_RUN=0" || fail "8. prune-docker-images dry=0 ($rc: $out)"
+out="$(env -u SCRATCH_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_AGENT_USER="$(id -un)" SCRATCH_CRONTAB="$T/fake-crontab" SCRATCH_CRON_LOG_DIR="$T/log" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_tmp_scratch_sweep_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/tmp-scratch-sweep-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "8. tmp-scratch-sweep refuses a linked worktree when DRY_RUN=0" || fail "8. tmp-scratch-sweep dry=0 ($rc: $out)"
+out="$(env -u REAP_ALLOW_WORKTREE PROJ_PATH="$T/wt-linked/csi-spl-orc" SPOOL_ROOT="$T/spool" REAP_CRONTAB="$T/fake-crontab" DRY_RUN=0 \
+  bash -c 'set -uo pipefail; do_log() { echo "$*"; }; source "$1"; source "$2"; do_spl_agent_id_reap_install_cron' _ \
+  "$PROJ_ROOT/lib/bash/funcs/cron-tagged-line.func.sh" "$PROJ_ROOT/src/bash/run/spl-agent-id-reap-install-cron.func.sh" 2>&1)"; rc=$?
+[ "$rc" = 1 ] && grep -qxF "FATAL $T/wt-linked/csi-spl-orc is a linked worktree: install from the main checkout - nothing changed" <<<"$out" \
+  && pass "8. spl-agent-id-reap refuses a linked worktree when DRY_RUN=0" || fail "8. spl-agent-id-reap dry=0 ($rc: $out)"
+
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

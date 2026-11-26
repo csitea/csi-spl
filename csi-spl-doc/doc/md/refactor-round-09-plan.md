@@ -59,9 +59,10 @@ Both rows are **one fact, one copy** (developer guide 2.2.4), with zero behaviou
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: draft v0.1**, pushed to `review/c002-refactor-round-09-planner` for cross-vendor
-panel review by claude panel seat `c-342` (`c002-refactor-round-09-claude-panel-seat`).
-Editor: **a-260** (agy).
+**Status: v1.0**, pushed fast-forward to `review/c002-refactor-round-09-planner` for
+cross-vendor panel signature by claude panel seat `c-342`
+(`c002-refactor-round-09-claude-panel-seat`, v0.1 PASS with W1-W2 and N1-N6 folded /
+recorded; section 8). Editor: **a-260** (agy).
 
 **One sha:** every count is measured on **`ecc05e480`**
 (`ecc05e480b429bb9385725a257bc15f7d21a79de`, `origin/master` at 2026-11-26T22:52:26Z),
@@ -71,7 +72,7 @@ exit): "base" unmodified, "head1" = base with row 01 applied in 1.3's shape, "he
 base with row 02 applied in 1.4's shape; each red control and mutation check (1.5) ran in
 a fresh scratch clone of its own. All helper, caller, and test hunks are reproduced
 verbatim in 1.3 and 1.4 so any panel or R7 seat can reconstruct head1, head2, both red
-controls, and all 6 mutation checks byte-for-byte on `ecc05e480` and verify every sha256.
+controls, and all 7 mutation checks byte-for-byte on `ecc05e480` and verify every sha256.
 Queue, lane map, brief, and branch reads are live state and carry their own time.
 
 ## 1. Baseline
@@ -86,8 +87,9 @@ Queue, lane map, brief, and branch reads are live state and carry their own time
   (`docs(r08-plan, SPL-6604): refactor round 08 closed: r08-01 761e1275f and r08-02 48431f0f5 landed, agy R7 PASS each`),
   read once at the start as 5.3 says. All later R4, R6, 2.7.5, and `PRUNE_SINCE` reads
   for r09 use `W=2026-11-27T00:36:21+02:00`.
-- **Perf floor (rulebook 4.4):** `git log origin/master --since='14 days ago' --format=%s | grep -oE '^(test|refactor|ci|fix|feat|perf)\((p[0-9]+|r[0-9]+)-[0-9]{2}-' | sed -E 's/^[a-z]+\(//; s/-$//' | sort -u | awk ...` ->
-  `perf 36 refactor 114 perf-share 24.0% floor-met` (5 x 36 = 180 >= 150).
+- **Perf floor (rulebook 4.4):** `git log origin/master --since='14 days ago' --format=%s | grep -oE '^(test|refactor|ci|fix|feat|perf)\((p[0-9]+|r[0-9]+)-[0-9]{2}-' | sed -E 's/^[a-z]+\(//; s/-$//' | sort -u | awk '/^p/{p++} /^r/{r++} END{t=p+r; printf "perf %d refactor %d perf-share %s %s\n", p, r, (t ? sprintf("%.1f%%", 100*p/t) : "n/a"), (t == 0 ? "no-rows" : (5*p >= t ? "floor-met" : "under-20"))}'` ->
+  `perf 36 refactor 114 perf-share 24.0% floor-met` (5 x 36 = 180 >= 150; re-measured by
+  panel at 23:18:03Z -> `perf 36 refactor 113 perf-share 24.2% floor-met`).
 - `git log origin/master --since="$W" --oneline -E --grep='\(r09-' | wc -l` -> **0**.
 - `git ls-remote origin 'refs/heads/review/r09-*' 'refs/heads/*-r09-*' 'refs/heads/*refactor-round-09*' 'refs/heads/wip/*r09*'`
   -> nothing (before this plan's review branch push).
@@ -349,19 +351,20 @@ pass on unmodified `base` too).
   `param-required-baseline.txt`.
 
 Shape (built as head2 of 1.5):
-- `orc:src/bash/run/wui-dev.func.sh`: replace `:10-25` with `do_wui_dev` calling
-  `_wui_prepare` + `_wui_prepare`. 25 -> 32 lines (`+15 -8`).
+- `orc:src/bash/run/wui-dev.func.sh`: replace `:10-25` with `do_wui_dev` (calling it) +
+  `_wui_prepare`. 25 -> 32 lines (`+15 -8`).
 - `orc:src/bash/run/wui-build.func.sh`: replace `:10-22` with lazy-source of
   `wui-dev.func.sh` + `_wui_prepare`. 22 -> 19 lines (`+8 -11`).
 - `orc:src/bash/run/wui-test.func.sh`: replace `:6-16` with lazy-source of
   `wui-dev.func.sh` + `_wui_prepare`. 16 -> 13 lines (`+6 -9`).
 - `orc:src/bash/tests/wui-actions.tst.sh`: insert `_wui_prepare` helper checks (4),
-  one-copy checks (3), and standalone stubbed runtime checks for `do_wui_dev`,
-  `do_wui_build`, and `do_wui_test` (3) immediately before `[[ "$fails" -eq 0 ]]` at `:140`.
-  141 -> 206 lines (`+65 -0`). Total edited files: **4** (within rulebook 3.1's max 5).
+  one-copy checks (3), and standalone stubbed runtime checks for `do_wui_dev` (incl.
+  `do_lde_cnf` failure before `_wui_prepare`), `do_wui_build`, and `do_wui_test` (4)
+  immediately before `[[ "$fails" -eq 0 ]]` at `:140`.
+  141 -> 214 lines (`+73 -0`). Total edited files: **4** (within rulebook 3.1's max 5).
 - head2's files, sha256 (12 chars): `wui-dev.func.sh` `d863b23a49f1`,
   `wui-build.func.sh` `04930c0f2976`, `wui-test.func.sh` `97d8fa671ff3`,
-  `wui-actions.tst.sh` `30c31e86be17`.
+  `wui-actions.tst.sh` `58549a27df33`.
 
 Verbatim helper, caller, and test hunks (head2 on `ecc05e480`):
 
@@ -472,6 +475,14 @@ out="$(APP_PATH="$WUI_T/st-dev" bash -c '
   . "$1/src/bash/run/wui-dev.func.sh" && do_wui_dev' _ "$PROJ_ROOT" 2>&1)"; rc=$?
 [[ "$rc" = 0 && "$out" == *"PNPM:$WUI_T/st-dev/csi-spl-wui:install"* && "$out" == *"PNPM:$WUI_T/st-dev/csi-spl-wui:dev --host 0.0.0.0 --port 3123"* ]] \
   && pass "standalone: do_wui_dev installs and starts dev server" || fail "standalone wui-dev ($rc: $out)"
+out="$(APP_PATH="$WUI_T/st-dev" bash -c '
+  set -uo pipefail
+  do_lde_cnf() { return 1; }
+  do_require_bin() { echo "REQ:$*"; }; do_log() { echo "$*"; }
+  pnpm() { echo "PNPM:$PWD:$*"; }
+  . "$1/src/bash/run/wui-dev.func.sh" && do_wui_dev' _ "$PROJ_ROOT" 2>&1)"; rc=$?
+[[ "$rc" = 1 && "$out" != *"REQ:pnpm"* && "$out" != *"PNPM:"* ]] \
+  && pass "standalone: do_wui_dev runs do_lde_cnf before _wui_prepare" || fail "standalone wui-dev order ($rc: $out)"
 out="$(APP_PATH="$WUI_T/st-build" bash -c '
   set -uo pipefail
   do_require_bin() { :; }; do_log() { echo "$*"; }
@@ -489,13 +500,15 @@ out="$(APP_PATH="$WUI_T/st-test" bash -c '
 ```
 
 **Behaviour:** zero behaviour change. All three WUI actions keep exact check order
-(`do_lde_cnf` first in `do_wui_dev`), exact `FATAL`/`INFO` messages, `pnpm install`
-triggering only when `node_modules` is absent, and return codes (all 3 standalone action
-checks pass on unmodified `base` too).
+(`do_lde_cnf` first in `do_wui_dev`, guarded by the `standalone wui-dev order` check and
+mutation `m2d`), exact `FATAL`/`INFO` messages, `pnpm install` triggering only when
+`node_modules` is absent, and return codes (all 4 standalone action checks pass on
+unmodified `base` too).
 
 ### 1.5 Before and on the rows' heads
 
-2026-11-26T23:01:45Z-23:03:54Z, n=1, as the push user, `SPOOL_TEST=1` with `SPOOL_BOX_TAG`
+2026-11-26T23:01:45Z-23:03:54Z (and Row 02 W1 re-verification 23:24:18Z-23:24:35Z), n=1,
+as the push user, `SPOOL_TEST=1` with `SPOOL_BOX_TAG`
 and `SPOOL_AGENT_ID` unset and stdin from `/dev/null`; pass lines
 `grep -ciE '^ *(ok|pass)'`, fail lines `grep -ciE '^ *(not ok|fail)'`. "=" means equal to
 base: same rc, pass and fail counts; "-" means that row's head does not touch the suite's
@@ -506,7 +519,7 @@ tree.
 | `orc:src/bash/features/spool-install/tests/test-y18-grok-memory.sh` | 01 | 0 / 13 / 0 | 0 / 23 / 0 (+10 new checks) | - |
 | `orc:src/bash/features/spool-install/tests/test-y20-agy-memory.sh` | 01 | 0 / 68 / 0 | = | - |
 | `orc:src/bash/features/spool-install/tests/test-y16-git-pager-off.sh` | 01 | 0 / 22 / 0 | = | - |
-| `orc:src/bash/tests/wui-actions.tst.sh` | 02 | 0 / 28 / 0 | - | 0 / 38 / 0 (+10 new checks) |
+| `orc:src/bash/tests/wui-actions.tst.sh` | 02 | 0 / 28 / 0 | - | 0 / 39 / 0 (+11 new checks) |
 | `orc:src/bash/tests/run-eager-files.tst.sh` | 01, 02 | 0 / 14 / 0 | = | = |
 | `orc:src/bash/tests/no-literal-paths.tst.sh` | 01, 02 | 0 / 15 / 0 | = | = |
 | `orc:src/bash/tests/func-name-unique.tst.sh` | 01, 02 | 0 / 2 / 0 | = | = |
@@ -521,9 +534,11 @@ Note (\*): on mutation checks `m1a`, `m1b`, and `m1c`, multi-line `$out` dumped 
 `FAIL:` message includes raw `OK ...` log lines on their own lines, which
 `grep -ciE '^ *(ok|pass)'` counts alongside real `PASS:` checks (broken down per mutation
 below). On `wui-actions.tst.sh`, rc 0 prints one summary `PASS: all wui-actions.tst.sh assertions`
-line (28 base, 38 head2), and rc 1 prints one summary `FAIL: N assertion(s)` line.
+line (28 base, 39 head2), and rc 1 prints one summary `FAIL: N assertion(s)` line.
 `test-y18-grok-memory.sh` and `test-y20-agy-memory.sh` skip live CLI checks when `grok` /
-`agy` is not on the push user's `PATH`; counts are equal on base and head on the same box.
+`agy` is not on the push user's `PATH`: on a box with `grok` on `PATH` (panel N1), `test-y18-grok-memory.sh`
+reads base `15/0`, `rc1` `17/8`, head1 `25/0` (+2 live checks; identical rc and fail
+sets); counts are equal on base and head on the same box.
 `gcloud-account-pinned.tst.sh` counts are box-dependent (48 on this box; equal on base and
 heads). Run `no-literal-paths.tst.sh` in a git checkout owned by the user running git.
 
@@ -534,17 +549,18 @@ heads). Run `no-literal-paths.tst.sh` in a git checkout owned by the user runnin
 
 **Red controls** (n=1 each, each in its own scratch clone of `ecc05e480`, reconstructed
 from the verbatim blocks in 1.3 and 1.4):
-- Row 01 red control (`rc1`, head1's `test-y18-grok-memory.sh` on base): rc 1, 15 pass
-  (13 base + both standalone linked-worktree dry-run checks passing on base, proving
-  equivalence), 8 fail (5 `FAIL: 10.` `_spl_memory_step_install: command not found`
-  checks, `FAIL: 10. grok host` naming `:33`, `FAIL: 10. agy delegate` naming `:27`, and
-  `FAIL: 10. 5/5 loop hosts` listing 3 files); head1: rc 0, 23 pass, 0 fail.
-- Row 02 red control (`rc2`, head2's `wui-actions.tst.sh` on base): rc 1, 30 pass
-  (27 base assertions + all 3 standalone action checks passing on base, proving
+- Row 01 red control (`rc1`, head1's `test-y18-grok-memory.sh` on base): rc 1, 8 fail
+  (15 pass without `grok` on `PATH` / 17 pass with `grok`: base + both standalone
+  linked-worktree dry-run checks passing on base, proving equivalence; 5 `FAIL: 10.`
+  `_spl_memory_step_install: command not found` checks, `FAIL: 10. grok host` naming `:33`,
+  `FAIL: 10. agy delegate` naming `:27`, and `FAIL: 10. 5/5 loop hosts` listing 3 files);
+  head1: rc 0, 0 fail (23 pass without `grok` / 25 pass with `grok`).
+- Row 02 red control (`rc2`, head2's `wui-actions.tst.sh` on base): rc 1, 31 pass
+  (27 base assertions + all 4 standalone action checks passing on base, proving
   equivalence), 8 fail lines (7 `FAIL:` assertions: 4 `_wui_prepare: command not found`
   checks, `FAIL: one copy: wui-dev host`, `FAIL: one copy wui-build.func.sh` naming `:13`,
   `FAIL: one copy wui-test.func.sh` naming `:9`, plus 1 summary `FAIL: 7 assertion(s)`);
-  head2: rc 0, 38 pass, 0 fail.
+  head2: rc 0, 39 pass, 0 fail.
 
 **Mutation checks** (n=1 each, fresh scratch clones of `ecc05e480` with head1/head2
 applied, then one defect planted):
@@ -560,16 +576,19 @@ applied, then one defect planted):
   lines), 3 fail (`FAIL: 10. wt derive`, `FAIL: 10. grok standalone`,
   `FAIL: 10. agy standalone`).
 - `m2a` (`_wui_prepare` in `wui-dev.func.sh` skips `pnpm install` via `if false; then`):
-  `wui-actions.tst.sh` rc 1, 34 pass, 4 fail lines (3 `FAIL:` assertions:
+  `wui-actions.tst.sh` rc 1, 35 pass, 4 fail lines (3 `FAIL:` assertions:
   `FAIL: wui-prepare no-nm`, `FAIL: standalone wui-dev`, `FAIL: standalone wui-build`,
   plus 1 summary `FAIL: 3 assertion(s)`).
 - `m2b` (`wui-build.func.sh` replaces `_wui_prepare || return 1` with
-  `WUI_DIR="$APP_PATH/csi-spl-wui"`): `wui-actions.tst.sh` rc 1, 36 pass, 2 fail lines
+  `WUI_DIR="$APP_PATH/csi-spl-wui"`): `wui-actions.tst.sh` rc 1, 37 pass, 2 fail lines
   (1 `FAIL:` assertion: `FAIL: standalone wui-build`, plus 1 summary
   `FAIL: 1 assertion(s)`).
 - `m2c` (`wui-test.func.sh` replaces `_wui_prepare || return 1` with `:`):
-  `wui-actions.tst.sh` rc 1, 36 pass, 2 fail lines (1 `FAIL:` assertion:
+  `wui-actions.tst.sh` rc 1, 37 pass, 2 fail lines (1 `FAIL:` assertion:
   `FAIL: standalone wui-test`, plus 1 summary `FAIL: 1 assertion(s)`).
+- `m2d` (`wui-dev.func.sh` moves `_wui_prepare || return 1` above `do_lde_cnf || return 1`;
+  panel W1 / `x2d`): `wui-actions.tst.sh` rc 1, 37 pass, 2 fail lines (1 `FAIL:`
+  assertion: `FAIL: standalone wui-dev order`, plus 1 summary `FAIL: 1 assertion(s)`).
 
 The tests that name the sites (R2): `git grep -nE` over `orc/src/bash/tests/*`,
 `orc/src/bash/features/*/tests/*`, `iac/src/bash/tests/*`, and `csi-spl-api/*` on
@@ -592,8 +611,8 @@ The tests that name the sites (R2): `git grep -nE` over `orc/src/bash/tests/*`,
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r09-01-orc-spool-install-memory-step)` | one fact, one copy (developer guide 2.2.4) | `spl-grok-memory-install.func.sh:18-50` and `spl-agy-memory-install.func.sh:20-52` are the last 2 per-user `spool-install` actions duplicating the user dispatch loop already hosted in `_spl_user_step_install` (`spl-git-pager-off-install.func.sh:29-62`, `r08-02` `48431f0f5`), and also duplicate the `DRY_RUN` / step-readability / `git-common-dir` repo-derivation block (1.3, r08 section 7 #1; closes r08 panel N2 and r08-02 R7 N1) | `orc:src/bash/run/spl-grok-memory-install.func.sh:18-50`<br>`orc:src/bash/run/spl-agy-memory-install.func.sh:20-52`<br>`orc:src/bash/features/spool-install/tests/test-y18-grok-memory.sh:19,127` | copies of the per-user `spool-install` loop across these 2 actions 2 -> 0 (delegated to `_spl_user_step_install`; completes 5/5 per-user `spool-install` actions in `orc:src/bash/run/`); copies of the `git-common-dir` memory repo derivation 2 -> 1 (`_spl_memory_step_install`) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head1's `test-y18-grok-memory.sh` on parent FAILs 8 checks (`rc1`, rc 1, 15 pass, 8 fail: 5 `_spl_memory_step_install` checks + 3 one-copy checks naming `:33`, `:27`, and 3 loop hosts; both standalone linked-worktree checks pass on base), then GREEN (`0/23/0`); mutations `m1a` (`agy-memory` wrong repo, rc 1 `23*/1`), `m1b` (drop `$repo` arg, rc 1 `23*/4`), and `m1c` (drop `dirname`, rc 1 `23*/3`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 10 new checks in `test-y18-grok-memory.sh`. Tests: **`orc:.../features/spool-install/tests/test-y18-grok-memory.sh`**, `orc:.../features/spool-install/tests/test-y20-agy-memory.sh`, **`orc:.../features/spool-install/tests/test-y16-git-pager-off.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r09-02-orc-wui-pnpm-prepare)` | one fact, one copy (developer guide 2.2.4) | `wui-dev.func.sh:12-18`, `wui-build.func.sh:11-17`, and `wui-test.func.sh:7-13` duplicate the identical 7-line `pnpm` + `$APP_PATH/csi-spl-wui` + `node_modules` `pnpm install` preamble (1.4, r08 section 7 #2) | `orc:src/bash/run/wui-dev.func.sh:10-25`<br>`orc:src/bash/run/wui-build.func.sh:10-22`<br>`orc:src/bash/run/wui-test.func.sh:6-16`<br>`orc:src/bash/tests/wui-actions.tst.sh:140` | copies of the WUI `pnpm` / `csi-spl-wui` / `node_modules` preamble across `wui-{dev,build,test}` 3 -> 1 (hosted once as `_wui_prepare` in `wui-dev.func.sh`; 3/3 local WUI `pnpm` actions consolidated) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head2's `wui-actions.tst.sh` on parent FAILs 7 assertions (`rc2`, rc 1, 30 pass, 8 fail lines = 7 `FAIL:` + summary: 4 `_wui_prepare` checks + 3 one-copy checks naming `:13` and `:9`; all 3 standalone action checks pass on base), then GREEN (`0/38/0`); mutations `m2a` (`_wui_prepare` skips `pnpm install`, rc 1 `34/4`), `m2b` (`wui-build` omits `_wui_prepare`, rc 1 `36/2`), and `m2c` (`wui-test` omits `_wui_prepare`, rc 1 `36/2`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 10 new checks in `wui-actions.tst.sh`. Tests: **`orc:.../wui-actions.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r09-01-orc-spool-install-memory-step)` | one fact, one copy (developer guide 2.2.4) | `spl-grok-memory-install.func.sh:18-50` and `spl-agy-memory-install.func.sh:20-52` are the last 2 per-user `spool-install` actions duplicating the user dispatch loop already hosted in `_spl_user_step_install` (`spl-git-pager-off-install.func.sh:29-62`, `r08-02` `48431f0f5`), and also duplicate the `DRY_RUN` / step-readability / `git-common-dir` repo-derivation block (1.3, r08 section 7 #1; closes r08 panel N2 and r08-02 R7 N1) | `orc:src/bash/run/spl-grok-memory-install.func.sh:18-50`<br>`orc:src/bash/run/spl-agy-memory-install.func.sh:20-52`<br>`orc:src/bash/features/spool-install/tests/test-y18-grok-memory.sh:19,127` | copies of the per-user `spool-install` loop across these 2 actions 2 -> 0 (delegated to `_spl_user_step_install`; completes 5/5 per-user `spool-install` actions in `orc:src/bash/run/`); copies of the `git-common-dir` memory repo derivation 2 -> 1 (`_spl_memory_step_install`) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head1's `test-y18-grok-memory.sh` on parent FAILs 8 checks (`rc1`, rc 1, 8 fail: 5 `_spl_memory_step_install` checks + 3 one-copy checks naming `:33`, `:27`, and 3 loop hosts; both standalone linked-worktree checks pass on base; pass count is box-dependent on `grok` on `PATH`, panel N1), then GREEN (rc 0, 0 fail, +10 new checks); mutations `m1a` (`agy-memory` wrong repo, rc 1, 1 fail), `m1b` (drop `$repo` arg, rc 1, 4 fail), and `m1c` (drop `dirname`, rc 1, 3 fail) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with equal per-box counts plus 10 new checks in `test-y18-grok-memory.sh`. Tests: **`orc:.../features/spool-install/tests/test-y18-grok-memory.sh`**, `orc:.../features/spool-install/tests/test-y20-agy-memory.sh`, **`orc:.../features/spool-install/tests/test-y16-git-pager-off.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r09-02-orc-wui-pnpm-prepare)` | one fact, one copy (developer guide 2.2.4) | `wui-dev.func.sh:12-18`, `wui-build.func.sh:11-17`, and `wui-test.func.sh:7-13` duplicate the identical 7-line `pnpm` + `$APP_PATH/csi-spl-wui` + `node_modules` `pnpm install` preamble (1.4, r08 section 7 #2) | `orc:src/bash/run/wui-dev.func.sh:10-25`<br>`orc:src/bash/run/wui-build.func.sh:10-22`<br>`orc:src/bash/run/wui-test.func.sh:6-16`<br>`orc:src/bash/tests/wui-actions.tst.sh:140` | copies of the WUI `pnpm` / `csi-spl-wui` / `node_modules` preamble across `wui-{dev,build,test}` 3 -> 1 (hosted once as `_wui_prepare` in `wui-dev.func.sh`; 3/3 local WUI `pnpm` actions consolidated) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head2's `wui-actions.tst.sh` on parent FAILs 7 assertions (`rc2`, rc 1, 31 pass, 8 fail lines = 7 `FAIL:` + summary: 4 `_wui_prepare` checks + 3 one-copy checks naming `:13` and `:9`; all 4 standalone action checks pass on base), then GREEN (`0/39/0`); mutations `m2a` (`_wui_prepare` skips `pnpm install`, rc 1 `35/4`), `m2b` (`wui-build` omits `_wui_prepare`, rc 1 `37/2`), `m2c` (`wui-test` omits `_wui_prepare`, rc 1 `37/2`), and `m2d` (`wui-dev` moves `_wui_prepare` above `do_lde_cnf`, rc 1 `37/2`) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with identical counts plus 11 new checks in `wui-actions.tst.sh`. Tests: **`orc:.../wui-actions.tst.sh`**, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`.
 
@@ -696,7 +715,8 @@ at 2026-11-26T22:54:20Z):
   `orc:src/bash/run/wui-build.func.sh` and `orc:src/bash/run/wui-test.func.sh` drop their
   duplicated 7-line preambles, declare `local WUI_DIR=""`, lazy-load `wui-dev.func.sh`,
   and call `_wui_prepare`. `orc:src/bash/tests/wui-actions.tst.sh` inserts 4 `_wui_prepare`
-  helper checks, 3 one-copy checks, and 3 standalone stubbed runtime checks before `:140`.
+  helper checks, 3 one-copy checks, and 4 standalone stubbed runtime checks (including
+  `do_lde_cnf` failure before `_wui_prepare`) before `:140`.
 
 ## 4. Panel and reviewers (R7)
 
@@ -724,8 +744,8 @@ at 2026-11-26T22:54:20Z):
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `a-260` | agy | editor | v0.1 (pushed to `review/c002-refactor-round-09-planner`) | draft | awaiting panel review |
-| `c-342` | claude | panel | pending | pending | queued / live panel seat |
+| `a-260` | agy | editor | `feb3c1917` (v0.1) -> v1.0 (pushed to `review/c002-refactor-round-09-planner`) | v1.0 | W1-W2 and N1/N4/N6 folded; N2-N3/N5 recorded; awaiting panel signature on v1.0 |
+| `c-342` | claude | panel | `feb3c1917` (v0.1) -> v1.0 pending | pending | v0.1 PASS with W1-W2 (`27ea94e2f`, msg `567f5081`, waiting for v1.0 to sign) |
 
 ## 5. Proposed row briefs
 
@@ -752,7 +772,9 @@ insert section `10` before `:127`). NOT `spl-git-pager-off-install.func.sh`, NOT
 `wui-build.func.sh`, NOT `wui-test.func.sh`, NOT `wui-actions.tst.sh`, NOT
 `.shellcheck-warning-baseline.txt`, or any other file. Do: plan section 2 row 01 verbatim,
 1.3's shape (verbatim blocks in 1.3); red control (`rc1`, head1's
-`test-y18-grok-memory.sh` on parent) RED then GREEN in the body; mutations `m1a`/`m1b`/`m1c`
+`test-y18-grok-memory.sh` on parent: rc 1, 8 fail — 5 `_spl_memory_step_install` + 3
+one-copy checks; pass count depends on `grok` on `PATH`) RED then GREEN (rc 0, 0 fail) in
+the body; mutations `m1a` (rc 1, 1 fail), `m1b` (rc 1, 4 fail), and `m1c` (rc 1, 3 fail)
 caught. Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
 `shellcheck -S warning -x` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
 `Docs: none (internal helper consolidation; no behaviour changes)`. Kind `simple_coding`,
@@ -761,21 +783,21 @@ only under ruling `dc84300a` — cite ruling `dc84300a` in the row brief if the 
 backup is used; never mistral; re-checked at placement).
 
 **r09-02 brief, Files: ONLY**
-`csi-spl-orc/src/bash/run/wui-dev.func.sh` (replace `:10-25` with `do_wui_dev` +
-`_wui_prepare`),
+`csi-spl-orc/src/bash/run/wui-dev.func.sh` (replace `:10-25` with `do_wui_dev` (calling
+it) + `_wui_prepare`),
 `csi-spl-orc/src/bash/run/wui-build.func.sh` (replace `:10-22` with lazy-load +
 `_wui_prepare`),
 `csi-spl-orc/src/bash/run/wui-test.func.sh` (replace `:6-16` with lazy-load +
 `_wui_prepare`), and
 `csi-spl-orc/src/bash/tests/wui-actions.tst.sh` (insert `_wui_prepare` helper, one-copy,
-and standalone checks before `:140`). NOT `wui-up.func.sh`, NOT `wui-down.func.sh`, NOT
+and 4 standalone checks incl. `do_lde_cnf` order before `:140`). NOT `wui-up.func.sh`, NOT `wui-down.func.sh`, NOT
 `wui-rollback.func.sh`, NOT `spl-grok-memory-install.func.sh`, NOT
 `spl-agy-memory-install.func.sh`, NOT `test-y18-grok-memory.sh`, NOT
 `.shellcheck-warning-baseline.txt`, or any other file. Do: plan section 2 row 02 verbatim,
 1.4's shape (verbatim blocks in 1.4); red control (`rc2`, head2's `wui-actions.tst.sh` on
-parent) RED then GREEN in the body; mutations `m2a`/`m2b`/`m2c` caught. Gates: the row's
-tests (section 2, `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on the 4
-files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
+parent) RED then GREEN in the body; mutations `m2a`/`m2b`/`m2c`/`m2d` caught. Gates: the
+row's tests (section 2, `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` on
+the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
 `Docs: none (internal helper consolidation; no behaviour changes)`. Kind `simple_coding`,
 vendor claude; R7 **agy seat** (claude waiver backup only while agy is out of quota, valid
 only under ruling `dc84300a` — cite ruling `dc84300a` in the row brief if the claude
@@ -790,14 +812,14 @@ backup is used; never mistral; re-checked at placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of the per-user `spool-install` loop across row 01's 2 memory actions (1.3) | 2 on `ecc05e480` (`spl-grok-memory-install`, `spl-agy-memory-install`) -> 0 (delegated to `_spl_user_step_install`; **5/5** per-user `spool-install` actions in `orc:src/bash/run/` consolidated); copies of `git-common-dir` memory repo derivation 2 -> 1 (`_spl_memory_step_install`) |
 | copies of the WUI `pnpm` / `csi-spl-wui` / `node_modules` preamble across row 02's 3 actions (1.4) | 3 on `ecc05e480` (`wui-dev`, `wui-build`, `wui-test`) -> 1 (hosted once as `_wui_prepare` in `wui-dev.func.sh`; **3/3** local WUI `pnpm` actions consolidated) |
-| lines (`git diff --numstat` of each head) | row 01: `spl-grok-memory-install.func.sh` +16 -25, `spl-agy-memory-install.func.sh` +6 -31, `test-y18-grok-memory.sh` +65 -0; row 02: `wui-dev.func.sh` +15 -8, `wui-build.func.sh` +8 -11, `wui-test.func.sh` +6 -9, `wui-actions.tst.sh` +65 -0 |
+| lines (`git diff --numstat` of each head) | row 01: `spl-grok-memory-install.func.sh` +16 -25, `spl-agy-memory-install.func.sh` +6 -31, `test-y18-grok-memory.sh` +65 -0; row 02: `wui-dev.func.sh` +15 -8, `wui-build.func.sh` +8 -11, `wui-test.func.sh` +6 -9, `wui-actions.tst.sh` +73 -0 |
 | measured on | `ecc05e480`; n=1 per command unless stated |
 
 ## 7. Left out, measured
 
 | what | why | measured by |
 |---|---|---|
-| Agent CLI installer wrappers (first candidate for `r10`, 4 files): `orc:src/bash/run/install-agy-cli.func.sh:23-50` (57 lines), `orc:src/bash/run/install-mistral-vibe.func.sh:25-52` (53 lines), and `orc:src/bash/run/install-openai-codex.func.sh:28-53` (56 lines) duplicate the ~25-line `org_app` / `cnf` / `yq` semver pin check / `DRY_RUN` / `spool_env_resolve` / `getent passwd` / `sudo -n -u` `install.sh --cli <name> --cli-only` preamble | left for `r10` (rulebook 5.1 aims at 2 rows; r09 already has 2 disjoint Batch 1 rows) | `git show ecc05e480:csi-spl-orc/src/bash/run/install-{agy-cli,mistral-vibe,openai-codex}.func.sh` (non-secret; exact 3 wrappers over `install.sh --cli`) (n=1) |
+| Agent CLI installer wrappers (first candidate for `r10`, 3 action files + test): `orc:src/bash/run/install-agy-cli.func.sh:23-50` (57 lines), `orc:src/bash/run/install-mistral-vibe.func.sh:25-52` (53 lines), and `orc:src/bash/run/install-openai-codex.func.sh:28-53` (56 lines) duplicate the ~25-line `org_app` / `cnf` / `yq` semver pin check / `DRY_RUN` / `spool_env_resolve` / `getent passwd` / `sudo -n -u` `install.sh --cli <name> --cli-only` preamble | left for `r10` (rulebook 5.1 aims at 2 rows; r09 already has 2 disjoint Batch 1 rows) | `git show ecc05e480:csi-spl-orc/src/bash/run/install-{agy-cli,mistral-vibe,openai-codex}.func.sh` (non-secret; exact 3 wrappers over `install.sh --cli`) (n=1) |
 | Remaining 3 `is a linked worktree:` sites in `orc:src/bash/run/`: `spl-private-overlay-install-cron.func.sh:70-71` (names `RESERVE_GH_TOKEN_FILE`, secret-class), `box-peer-ssh-grant.func.sh:53` (one-off `"grant from..."`, no WARN branch), and `spl-box-deploy.func.sh:151` (prereq collector `"PREREQ checkout missing"`) | `spl-private-overlay-install-cron` stays out per secret-class exclusion; the other two have distinct control flow and wording | r08 section 7; unchanged since `26c6b91ed` (n=1) |
 | `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh` and `spl-issue-owner-question-diss.func.sh` `*_read` and `*_apply` scaffolding (r04-r08 section 7) | semantic differences in `*_apply` (`chmod 600`, `2>/dev/null` vs `2>&1`, status predicate, log/undo headers) and `do_spl_cloud_cnf` placement in `*_read` | r08 section 7 (n=1) |
 | Remaining non-matching cron installers (`spl-dispatch-rotate`, `spl-agent-boot-restore`, `spl-box-restart`, `spl-peer-crons`), secret-class 5 probe actions (`spl-*-probe.func.sh`), secret-class `gcp-*alert*` and `spl-{domain-verify,lb-absent-check,wait-for-firebase-domain,wait-for-mapping-cert}.func.sh`, PG-heavy `spl-msg-{dedup,wipe}` and `spl-channel-agent-{add,add-op,remove-op}.func.sh` | each is secret-class, pulls PostgreSQL into R2, or has non-matching cron semantics | r08 section 7 (n=1) |
@@ -812,13 +834,49 @@ backup is used; never mistral; re-checked at placement).
   `shellcheck 0.10.0 -S warning -x` and `do_sec_shellcheck` rc 0; both red controls
   (`rc1`, `rc2`) and all 6 mutation checks (`m1a`, `m1b`, `m1c`, `m2a`, `m2b`, `m2c`) run
   in fresh scratch clones and verified RED; all helper, caller, and test hunks included
-  verbatim in 1.3 and 1.4. Pushed to `review/c002-refactor-round-09-planner`.
+  verbatim in 1.3 and 1.4. Pushed to `review/c002-refactor-round-09-planner` (`feb3c1917`).
+- v1.0 (a-260): folded cross-vendor claude panel (`c-342`, review on v0.1 `feb3c1917`,
+  seat commit `27ea94e2fca980e35b1690077429c476c9f2b72a`, msg `567f5081` / holder
+  `bbaa6d1f`) W1-W2 and N1/N4/N6, and recorded N2-N3/N5 (no row change; 7 of 8 fenced
+  `bash` blocks byte-identical to v0.1 `feb3c1917`, only row 02's `wui-actions.tst.sh`
+  block updated for W1; zero drift across all 7 row files from `ecc05e480` to
+  `origin/master` `39bb380f8`; `lane-map.sh --check` on the 7 row files at 23:23:05Z exit
+  4, 0 owned, 21 `unknown:` on the other box):
+  - **W1 (1.4 / 1.5 / row 02 control):** added the standalone `do_wui_dev` ordering check
+    where `do_lde_cnf` returns 1, asserting rc 1 with no `REQ:pnpm` and no `PNPM:` line.
+    Updated head2's `wui-actions.tst.sh` sha256 (`30c31e86be17` -> `58549a27df33`, `+73 -0`,
+    141 -> 214 lines; other 3 head2 files and all 3 head1 files unchanged). Re-verified in
+    fresh scratch clones of `ecc05e480`: head2 `0/39/0`, `rc2` `1/31/8`, `m2a` `1/35/4`,
+    `m2b` `1/37/2`, `m2c` `1/37/2`, `m2d` (swapping `_wui_prepare` above `do_lde_cnf`,
+    panel `x2d`) `1/37/2` (`FAIL: standalone wui-dev order`); `shellcheck -S warning -x`
+    and `do_sec_shellcheck` rc 0.
+  - **W2 (1.4 shape & section 5):** reworded `do_wui_dev calling _wui_prepare + _wui_prepare`
+    to `do_wui_dev (calling it) + _wui_prepare`.
+  - **N1 (1.5, section 2, section 5):** recorded that `test-y18-grok-memory.sh` pass counts
+    depend on whether `grok` is on `PATH` (13/15/23 without `grok`, 15/17/25 with `grok`;
+    identical rc and fail sets); updated row 01 table and brief to quote rc and fail sets.
+  - **N2:** recorded that `WUI_DIR` is a caller-scoped local and `git grep WUI_DIR -- csi-spl-wui/`
+    returns 0 hits on `ecc05e480` (no effect even if exported).
+  - **N3:** recorded that the dispatcher candidates file lives on the planner/holder box
+    only and was not remotely readable by the panel seat.
+  - **N4 (1.1):** spelled out the full rulebook 4.4 `awk` command and recorded panel's
+    re-measure (`perf 36 refactor 113 perf-share 24.2% floor-met` at 23:18:03Z).
+  - **N5:** recorded panel's lane-map check (exit 4, 9 `unknown:` on the planner box, 0
+    owned) and 48 h branch check (0 of 36 moved branches touch the 7 row paths).
+  - **N6 (section 7):** aligned the `r10` agent CLI wrapper entry to `3 action files + test`
+    (matching 1.2 (a)'s 3 files).
+  Pushed fast-forward to `review/c002-refactor-round-09-planner` for `c-342` signature.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-260 (agy): v0.1 draft.
-- Panel reviewer seat: c-342 (claude): pending.
+- Editor seat: a-260 (agy): v0.1 (`feb3c1917`), v1.0 (W1-W2 and N1/N4/N6 folded, N2-N3/N5
+  recorded).
+- Panel reviewer seat: c-342 (claude, seat `27ea94e2fca980e35b1690077429c476c9f2b72a` on
+  `review/c002-refactor-round-09-claude-seat`):
+  - v0.1 `feb3c1917bb2b27788ae1de13c32a6cb080e3149`: PASS with W1-W2 (waiting for v1.0 to
+    sign; msg `567f5081`, holder `bbaa6d1f`).
+  - v1.0: pending signature.
 - Row R7 seats: section 4 (agy primary; claude waiver backup only if agy is out of quota,
   citing ruling `dc84300a`; never mistral).

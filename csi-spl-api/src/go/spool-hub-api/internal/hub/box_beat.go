@@ -30,6 +30,13 @@ import (
 
 const boxBeatsSinceDefault = 10 * time.Minute
 
+// boxBeatLogMsg is the info line of every stored beat (SPL-4632). The
+// fleet-silent page of terraform step 070 counts these lines per tenant
+// (a log-based metric) and fires when none came for a cnf limit: every box
+// of that fleet is silent. The page goes out from Cloud Monitoring, so no
+// box has to be up to deliver it. A refused or unstored beat logs no line.
+const boxBeatLogMsg = "box beat"
+
 // boxBeatAck is the reply to a beat.
 type boxBeatAck struct {
 	OK         bool   `json:"ok"`
@@ -101,6 +108,7 @@ func (s *Server) boxBeatFrame(ctx context.Context, x *session, f wire.Frame) (an
 			s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("box beat append")
 			return nil, &issueErr{http.StatusInternalServerError, "internal", "box beat not stored"}
 		}
+		s.o.Log.Info().Str("tenant", x.tenant).Str("box", b.Box).Msg(boxBeatLogMsg)
 		return boxBeatAck{OK: true, Box: b.Box, BeatAt: b.BeatAt.UTC().Format(time.RFC3339), BoxDownMin: s.boxDownMin(ctx)}, nil
 	case "box_beat_list":
 		var q struct {

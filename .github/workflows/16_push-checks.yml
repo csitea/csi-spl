@@ -1,0 +1,62 @@
+# 16 push: the small checks of every push to master, in ONE run (SPL-6385, A6).
+#
+# Owner HUM-10, t1 8acbaf69 (msg 26b625e2, poll 786f75a8, A6): "Fold the small
+# per-push workflows". Until then four workflows started a run on every push,
+# each with no path filter: 15 (deps + secrets), 25 (commit links), 26 (release
+# notes ingest) and 64 (trufflehog), 4 of the ~7 runs a push started
+# (csi-spl-doc/specs/016-spool-testability/ci-volume-2026-11-24.md, section 1.2).
+# This workflow is now the only one of them on push. It calls the four as
+# reusable workflows (workflow_call), so their steps, if:, permissions and
+# concurrency stay in their own files and run as before, as jobs of this run.
+# What it saves is runs (one per push instead of four, and the wf 12 runs that
+# each completed run starts), not billed minutes: GitHub bills every job by the
+# minute, and the five jobs are still five jobs.
+#
+# Why 16: the 1x band holds the CI of every push (10 gate, 11 public, 12 rerun,
+# 13 image, 14 cache prune, 15 deps + secrets); 16 is the next free number.
+#
+# Concurrency: none here. Each called file keeps its group on its JOB, which
+# holds when called: 15 and 64 cancel a superseded scan on the ref (and 15's
+# nightly shares the group with the push call, as before); 25 and 26 never
+# cancel. A workflow-level group here would cancel 25 and 26 with the scans.
+#
+# Still run on their own: 15's nightly full scan and every file's
+# workflow_dispatch (a re-send, a control on a throwaway branch).
+#
+# Gate: csi-spl-iac/src/bash/tests/ci-push-fold.tst.sh.
+name: "16 push: commit links, release notes, secret scans"
+
+on:
+  push:
+    branches: [master]
+    # No path filter: gitleaks and trufflehog must see every push, a secret can
+    # land in any file; 25 checks every commit and 26 ingests every commit.
+
+permissions:
+  contents: read
+
+jobs:
+  commit-links:
+    uses: ./.github/workflows/25_commit-links.yml
+    # only the key it reads; a fork without it skips with a notice
+    secrets:
+      GCP_KEY_CSI_SPL_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+
+  release-notes:
+    uses: ./.github/workflows/26_release-notes-ingest.yml
+    secrets:
+      GCP_KEY_CSI_SPL_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+      GCP_KEY_CSI_SPL_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+
+  trufflehog:
+    uses: ./.github/workflows/64_trufflehog.yml
+
+  sec-scan:
+    uses: ./.github/workflows/15_sec-deps-secrets.yml
+    # actions: read, for the scope step to find the last green run
+    permissions:
+      contents: read
+      actions: read
+    with:
+      # the dependency legs diff from the last green run of THIS workflow
+      runs_of: 16_push-checks.yml

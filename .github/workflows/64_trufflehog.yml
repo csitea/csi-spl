@@ -4,9 +4,10 @@
 # detection over the working tree. The tool is installed in the job and verified
 # against a pinned sha256; a missing tool fails the action.
 #
-# workflow_dispatch + push on EVERY path, since a secret can land in any file
-# (sampled by the ref concurrency
-# group). --only-verified reaches provider APIs to confirm a secret is live, so
+# Every push on EVERY path, since a secret can land in any file (sampled by
+# the ref concurrency group): since SPL-6385 (A6) 16_push-checks.yml calls it
+# on each push to master (workflow_call), one run with 15, 25 and 26; the
+# group sits on the job so that it holds when called. Plus workflow_dispatch. --only-verified reaches provider APIs to confirm a secret is live, so
 # it is kept to a bounded working-tree scan, not every-push full history.
 # No GitHub schedule (owner 2026-10-01, CLE-77829): the box's weekly full scan
 # (do_check_weekly_full_scan, Friday 17:00) runs this scanner over its whole
@@ -15,19 +16,17 @@ name: "64 sec: trufflehog (verified secrets)"
 
 on:
   workflow_dispatch: {}
-  push:
-    branches: [master]
+  workflow_call: {}
 
 permissions:
   contents: read
 
-concurrency:
-  group: sec-trufflehog-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   trufflehog:
     name: "sec: trufflehog verified secrets"
+    concurrency:
+      group: sec-trufflehog-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

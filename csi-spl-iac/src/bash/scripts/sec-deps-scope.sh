@@ -7,7 +7,8 @@
 # stderr. Exits 0 with a verdict; any other exit is an error the caller must
 # read as true.
 #
-# <base> is the head sha of the last SUCCESSFUL run of workflow 15 on the ref,
+# <base> is the head sha of the last SUCCESSFUL run on the ref of the workflow
+# that ran the scan (on a push 16_push-checks.yml, which calls 15; SPL-6385),
 # never github.event.before: the concurrency group cancels a superseded run,
 # so `before` may be a deps push whose scan never ran (c81ef0110, the
 # govulncheck bump, superseded 42 s later by e3d3ec2a5 whose run diffed only
@@ -19,7 +20,7 @@
 #   changes ~18x/day for e2e script lists, and a dependency edit without its
 #   lock already fails pnpm install --frozen-lockfile), a Dockerfile,
 #   terraform, .trivyignore.yaml, or the scan itself (sec-scan.func.sh,
-#   workflow 15, this script).
+#   workflow 15, its push caller workflow 16, this script).
 #
 # FAILS SAFE: anything it cannot prove is deps=true (every leg runs):
 #   - an empty or all-zero base (no green run found, the API failed), or a
@@ -56,6 +57,7 @@ while IFS= read -r f; do
       */Dockerfile | Dockerfile | */Dockerfile.* | *.dockerfile | \
       csi-spl-iac/src/terraform/* | .trivyignore.yaml | \
       csi-spl-iac/src/bash/run/sec-scan.func.sh | .github/workflows/15_sec-deps-secrets.yml | \
+      .github/workflows/16_push-checks.yml | \
       csi-spl-iac/src/bash/scripts/sec-deps-scope.sh)
       verdict true "$f changed since ${base:0:12}" ;;
   esac

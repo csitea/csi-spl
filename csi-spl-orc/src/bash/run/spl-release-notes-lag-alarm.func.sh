@@ -139,7 +139,7 @@ spl_release_lag_edge() {
     if [[ "$v" == "$prev" ]]; then return 0; fi
     next="$v"
     if [[ "$v" == lag ]]; then
-      text="**RELEASE NOTES LAG** $e: master commits older than the limit have no release note row, so Reporting -> Releases is behind (limit $lim min, $(grep -c . "$3") commit(s), newest $(sed -n 1p "$3" | cut -c1-8), oldest $(tail -1 "$3" | cut -c1-8)). wf 26 stays green on a failed ingest: read its ingest step, then re-send with gh workflow run 26_release-notes-ingest.yml --ref master."
+      text="**RELEASE NOTES LAG** $e: master commits older than the limit have no release note row, so Reporting -> Releases is behind (limit $lim min, $(grep -c . "$3") commit(s), newest $(sed -n 1p "$3" | cut -c1-8), oldest $(tail -1 "$3" | cut -c1-8)). wf 26 (the release-notes jobs of each wf 16 push run) stays green on a failed ingest: read its ingest step, then re-send with gh workflow run 26_release-notes-ingest.yml --ref master."
     else
       text="**RELEASE NOTES LAG** $e recovered: of the newest $depth master commits, every one older than the limit has its release note row, and this alarm reads them again."
     fi

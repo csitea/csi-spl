@@ -16,14 +16,21 @@
 # 45..48; without it the job is SKIPPED with a notice. A red run names each
 # refused commit, the missing link and the fix.
 #
+# Trigger: no push of its own since SPL-6385 (A6). 16_push-checks.yml calls it
+# on every push to master (workflow_call), one run with 15, 26 and 64; the
+# github context is the caller's, so event.before..sha is the pushed range as
+# before. The concurrency group sits on the job so that it holds when called.
+#
 # Local equivalent:
 #   COMMIT_LINKS_RANGE=<before>..<sha> ./csi-spl-orc/run -a do_spl_commit_links_check
 
 name: "25 gate: commit links"
 
 on:
-  push:
-    branches: [master]
+  workflow_call:
+    secrets:
+      GCP_KEY_CSI_SPL_PRD:
+        required: false
   workflow_dispatch:
     inputs:
       range:
@@ -34,13 +41,12 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: commit-links-${{ github.sha }}
-  cancel-in-progress: false
-
 jobs:
   check:
     name: "commit links (prd hub)"
+    concurrency:
+      group: commit-links-${{ github.sha }}
+      cancel-in-progress: false
     # Estate guard (spec 072 A34): it reads OUR live hub, so it runs only
     # where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
     if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'

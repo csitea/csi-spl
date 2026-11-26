@@ -704,10 +704,13 @@ The file is `.github/workflows/<file>`. Runner is the literal `runs-on` in that 
 | 11_ci-public.yml | the same gate for a pull request, after a maintainer approves it | passes ubuntu-latest into 10 |
 | 12_ci-rerun-setup-flake.yml | reruns a run lost to an action download at Set up job | ubuntu-latest |
 | 13_ci-next-image.yml | wf 10 on the next runner image (vars.SPOOL_CI_NEXT_RUNNER), daily and on a ci-next-image/** push | passes the next image into 10 |
-| 15_sec-deps-secrets.yml | dependency and secret scans | ubuntu-latest |
+| 15_sec-deps-secrets.yml | dependency and secret scans; nightly here, on every push through 16 | ubuntu-latest |
+| 16_push-checks.yml | the one run of every master push that calls 25, 26, 64 and 15 (SPL-6385 A6; before, four runs) | calls the four |
 | 20_hub-build-deploy.yml | mint, build, migrate, roll the hub; then, non-blocking, the invite e2e (`do_spl_invite_e2e`) on dev t1 and on prd in the test workspace `e2e` only (`vars.INVITE_E2E_TENANT_PRD`; t1 and customer workspaces are refused) | ubuntu-latest |
 | 21_hub-deploy-catchup.yml | a trunk hub or WUI that never got served | ubuntu-latest |
 | 22_deploy-verify.yml | HTTPS smoke of the hub and the WUI | ubuntu-latest |
+| 25_commit-links.yml | every pushed commit cites an issue that links a discussion; on every push through 16 | ubuntu-latest |
+| 26_release-notes-ingest.yml | the release notes of every master commit, dev and prd; on every push through 16 | ubuntu-latest |
 | 30_wui-build-deploy.yml | mint and Firebase Hosting; a push (or "all") run stands down, green, when its commit is older than the one the site's `build.json` serves (`wui-deploy-guard.sh`, SPL-1829), so a late older run never rolls the site back | ubuntu-latest |
 | 31_wui-edge-warm.yml | warm the WUI edge | ubuntu-latest |
 | 32_docs-publish.yml | publish the repo docs | ubuntu-latest |
@@ -723,7 +726,7 @@ The file is `.github/workflows/<file>`. Runner is the literal `runs-on` in that 
 | 61_semgrep.yml | Semgrep | ubuntu-latest |
 | 62_gosec.yml | gosec | ubuntu-latest |
 | 63_eslint-security.yml | eslint security plugin on the WUI | ubuntu-latest |
-| 64_trufflehog.yml | verified-secret scan | ubuntu-latest |
+| 64_trufflehog.yml | verified-secret scan; on every push through 16 | ubuntu-latest |
 | 65_iac-checkov.yml | Checkov on the terraform | ubuntu-latest |
 | 66_hadolint.yml | Dockerfiles | ubuntu-latest |
 | 67_shellcheck.yml | shellcheck | ubuntu-latest |

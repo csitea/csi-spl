@@ -2,7 +2,9 @@
 #------------------------------------------------------------------------------
 # Purpose: workflow 26 (SPL-4961) fills the release notes on EVERY master push,
 #          dev and prd, without a deploy and without a new secret.
-#   1. the trigger: push to master with no path filter
+#   1. the trigger: push to master with no path filter, through the caller
+#      16_push-checks.yml since SPL-6385 (A6): 26 is callable and 16 calls it
+#      with the two project keys
 #   2. it deploys nothing: its one ./run action is do_release_note_ingest, and
 #      no line starts a hub or WUI deploy
 #   3. the secrets are the two project keys that exist already
@@ -24,18 +26,24 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 wf="$APP_ROOT/.github/workflows/26_release-notes-ingest.yml"
+wf16="$APP_ROOT/.github/workflows/16_push-checks.yml"
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }
 [[ -f "$wf" ]] || { fail "no workflow at $wf"; exit 1; }
+[[ -f "$wf16" ]] || { fail "no workflow at $wf16"; exit 1; }
 
-# wf_findings <file> -> one line per broken rule, nothing when all hold
+# wf_findings <file> [caller] -> one line per broken rule, nothing when all hold
 wf_findings() {
-  local f="$1" j='.jobs.ingest'
-  [[ "$(yq -r '.on.push.branches[]' "$f" | paste -sd' ')" == master ]] || echo "trigger: not push to master"
-  [[ "$(yq -r '.on.push.paths // "" | length' "$f")" == 0 ]] || echo "trigger: a paths filter"
-  [[ "$(yq -r '.on.push["paths-ignore"] // "" | length' "$f")" == 0 ]] || echo "trigger: a paths-ignore filter"
+  local f="$1" c="${2:-$wf16}" j='.jobs.ingest' k
+  [[ "$(yq '.on | has("workflow_call")' "$f")" == true ]] || echo "trigger: 26 is not callable"
+  k='.jobs[] | select(.uses == "./.github/workflows/26_release-notes-ingest.yml")'
+  [[ "$(yq "$k | .secrets | keys | .[]" "$c" 2>/dev/null | paste -sd' ')" == "GCP_KEY_CSI_SPL_DEV GCP_KEY_CSI_SPL_PRD" ]] || echo "trigger: the caller does not call 26 with the two keys"
+  [[ "$(yq -r '.on.push.branches[]' "$c" | paste -sd' ')" == master ]] || echo "trigger: not push to master"
+  [[ "$(yq -r '.on.push.paths // "" | length' "$c")" == 0 ]] || echo "trigger: a paths filter"
+  [[ "$(yq -r '.on.push["paths-ignore"] // "" | length' "$c")" == 0 ]] || echo "trigger: a paths-ignore filter"
   [[ "$(grep -oE 'run -a [a-z_]+' "$f" | sort -u)" == "run -a do_release_note_ingest" ]] || echo "action: not only do_release_note_ingest"
   grep -qE '^[^#]*(do_deploy|do_build_push|firebase|gcloud run|_hub-build-deploy|_wui-build-deploy)' "$f" && echo "deploy: a deploy line"
   [[ "$(grep -oE "secrets(\.[A-Z_]+|\[format\('[A-Z_{}0-9]+')" "$f" | sort -u)" == "secrets[format('GCP_KEY_CSI_SPL_{0}'" ]] || echo "secret: not only the project keys"
+  [[ "$(yq -r '.on.workflow_call.secrets // {} | keys | .[]' "$f" | paste -sd' ')" == "GCP_KEY_CSI_SPL_DEV GCP_KEY_CSI_SPL_PRD" ]] || echo "secret: not only the project keys"
   [[ "$(yq -r "$j.strategy.matrix.environment[]" "$f" | paste -sd' ')" == "dev prd" ]] || echo "matrix: not dev prd"
   [[ "$(yq -r "$j.strategy[\"fail-fast\"]" "$f")" == false ]] || echo "fail-fast: not off"
   [[ "$(yq -r "$j.concurrency.group" "$f")" == *'matrix.environment'* ]] || echo "concurrency: not per env"
@@ -49,15 +57,17 @@ out=$(wf_findings "$wf")
 [[ -z "$out" ]] && pass "workflow 26 holds every rule" || fail "workflow 26: $out"
 
 # --- RED controls: each planted defect is named ------------------------------
-ctl() { # <what> <expected finding> <sed expression>
-  local found
-  sed -E "$3" "$wf" >"$T/planted.yml"
-  cmp -s "$wf" "$T/planted.yml" && { fail "CONTROL $1: the plant changed nothing"; return; }
-  found=$(wf_findings "$T/planted.yml")
+ctl() { # <what> <expected finding> <sed expression> [the file planted: wf (26) or wf16]
+  local found src="${4:-wf}"
+  sed -E "$3" "${!src}" >"$T/planted.yml"
+  cmp -s "${!src}" "$T/planted.yml" && { fail "CONTROL $1: the plant changed nothing"; return; }
+  if [[ "$src" == wf16 ]]; then found=$(wf_findings "$wf" "$T/planted.yml"); else found=$(wf_findings "$T/planted.yml"); fi
   if [[ "$found" == *"$2"* ]]; then pass "CONTROL $1 -> '$2'"; else fail "CONTROL $1: not caught: $found"; fi
 }
-ctl "a paths filter"       "trigger: a paths filter"           "s|^    branches: \[master\]|    branches: [master]\n    paths: ['csi-spl-api/**']|"
-ctl "another branch"       "trigger: not push to master"       "s|^    branches: \[master\]|    branches: [master, main]|"
+ctl "a paths filter"       "trigger: a paths filter"           "s|^    branches: \[master\]|    branches: [master]\n    paths: ['csi-spl-api/**']|" wf16
+ctl "another branch"       "trigger: not push to master"       "s|^    branches: \[master\]|    branches: [master, main]|" wf16
+ctl "26 not called"        "trigger: the caller does not"      "s|26_release-notes-ingest.yml|26_x.yml|" wf16
+ctl "26 not callable"      "trigger: 26 is not callable"       "s|^  workflow_call:|  workflow_callx:|"
 ctl "a second action"      "action: not only"                  "s|^(        run: )DRY_RUN=0.*|\1./run -a do_deploy_hub|"
 ctl "a deploy line"        "deploy: a deploy line"             "s|^(        run: rm -rf.*)|\1; gcloud run deploy x|"
 ctl "a new secret"         "secret: not only"                  "s|^(      ENV: .*)|\1\n      X: \${{ secrets.NEW_TOKEN }}|"

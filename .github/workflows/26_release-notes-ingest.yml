@@ -33,14 +33,22 @@
 # Auth: ONLY the per-env project key secrets GCP_KEY_CSI_SPL_<ENV> (iac 120), as
 # 25 and 45..48; an env without its key is SKIPPED with a notice.
 #
+# Trigger: no push of its own since SPL-6385 (A6). 16_push-checks.yml calls it
+# on every push to master (workflow_call), one run with 15, 25 and 64; a
+# dispatch of this file still re-sends. Its job-level group holds when called.
+#
 # Local equivalent:
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_release_note_ingest
 
 name: "26 ops: release notes ingest"
 
 on:
-  push:
-    branches: [master]
+  workflow_call:
+    secrets:
+      GCP_KEY_CSI_SPL_DEV:
+        required: false
+      GCP_KEY_CSI_SPL_PRD:
+        required: false
   workflow_dispatch:
 
 permissions:

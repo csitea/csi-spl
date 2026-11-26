@@ -16,7 +16,10 @@
 #      a plain dispatch -> true without asking.
 #   3. the wiring: cancel-in-progress, the nightly and the always-on gitleaks
 #      legs are kept, every dependency leg is gated on the scope output, and
-#      the base is never github.event.before.
+#      the base is never github.event.before. Since SPL-6385 (A6) a push
+#      reaches wf 15 through 16_push-checks.yml (workflow_call), so the base is
+#      the last green run of the workflow named by input runs_of (16 on a
+#      push, wf 15 itself on a push_scope dispatch).
 # CONTROLS: the step as it was before this gate (diff from github.event.before)
 # reads deps=false on the same planted history, and a copy of wf 15 with its
 # scope env set back to github.event.before fails the wiring check.
@@ -61,6 +64,7 @@ case1 true  csi-spl-iac/src/terraform/030-hub/main.tf
 case1 true  .trivyignore.yaml
 case1 true  csi-spl-iac/src/bash/run/sec-scan.func.sh
 case1 true  .github/workflows/15_sec-deps-secrets.yml
+case1 true  .github/workflows/16_push-checks.yml
 case1 true  csi-spl-iac/src/bash/scripts/sec-deps-scope.sh
 case1 false csi-spl-doc/a.md
 case1 false csi-spl-api/src/go/spool-hub-api/main.go
@@ -91,6 +95,7 @@ run_step() {
   : >"$T/out"; : >"$T/sum"
   (cd "$R" && env PATH="$T/bin:$PATH" GH_LOG="$T/gh.log" GITHUB_OUTPUT="$T/out" GITHUB_STEP_SUMMARY="$T/sum" \
     EVENT="$ev" HEAD_SHA="$Y" GITHUB_SHA="$Y" REF_NAME=master REPO=o/r GH_TOKEN=x PUSH_SCOPE=false \
+    RUNS_OF=15_sec-deps-secrets.yml \
     BEFORE="$X" "$@" bash -e "$f" >/dev/null 2>&1)
   grep '^deps=' "$T/out"
 }
@@ -107,6 +112,11 @@ step_expect true "deps push X superseded by doc push Y (last green run = B)" pus
 grep -q 'workflows/15_sec-deps-secrets.yml/runs?branch=master&status=success' "$T/gh.log" \
   && pass "scope step asks for the last SUCCESSFUL run of wf 15 on the ref" \
   || fail "scope step did not query the last green wf 15 run: $(cat "$T/gh.log")"
+: >"$T/gh.log"
+step_expect true "called by 16 on a push (SPL-6385 A6): base from 16's runs" push PLANT_BASE="$B" RUNS_OF=16_push-checks.yml
+grep -q 'workflows/16_push-checks.yml/runs?branch=master&status=success' "$T/gh.log" \
+  && pass "scope step called by 16 asks for the last SUCCESSFUL run of wf 16 on the ref" \
+  || fail "scope step did not query the caller's run list: $(cat "$T/gh.log")"
 step_expect false "doc push Y right after a green run on X" push PLANT_BASE="$X"
 step_expect true "the API fails" push PLANT_BASE="$B" PLANT_RC=1
 step_expect true "no green run found" push PLANT_BASE=""
@@ -147,13 +157,16 @@ got=$(run_step "$T/old-step.sh" push PLANT_BASE="$B")
 # --- 3. the wiring ---------------------------------------------------------
 check15() {  # <wf file> -> prints the first problem, nothing when it is right
   local f="$1" s
-  [[ "$(yq '.concurrency."cancel-in-progress"' "$f")" == true ]] || { echo "cancel-in-progress is gone"; return; }
+  [[ "$(yq '.jobs."sec-scan".concurrency."cancel-in-progress"' "$f")" == true ]] || { echo "cancel-in-progress is gone"; return; }
   [[ "$(yq '.on.schedule[0].cron' "$f")" == '17 3 * * *' ]] || { echo "the nightly is gone"; return; }
-  [[ "$(yq '.on.push.branches[0]' "$f")" == master ]] || { echo "the push trigger on master is gone"; return; }
+  # every push reaches it through 16_push-checks.yml (ci-push-fold.tst.sh)
+  [[ "$(yq '.on | has("workflow_call")' "$f")" == true ]] || { echo "the workflow_call trigger (16's push) is gone"; return; }
+  [[ "$(yq '.on.workflow_call.inputs.runs_of.default' "$f")" == 15_sec-deps-secrets.yml ]] || { echo "runs_of does not default to wf 15"; return; }
   [[ "$(yq '.jobs."sec-scan".outputs // "" | tostring' "$f")" != *event.before* ]] || { echo "event.before in outputs"; return; }
   s=$(yq '.jobs."sec-scan".steps[] | select(.id == "scope") | (.env | tostring) + " " + .run' "$f")
   [[ "$s" != *event.before* && "$s" != *'$BEFORE'* ]] || { echo "the scope base is github.event.before (a superseded run's push)"; return; }
   [[ "$s" == *status=success* && "$s" == *sec-deps-scope.sh* ]] || { echo "the scope step does not diff from the last green run"; return; }
+  [[ "$s" == *'workflows/$RUNS_OF/runs'* && "$s" == *"inputs.runs_of || '15_sec-deps-secrets.yml'"* ]] || { echo "the base is not read from the runs_of run list"; return; }
   [[ "$(yq '.jobs."sec-scan".permissions.actions' "$f")" == read ]] || { echo "the job lacks actions: read"; return; }
   local n i name ifc
   n=$(yq '.jobs."sec-scan".steps | length' "$f")
@@ -174,5 +187,8 @@ yq '(.jobs."sec-scan".steps[] | select(.id == "scope") | .env.BASE) = "${{ githu
 yq '(.jobs."sec-scan".steps[] | select(.name == "gitleaks (full history)") | .if) = "steps.scope.outputs.deps == '"'true'"'"' "$W15" >"$T/c2.yml"
 [[ -n "$(check15 "$T/c2.yml")" ]] && pass "CONTROL: gitleaks gated on the deps scope is caught" \
   || fail "CONTROL: a gated gitleaks passed"
+yq '(.jobs."sec-scan".steps[] | select(.id == "scope") | .run) |= sub("\$RUNS_OF", "15_sec-deps-secrets.yml")' "$W15" >"$T/c3.yml"
+[[ -n "$(check15 "$T/c3.yml")" ]] && pass "CONTROL: a base fixed to wf 15's runs (not the caller's) is caught" \
+  || fail "CONTROL: a fixed wf 15 base passed"
 
 echo "---"; (( fails == 0 )) && echo "PASS: all sec-deps-scope.tst.sh assertions" || { echo "sec-deps-scope: $fails failed"; exit 1; }

@@ -37,6 +37,8 @@ field, so that model would split every agent reply into its own thread. With
 | `lobby` | common room (Slack's `#general`); every human is implicitly a member, an agent only once a member adds it (§7.4) | 30 d |
 | `alerts` | system events, box connection notices | **7 d** |
 | `feedback` | any member tells the business owner(s) what to change: `@` offers every `biz_owner`, online or not (owner, 2026-09-25; roster `owner` flag, view-v1 §4.1) | 30 d |
+| `public` | announcements and releases; everything in it is public (owner, 2026-10-10; rdb 0173, the hub posts its one notice) | 30 d |
+| `scheduled-runs` | the result of every scheduled task run, one topic per task (spec 187 6.1, D13; rdb 0331) | 30 d |
 
 - **Reserved, not channels** (SPL-68, owner 2026-09-26: "the tasks channel
   should be removed - issues should be used for it"): `issues` holds every
@@ -286,7 +288,7 @@ menu , for the owners who have created them".
   slug stays taken (`POST` → `409 channel_exists`), so a restore cannot
   collide with a newer channel of the same name. The database CHECK
   `channels_delete_human_only` refuses a `deleted_at` on any row not
-  created by a `HUM-*`, which includes the four defaults.
+  created by a `HUM-*`, which includes the five defaults.
 - **The way back**:
   `ENV=<env> TENANT_ID=<t> CHANNEL=<id> DRY_RUN=0 ./run -a do_spl_channel_restore`
   (csi-spl-orc). This clears the stamp, so the members, agents and in-retention

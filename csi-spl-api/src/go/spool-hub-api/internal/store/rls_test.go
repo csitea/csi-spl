@@ -100,6 +100,8 @@ var rlsTables = []string{
 	"tax_snapshots", "tax_documents",
 	// rdb 0328, spec 196 T1 (SPL-6562): topic tags, their links and stamps
 	"topic_tags", "topic_tag_links", "topic_tag_stamps",
+	// rdb 0331, spec 187 S1 (SPL-6560): scheduled tasks (an instance row has no tenant) and their runs
+	"scheduled_tasks", "scheduled_task_runs",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

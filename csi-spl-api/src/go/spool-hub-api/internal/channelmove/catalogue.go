@@ -145,6 +145,8 @@ var rewrittenTables = []Entry{
 		Reason: "spec 196 2.2 (rdb 0328): not carried as it is, its tag_id is a <SRC> tag; the topic_tag_stamps part relinks each slug to <DST>'s tag (made when missing) and deletes the <SRC> links, pruning unused tags"},
 	{Table: "channel_box_pins", Class: Rewritten, Refs: `channel_id = @channel`,
 		Reason: "spec 164 B1 (rdb 0246): not carried, its boxes are <SRC> pins; the <DST> channel starts unpinned (any box, 164 3.3) and the <SRC> rows go with the channel's delete (FK cascade)"},
+	{Table: "scheduled_tasks", Class: Rewritten, Refs: `@channel = ANY(scope_where)`,
+		Reason: "spec 187 8.1 (rdb 0331): not carried; the moved channel's id is removed from a staying task's scope_where, and its next run says so"},
 }
 
 var recomputedTables = []Entry{
@@ -214,6 +216,8 @@ var notChannelTables = concat(
 	notChannel("the tax index of the workspace's main box (rdb 0326, spec 143 taxes-tab.md), names no channel",
 		"tax_documents", "tax_snapshots"),
 	notChannel("the workspace's invoiced income, keyed by invoice number (rdb 0259)", "income_invoices"),
+	notChannel("a scheduled task's run history (rdb 0331, spec 187 4.6), keyed by task and cause; the task stays in <SRC>",
+		"scheduled_task_runs"),
 	notChannel("the workspace's price plan and its lines (rdb 0302, spec 181 B1), names no channel",
 		"price_plan_lines", "price_plans"),
 	notChannel("the workspace's private-workspace order, its provisioning order (rdb 0314, spec 181 B2), names no channel",

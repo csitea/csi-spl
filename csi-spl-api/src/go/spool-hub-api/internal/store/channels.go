@@ -23,6 +23,9 @@ const (
 	// 6fb3b289 + 69e2d25f; rdb 0173). The hub posts its one notice
 	// (PublicNoticeID). Not ChannelPublic: that name is the read-door test.
 	ChannelPublicID = "public"
+	// ChannelScheduledRuns is #scheduled-runs: the result of every scheduled
+	// task run, one topic per task (spec 187 6.1, D13 msg 5fa95db3; rdb 0331).
+	ChannelScheduledRuns = "scheduled-runs"
 	// ChannelGeneralAlias is the pre-M3 lobby name: an input alias only (C3).
 	ChannelGeneralAlias = "general"
 	// ChannelIssues is where every issue's discussion is stored (specs/039
@@ -41,7 +44,7 @@ const (
 )
 
 // DefaultChannels in display order.
-var DefaultChannels = []string{ChannelLobby, ChannelAlerts, ChannelFeedback, ChannelPublicID}
+var DefaultChannels = []string{ChannelLobby, ChannelAlerts, ChannelFeedback, ChannelPublicID, ChannelScheduledRuns}
 
 // PublicChannels are the channel ids every member of a tenant reads without
 // a membership row: the defaults and the issue discussions. The read doors

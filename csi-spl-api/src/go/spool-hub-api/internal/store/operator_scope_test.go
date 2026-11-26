@@ -186,6 +186,13 @@ var operatorCallers = map[string]string{
 	"CancelWorkspace":    "POST /v1/operator/workspaces/{id}/cancel (spec 181 B9, 4.5; operatorAuth, the env SA): writes the operator-only workspace_cancellations row and operator_audit for ONE named private workspace (the URL id), and revokes that workspace's own pins and open join tokens",
 	"PurgeDueWorkspaces": "workspace purge tick (spec 181 B9, Q-12 C, hub goroutine): lists the cancellations of EVERY workspace whose 30 days have passed; no route",
 	"purgeWorkspace":     "workspace purge tick (spec 181 B9, Q-12 C): DELETE FROM tenants for ONE cancelled workspace past purge_after with no unpaid invoice, its purged_at and its operator_audit row; no route",
+
+	// spec 187 row S1 (SPL-6560, rdb 0331): scheduled tasks; an instance task has no tenant_id, so no tenant scope sees it.
+	"taskScope":     "scheduled tasks (spec 187 8.1): the operator scope ONLY for tenant \"\", the instance's own tasks and its run count (D10, D16), which rdb 0331's tenant policy never shows; every workspace call runs inTenant. Its callers are the instance routes (row S6, operatorAuth or instanceAdminAuth) and the runner",
+	"ClaimDueTasks": "scheduled task ticker (spec 187 8.2 step 1, row S3's goroutine): claims the due tasks of every workspace and of the instance; no route",
+	"EventTasks":    "scheduled task event hooks (spec 187 8.2, row S4): the named workspace's own event tasks plus the instance's that list it (or none), WHERE tenant_id names it or is NULL; no route",
+	"HubSetting":    "instance settings (spec 187 5.1, rdb 0331 hub_settings): no tenant column, an operator-only policy; read by the runner and the instance routes (row S6)",
+	"SetHubSetting": "instance settings (spec 187 5.1): written only through the instance routes (row S6: operatorAuth, or a t1 admin via instanceAdminAuth)",
 }
 
 // operatorEntries are the only functions that set the operator scope:

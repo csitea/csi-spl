@@ -720,6 +720,20 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		CLIVersion: "1.0.0", Models: []string{"opus"}, ReadAt: now}); err != nil {
 		t.Fatal(err)
 	}
+	// scheduled_tasks, scheduled_task_runs (rdb 0331, spec 187 S1, SPL-6560):
+	// one daily task named with the marker and one run of it, through the
+	// store API.
+	task, err := pg.CreateTask(ctx, ScheduledTask{TenantID: s.tenant, Level: TaskLevelWorkspace, Name: s.marker,
+		OwnerID: hum, Template: "stale_issues", ScopeObject: "issue", ScopeQuery: "status:wip", TriggerKind: "daily",
+		Trigger: TaskTriggerSpec{AtTime: "09:00"}, TZ: "Europe/Helsinki", ActionKind: "notify",
+		Action: TaskActionSpec{MentionAssignee: true}, NextDueAt: now, CreatedBy: hum, CreatedAt: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.StartRun(ctx, TaskRun{TenantID: s.tenant, TaskID: task.TaskID, Cause: now.Format(time.RFC3339),
+		StartedAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

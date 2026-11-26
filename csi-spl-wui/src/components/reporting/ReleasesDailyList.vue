@@ -142,6 +142,11 @@ const areaOf = (a: string) => String(a || '').split(',')[0].trim().toLowerCase()
 .rd-chip--repo { font-family: var(--font-mono, ui-monospace, monospace); color: var(--color-muted); }
 .rd-repo { font-family: var(--font-mono, ui-monospace, monospace); margin-right: 4px; }
 .rd-row { padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+/* SPL-6611 (owner HUM-10, t1 25970d1c, msg 35543c11: "as any other one
+   alternating colors"): every second commit of a day takes the house
+   --color-row-alt veil (SPL-2120); the desktop hover and open fills below
+   come later and paint over it. */
+.rd-row:where(:nth-child(even of .rd-row)) { background: var(--color-row-alt); }
 .rd-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
 .rd-time { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; font-variant-numeric: tabular-nums; color: var(--color-muted); white-space: nowrap; }
 .rd-sha { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; }

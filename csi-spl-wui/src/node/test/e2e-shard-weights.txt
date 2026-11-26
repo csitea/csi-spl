@@ -349,6 +349,7 @@ tests/e2e/release-note-signed-out.test.mjs 4
 tests/e2e/release-notes.test.mjs 28
 tests/e2e/releases-desktop-density.test.mjs 9
 tests/e2e/releases-project-picker.test.mjs 18
+tests/e2e/releases-row-alternate.test.mjs 12
 tests/e2e/repo-edit-status.test.mjs 21
 tests/e2e/repo-edit.test.mjs 6
 tests/e2e/reporting-costs-labels.test.mjs 62

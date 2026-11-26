@@ -47,6 +47,8 @@
 #------------------------------------------------------------------------------
 do_spl_customer_box_role_check() {
   local d="${CUSTOMER_BOX_ROLE_DIR:-${PROJ_PATH}/src/ansible/customer-box}" bad=0 pb
+  # A trailing / would print paths with // and break the relative strips.
+  while [[ "$d" != / && "$d" == */ ]]; do d="${d%/}"; done
   pb="$d/customer-box-playbook.yaml"
   [[ -f "$pb" ]] || { do_log "FATAL no role set at $d (want customer-box-playbook.yaml)"; return 1; }
   spl_cbr_links "$d" || bad=1
@@ -126,6 +128,8 @@ spl_cbr_runs() {
 
 # A YAML scalar as a task writes it: bare, single- or double-quoted, then
 # an optional trailing comment. Matched case-insensitively (grep -i).
+# A key may open an unnamed task with a YAML list dash: "- when: false".
+SPL_CBR_KEY_LEAD_RX='^[[:space:]]*(-[[:space:]]+)?'
 SPL_CBR_FALSY_RX='["'"'"']?(false|no|0)["'"'"']?[[:space:]]*(#.*)?$'
 SPL_CBR_TRUTHY_RX='["'"'"']?(true|yes|1)["'"'"']?[[:space:]]*(#.*)?$'
 
@@ -142,7 +146,7 @@ spl_cbr_report() {
 
 # spl_cbr_when_false <dir>: no task is switched off.
 spl_cbr_when_false() {
-  spl_cbr_report when-false "$1" < <(grep -rniE "^[[:space:]]*when:[[:space:]]*$SPL_CBR_FALSY_RX" "$1" 2>/dev/null)
+  spl_cbr_report when-false "$1" < <(grep -rniE "${SPL_CBR_KEY_LEAD_RX}when:[[:space:]]*$SPL_CBR_FALSY_RX" "$1" 2>/dev/null)
 }
 
 # spl_cbr_no_swallow <dir>: no task swallows its own failure, and role 04's
@@ -151,9 +155,9 @@ spl_cbr_no_swallow() {
   local d="$1" r4="$1/roles/04_desk_start_checks"
   spl_cbr_report swallow-error "$d" < <(
     {
-      grep -rniE -e "^[[:space:]]*ignore_errors:[[:space:]]*$SPL_CBR_TRUTHY_RX" \
-        -e "^[[:space:]]*failed_when:[[:space:]]*$SPL_CBR_FALSY_RX" "$d"
-      [[ ! -d "$r4" ]] || grep -rniE '^[[:space:]]*(ignore_errors|failed_when):' "$r4"
+      grep -rniE -e "${SPL_CBR_KEY_LEAD_RX}ignore_errors:[[:space:]]*$SPL_CBR_TRUTHY_RX" \
+        -e "${SPL_CBR_KEY_LEAD_RX}failed_when:[[:space:]]*$SPL_CBR_FALSY_RX" "$d"
+      [[ ! -d "$r4" ]] || grep -rniE "${SPL_CBR_KEY_LEAD_RX}(ignore_errors|failed_when):" "$r4"
     } 2>/dev/null | sort -u
   )
 }

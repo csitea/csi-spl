@@ -16,7 +16,9 @@
 #      value, the workspace setup or the desk checks left only in a name:
 #      line, a when: false (bare, single-quoted), a task swallowing its
 #      failure (ignore_errors truthy, failed_when falsy or any failed_when in
-#      role 04, ignore_errors in role 03).
+#      role 04, ignore_errors in role 03), each also as an unnamed task
+#      opening with a YAML list dash ("- ignore_errors: true"), and a
+#      trailing / on CUSTOMER_BOX_ROLE_DIR prints one relative line.
 #      A comment line naming a token, ignore_errors or failed_when stays
 #      green (comments are not read); changed_when: false stays green.
 #   4. role 01's kernel and mount settings pass the desk start checks they
@@ -141,6 +143,26 @@ out=$(check "$T/set") && pass "comments naming ignore_errors / failed_when in ro
 grep -q '^  changed_when: false$' "$SET/roles/04_desk_start_checks/tasks/main.yml" \
   && pass "role 04 keeps changed_when: false (the shipped set passes with it, above)" \
   || fail "role 04 lost its changed_when: false line"
+for pair in \
+  "d1 (b49-01): - ignore_errors: true in role 04|- ignore_errors: true|swallow-error" \
+  "d2 (b49-01): - failed_when: false in role 04|  - failed_when: false|swallow-error" \
+  "d3 (b49-01): - failed_when: <expr> in role 04|- failed_when: dsc_out.rc == 99|swallow-error" \
+  "d4 (b49-01): - when: false in role 04|- when: false|when-false"; do
+  IFS='|' read -r lbl line chk <<<"$pair"
+  copy_set; printf '%s\n' "$line" >>"$R4"
+  refused "$lbl" "REFUSED $chk: roles/04_desk_start_checks/tasks/main.yml:"
+done
+copy_set; printf '%s\n' "- ignore_errors: true" >>"$T/set/roles/03_workspace/tasks/main.yml"
+refused "d5 (b49-01): - ignore_errors: true in role 03" "REFUSED swallow-error: roles/03_workspace/tasks/main.yml:"
+copy_set; printf '%s\n' "# - ignore_errors: true" "  # - when: false" >>"$R4"
+out=$(check "$T/set") && pass "comments naming - ignore_errors / - when: false in role 04 stay green" || fail "a list-dash comment line was refused: $out"
+out=$(check "$SET/") && pass "the shipped set with a trailing / stays green" || fail "the shipped set with a trailing / was refused: $out"
+copy_set; printf '%s\n' "  ignore_errors: true" >>"$R4"
+out=$(check "$T/set/")
+n=$(grep -c '^REFUSED swallow-error:' <<<"$out")
+r=$(grep -c '^REFUSED swallow-error: roles/04_desk_start_checks/tasks/main.yml:' <<<"$out")
+[[ "$n" == 1 && "$r" == 1 ]] && pass "CONTROL d6 (b49-01): a trailing / on CUSTOMER_BOX_ROLE_DIR prints one relative role 04 line" \
+  || fail "CONTROL d6 (b49-01): want 1 relative REFUSED swallow-error line, got $n ($r relative): $out"
 
 # 4. role 01's settings pass the desk start checks they serve
 R1="$SET/roles/01_box_hardening/tasks/main.yml"

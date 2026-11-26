@@ -17386,6 +17386,40 @@
           "200": {
             "description": "OK (body schema to be filled from the contract, spec 104 T004)"
           },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "The created workspace. A generated root private key is in root_private_key ONCE. Spec 074 phase 1; spec 158 10.6.",
+                  "properties": {
+                    "box_wui_pin": {
+                      "description": "Spec 158 10.6 item 2: whether the hub pinned its own box-wui key in the new workspace (no root signature, never forced). A status other than pinned never fails the create.",
+                      "properties": {
+                        "status": {
+                          "description": "pinned: written now, with one operator_audit update row; present: already the hub's key; kept: a revoked pin or another key, left as it is; no_key: the hub has no box-wui key; failed: the write failed (logged)",
+                          "enum": [
+                            "pinned",
+                            "present",
+                            "kept",
+                            "no_key",
+                            "failed"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },

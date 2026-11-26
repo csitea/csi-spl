@@ -465,7 +465,7 @@ Threat model:
 |---|---|
 | The pin no longer carries the root key's consent. | True, and the change to spec 014 2.2. It adds no power: boxes read their pins from the hub with no root signature (M23), so a hostile hub could already list a key. The key is only ever the hub's own, and box-wui keeps its role (`task` and `note`). |
 | A customer holding its own root key does not want browser posts to reach its boxes. | It revokes the pin with its root key; the hub never re-pins a revoked row (a row exists). |
-| A sealed workspace (spec 136). | Not read. Row P1's first step reads whether a hub-written pin changes anything there, and says so in the commit body. |
+| A sealed workspace (spec 136). | Read by row P1: nothing changes. `spool_enc` is only answered by the root-signed pin route (`rest.go`) and the welcome and roster frames (`ws.go`), to a box seat; sealing is done by the seats with their age keys (136 3.3). box-wui is never a seat (014 FR-004) and its pin is an ed25519 verify key, so a hub-written pin seals nothing and opens nothing; a new workspace starts with `spool_enc` false. |
 | An attacker makes the hub pin another key. | `ensureWUIPin` takes no key input: only the loaded hub key. |
 | The sweep overwrites something. | It writes only where no pin row exists, not forced. Control: a revoked row and a foreign key both stay as they are. |
 | A silent failure. | `box_wui_pin` in the 201 body, the audit row, V2, and the dispatch tick's existing `UNSIGNED` report. |

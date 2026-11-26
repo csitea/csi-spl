@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -272,6 +273,15 @@ func readLoopBody(w http.ResponseWriter, r *http.Request) (loopBody, bool) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&b); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_loop", "body must be {\"prompt\", \"triggers\", \"interval_min\", \"keyword\", \"idle_min\", \"daily_at\", \"daily_tz\", \"state\"}")
+		return b, false
+	}
+	// One trigger per loop (spec 182 v0.11, HUM-10 t1 6e8c1cdb msg febf1db4,
+	// SPL-6582; it reverses Q3 B): a body that sends triggers sends exactly
+	// one. A loop stored before v0.11 with several keeps them through every
+	// edit that sends none (pause, resume, a new prompt), and still fires on
+	// each; the store and rdb 0301 (>= 1) are unchanged for those rows.
+	if b.Triggers != nil && len(slices.Compact(slices.Sorted(slices.Values(b.Triggers)))) != 1 {
+		writeErr(w, http.StatusBadRequest, "bad_loop", "triggers must name exactly one trigger: one trigger per loop")
 		return b, false
 	}
 	if b.DailyTZ != nil { // 5.1: a CHECK cannot load a zone, the hub does

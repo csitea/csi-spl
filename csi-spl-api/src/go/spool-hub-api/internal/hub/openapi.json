@@ -1191,6 +1191,7 @@
             "type": "string"
           },
           "triggers": {
+            "description": "One trigger per loop (spec 182 v0.11): an add, and an edit that sends triggers, carry exactly one; a loop stored before v0.11 may still answer several.",
             "items": {
               "enum": [
                 "after_agent_reply",
@@ -21384,6 +21385,7 @@
                     "type": "string"
                   },
                   "triggers": {
+                    "description": "One trigger per loop (spec 182 v0.11): an add, and an edit that sends triggers, carry exactly one; a loop stored before v0.11 may still answer several.",
                     "items": {
                       "enum": [
                         "after_agent_reply",
@@ -21400,6 +21402,8 @@
                       ],
                       "type": "string"
                     },
+                    "maxItems": 1,
+                    "minItems": 1,
                     "type": "array"
                   }
                 },
@@ -21576,6 +21580,7 @@
                     "type": "string"
                   },
                   "triggers": {
+                    "description": "One trigger per loop (spec 182 v0.11): an add, and an edit that sends triggers, carry exactly one; a loop stored before v0.11 may still answer several.",
                     "items": {
                       "enum": [
                         "after_agent_reply",
@@ -21592,6 +21597,8 @@
                       ],
                       "type": "string"
                     },
+                    "maxItems": 1,
+                    "minItems": 1,
                     "type": "array"
                   }
                 },

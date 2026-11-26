@@ -1,6 +1,6 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **v0.10 (ready for build planning)** (2026-11-25). Lane `c-301` (`claude`, backup for
+Status: **v0.11 (the owner's dialog changes, building)** (2026-11-26); v0.10 (ready for build planning) (2026-11-25). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
@@ -30,7 +30,13 @@ folds the owner's answers to form `13fb1941` (msg `facaaf33`, 2026-11-25
 workspace archive-topics setting reads on `origin/master`, specifies how the
 60/h per-loop cap and 120/h per-channel total cap interact, removes the
 per-topic opt-out switch, and finalises the disjoint build rows with red
-controls and vendor assignments per the fleet kind table (8.7, 9.1-9.10).
+controls and vendor assignments per the fleet kind table (8.7, 9.1-9.10);
+v0.11 (lane `c-068`, `claude`, issues **SPL-6580..SPL-6589, SPL-6592,
+SPL-6593**, topic `6e8c1cdb-8358-4404-a88c-0adc6f443c71`) folds the owner's
+fourteen messages on the Discussion loops dialog (HUM-10, t1 `6e8c1cdb`,
+2026-11-26): one trigger per loop as radio buttons (it reverses Q3 B), the
+trigger names the loop, and the dialog's size, drag, buttons, prompt box,
+card order, file triggers, clock, columns and font (8.8).
 Epic: **SPL-2398**. Issue: **SPL-6022** (v0.1-v0.8); **SPL-6440** (v0.9); **SPL-6474** (v0.10). Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`, v0.1-v0.8); `topic:cbb1897b-4d35-44df-93c3-a2bbd2b6defa` (`t1`, v0.9-v0.10).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -79,7 +85,7 @@ spec applies them:
 |---|---|---|
 | Q1 | **A** — the topic's agent: the agent that last wrote in the topic | 4.3 step 1 |
 | Q2 | **A** — a new message to that agent in the topic, the prompt with the post that fired it quoted | 4.3 step 2; shown to nobody, see 1.1 |
-| Q3 | **B** — any mix of the triggers, as checkboxes; the six triggers of msg `d44af000` replace v0.2's three (1.2) | 4.1, 4.2, the `triggers` column |
+| Q3 | ~~**B** — any mix of the triggers, as checkboxes~~; **v0.11: one trigger per loop, radio buttons** (msg `febf1db4`, 8.8 change 3); the six triggers of msg `d44af000` replace v0.2's three (1.2) | 4.1, 4.2, the `triggers` column |
 | Q4 | **B** — only the cap of 12 fires per hour; Q10 A adds one rule on top (1.4) | 4.2, 4.5 |
 | Q5 | **A** — whoever the workspace's "Who can archive topics" setting allows (as pause) | 4.1 step 1 and step 3 |
 | Q6 | **B** — several loops per topic, each with its own prompt and trigger | section 5 key; the list dialog of 4.1 |
@@ -290,19 +296,21 @@ Paths under `internal/` are in `csi-spl-api/src/go/spool-hub-api/`.
    the only place a loop shows (answer 7 C): no badge, no topic notes, no
    mark on any message.
 2. The entry opens `TopicLoopsDialog.vue`:
-   - the topic's loops, one row each: the first line of the prompt, the
-     checked triggers, its state (`on`, `paused`, or `held until hh:mm` by
+   - the topic's loops, one row each: its title (v0.11: the trigger with
+     its parameter, 8.8 changes 1 and 2), the first line of the prompt, its
+     state (`on`, `paused`, or `held until hh:mm` by
      the cap), and its author;
    - per row: **Edit**, **Pause** / **Resume**, **Delete**;
    - **Add loop**.
    Add and Edit open the same form: the prompt (a textarea, at most 4000
-   characters) and the eleven checkboxes of 1.2 (answer 3 B), with a number
+   characters) and the eleven triggers of 1.2 as one radio group (v0.11,
+   8.8 change 3; v0.10 had checkboxes, answer 3 B), with a number
    field for n (5..1440) next to "each n minutes", a text field (1..200
    characters) next to "a post that contains", a number field for n
    (5..1440) next to "no reply for n minutes", and a time (hh:mm) plus a
    time zone (default: the browser's zone) next to "every day at". Each
-   field is required exactly when its box is checked. At least one box must
-   be checked. Under "after each agent reply" the form says that the
+   field is required exactly when its box is checked. Exactly one trigger
+   is picked (v0.11). Under "after each agent reply" the form says that the
    agent's answer to this loop's own prompt does not fire it again (Q10 A).
 3. The routes, with the shape of `PUT /v1/topics/{task_id}/priority`
    (`internal/hub/topic_priority.go:38`, handler `:52`, auth
@@ -1168,6 +1176,61 @@ trigger to its rows.
   triggers kept), channel archive retention (W1, 9.5), `topic_loops`,
   `messages.loop_id`, and rows L1-L7.
 
+### 8.8 Changes from v0.10 (the owner's Discussion loops dialog changes, v0.11)
+
+**Source.** HUM-10, t1 `#refactoring` topic `6e8c1cdb` "discussion loops
+refactoring changes", 2026-11-26 11:29-11:36Z, verbatim and in order:
+`4bdc60ba`, `1708487a`, `543a5bde` (screenshot `a44133f5`: the Add form, the
+Prompt "before each agent reply" typed by hand and that box checked): *"once a
+click on a "whne" option , it has to become the title of the loop directly"*;
+`7f3ebb17` (screenshot `bebfa879`): *"so instead of say hello here"*;
+`9e3161d9` (screenshot `b8e7bad8`): *"the title should be before each agent
+reply"*; `a04bba37`: *"and this should work for everry type selected ..."*;
+`febf1db4`: *"those choices should be radio buttons - aka one trigger per
+loop"*; `e68509d5`: *"also the dialog box should be draggable back and forth
+on the screen"*; `ac0a7377`: *"also it should take 70% of the width of the
+screen and it should start 10% from the top"*; `1822fb67`: *"The edit pause and
+delete buttons should be just buttons with icons and text on hover , known
+icons , using the spool-hub's existing style"*; `ae3a2d5c` (screenshot
+`b8441ef6`, the Prompt box resized by hand to about 17% of a 2560x1600
+screen, ~11 lines): *"the prompt should be still resizable but its default size
+should be about this big"*; `a12eb10a`: *"one should be able to drag up and
+down the loop cards in the dialog box once they are set"*; `d8e02722`: *"the
+option for A post with a file attached , should be changed into 2 actoins , >
+> after an agent post with one or more files attached > after a human post with
+one or more files attached"*; `e4cb57a6`: *"this date time control should use by
+default 24 hours clock"*. Then, relayed by the dispatch holder `c-002` (msg
+`f435f15f`): `534340d9` (screenshot `76e9a4ed`): *"the prompt and the Run it
+sections of this dialog box should be as 2 columns of a table - the when should
+be on the right and the prompt on the left column"*; `ca849d36`: *"this should
+be done after the resizing ..."*; `5c03fa45`: *"concentrate only on the Desktop
+now , we wil fix the mobile later one"*; `b5ba7424`: *"also the font for the
+loops should be bigger - at least in the same size as the font of the
+omnibox"*. Where screenshot `bebfa879` points (the list row or the fire line)
+is the holder's ruling (msg `7f133bb6`): both.
+
+**Scope.** Desktop (msg `5c03fa45`). At <= 600 px the dialog stays today's
+full screen: no new phone work, only no regression.
+
+| # | Issue | Change | Where |
+|---|---|---|---|
+| 1 | SPL-6580 | **The trigger names the loop.** A loop's title is its one trigger's label with its parameter, first letter upper case: "Before each agent reply", "Every 30 minutes", "A post that contains "deploy"", "No reply for 15 minutes after a human post", "Every day at 09:00 (Europe/Amsterdam)", for every trigger. Derived, never stored: no column, no migration. In the form it is a heading set the moment a radio is picked, and it follows the trigger's field as it is typed. | `utils/topic-loops.mjs` `loopTitle`, `formLoop`; `TopicLoopsDialog.vue` |
+| 2 | SPL-6581 | **Where the title shows.** (a) The list row: the title is the row's first line, the prompt's first line under it (it was the prompt's line, then the checked triggers). (b) The fire line: the first line of a loop prompt message names the title after the unchanged mark, `Loop prompt (background; set by @HUM-1, fired by msg:<id>): Before each agent reply`, and the prompt stays below it. The mark `Loop prompt (background; ` is unchanged: the box notify (`spool-notify.inc.sh`) and the time fire's quote match on it. The hub's English labels mirror `en.json` `feed.topic_loops`, held equal by `TestTopicLoopTitleParity`. A loop stored with several triggers names them all, comma separated. | `TopicLoopsDialog.vue`; `hub/topic_loop_title.go`, `hub/topic_loop_fire.go` `loopMessage` |
+| 3 | SPL-6582 | **One trigger per loop, radio buttons** (reverses Q3 B). The form's eleven checkboxes become one radio group, none picked on a new loop. Hub: a `POST` or `PUT` body that sends `triggers` sends exactly one distinct key, else `400 bad_loop` (`readLoopBody`); `openapi.json` says `minItems: 1, maxItems: 1` on the request bodies. **Loops stored before v0.11 with several triggers** (no silent change on prd): they read and fire exactly as before; a `PUT` that sends no `triggers` (pause, resume, a new prompt or field) keeps them all; their row names every trigger; their form opens on the first (1.2 order) and says, above the radios, that saving keeps only the trigger chosen (`multi_note`). The store and rdb 0301 (`cardinality(triggers) >= 1`) are unchanged, as they must still hold those rows. | `hub/topic_loop.go`; `topic-loops.mjs` `loopForm` (`trigger`, `others`), `loopFormError`, `loopBody`; the mock |
+| 4 | SPL-6583 | **Draggable dialog.** `UiDialog` gains `draggable`: a press on the header (not on its buttons) moves the panel with a mouse, a pen or a finger (pointer events), clamped so the whole panel stays on screen (`utils/dialog-drag.mjs`); a smaller window pulls it back; each open starts at its CSS place. Off at <= 600 px. | `UiDialog.vue`, `composables/useDialogDrag.ts` |
+| 5 | SPL-6584 | **70% wide, 10% from the top.** `UiDialog` gains size `wide`: `width: 70vw`, its top at `10vh`, its height its content's up to `80vh`. At <= 600 px the full screen as every size. | `UiDialog.vue`; the loops dialog uses `size="wide" draggable` |
+| 6 | SPL-6585 | **Icon buttons.** A row's Edit, Pause / Resume and Delete are the WUI's `icon-btn` with `UiIcon` glyphs `pencil`, `pause` / `play`, `trash` (`pause`, `play` added to `utils/uiIcons.ts`, lucide paths; no new icon library); the words are their `title` and `aria-label`; a locked row keeps the locked reason as its title and stays disabled. | `TopicLoopsDialog.vue`, `uiIcons.ts` |
+| 7 | SPL-6586 | **Prompt box size.** The prompt textarea stays resizable (vertical); its default height is `17vh`, the owner's hand-sized box (about 17% of the screen height, ~11 lines on 2560x1600), never under 6 lines. | `TopicLoopsDialog.vue` |
+| 8 | SPL-6587 | **Reorder loop cards.** A saved loop's row is dragged up and down by its grip (pointer and touch); on the focused grip, Arrow Up / Arrow Down move it one place (the keyboard way). The order is the hub's: rdb `topic_loops.position` (int, the list's order; new loops go last), `TopicLoops` lists by `position, set_at`, and `PUT /v1/topics/{task_id}/loops/order` `{"loop_ids": [...]}` (the topic's every loop id, once each, else `400 bad_loop`; the archive policy as every write) stores it and sends the `topic_loops` frame, so every viewer and the next open see it. | rdb, store, `hub/topic_loop.go`, `openapi.json`, the dialog |
+| 9 | SPL-6588 | **The file trigger in two.** The form offers "After an agent post with one or more files attached" (`post_has_file_agent`) and "After a human post with one or more files attached" (`post_has_file_human`) in place of "A post with a file attached": twelve in the form. The hub fires the first on an agent's post (an agent reply or a box blocker) with a file, the second on a human post with a file (`postMatches`). A stored loop with the old `post_has_file` keeps firing on both, as before, and its row keeps its old label; the form no longer offers it. rdb: the `triggers` CHECK of 0301 gains the two keys. | rdb, store `TopicLoopTriggers`, `hub/topic_loop_fire.go`, the title tables, the form |
+| 10 | SPL-6589 | **24-hour clock.** "Every day at" is the WUI's own `hh:mm` text field (24 h, `inputmode="numeric"`, checked against `^([01]\d|2[0-3]):[0-5]\d$`), not the native `<input type="time">`, which follows the browser locale and showed "09:00 AM". The stored value stays `hh:mm`. | `TopicLoopsDialog.vue` |
+| 11 | SPL-6592 | **Two columns.** On a desktop the Add / Edit form is two columns: the prompt left, Run it (the radios) right; the title above both, the buttons below. At <= 600 px one column, as before. | `TopicLoopsDialog.vue` |
+| 12 | SPL-6593 | **Bigger text.** The dialog's text (list rows, form labels, radios, fields) is at least the omnibox's (the message composer's) font size, through the composer's own size token, no new number. | `TopicLoopsDialog.vue` |
+
+Channel loops (section 9) reuse this dialog (9.2, 9.8.3); whether
+`channel_loops` mirrors change 8's `position` and change 9's two keys is the
+holder's call (plan `spec-182-channel-loops-build-plan.md` v1.1, N6).
+
 ## 9. Channel loops (v0.9 SPL-6440; v0.10 SPL-6474)
 
 ### 9.0 The owner's words (HUM-10, t1 topic `cbb1897b`, 2026-11-24 / 2026-11-25)
@@ -1961,4 +2024,4 @@ git grep -n -E '^func \(s \*Server\) (handleMergeTopic|mergeTopic|unmergeTopic)\
 git grep -n -E 'openChannelMenu|SidebarRowMenu|showProperties|deletableChannel|topicLoops:|channelDeleted:|topic_loops|CREATE INDEX.*topic_head_parts_channel|ChannelPropertiesDialog' origin/master -- csi-spl-wui/src/components/ChannelSidebar.vue csi-spl-wui/src/composables/useSidebarChannelAdmin.ts csi-spl-wui/src/utils/live-ws.mjs csi-spl-api/src/go/spool-hub-api/internal/channelmove/catalogue.go csi-spl-api/src/go/spool-hub-api/internal/store/rls_test.go csi-spl-rdb/src/sql/postgres/spool-hub/0144_topic_heads.sql csi-spl-rdb/src/sql/postgres/spool-hub/0301_topic_loops.sql
 ```
 
-<!-- version: 0.10 · updated: 2026-11-25 · last-edit: 2026-11-25T08:59:00Z -->
+<!-- version: 0.11 · updated: 2026-11-26 · last-edit: 2026-11-26T13:30:00Z -->

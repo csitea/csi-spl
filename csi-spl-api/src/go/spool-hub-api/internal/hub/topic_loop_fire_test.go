@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"slices"
@@ -478,6 +479,44 @@ func (r *loopRig) addLoop(t *testing.T, body map[string]any) string {
 	return out["loop_id"].(string)
 }
 
+// legacyLoop is a loop with several triggers, as rows saved before spec
+// 182 v0.11 are (one trigger per loop, msg febf1db4): the route adds it
+// with its first trigger (so the hub knows the tenant has loops), then the
+// store, which still keeps such rows, widens it to all of body's. The
+// routes refuse a body of several now; the store and the fire still serve
+// the rows already on prd. The loop id.
+func (r *loopRig) legacyLoop(t *testing.T, body map[string]any) string {
+	t.Helper()
+	triggers := body["triggers"].([]string)
+	fieldOf := map[string][]string{store.LoopEveryNMinutes: {"interval_min"}, store.LoopPostHasKeyword: {"keyword"},
+		store.LoopNoReplyAfterHuman: {"idle_min"}, store.LoopDailyAt: {"daily_at", "daily_tz"}}
+	first := map[string]any{"prompt": body["prompt"], "triggers": triggers[:1]}
+	for _, k := range fieldOf[triggers[0]] {
+		first[k] = body[k]
+	}
+	id := r.addLoop(t, first)
+	e := store.TopicLoopEdit{Triggers: triggers, By: "HUM-1", At: time.Now().UTC()}
+	if v, ok := body["keyword"].(string); ok {
+		e.Keyword = &v
+	}
+	if v, ok := body["interval_min"].(int); ok {
+		e.Interval = &v
+	}
+	if v, ok := body["idle_min"].(int); ok {
+		e.IdleMin = &v
+	}
+	if v, ok := body["daily_at"].(string); ok {
+		e.DailyAt = &v
+	}
+	if v, ok := body["daily_tz"].(string); ok {
+		e.DailyTZ = &v
+	}
+	if _, err := r.e.st.(store.TopicLoopStore).EditTopicLoop(context.Background(), r.tid, r.task, id, e); err != nil {
+		t.Fatalf("legacy loop: %v", err)
+	}
+	return id
+}
+
 func loopBody(triggers ...string) map[string]any {
 	return map[string]any{"prompt": "export this topic as a PDF", "triggers": triggers}
 }
@@ -587,9 +626,9 @@ func TestTopicLoopAfterAgentReplyFires(t *testing.T) {
 // A post that matches two checked boxes fires once, and counts once.
 func TestTopicLoopTwoBoxesFireOnce(t *testing.T) {
 	r := newLoopRig(t)
-	agentSide := r.addLoop(t, map[string]any{"prompt": "mail it", "keyword": "PDF",
+	agentSide := r.legacyLoop(t, map[string]any{"prompt": "mail it", "keyword": "PDF",
 		"triggers": []string{store.LoopAfterAgentReply, store.LoopPostHasKeyword}})
-	humanSide := r.addLoop(t, loopBody(store.LoopBeforeAgentReply, store.LoopAfterHumanReply))
+	humanSide := r.legacyLoop(t, loopBody(store.LoopBeforeAgentReply, store.LoopAfterHumanReply))
 	r.agentSay(t, r.task, "HUM-1", "the PDF is ready")
 	r.barrier(t)
 	r.wantPrompts(t, "agent reply matching two boxes", 1)
@@ -608,7 +647,7 @@ func TestTopicLoopTwoBoxesFireOnce(t *testing.T) {
 // inserted row) nor the before hook (the post is already stored).
 func TestTopicLoopReplayDoesNotFire(t *testing.T) {
 	r := newLoopRig(t)
-	loop := r.addLoop(t, loopBody(store.LoopBeforeAgentReply, store.LoopAfterHumanReply))
+	loop := r.legacyLoop(t, loopBody(store.LoopBeforeAgentReply, store.LoopAfterHumanReply))
 	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
 	post := uuidV4()
 	r.wuiPost(t, w, post, "CLE-07", "once")
@@ -624,7 +663,7 @@ func TestTopicLoopReplayDoesNotFire(t *testing.T) {
 // fires no loop, so an after_human_reply loop counts only the real post.
 func TestTopicLoopPromptMessageDoesNotFire(t *testing.T) {
 	r := newLoopRig(t)
-	loop := r.addLoop(t, loopBody(store.LoopAfterHumanReply, store.LoopAfterAgentReply))
+	loop := r.legacyLoop(t, loopBody(store.LoopAfterHumanReply, store.LoopAfterAgentReply))
 	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
 	r.wuiPost(t, w, uuidV4(), "", "one human post")
 	r.wuiBarrier(t, w)
@@ -693,7 +732,7 @@ func TestTopicLoopAwaitedAnswerFiresOtherBoxes(t *testing.T) {
 	r.agentSay(t, r.task, "ALL-0", "a real reply")
 	r.barrier(t)
 	r.wantPrompts(t, "the first loop's fire", 1)
-	second := r.addLoop(t, map[string]any{"prompt": "mail it", "keyword": "PDF",
+	second := r.legacyLoop(t, map[string]any{"prompt": "mail it", "keyword": "PDF",
 		"triggers": []string{store.LoopAfterAgentReply, store.LoopPostHasKeyword}})
 	r.agentSay(t, r.task, "ALL-0", "PDF sent")
 	r.barrier(t)
@@ -1094,7 +1133,7 @@ func writeFile(p, body string) error { return os.WriteFile(p, []byte(body), 0o60
 func TestTopicLoopDailyAfterIntervalFiresBoth(t *testing.T) {
 	r := newLoopRig(t)
 	ctx := context.Background()
-	loop := r.addLoop(t, map[string]any{"prompt": "digest", "triggers": []string{store.LoopEveryNMinutes, store.LoopDailyAt},
+	loop := r.legacyLoop(t, map[string]any{"prompt": "digest", "triggers": []string{store.LoopEveryNMinutes, store.LoopDailyAt},
 		"interval_min": 60, "daily_at": "09:00", "daily_tz": "UTC"})
 	now := time.Now().UTC()
 	r.dueNow(t, loop, func(l *store.TopicLoop) {
@@ -1215,7 +1254,7 @@ func TestTopicLoopTimerSkipsNoteToSelf(t *testing.T) {
 func TestTopicLoopIdleAndPostFireOnOneArmingPost(t *testing.T) {
 	r := newLoopRig(t)
 	ctx := context.Background()
-	loop := r.addLoop(t, map[string]any{"prompt": "nudge the agent", "idle_min": 15,
+	loop := r.legacyLoop(t, map[string]any{"prompt": "nudge the agent", "idle_min": 15,
 		"triggers": []string{store.LoopAfterHumanReply, store.LoopNoReplyAfterHuman}})
 	w := dialMember(t, r.e, r.tid, "Owner", "HUM-1")
 	r.wuiPost(t, w, uuidV4(), "", "can someone check the backup job?")
@@ -1269,4 +1308,39 @@ func TestTopicLoopNonMatchingAnswerClearsTheWait(t *testing.T) {
 	r.agentSay(t, r.task, "ALL-0", "a new pdf of the other report")
 	r.barrier(t)
 	r.wantPrompts(t, "the next keyword post", 2)
+}
+
+// One trigger per loop (spec 182 v0.11, HUM-10 t1 6e8c1cdb msg febf1db4,
+// SPL-6582): a POST or PUT that sends triggers sends exactly one, else 400
+// bad_loop and nothing changes; a loop stored with several before v0.11
+// keeps them through a pause, a resume and a new prompt, and a PUT of its
+// one trigger narrows it.
+func TestTopicLoopOneTrigger(t *testing.T) {
+	r := newLoopRig(t)
+	path := "/v1/topics/" + r.task + "/loops"
+	for why, triggers := range map[string][]string{
+		"two":  {store.LoopEveryHour, store.LoopBlockerPosted},
+		"none": {},
+	} {
+		if code, out := call(t, r.e, r.tid, http.MethodPost, path, "HUM-1", loopBody(triggers...)); code != http.StatusBadRequest || out["error"] != "bad_loop" {
+			t.Fatalf("POST %s triggers: %d %v, want 400 bad_loop", why, code, out)
+		}
+	}
+	r.addLoop(t, loopBody(store.LoopEveryHour, store.LoopEveryHour)) // a repeated trigger is one trigger
+	old := r.legacyLoop(t, loopBody(store.LoopAfterHumanReply, store.LoopBlockerPosted))
+	put := func(body map[string]any) (int, map[string]any) {
+		return call(t, r.e, r.tid, http.MethodPut, path+"/"+old, "HUM-1", body)
+	}
+	if code, out := put(map[string]any{"triggers": []string{store.LoopEveryHour, store.LoopBlockerPosted}}); code != http.StatusBadRequest || out["error"] != "bad_loop" {
+		t.Fatalf("PUT two triggers: %d %v, want 400 bad_loop", code, out)
+	}
+	both := []string{store.LoopAfterHumanReply, store.LoopBlockerPosted}
+	for _, body := range []map[string]any{{"state": "paused"}, {"state": "on"}, {"prompt": "a new prompt"}} {
+		if code, out := put(body); code != http.StatusOK || fmt.Sprint(out["triggers"]) != fmt.Sprint(both) {
+			t.Fatalf("PUT %v: %d %v, want 200 and both triggers kept", body, code, out)
+		}
+	}
+	if code, out := put(map[string]any{"triggers": []string{store.LoopBlockerPosted}}); code != http.StatusOK || fmt.Sprint(out["triggers"]) != fmt.Sprint([]string{store.LoopBlockerPosted}) {
+		t.Fatalf("PUT its one trigger: %d %v", code, out)
+	}
 }

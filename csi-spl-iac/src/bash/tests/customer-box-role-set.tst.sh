@@ -14,8 +14,11 @@
 #      CLI login file, a task delegated to the controller (bare, and
 #      delegate_to / connection quoted: one YAML value), an inline !vault
 #      value, the workspace setup or the desk checks left only in a name:
-#      line, a when: false.
-#      A comment line naming a token stays green (comments are not read).
+#      line, a when: false (bare, single-quoted), a task swallowing its
+#      failure (ignore_errors truthy, failed_when falsy or any failed_when in
+#      role 04, ignore_errors in role 03).
+#      A comment line naming a token, ignore_errors or failed_when stays
+#      green (comments are not read); changed_when: false stays green.
 #   4. role 01's kernel and mount settings pass the desk start checks they
 #      serve (ptrace, dumpable, hidepid, swap), run with the orc code on a
 #      fixture; CONTROL: ptrace_scope 1 in the fixture is refused. Role 01
@@ -119,6 +122,25 @@ copy_set; printf '%s\n' "# a comment may name GITHUB_TOKEN: the set leaves it ou
 out=$(check "$T/set") && pass "a comment naming a token stays green (comments are not read)" || fail "a comment line was refused: $out"
 copy_set; printf '%s\n' "# a value may never be !vault here" >>"$T/set/roles/02_spool_harness/tasks/main.yml"
 out=$(check "$T/set") && pass "a comment naming !vault stays green" || fail "a !vault comment line was refused: $out"
+R4="$T/set/roles/04_desk_start_checks/tasks/main.yml"
+for pair in \
+  "p1 (b48-02): ignore_errors: true in role 04|  ignore_errors: true|swallow-error" \
+  "p2 (b48-02): ignore_errors: \"yes\" in role 04|  ignore_errors: \"yes\"|swallow-error" \
+  "p3 (b48-02): failed_when: false in role 04|  failed_when: false|swallow-error" \
+  "p4 (b48-02): failed_when: <expr> in role 04|  failed_when: dsc_out.rc == 99|swallow-error" \
+  "p5 (b48-02): when: 'false' in role 04|  when: 'false'|when-false" \
+  "p6 (b48-02): when: FALSE # comment in role 04|  when: FALSE # skip|when-false"; do
+  IFS='|' read -r lbl line chk <<<"$pair"
+  copy_set; printf '%s\n' "$line" >>"$R4"
+  refused "$lbl" "REFUSED $chk: roles/04_desk_start_checks/tasks/main.yml:"
+done
+copy_set; printf '%s\n' "  ignore_errors: true" >>"$T/set/roles/03_workspace/tasks/main.yml"
+refused "p7 (b48-02): ignore_errors: true in role 03" "REFUSED swallow-error: roles/03_workspace/tasks/main.yml:"
+copy_set; printf '%s\n' "# ignore_errors: true" "  # failed_when: false" >>"$R4"
+out=$(check "$T/set") && pass "comments naming ignore_errors / failed_when in role 04 stay green" || fail "a comment line was refused: $out"
+grep -q '^  changed_when: false$' "$SET/roles/04_desk_start_checks/tasks/main.yml" \
+  && pass "role 04 keeps changed_when: false (the shipped set passes with it, above)" \
+  || fail "role 04 lost its changed_when: false line"
 
 # 4. role 01's settings pass the desk start checks they serve
 R1="$SET/roles/01_box_hardening/tasks/main.yml"

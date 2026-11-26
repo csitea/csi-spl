@@ -23,12 +23,24 @@
 # @description               local), each value bare, single- or double-quoted
 # @description   ws-setup    no task calls ./run -a do_spl_box_workspace_setup
 # @description   checks      no task calls spl_desk_start_checks (127 5.3)
-# @description   when-false  a task switched off with when: false
+# @description   when-false  a task switched off with when: false (false, no
+# @description               or 0, any case, bare, single- or double-quoted,
+# @description               a trailing # comment allowed)
+# @description   swallow-error  a task that swallows its own failure: a truthy
+# @description               ignore_errors: (true, yes, 1) or a falsy
+# @description               failed_when: (false, no, 0) anywhere in the set,
+# @description               and any ignore_errors: or failed_when: at all in
+# @description               roles/04_desk_start_checks (127 5.3: the play
+# @description               fails when one check refuses); changed_when: and
+# @description               comment lines are not read
 # @description One "REFUSED <check>: <why>" line per finding, then exit 1.
 # @description It is a ban list: it cannot prove absence. It never sees the
 # @description inventory, host_vars or extra-vars kept outside the set, a path
 # @description built from variables at run time, the content of an archive, or
 # @description anything Ansible decrypts; review stays the check for those.
+# @description when-false and swallow-error read literal values only: a
+# @description rescue: block, ignore_unreachable, or a templated falsy value
+# @description ("{{ false }}", a variable) outside role 04 pass them.
 # @param CUSTOMER_BOX_ROLE_DIR (optional) - the role set to check; default src/ansible/customer-box of this tree
 # @example ./run -a do_spl_customer_box_role_check
 # @example CUSTOMER_BOX_ROLE_DIR=<dir> ./run -a do_spl_customer_box_role_check
@@ -43,6 +55,7 @@ do_spl_customer_box_role_check() {
   spl_cbr_runs "$d" '\./run -a do_spl_box_workspace_setup' ws-setup || bad=1
   spl_cbr_runs "$d" '^[[:space:]]*spl_desk_start_checks ' checks || bad=1
   spl_cbr_when_false "$d" || bad=1
+  spl_cbr_no_swallow "$d" || bad=1
   (( bad == 0 )) || { do_log "FATAL the customer box role set at $d carries an estate key or AI login, or skips a required step (spec 181 B6)"; return 1; }
   do_log "OK the customer box role set at $d: no estate key, no AI login of ours; it runs do_spl_box_workspace_setup and the 127 5.3 checks"
 }
@@ -111,12 +124,36 @@ spl_cbr_runs() {
   spl_cbr_refuse "$3" "no task calls $2"
 }
 
-# spl_cbr_when_false <dir>: no task is switched off.
-spl_cbr_when_false() {
-  local d="$1" hit bad=0
+# A YAML scalar as a task writes it: bare, single- or double-quoted, then
+# an optional trailing comment. Matched case-insensitively (grep -i).
+SPL_CBR_FALSY_RX='["'"'"']?(false|no|0)["'"'"']?[[:space:]]*(#.*)?$'
+SPL_CBR_TRUTHY_RX='["'"'"']?(true|yes|1)["'"'"']?[[:space:]]*(#.*)?$'
+
+# spl_cbr_report <check> <dir>: one refusal per grep -rn hit on stdin
+# (path:line:text, the path shown relative to <dir>).
+spl_cbr_report() {
+  local hit bad=0
   while IFS= read -r hit; do
     [[ -n "$hit" ]] || continue
-    spl_cbr_refuse when-false "${hit#"$d"/}"; bad=1
-  done < <(grep -rnE '^[[:space:]]*when:[[:space:]]*(false|no|False|"false"|0)[[:space:]]*$' "$d" 2>/dev/null)
+    spl_cbr_refuse "$1" "${hit#"$2"/}"; bad=1
+  done
   return "$bad"
+}
+
+# spl_cbr_when_false <dir>: no task is switched off.
+spl_cbr_when_false() {
+  spl_cbr_report when-false "$1" < <(grep -rniE "^[[:space:]]*when:[[:space:]]*$SPL_CBR_FALSY_RX" "$1" 2>/dev/null)
+}
+
+# spl_cbr_no_swallow <dir>: no task swallows its own failure, and role 04's
+# checks carry no ignore_errors: or failed_when: at all.
+spl_cbr_no_swallow() {
+  local d="$1" r4="$1/roles/04_desk_start_checks"
+  spl_cbr_report swallow-error "$d" < <(
+    {
+      grep -rniE -e "^[[:space:]]*ignore_errors:[[:space:]]*$SPL_CBR_TRUTHY_RX" \
+        -e "^[[:space:]]*failed_when:[[:space:]]*$SPL_CBR_FALSY_RX" "$d"
+      [[ ! -d "$r4" ]] || grep -rniE '^[[:space:]]*(ignore_errors|failed_when):' "$r4"
+    } 2>/dev/null | sort -u
+  )
 }

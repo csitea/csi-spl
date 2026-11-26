@@ -1,4 +1,4 @@
-# Spec 182 channel loops build round - plan v0.1 (6 rows, 5 batches)
+# Spec 182 channel loops build round - plan v0.2 (6 rows, 5 batches)
 
 Epic: SPL-2398  
 Spec: csi-spl-doc/specs/182-topic-loop-prompt (v0.10)  
@@ -34,7 +34,7 @@ strictly disjoint files (R1), checks live and queued R3 overlaps across specs
 186, 187 and 196, names each row's kind, vendor and cross-vendor R7 reviewer,
 and proposes one brief per row. It writes no code.
 
-**Status: v0.1, draft for panel review.** Planner: `a-934` (`agy`, main for
+**Status: v0.2, revised for panel re-review (answers `c-938` FAIL W1-W3 and N1-N4 on v0.1 `6ae5fe136`).** Planner: `a-934` (`agy`, main for
 `specs_and_docs`). Panel: one cross-vendor seat, **`c-938`** (`claude`,
 placement `c002-s182-cl-build-claude-panel-seat`, ask `3343e159`). Not yet
 signed; no row queued before panel PASS (`do_spl_review_line_check` rc 0) and
@@ -42,7 +42,10 @@ the dispatch holder's GO.
 
 **One sha.** Every code and spec read is on
 **`6b216a31990109235fbb11f3537c64e423b13b5c`** (`6b216a319`, `origin/master` at
-2026-11-26T05:22Z after a fresh fetch), with `git show` / `git grep`, n=1 per
+2026-11-26T05:22Z after a fresh fetch; at v0.2 `origin/master` is `f9521a941`,
+with `git diff --name-only 6b216a319..f9521a941` touching only
+`refactor-round-05-plan.md` and `specs/150-topic-list-priority/spec.md`, zero
+cited paths changed), with `git show` / `git grep`, n=1 per
 command. `git merge-base --is-ancestor a1b1984fd 6b216a319` -> rc 0: spec 182
 v0.10 is in the tree planned on, and no commit after it touches the spec folder
 (`git log --oneline a1b1984fd..6b216a319 -- csi-spl-doc/specs/182-topic-loop-prompt`
@@ -95,12 +98,12 @@ line moved since spec 182 v0.10 (`c9dd02117`), both are shown.
 | `rdb:0144_topic_heads.sql` `topic_head_parts_channel` index | `:100` | `:100` | C1 ref |
 | `rdb:0301_topic_loops.sql` `topic_loops`, RLS, `change_stamp` | `:53-86`, `:95-108` | `:53`, `:95-107` | C1 ref |
 | `api:internal/store/channels.go` `ChannelIssues`, `ChannelTasks`, `ChannelHidden` | `:56` | `:34`, `:40`, `:56` | C1/C2a ref |
-| `api:internal/store/channels_postgres.go` `ChannelKnown`, `DeleteChannel`, `ArchiveChannel`, `UnarchiveChannel` | `:78`, `:93`, `:136`, `:177` | `:78`, `:93`, `:136`, `:177` | C1 |
+| `api:internal/store/channels_postgres.go` `ChannelKnown`, `DeleteChannel`, `ArchiveChannel`, `UnarchiveChannel` | `:78` (`ChannelIssues` check), `:93`, `:136`, `:177` | `:77` (`ChannelKnown`; `:78` `ChannelIssues` line), `:93`, `:136`, `:177` | C1 |
 | `api:internal/store/channels_memory.go` `DeleteChannel`, `ArchiveChannel`, `UnarchiveChannel` | (by name) | `:144`, `:215`, `:260` | C1 |
 | `api:internal/store/rls_test.go` `rlsTables`, `"topic_loops"`, `TestRLSCoversEveryTenantTable` | `:92` | `:68`, `:92` (`rlsTables` ends `:100`), `:105` | C1 |
 | `api:internal/store/change_stamp_test.go` `stampTables`, `"topic_loops"`, `TestChangeStampTriggerCatalogue` | (not in 9.9 table; 2.4 N1) | `:22`, `:27`, `:45` | C1 |
 | `api:internal/store/crosstenant_test.go` `seedTenantAll` `topic_loops` block | (not in 9.9 table; 2.4 N1) | `:426-430` | C1 |
-| `api:internal/store/channel_copy_apply_postgres.go` `cpCarried`, `"topic_loops": false`, `cpCheckRequest` | (not in 9.9 table; 2.4 N1) | `:59`, `:75`, `:87-91` | C1 |
+| `api:internal/store/channel_copy_apply_postgres.go` `cpCarried`, `"topic_loops": false`, `cpCheckRequest` | (not in 9.9 table; 2.4 N1) | `:59`, `:75`, `:79` (`cpCheckRequest`; loop `:87-91`) | C1 |
 | `api:internal/channelmove/catalogue.go` `Catalogue`, `"topic_loops"` | `:61`, `:93` | `:61`, `:64`, `:93` | C1 |
 | `api:internal/store/tenant_settings.go` `ArchivePolicy*`, `EffectiveArchivePolicy` | `:46-73` | `:47-70` | C2a ref |
 | `api:internal/hub/demo.go` `archivePolicy` | `:76-81` | `:76-81` | C2a ref |
@@ -123,7 +126,7 @@ line moved since spec 182 v0.10 (`c9dd02117`), both are shown.
 | `wui:src/components/SidebarRowMenu.vue` `rowMenuItems` call, `choose` | `:130-142`, `:245-277` | `:93` (`properties`), `:112`, `:130-137`, `:245-264` | C3 |
 | `wui:src/components/ChannelSidebar.vue` `@contextmenu`, `<SidebarRowMenu>`, `ChannelPropertiesDialog`, `openChannelMenu`, `useSidebarChannelAdmin` | `:325`, `:352-375`, `:358`, `:641`, `:765` | `:325`, `:352-360`, `:641`, `:672`, `:765`, `:1041` | C3 |
 | `wui:src/composables/useSidebarChannelAdmin.ts` `showProperties`, `deletableChannel`, `onChannel` | `:48-50` | `:48`, `:66`, `:100`, `:105` | C3 |
-| `wui:src/components/TopicLoopsDialog.vue` `defineProps`, `load`, `save`, `toggle`, `remove`, `onFrame`, `onMockTopicLoops` | `:102-105` | `:102-105`, `:123`, `:163`, `:212`, `:217`, `:221`, `:233` | C3 |
+| `wui:src/components/TopicLoopsDialog.vue` locked/add block, `defineProps`, `load`, `save`, `toggle`, `remove`, `onFrame`, `onMockTopicLoops` | `:102-105` | `:102-105`, `:123`, `:158` (`listTopicLoops` `:163`), `:203`, `:216`, `:220`, `:224`, `:233` | C3 |
 | `wui:src/utils/topic-loops.mjs` `LOOP_TRIGGERS`..`loopsFromFrame` | (by name) | `:16`, `:48`, `:53`, `:104`, `:115`, `:136`, `:148`, `:160`, `:179`, `:188` | C3 |
 | `wui:src/utils/live-ws.mjs` `channelDeleted`, `topicLoops`, `onChannel` switch | `:35`, `:529-532` | `:35`, `:66`, `:530-531`, `:564` | C3 |
 | `wui:src/utils/spool-client.mjs` `*TopicLoop*` proxy list | (by name) | `:108-112` | C3 |
@@ -132,7 +135,7 @@ line moved since spec 182 v0.10 (`c9dd02117`), both are shown.
 | `wui:src/types/mjs-shims.d.ts` `*TopicLoop*` declarations | (by name) | `:209-217` | C3 |
 | `wui:i18n/locales/*.json` | 19 files | 19 files | C3 |
 | `csi-spl-doc/doc/help/channels-and-direct-messages.md`, `index.md` | (by name) | `index.md:67` | C5 |
-| `csi-spl-cnf/csi-spl/all.env.yaml` `mistral_ui_allowed`, `mistral_review_allowed`, `agent_split_by_kind` | `:1514-1530`, `:1567-1574` (**drifted**) | **`:1548`**, **`:1564`**, **`:1601-1605`** | ref |
+| `csi-spl-cnf/csi-spl/all.env.yaml` `mistral_ui_allowed`, `mistral_review_allowed`, `agent_split_by_kind` | `:1514-1530`, `:1567-1574` (**drifted**) | **`:1548`**, **`:1564`**, **`:1601-1606`** (incl. `i18n`; full block `:1601-1608`) | ref |
 
 ## 2. Rows
 
@@ -140,7 +143,7 @@ Kinds from spec 182 section 9.9; vendors measured with
 `LANE_MIX_KIND=<kind> ./run -a do_spl_lane_mix` (csi-spl-orc, 2026-11-26
 `05:23Z`; `instance: kinds off grok,qwen, paused none (hub)`):
 
-| kind | pick at 05:23Z | main / backup (cnf `all.env.yaml:1601-1605`) | notes |
+| kind | pick at 05:23Z | main / backup (cnf `all.env.yaml:1601-1606`) | notes |
 |---|---|---|---|
 | `complex_coding` | `claude` | `claude` (90%) / `agy` (10%) | `mistral` banned from coding (owner `b61851fb` msg `91bf8278`); `grok`, `qwen` off |
 | `simple_coding` | `claude` | `claude` (44%) / `agy` (41%, backup) | `codex` (15%) skipped (no cli -> share to `agy`); `agy` currently 64% over, `claude` 27% under; `mistral` banned |
@@ -152,16 +155,17 @@ The placer re-runs `do_spl_lane_mix` at placement time and takes the backup if
 the main is unavailable. No coding, test, or `csi-spl-wui/` row ever goes to
 `mistral`.
 
-**R7 reviewers** (rulebook 2.7.2): strictly cross-vendor — **`agy`** reviews
-every `claude`-authored row (`C1`, `C2a`, `C2b`, `C3`, `C4`; and `C5` if placed
-on backup `claude`), and **`claude`** reviews every `agy`-authored row (`C5`,
-and any coding/test row placed on backup `agy`). **`mistral`** sits on no
-review seat (`mistral_review_allowed: false`, `all.env.yaml:1564`, owner HUM-10
-t1 `91992830` msgs `65a45673` and `591ca574`), and **`grok`** is off in
-instance settings. Both `claude` and `agy` are live and unpaused at `05:23Z`,
-so no same-vendor waiver is needed today; if `agy` hits a quota outage before a
-row's review, the holder may place a `claude` same-vendor waiver seat only
-under the standing quota-outage waiver (lapsing when `agy` returns).
+**R7 reviewers** (rulebook 2.7.2, 2.7.3): strictly cross-vendor — **`agy`**
+reviews every `claude`-authored row (`C1`, `C2a`, `C2b`, `C3`, `C4`; and `C5`
+if placed on backup `claude`), and **`claude`** reviews every `agy`-authored
+row (`C5`, and any coding/test row placed on backup `agy`). **`mistral`** sits
+on no review seat (`mistral_review_allowed: false`, `all.env.yaml:1564`, owner
+HUM-10 t1 `91992830` msgs `65a45673` and `591ca574`), and **`grok`** is off in
+instance settings. Both `claude` and `agy` are live and unpaused at `05:23Z`.
+Per rulebook 2.7.3, no row pushes to `master` without a cross-vendor R7 PASS
+(if an assigned seat is absent or unresponsive for 15 minutes, the lane reports
+a blocker to the orchestrator to place an eligible cross-vendor replacement;
+this plan claims no same-vendor waiver).
 
 ### 2.1 Action table
 
@@ -286,7 +290,8 @@ cap binds bug-fix and refactor rounds only).
      and `channel_loop_state` as `Class: Moved` in `channelmove.Catalogue`, and
      `TestChannelCopyRulesMatchCatalogue`
      (`channel_copy_apply_postgres_test.go:465-477`) plus `cpCheckRequest`
-     (`:87-91`) fail if any `Moved` table lacks a `cpCarried` entry.
+     (`:79`, check loop `:87-91`) fail if any `Moved` table lacks a `cpCarried`
+     entry.
   None of `C2a`-`C5` touches these three files, so R1 disjointness holds.
 - **N2. `cpCarried` rule for channel loops.** Set `"channel_loops": false` and
   `"channel_loop_state": false` in `channel_copy_apply_postgres.go`, matching
@@ -302,14 +307,16 @@ cap binds bug-fix and refactor rounds only).
   `wui:i18n/locales/en.json` and machine translations to all 18 other locale
   files, runs `cd csi-spl-orc && ENV=dev ./run -a do_spl_lang_review_gct`
   (`spl-lang-review-gct.func.sh:37`, `ENV` defaults to `dev`), commits the
-  generated report `wui:i18n/lang-review/<run-id>.json`, and puts
+  generated report `wui:i18n/lang-review/<run-id>.json` (`LANG_GCT_OUT_DIR`
+  default, `spl-lang-review-gct.func.sh:42`), and puts
   `Lang-review: gct <run-id>` in its commit body so pre-push `wui-lang-review`
   and CI workflow 10 pass.
 - **N5. Drifted line citations since `c9dd02117`.** Two spec 182 v0.10 citations
   moved on `6b216a319`: `api:internal/config/config.go` `TopicLoopCap` is now
   `:402` (was `:396`), and `csi-spl-cnf/csi-spl/all.env.yaml` `agent_split_by_kind`
-  is `:1601-1605` (was `:1567-1574`, guards `:1548` and `:1564`). Every row
-  brief re-measures its sites on `origin/master` at work time.
+  is `:1601-1606` (incl. `i18n`; full block `:1601-1608`; was `:1567-1574`,
+  guards `:1548` and `:1564`). Every row brief re-measures its sites on
+  `origin/master` at work time.
 
 ## 3. Proposed row briefs
 
@@ -366,7 +373,7 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   `next_due_at` / `daily_due_at` forward from `now` and clears stale
   `idle_due_at` / `idle_post` inside its transaction (9.5). Clean-code limits:
   <= 75 lines/func, depth <= 4, <= 7 params, no `SELECT *`.
-- **Done test (spec 182 9.9 C1 verbatim) & `PRE_PUSH_TIER=full`:** Postgres +
+- **Done test (spec 182 9.9 C1, plus N1 gate tests) & `PRE_PUSH_TIER=full`:** Postgres +
   Memory parity; all 11 triggers + field CHECKs + `ChannelLoopsMax` (20)
   ceiling; `CountChannelLoopFire` enforces all three caps concurrently (12/h
   topic -> `topic_cap`, 60/h loop -> `loop_cap`, 120/h channel total ->
@@ -430,7 +437,7 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   (60/h per-loop cap OR earliest active `hour_start + 1h` when channel sum >=
   120/h); `channel_loops` WS frame via `s.fanoutChannelFrame` +
   `s.channelMemberSet`.
-- **Done test (spec 182 9.9 C2a verbatim):** `go test ./internal/hub/... ./internal/config/...`:
+- **Done test (spec 182 9.9 C2a, plus OpenAPI route/serve tests):** `go test ./internal/hub/... ./internal/config/...`:
   CRUD (`GET`/`POST`/`PUT`/`DELETE`/`OPTIONS`); CL3 B
   `tenants.topic_archive_policy` matrix (`everyone`, `admins`, `starter` on
   user-created and `hub`-created default channels, plus demo workspace forced
@@ -443,7 +450,9 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   `idle` (`author_left` / `author_no_right` after policy flip) and `held_until`
   (both 60/h loop cap and 120/h channel cap earliest-rollover) reporting;
   `SPOOL_HUB_CHANNEL_LOOP_CAP` (60) and `SPOOL_HUB_CHANNEL_TOTAL_CAP` (120)
-  config defaults; `TestOpenAPIRoutes` and `TestOpenAPIServe` green.
+  config defaults; `TestOpenAPIRoutes` (`openapi_routes_test.go`),
+  `TestOpenAPIServedToMember` (`openapi_serve_test.go:32`), and
+  `TestOpenAPIServeRouteNeedsItsOperation` (`openapi_serve_test.go:77`) green.
 - **Red controls (both seen RED then GREEN, quoted in commit body):**
   (a) bypass `channelDoor` -> non-member 404 test fails;
   (b) hard-code `mayChannelLoops` to `true` -> `admins` / `starter` policy
@@ -543,9 +552,11 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
     `:245-264`),
     `wui:src/components/ChannelSidebar.vue` (`:352-360`, `:641`, `:672`,
     `:1041`, lazy `<LazyTopicLoopsDialog>`),
-    `wui:src/components/TopicLoopsDialog.vue` (`:16`, `:102-105`, `:123`,
-    `:158-235`: optional `channelId` / `channelName` props, scope note,
-    `useLive().onChannel` / `onMockChannelLoops`),
+    `wui:src/components/TopicLoopsDialog.vue` (`:16`, `:102-105`, `:123`
+    `defineProps`, `:158` `load`, `:203` `save`, `:216` `toggle`, `:220`
+    `remove`, `:224` `onFrame`, `:233` `onMockTopicLoops`: optional `channelId`
+    / `channelName` props, scope note, `useLive().onChannel` /
+    `onMockChannelLoops`),
     `wui:src/composables/useSidebarChannelAdmin.ts` (`:48`, `:105`),
     `wui:src/types/mjs-shims.d.ts` (`:209-217`; no new `.mjs` module added so
     `SHIMS_CAP = 102` stays green),
@@ -563,7 +574,7 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   to all 18 other locales, run
   `cd csi-spl-orc && ENV=dev ./run -a do_spl_lang_review_gct`, commit the
   report JSON, and include `Lang-review: gct <run-id>` in the commit body.
-- **Done test (spec 182 9.9 C3 verbatim):** `pnpm run typecheck`,
+- **Done test (spec 182 9.9 C3, plus WUI hygiene gates and pre-push e2e selection):** `pnpm run typecheck`,
   `pnpm run test:unit` (`i18n-parity`, `i18n-untranslated`, `i18n-no-raw-text`,
   `cleancode`, `mjs-shims-exist`, `unused-exports`, `font-size`,
   `focus-tokens`, `sidebar-row-menu` ordering and `channel-loops` entry,
@@ -596,7 +607,7 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 - **Files (exclusive):**
   - New: `wui:tests/e2e/channel-loops.test.mjs` only (all mock handlers live in
     `C3`'s `spool-client-mock.mjs`).
-- **Done test (spec 182 9.9 C4 verbatim):**
+- **Done test (spec 182 9.9 C4, plus pre-push e2e selection):**
   `BASE_URL=<generated bundle> pnpm run test:e2e` on mock (plus
   `do_check_pre_push_e2e` selection): right-click channel row -> **Channel
   loops…** -> add, edit, pause/resume, delete a loop with all 11 triggers
@@ -605,7 +616,8 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
   dialog; verify no badge or prompt card appears in the channel.
 - **Red control (seen RED then GREEN, quoted in commit body):** drop the
   `channelLoops` emit in `SidebarRowMenu.vue` (temporary local mutation,
-  reverted before commit) -> `channel-loops.test.mjs` fails to open the dialog.
+  reverted before commit; verify `git diff --stat csi-spl-wui/src/` is empty
+  before committing) -> `channel-loops.test.mjs` fails to open the dialog.
 - **Test column (R2), at least:** `tests/e2e/channel-loops.test.mjs` on the
   generated bundle (`nuxt generate`), `tests/e2e/channel-properties-esc.test.mjs`
   (neighbor menu entry sanity), and `do_check_pre_push`.
@@ -629,7 +641,7 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
     `wui:public/help-md/index.md` (synced via
     `cd csi-spl-wui && node src/node/help/sync-help.mjs`; English only, no
     locale file touched).
-- **Done test (spec 182 9.9 C5 verbatim):**
+- **Done test (spec 182 9.9 C5, plus `sync-help.mjs --check`):**
   `cd csi-spl-iac && ./run -a do_check_dist_hygiene && ./run -a do_check_pre_push`,
   `cd csi-spl-orc && ./run -a do_check_fleet_rules_drift`,
   `cd csi-spl-wui && node src/node/help/sync-help.mjs --check` (rc 0) and
@@ -645,11 +657,13 @@ closing this plan's issue `SPL-6563`. Every row pushes first to
 
 | seat | vendor | sha | verdict |
 |---|---|---|---|
-| `c-938` (`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`) | `claude` (cross-vendor to `agy` planner) | pending v0.1 | pending |
+| `c-938` (`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`) | `claude` (cross-vendor to `agy` planner) | `6ae5fe136` (v0.1) | FAIL (W1-W3, N1-N4; seat file `review/c002-s182-cl-build-claude-seat` `af5878ff9`) |
+| `c-938` (`c002-s182-cl-build-claude-panel-seat`, ask `3343e159`) | `claude` (cross-vendor to `agy` planner) | pending v0.2 | pending |
 | holder (`c-002`, dispatch holder) | — | pending | pending GO |
 
 ## 5. Versions
 
 | version | what |
 |---|---|
-| v0.1 | first plan for panel review, measured on `origin/master` `6b216a319` (`6b216a31990109235fbb11f3537c64e423b13b5c`); adds three verified C1 gate files (`change_stamp_test.go`, `crosstenant_test.go`, `channel_copy_apply_postgres.go`, N1) and live/queued R3 ordering around s187 S1 (`c-904`), s196 T1 (`c-907`), and s186 M11 |
+| v0.1 | first plan for panel review (`6ae5fe136`), measured on `origin/master` `6b216a319` (`6b216a31990109235fbb11f3537c64e423b13b5c`); adds three verified C1 gate files (`change_stamp_test.go`, `crosstenant_test.go`, `channel_copy_apply_postgres.go`, N1) and live/queued R3 ordering around s187 S1 (`c-904`), s196 T1 (`c-907`), and s186 M11 |
+| v0.2 | folds `c-938` FAIL on `6ae5fe136`: W1 replaces non-existent `TestOpenAPIServe` with `TestOpenAPIServedToMember` (`:32`) and `TestOpenAPIServeRouteNeedsItsOperation` (`:77`); W2 drops uncited same-vendor R7 quota waiver in favour of strict rulebook 2.7.2/2.7.3; W3 fixes line citations (`channels_postgres.go:77`, `channel_copy_apply_postgres.go:79`, `TopicLoopsDialog.vue` `:123/:158/:203/:216/:220/:224/:233`, `all.env.yaml:1601-1606`); N1 rewords done-test headings ("spec 182 9.9 Cx, plus ..."); N2 cites `spl-lang-review-gct.func.sh:42`; N4 adds `git diff --stat csi-spl-wui/src/` empty check to C4 red control |

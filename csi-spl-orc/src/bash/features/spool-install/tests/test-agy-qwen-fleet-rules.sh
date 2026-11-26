@@ -8,7 +8,8 @@
 #   2. each rendered fragment is its part file byte for byte
 #   3. a QWEN.md as the old y9 left it (25 only + qwen's memory): one run adds
 #      the rest, 25 stays once, the memory is kept, ONE backup (the old file);
-#      a re-run writes nothing; no staging dir is left in ~/.qwen
+#      a re-run writes nothing; no staging dir is left in ~/.qwen; the
+#      backup is mode 600
 #   4. a hand-edited 28 block in QWEN.md is left alone and named, rc 0
 #   5. DRY=1 writes nothing
 #   6. every part in claude-md/ is in exactly one of Y9_PARTS / Y9_SKIP, and
@@ -17,9 +18,17 @@
 #      UTF-8): rc != 0, the error reaches stderr, QWEN.md unchanged, no staging dir
 #   8. all 99 backup names of one UTC second taken: rc != 0, "no free backup
 #      name", no -100 backup, QWEN.md unchanged
+#   9. the k=1 backup name of this UTC second taken (umask 022): the backup
+#      goes to -2, mode 600, the old file; the k=1 one is untouched
+#  10. an OS error other than "name taken" fails at once with that error, never
+#      "no free backup name": through y9, an unreadable QWEN.md (mode 000,
+#      non-root): rc != 0, "Permission denied", QWEN.md kept, no staging dir;
+#      _y9_qwen_backup alone on a missing dir (ENOENT) and on a read-only
+#      ~/.qwen (mode 500, non-root, EACCES)
 # Control: on the tree before SPL-6533 (y9 renders 25 only), 1 and 3 FAIL;
 # before SPL-6556 (stderr kept only on 4 known texts, an uncapped backup loop),
-# 7 and 8 FAIL.
+# 7 and 8 FAIL. Before SPL-6598 (every backup error read as a taken name),
+# 10 FAILS (bug round 51 rc01-b51.sh).
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2016,SC2015  # the bash -c body expands in the child; pass || fail
 set -uo pipefail
@@ -78,6 +87,8 @@ grep -qx -- '- keep me' "$Q" && pass "3: qwen's memory text kept" || fail "3: qw
 baks=$(find "$H/.qwen" -maxdepth 1 -name 'QWEN.md.bak-spool-install-*')
 [ "$(printf '%s' "$baks" | grep -c .)" = 1 ] && [ "$(sha256sum <"$baks")" = "$old" ] &&
   pass "3: exactly one backup, and it is the old file" || fail "3: backups: $(printf '%s' "$baks" | grep -c .)"
+mode=$(stat -c %a "$baks" 2>/dev/null)
+[ "$mode" = 600 ] && pass "3: the backup is mode 600" || fail "3: backup mode '$mode'"
 before=$(sha256sum <"$Q"); y9 "$H" 2>/dev/null
 [ "$(sha256sum <"$Q")" = "$before" ] && [ "$(find "$H/.qwen" -name '*.bak-spool-install-*' | wc -l)" = 1 ] &&
   pass "3: a re-run writes nothing" || fail "3: a re-run wrote"
@@ -122,6 +133,37 @@ y9 "$H" PATH="$T/bin8:$PATH" 2>"$T/err8"; rc=$?
 [ "$rc" != 0 ] && grep -q 'no free backup name' "$T/err8" && [ ! -e "$Q.bak-spool-install-20261126T000000Z-100" ] &&
   [ "$(sha256sum <"$Q")" = "$before" ] &&
   pass "8: all 99 backup names taken: refused, no -100, QWEN.md kept" || { fail "8: rc=$rc"; cat "$T/err8"; }
+
+# ── 9. the k=1 name taken: -2, mode 600 ──────────────────────────────────────
+H="$T/h9"; mkdir -p "$H/.qwen"; Q="$H/.qwen/QWEN.md"; B="$Q.bak-spool-install-20261126T000000Z"
+printf 'old qwen content\n' >"$Q"; printf 'existing k1\n' >"$B"
+old=$(sha256sum <"$Q"); k1=$(sha256sum <"$B")
+(umask 0022; y9 "$H" PATH="$T/bin8:$PATH" 2>"$T/err9"); rc=$?
+mode=$(stat -c %a "$B-2" 2>/dev/null)
+[ "$rc" = 0 ] && [ "$mode" = 600 ] && [ "$(sha256sum <"$B-2")" = "$old" ] && [ "$(sha256sum <"$B")" = "$k1" ] &&
+  pass "9: k=1 taken: the backup is -2, mode 600, the old file; k=1 untouched" || { fail "9: rc=$rc mode='$mode'"; cat "$T/err9"; }
+
+# ── 10. any other OS error fails at once, with that error ─────────────────────
+bk() { bash -c 'source "$0" && _y9_qwen_backup "$1"' "$Y9" "$1"; }
+out=$(bk "$T/no-such-dir/QWEN.md" 2>&1); rc=$?
+[ "$rc" != 0 ] && grep -q 'No such file or directory' <<<"$out" && ! grep -q 'no free backup name' <<<"$out" &&
+  pass "10: _y9_qwen_backup on a missing dir: ENOENT, not \"no free backup name\"" || fail "10: ENOENT rc=$rc: $out"
+if [ "$(id -u)" != 0 ]; then
+  H="$T/h10"; mkdir -p "$H/.qwen"; Q="$H/.qwen/QWEN.md"
+  printf 'keep unreadable original\n' >"$Q"; before=$(sha256sum <"$Q"); chmod 000 "$Q"
+  y9 "$H" 2>"$T/err10"; rc=$?
+  chmod 600 "$Q"
+  [ "$rc" != 0 ] && grep -qi 'permission denied' "$T/err10" && ! grep -q 'no free backup name' "$T/err10" &&
+    [ "$(sha256sum <"$Q")" = "$before" ] && [ -z "$(find "$H/.qwen" -mindepth 1 -maxdepth 1 -name '.y9-stage.*')" ] &&
+    pass "10: y9 on an unreadable QWEN.md: Permission denied, QWEN.md kept, no staging dir" || { fail "10: unreadable rc=$rc"; cat "$T/err10"; }
+  H="$T/h10ro"; mkdir -p "$H/.qwen"; Q="$H/.qwen/QWEN.md"; printf 'keep me\n' >"$Q"; chmod 0500 "$H/.qwen"
+  out=$(bk "$Q" 2>&1); rc=$?
+  chmod 0700 "$H/.qwen"
+  [ "$rc" != 0 ] && grep -qi 'permission denied' <<<"$out" && ! grep -q 'no free backup name' <<<"$out" &&
+    pass "10: _y9_qwen_backup on a read-only ~/.qwen: EACCES, not \"no free backup name\"" || fail "10: EACCES rc=$rc: $out"
+else
+  echo "SKIP: 10: unreadable QWEN.md and read-only ~/.qwen need a non-root user"
+fi
 
 echo "== y9 agy + qwen fleet rules: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

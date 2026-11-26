@@ -92,18 +92,46 @@ _y9_qwen() {
 }
 
 # _y9_qwen_backup Q - the whole old Q to Q.bak-spool-install-<UTC stamp>[-k],
-# created exclusively (noclobber = O_EXCL, mode 0600) for k = 1..99 and printed;
-# all 99 taken: refuse, nothing replaced. y8-vibe-agents.py's backup_stamped, in bash.
+# created exclusively (O_EXCL, mode 0600) for k = 1..99 and printed; only a
+# taken name (EEXIST) moves on to the next k. Any other OS error (Q unreadable,
+# the dir missing or read-only, a short write) fails at once with that error,
+# and a partly written backup is removed. All 99 taken: refuse, nothing
+# replaced. y8-vibe-agents.py's backup_stamped; the stamp stays in bash (`date`).
 _y9_qwen_backup() {
-  local q="$1" stamp cand k
+  local q="$1" stamp
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  for (( k = 1; k < 100; k++ )); do
-    cand="$q.bak-spool-install-$stamp$([ "$k" = 1 ] || echo "-$k")"
-    if (umask 077; set -C; cat <"$q" >"$cand") 2>/dev/null; then
-      printf '%s\n' "$cand"
-      return 0
-    fi
-  done
-  echo "spool-install: vibe-agents: $q: no free backup name for $stamp: nothing replaced" >&2
-  return 1
+  python3 - "$q" "$stamp" <<'EOF_PY'
+import os, sys
+q, stamp = sys.argv[1], sys.argv[2]
+def die(e):
+    print(f"spool-install: vibe-agents: {q}: backup failed: {e}: nothing replaced", file=sys.stderr)
+    sys.exit(1)
+try:
+    with open(q, "rb") as f:
+        data = f.read()
+except OSError as e:
+    die(e)
+os.umask(0o077)
+for k in range(1, 100):
+    cand = f"{q}.bak-spool-install-{stamp}" + ("" if k == 1 else f"-{k}")
+    try:
+        fd = os.open(cand, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        continue
+    except OSError as e:
+        die(e)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+    except OSError as e:
+        try:
+            os.unlink(cand)
+        except OSError:
+            pass
+        die(e)
+    print(cand)
+    sys.exit(0)
+print(f"spool-install: vibe-agents: {q}: no free backup name for {stamp}: nothing replaced", file=sys.stderr)
+sys.exit(1)
+EOF_PY
 }

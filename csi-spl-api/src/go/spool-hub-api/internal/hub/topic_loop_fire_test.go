@@ -1007,6 +1007,30 @@ func TestTopicLoopFilePostFires(t *testing.T) {
 	r.wantPrompts(t, "a post with a file", 1)
 }
 
+// v0.11 change 9: an agent's post with a file fires the loop of the agent
+// file key, not the loop of the human file key (the human side and the
+// blocker are in TestTopicLoopMatchTable).
+func TestTopicLoopAgentFileKey(t *testing.T) {
+	r := newLoopRig(t)
+	agent := r.addLoop(t, loopBody(store.LoopPostHasFileAgent))
+	r.addLoop(t, loopBody(store.LoopPostHasFileHuman))
+	r.agentSay(t, r.task, "ALL-0", "the report is ready, no attachment this time")
+	r.barrier(t)
+	r.wantPrompts(t, "a plain post", 0)
+	f := t.TempDir() + "/report.txt"
+	if err := writeFile(f, "quarterly numbers"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := action.SendCtx(context.Background(), r.a.cfg, action.SendArgs{From: "CLE-07", To: "ALL-0", TaskID: r.task,
+		Kind: "note", Body: "the report is attached", PutFiles: []string{f}, ToBox: hub.WUIBox, Hub: r.a.c}); err != nil {
+		t.Fatal(err)
+	}
+	r.barrier(t)
+	if p := r.wantPrompts(t, "an agent post with a file", 1)[0]; p.LoopID != agent {
+		t.Fatalf("fired loop %s, want the agent file loop %s", p.LoopID, agent)
+	}
+}
+
 // blocker_posted fires from an agent-to-agent send, a browser post and a
 // kind change; the kind change back does not.
 func TestTopicLoopBlockerFromThreePlaces(t *testing.T) {

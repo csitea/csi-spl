@@ -18,21 +18,22 @@ import (
 
 // The fire of a discussion loop (spec 182 v0.4 sections 4.2-4.4 and 7.2,
 // row L2, SPL-6032). Every fire goes through topicLoopFire: a hook names
-// the event, each `on` loop of the topic one of whose eleven checked boxes
+// the event, each `on` loop of the topic one of whose checked boxes
 // matches it is checked (4.2 step 7) and, if every check holds, its prompt
 // is stored as a hidden loop prompt message (messages.loop_id, 5.2) to the
 // topic's agent and queued for that agent's box. A loop fires at most once
 // per event, whatever number of its boxes match. The hooks:
 //
 //   - a human post (wuiAfterStore): after_human_reply, post_has_keyword,
-//     post_has_file, blocker_posted; it arms no_reply_after_human;
+//     post_has_file, post_has_file_human, blocker_posted; it arms
+//     no_reply_after_human;
 //   - before_agent_reply: wuiSend, after its last refusal and right before
 //     the post is stored, so the agent's inbox holds the prompt first;
 //   - an agent's box send (onSend, after the `sent` frame): an agent reply
-//     fires after_agent_reply, post_has_keyword, post_has_file and
-//     blocker_posted (Q11 C: "before each human reply" is no box), and
-//     clears no_reply_after_human; an agent-to-agent blocker fires
-//     blocker_posted only;
+//     fires after_agent_reply, post_has_keyword, post_has_file,
+//     post_has_file_agent and blocker_posted (Q11 C: "before each human
+//     reply" is no box), and clears no_reply_after_human; an agent-to-agent
+//     blocker fires blocker_posted and post_has_file_agent only;
 //   - a post marked a blocker afterwards (handleSetMessageKind);
 //   - an issue status change (updateIssue): issue_status_changed, in every
 //     topic the issue links;
@@ -120,9 +121,15 @@ func (ev loopEvent) matches(l store.TopicLoop) bool {
 }
 
 // postMatches is matches for a stored post (4.2 steps 1, 2, 4, 8, 9, 10).
+// v0.11 change 9: post_has_file_agent fits an agent's post with a file (a
+// reply or a box blocker), post_has_file_human a human's; the old
+// post_has_file fits either, as before.
 func (ev loopEvent) postMatches(l store.TopicLoop, has func(string) bool) bool {
 	m := ev.post
-	if has(store.LoopBlockerPosted) && m.Kind == blockerKind {
+	files := len(m.Files) > 0
+	switch {
+	case has(store.LoopBlockerPosted) && m.Kind == blockerKind,
+		files && !ev.human && (ev.reply || m.Kind == blockerKind) && has(store.LoopPostHasFileAgent):
 		return true
 	}
 	if !ev.human && !ev.reply {
@@ -131,7 +138,8 @@ func (ev loopEvent) postMatches(l store.TopicLoop, has func(string) bool) bool {
 	switch {
 	case ev.human && has(store.LoopAfterHumanReply),
 		ev.reply && !ev.answer && has(store.LoopAfterAgentReply),
-		has(store.LoopPostHasFile) && len(m.Files) > 0,
+		files && has(store.LoopPostHasFile),
+		files && ev.human && has(store.LoopPostHasFileHuman),
 		has(store.LoopPostHasKeyword) && topicLoopKeyword(l.Keyword, m.Body):
 		return true
 	}

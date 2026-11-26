@@ -100,12 +100,12 @@ func TestTopicLoopAddRefusals(t *testing.T) {
 	}
 }
 
-// TestTopicLoopEachKey: each of the eleven keys of 1.2 (v0.6, Q11 C dropped
-// before_human_reply, which AddRefusals refuses) is stored alone, with the
-// field it needs, and read back.
+// TestTopicLoopEachKey: each of the thirteen keys of 1.2 (v0.6, Q11 C dropped
+// before_human_reply, which AddRefusals refuses; v0.11 change 9 added the
+// two file keys) is stored alone, with the field it needs, and read back.
 func TestTopicLoopEachKey(t *testing.T) {
-	if len(TopicLoopTriggers) != 11 {
-		t.Fatalf("TopicLoopTriggers has %d keys, want 11", len(TopicLoopTriggers))
+	if len(TopicLoopTriggers) != 13 {
+		t.Fatalf("TopicLoopTriggers has %d keys, want 13", len(TopicLoopTriggers))
 	}
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {

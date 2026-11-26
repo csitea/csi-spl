@@ -57,6 +57,8 @@ func TestTopicLoopTitle(t *testing.T) {
 		store.LoopEveryNMinutes:      "Every 30 minutes",
 		store.LoopPostHasKeyword:     "A post that contains “deploy”",
 		store.LoopPostHasFile:        "A post with a file attached",
+		store.LoopPostHasFileAgent:   "After an agent post with one or more files attached",
+		store.LoopPostHasFileHuman:   "After a human post with one or more files attached",
 		store.LoopBlockerPosted:      "A blocker posted in the topic",
 		store.LoopNoReplyAfterHuman:  "No reply for 15 minutes after a human post",
 		store.LoopIssueStatusChanged: "An issue linked to the topic changes status",

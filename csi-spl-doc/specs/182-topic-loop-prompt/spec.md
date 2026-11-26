@@ -131,7 +131,9 @@ reply" (`before_human_reply`, v0.3 to v0.5), so five stay:
 | `every_hour` | each hour | 60 minutes after the last time fire | 4.2 step 5 |
 | `every_n_minutes` | each n minutes | n minutes after the last time fire; n is 5..1440 | 4.2 step 5 |
 | `post_has_keyword` | a post that contains a word or phrase you type (KW) | an agent reply or a human post whose body contains the loop's `keyword`: case-free, whole words | 4.2 step 8 |
-| `post_has_file` | a post with a file attached (ATT) | an agent reply or a human post stored with at least one file | 4.2 step 9 |
+| `post_has_file` | a post with a file attached (ATT); v0.11: no longer offered, a stored loop keeps it (8.8 change 9) | an agent reply or a human post stored with at least one file | 4.2 step 9 |
+| `post_has_file_agent` | v0.11: after an agent post with one or more files attached | an agent reply, or an agent's blocker to another agent, stored with at least one file | 4.2 step 9 |
+| `post_has_file_human` | v0.11: after a human post with one or more files attached | a human post stored with at least one file | 4.2 step 9 |
 | `blocker_posted` | a blocker posted in the topic (BLK) | a row of kind `blocker` stored on the topic's task id, from anyone to anyone (agent-to-agent too), or a post's kind set to `blocker` | 4.2 step 10 |
 | `no_reply_after_human` | no reply for n minutes after a human post (IDL) | n minutes (`idle_min`, 5..1440) after a human post with no agent reply since; a later human post restarts the count | 4.2 step 11 |
 | `issue_status_changed` | an issue linked to the topic changes status (ISS) | an issue linked to the topic (`issue_discussions`) is written with a new status | 4.2 step 12 |
@@ -303,8 +305,8 @@ Paths under `internal/` are in `csi-spl-api/src/go/spool-hub-api/`.
    - per row: **Edit**, **Pause** / **Resume**, **Delete**;
    - **Add loop**.
    Add and Edit open the same form: the prompt (a textarea, at most 4000
-   characters) and the eleven triggers of 1.2 as one radio group (v0.11,
-   8.8 change 3; v0.10 had checkboxes, answer 3 B), with a number
+   characters) and the twelve triggers of 1.2 as one radio group (v0.11,
+   8.8 changes 3 and 9; v0.10 had checkboxes, answer 3 B), with a number
    field for n (5..1440) next to "each n minutes", a text field (1..200
    characters) next to "a post that contains", a number field for n
    (5..1440) next to "no reply for n minutes", and a time (hh:mm) plus a
@@ -401,7 +403,11 @@ time fire, the issue change for an issue fire). The hooks:
    (markdown, not rendered), over the loops already read in step 6: no
    extra store probe.
 9. **`post_has_file`**: in the same two hooks, on an agent reply or a human
-   post whose `Files` (`store.go:138`) holds at least one file.
+   post whose `Files` (`store.go:138`) holds at least one file. v0.11 (8.8
+   change 9): **`post_has_file_agent`** fires on an agent reply or an
+   agent's blocker to another agent (the `onSend` hook) with at least one
+   file, **`post_has_file_human`** on a human post with at least one file
+   (`wuiAfterStore`); `post_has_file` keeps firing on both.
 10. **`blocker_posted`**: three places, any sender, any recipient:
     - `onSend` (`ws.go:702-716`), for every inserted row with
       `kind = blocker` on the topic's task id, also agent-to-agent (unlike
@@ -1222,7 +1228,7 @@ full screen: no new phone work, only no regression.
 | 6 | SPL-6585 | **Icon buttons.** A row's Edit, Pause / Resume and Delete are the WUI's `icon-btn` with `UiIcon` glyphs `pencil`, `pause` / `play`, `trash` (`pause`, `play` added to `utils/uiIcons.ts`, lucide paths; no new icon library); the words are their `title` and `aria-label`; a locked row keeps the locked reason as its title and stays disabled. | `TopicLoopsDialog.vue`, `uiIcons.ts` |
 | 7 | SPL-6586 | **Prompt box size.** The prompt textarea stays resizable (vertical); its default height is `17vh`, the owner's hand-sized box (about 17% of the screen height, ~11 lines on 2560x1600), never under 6 lines. | `TopicLoopsDialog.vue` |
 | 8 | SPL-6587 | **Reorder loop cards.** A saved loop's row is dragged up and down by its grip (pointer and touch); on the focused grip, Arrow Up / Arrow Down move it one place (the keyboard way). The order is the hub's: rdb `topic_loops.position` (int, the list's order; new loops go last), `TopicLoops` lists by `position, set_at`, and `PUT /v1/topics/{task_id}/loops/order` `{"loop_ids": [...]}` (the topic's every loop id, once each, else `400 bad_loop`; the archive policy as every write) stores it and sends the `topic_loops` frame, so every viewer and the next open see it. | rdb, store, `hub/topic_loop.go`, `openapi.json`, the dialog |
-| 9 | SPL-6588 | **The file trigger in two.** The form offers "After an agent post with one or more files attached" (`post_has_file_agent`) and "After a human post with one or more files attached" (`post_has_file_human`) in place of "A post with a file attached": twelve in the form. The hub fires the first on an agent's post (an agent reply or a box blocker) with a file, the second on a human post with a file (`postMatches`). A stored loop with the old `post_has_file` keeps firing on both, as before, and its row keeps its old label; the form no longer offers it. rdb: the `triggers` CHECK of 0301 gains the two keys. | rdb, store `TopicLoopTriggers`, `hub/topic_loop_fire.go`, the title tables, the form |
+| 9 | SPL-6588 | **The file trigger in two.** The form offers "After an agent post with one or more files attached" (`post_has_file_agent`) and "After a human post with one or more files attached" (`post_has_file_human`) in place of "A post with a file attached": twelve in the form. The hub fires the first on an agent's post (an agent reply or a box blocker) with a file, the second on a human post with a file (`postMatches`). A stored loop with the old `post_has_file` keeps firing on both, as before, and its row keeps its old label; the form no longer offers it. rdb 0330 re-adds the `triggers` CHECK of 0301 with the two keys (`NOT VALID`: it only widens, no scan). | rdb, store `TopicLoopTriggers`, `hub/topic_loop_fire.go`, the title tables, the form |
 | 10 | SPL-6589 | **24-hour clock.** "Every day at" is the WUI's own `hh:mm` text field (24 h, `inputmode="numeric"`, checked against `^([01]\d|2[0-3]):[0-5]\d$`), not the native `<input type="time">`, which follows the browser locale and showed "09:00 AM". The stored value stays `hh:mm`. | `TopicLoopsDialog.vue` |
 | 11 | SPL-6592 | **Two columns.** On a desktop the Add / Edit form is two columns: the prompt left, Run it (the radios) right; the title above both, the buttons below. At <= 600 px one column, as before. | `TopicLoopsDialog.vue` |
 | 12 | SPL-6593 | **Bigger text.** The dialog's text (list rows, form labels, radios, fields) is at least the omnibox's (the message composer's) font size, through the composer's own size token, no new number. | `TopicLoopsDialog.vue` |

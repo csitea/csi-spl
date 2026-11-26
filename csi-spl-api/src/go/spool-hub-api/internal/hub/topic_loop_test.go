@@ -74,7 +74,9 @@ func TestTopicLoopAgentReplyLine(t *testing.T) {
 }
 
 // The match table: each box fits its event, a routed browser post leaves a
-// before_agent_reply loop to the before hook (one fire per post).
+// before_agent_reply loop to the before hook (one fire per post); v0.11
+// change 9: the agent file key fits an agent's reply or blocker with a file,
+// the human file key a human's post with one, the old key both.
 func TestTopicLoopMatchTable(t *testing.T) {
 	l := func(keys ...string) store.TopicLoop {
 		return store.TopicLoop{SetBy: "HUM-1", Keyword: "pdf", Triggers: keys}
@@ -83,6 +85,8 @@ func TestTopicLoopMatchTable(t *testing.T) {
 	reply := &msg.Message{From: "CLE-07", To: "HUM-1", Kind: "note", Body: "the pdf"}
 	other := &msg.Message{From: "CLE-07", To: "HUM-2", Kind: "note", Body: "x", Files: []msg.Attachment{{}}}
 	blocker := &msg.Message{From: "CLE-07", To: "CLE-08", Kind: blockerKind, Body: "stuck"}
+	blockerFile := &msg.Message{From: "CLE-07", To: "CLE-08", Kind: blockerKind, Body: "log", Files: []msg.Attachment{{}}}
+	humanFile := &msg.Message{From: "HUM-1", To: "ALL-0", Kind: "note", Body: "scan", Files: []msg.Attachment{{}}}
 	for _, c := range []struct {
 		name string
 		ev   loopEvent
@@ -98,6 +102,15 @@ func TestTopicLoopMatchTable(t *testing.T) {
 		{"reply/keyword", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopPostHasKeyword), true},
 		{"reply/file", loopEvent{kind: loopEventPost, post: other, reply: true}, l(store.LoopPostHasFile), true},
 		{"reply no file/file", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopPostHasFile), false},
+		{"human file/file", loopEvent{kind: loopEventPost, post: humanFile, human: true}, l(store.LoopPostHasFile), true},
+		{"reply file/agent file", loopEvent{kind: loopEventPost, post: other, reply: true}, l(store.LoopPostHasFileAgent), true},
+		{"reply file/human file", loopEvent{kind: loopEventPost, post: other, reply: true}, l(store.LoopPostHasFileHuman), false},
+		{"reply no file/agent file", loopEvent{kind: loopEventPost, post: reply, reply: true}, l(store.LoopPostHasFileAgent), false},
+		{"agent-to-agent blocker file/agent file", loopEvent{kind: loopEventPost, post: blockerFile}, l(store.LoopPostHasFileAgent), true},
+		{"agent-to-agent blocker no file/agent file", loopEvent{kind: loopEventPost, post: blocker}, l(store.LoopPostHasFileAgent), false},
+		{"human file/human file", loopEvent{kind: loopEventPost, post: humanFile, human: true}, l(store.LoopPostHasFileHuman), true},
+		{"human file/agent file", loopEvent{kind: loopEventPost, post: humanFile, human: true}, l(store.LoopPostHasFileAgent), false},
+		{"human no file/human file", loopEvent{kind: loopEventPost, post: human, human: true}, l(store.LoopPostHasFileHuman), false},
 		{"agent-to-agent blocker/blocker", loopEvent{kind: loopEventPost, post: blocker}, l(store.LoopBlockerPosted), true},
 		{"agent-to-agent blocker/after_agent", loopEvent{kind: loopEventPost, post: blocker}, l(store.LoopAfterAgentReply), false},
 		{"kind change/blocker", loopEvent{kind: loopEventKind, post: blocker}, l(store.LoopBlockerPosted), true},

@@ -27,6 +27,8 @@ var loopTriggerLabel = map[string]string{
 	store.LoopEveryNMinutes:      "Every n minutes",
 	store.LoopPostHasKeyword:     "A post that contains",
 	store.LoopPostHasFile:        "A post with a file attached",
+	store.LoopPostHasFileAgent:   "After an agent post with one or more files attached",
+	store.LoopPostHasFileHuman:   "After a human post with one or more files attached",
 	store.LoopBlockerPosted:      "A blocker posted in the topic",
 	store.LoopNoReplyAfterHuman:  "No reply for n minutes after a human post",
 	store.LoopIssueStatusChanged: "An issue linked to the topic changes status",

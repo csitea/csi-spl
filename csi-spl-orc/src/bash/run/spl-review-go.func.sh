@@ -692,6 +692,19 @@ _spl_review_go_unplaced() {
 # ends at the next heading at the higher of the two levels or above
 # (`## R7 review (plan section 5, verbatim)` + `## 5. Panel ...` runs until
 # `## Report`).
+# Two narrow false holds are dropped too (b50-01), each per line: `apply`
+# whose object is a verbatim code hunk or patch (`Apply section 1.3's
+# verbatim hunks to ...`: `verbatim` within 4 words after it, `hunk(s)` /
+# `patch(es)` within 6 after that) when the line names no target or infra
+# word (prd, dev, live, database, db, schema, sql, migration, step,
+# terraform, tf, tfvars, gcp, cloud, iam, billing, infra, provision, ...);
+# and the exact backticked `DRY_RUN=0` when one of three literal test
+# descriptions follows it, `ORDERED_BY`, install `ok_msg` or
+# install/check/remove lifecycle, then check / test / case, and neither its
+# line (its own cell, in a markdown table of 4 or more columns) nor the
+# next non-blank line holds a command (`./run`, `&&`, `-a do_`, terraform,
+# gcloud, sudo, make, cd, ...). Any other shape still holds: a new real test
+# description is a false hold to clear by hand, never a false go.
 _spl_review_go_instr() {
   python3 - "$1" <<'EOF_PY'
 import re, sys
@@ -736,7 +749,23 @@ def unneg(m):
     if m.group(0)[:2].lower() == "no" and cond.search(txt, 0, m.start()):
         return m.group(0)
     return ""
-print(re.sub(neg, unneg, txt))
+txt = re.sub(neg, unneg, txt)
+TGT = re.compile(r"(?i)\b(?:prd|prod|production|dev|live|database|db|schema|sql|migrations?|steps?|terraform|tf|tfvars|gcp|cloud|iam|billing|infra|provision)\b")
+HUNK = re.compile(r"(?i)\bapply(?=(?:[^\S\n]+[A-Za-z0-9._,'\u2019-]+){0,4}[^\S\n]+verbatim(?:[^\S\n]+[A-Za-z0-9._,'\u2019-]+){0,6}[^\S\n]+(?:hunks?|patch(?:es)?)\b)")
+CMD = re.compile(r"(?i)(?:\./run|&&|-a\s+do_|--(?:prd|prod)\b|\b(?:terraform|gcloud)\b|(?<!\.)\b(?:make|sudo|python[0-9]*|bash|sh|perl|node|psql|kubectl|docker|curl|ssh|cd)\s|\bdo_(?:provision|tf_|gcp_|spl_desk_up|spl_issue_|spl_topic_|spl_private_|spl_tenant_))")
+DRY = re.compile(r"(?<!`)`DRY_RUN=0`(?!`)(?=[^\S\n]+(?:`ORDERED_BY`|install[^\S\n]+`ok_msg`|install/check/remove[^\S\n]+lifecycle)[^\S\n]+(?i:checks?|tests?|cases?)\b)")
+ls = txt.split("\n")
+for i, l in enumerate(ls):
+    if HUNK.search(l) and not TGT.search(l):
+        l = HUNK.sub("", l)
+    if DRY.search(l):
+        nxt = next((ls[j] for j in range(i + 1, len(ls)) if ls[j].strip()), "")
+        if l.lstrip().startswith("|") and l.count("|") >= 5 and not CMD.search(nxt):
+            l = "|".join(DRY.sub("", c) if not CMD.search(c) else c for c in l.split("|"))
+        elif not CMD.search(l) and not CMD.search(nxt):
+            l = DRY.sub("", l)
+    ls[i] = l
+print("\n".join(ls))
 EOF_PY
 }
 

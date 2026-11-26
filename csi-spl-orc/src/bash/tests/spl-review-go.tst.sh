@@ -159,6 +159,13 @@
 #        tick sends and writes nothing; a third copy by REVIEW_GO_MSG -> rc 0,
 #        no GO; a fourth copy on a dry run -> PLAN SKIP, no PLAN GO, the log
 #        unchanged; control: a PASS on a new sha for the same author -> GO
+#    34. a verbatim code hunk and a DRY_RUN=0 test description (b50-01):
+#        RED CONTROLS the r03..r05 brief lines "Apply section 1.3's verbatim
+#        hunks ..." and `DRY_RUN=0` before `ORDERED_BY` / install `ok_msg` /
+#        install/check/remove lifecycle + check, a 4-column table row among
+#        them -> GO (was rc 4); controls: the 42 HOLD probes of rc01-b50.sh
+#        (a target word on the hunk line, a command on the line, its cell or
+#        the next line, any other words before check / test) -> rc 4
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1330,6 +1337,86 @@ run REVIEW_GO_MSG="$f"; rc=$?
   pass "33. control: a PASS on a new sha for the same author -> GO" ||
   fail "33. new sha rc=$rc gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"
 "${G[@]}" -C "$T/repo" push -q -f origin "$SHA:refs/heads/review/c002-x"
+
+# --- 34. a verbatim code hunk and a DRY_RUN=0 test description are no owner go (b50-01) ---------------
+# r03..r05 refactor briefs held rc 4 on "Apply section 1.3's verbatim hunks"
+# and on `DRY_RUN=0` naming a check (7 live false holds). The probes are
+# rc01-b50.sh's (bug-round-50-plan.md section 4.1): a name control and the 6
+# brief lines (want 0), the 42 panel HOLD controls (want 1), all scanned by
+# _spl_review_go_owner_go in one shell; the 6 lines and 2 controls also run
+# the whole action.
+B34="$T/b34" && rm -rf "$B34" && mkdir -p "$B34"
+# b34 <label> <want rc> <brief body>: one probe brief, $B34/<want>-<label>.md
+b34() { printf '%s\n' "$3" >"$B34/$2-$1.md"; }
+b34 ctrl_ident_slug 0 $'## Do\n1. Call `_spl_simple_cron_apply` and `_spl_run_cron_apply` on branch `r05-02-orc-run-cron-apply-wave1`.'
+b34 red_r05_01 0 $'## Do\n2. Apply section 1.3'\''s verbatim hunks to ONLY the row'\''s files.\n4. Run standalone `DRY_RUN=0` install/check/remove lifecycle check.'
+b34 red_r05_02 0 $'## Do\n2. Apply section 1.4'\''s verbatim hunks to ONLY the row'\''s files.\n4. Run standalone lazy-load `check`-missing and `DRY_RUN=0` install `ok_msg` checks.'
+b34 red_r04_01 0 $'## Do\n2. Apply 1.3'\''s verbatim helper, caller, and test hunks to ONLY those 4 files.'
+b34 red_r04_02 0 $'## Do\n2. Apply 1.4'\''s verbatim helper, caller, and test hunks to ONLY those 5 files.'
+b34 red_r03_01 0 $'## Row\n| 01 | one copy | `DRY_RUN=1` preview log, and `DRY_RUN=0` `ORDERED_BY` check differing in 1 line only | `cd csi-spl-iac && ./run -a do_check_pre_push` |'
+b34 red_r03_02 0 $'## Do\n3. standalone `DRY_RUN=0` install `ok_msg` checks covering all three installers.'
+b34 ctrl_case24_prd_cmd 1 $'## Do\n1. Run `ENV=prd DRY_RUN=0 ./run -a do_x` once.'
+b34 ctrl_backtick_dry_cmd 1 $'## Do\n1. Run `DRY_RUN=0 ./run -a do_spl_issue_update` once.'
+b34 ctrl_split_dry_cmd 1 $'## Do\n1. Run `DRY_RUN=0` `./run -a do_x` once.'
+b34 ctrl_bare_dry 1 $'## Do\n1. Run with DRY_RUN=0.'
+b34 ctrl_tf_apply 1 $'## Do\n1. Run `terraform apply` for step 016.'
+b34 ctrl_mig_apply 1 $'## Do\n1. apply the migration to prd.'
+b34 ctrl_tf_hunks 1 $'## Do\n1. Apply terraform hunks to step 016.'
+b34 ctrl_mig_patch 1 $'## Do\n1. Apply the migration patch now.'
+b34 ctrl_patch_to_prd 1 $'## Do\n1. Apply the patch to prd.'
+b34 ctrl_w1_cd_run 1 $'## Do\n1. `DRY_RUN=0` `cd csi-spl-iac && ./run -a do_provision`'
+b34 ctrl_w1_set_and_run 1 $'## Do\n1. Set `DRY_RUN=0` and run `./run -a do_spl_desk_up`'
+b34 ctrl_w1_next_line 1 $'## Do\n1. With `DRY_RUN=0`:\n   `./run -a do_spl_desk_up`'
+b34 ctrl_w1_next_blank 1 $'## Do\n1. With `DRY_RUN=0`:\n\n   `cd csi-spl-iac && ./run -a do_provision`'
+b34 ctrl_w1_sudo 1 $'## Do\n1. `DRY_RUN=0` `sudo -u x ./run -a do_x`'
+b34 ctrl_w1_python_prd 1 $'## Do\n1. `DRY_RUN=0` `python3 x.py --prd`'
+b34 ctrl_w1_patch_dev_prd 1 $'## Do\n1. Apply the patch on dev and prd.'
+b34 ctrl_w1_tfvars_patch 1 $'## Do\n1. Apply the tfvars patch for step 016.'
+b34 ctrl_w1_sql_hunks 1 $'## Do\n1. Apply the SQL hunks to the live database.'
+b34 ctrl_w1_schema_patch 1 $'## Do\n1. Apply the schema patch to the hub database.'
+b34 ctrl_w1_2col_table 1 $'## Do\n| `DRY_RUN=0` | `cd csi-spl-iac && ./run -a do_provision` |'
+b34 ctrl_w2_4col_next_cell 1 $'## Do\n| 01 | prd write | `DRY_RUN=0` | `cd csi-spl-iac && ./run -a do_spl_desk_up` |'
+b34 ctrl_w2_prev_line_cmd 1 $'## Do\n1. Run `cd csi-spl-orc && ./run -a do_spl_desk_up` once as a dry run.\n2. Then run it again with `DRY_RUN=0`.'
+b34 ctrl_w2_direct_script 1 $'## Do\n1. `DRY_RUN=0` `csi-spl-orc/src/bash/scripts/box-disk-sweep.sh`'
+b34 ctrl_w2_prose_write 1 $'## Do\n1. Re-run the same action with `DRY_RUN=0` to write the hub.'
+b34 ctrl_w3_and_test 1 $'## Do\n1. Re-run the same action with `DRY_RUN=0` and test the hub.'
+b34 ctrl_w3_so_check 1 $'## Do\n1. Re-run it with `DRY_RUN=0` so the check passes.'
+b34 ctrl_w3_for_cases 1 $'## Do\n1. Write the prd rows with `DRY_RUN=0` for all cases.'
+b34 ctrl_w3_repeat_test 1 $'## Do\n1. Run `cd csi-spl-orc && ./run -a do_spl_desk_up` as a dry run.\n2. Then repeat with `DRY_RUN=0` and test it.'
+b34 ctrl_w4_when_tests 1 $'## Do\n1. Re-run the action with `DRY_RUN=0` when tests pass.'
+b34 ctrl_w4_after_checks 1 $'## Do\n1. Re-run the action with `DRY_RUN=0` after checks pass.'
+b34 ctrl_w4_before_check 1 $'## Do\n1. Write the hub with `DRY_RUN=0` before every check.'
+b34 ctrl_w5_do_action 1 $'## Do\n1. Run it with `DRY_RUN=0` `do_spl_lane_issue` test.'
+b34 ctrl_w5_env_dev 1 $'## Do\n1. Re-run with `DRY_RUN=0` `ENV=dev` check.'
+b34 ctrl_w5_install_test 1 $'## Do\n1. Re-run the cron install with `DRY_RUN=0` install test.'
+b34 ctrl_w5_dev_prd 1 $'## Do\n1. Write the rows with `DRY_RUN=0` dev/prd check.'
+b34 ctrl_w5_script_path 1 $'## Do\n1. Run `DRY_RUN=0` `bin/sweep.sh` check on the box.'
+b34 ctrl_w6_psql 1 $'## Do\n1. Run it with `DRY_RUN=0` `psql` check.'
+b34 ctrl_w6_make 1 $'## Do\n1. Re-run with `DRY_RUN=0` `make` test.'
+b34 ctrl_w6_sudo 1 $'## Do\n1. Re-run with `DRY_RUN=0` `sudo` check.'
+b34 ctrl_w6_prd 1 $'## Do\n1. Write it with `DRY_RUN=0` `PRD` check.'
+b34 ctrl_w6_live_hub 1 $'## Do\n1. Write it with `DRY_RUN=0` `live_hub` check.'
+b34 ctrl_w6_lifecycle 1 $'## Do\n1. Run the cron with `DRY_RUN=0` lifecycle test.'
+# shellcheck disable=SC2016 # the script is single-quoted on purpose
+env SPOOL_ROOT="$S" bash -c 'source "$1" || exit 97
+  for b in "$2"/*.md; do _spl_review_go_owner_go "$b" c-002 >/dev/null; r=$?; echo "$(basename "$b" .md) $r"; done' _ "$FUNC" "$B34" >"$T/b34.out" 2>&1
+bad=$(awk '{ split($1, w, "-"); if (w[1] != $2) print }' "$T/b34.out")
+n=$(wc -l <"$T/b34.out")
+[[ -z "$bad" && $n == 49 ]] &&
+  pass "34. RED CONTROL: the 6 brief lines and the name control pass the owner-go scan, the 42 HOLD controls hold" ||
+  fail "34. scan n=$n (want 49), wrong: ${bad:-none} out=$(head -c 600 "$T/b34.out")"
+for p in red_r05_01 red_r05_02 red_r04_01 red_r04_02 red_r03_01 red_r03_02; do
+  reset; abrief c-222 "$(cat "$B34/0-$p.md")"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 34000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "34. RED CONTROL: the $p brief line passes [4] -> GO" ||
+    fail "34. $p rc=$rc out=$(tail -2 "$T/out")"
+done
+for p in 'Apply|ctrl_w1_sql_hunks' 'DRY_RUN=0|ctrl_w2_4col_next_cell'; do
+  reset; abrief c-222 "$(cat "$B34/1-${p#*|}.md")"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 34000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; refused "34. control: ${p#*|} still holds" $? 4 "owner-go keyword '${p%%|*}'"
+done
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

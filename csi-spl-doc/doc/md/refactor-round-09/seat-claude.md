@@ -285,5 +285,42 @@ aged out of the 14-day window. The floor still holds.
 ## Sign-off
 
 - v0.1 `feb3c1917bb2b27788ae1de13c32a6cb080e3149`: **PASS** (W1, W2 to fold).
-- v1.0: pending. I'll sign it in a second commit on this branch once the editor sends
-  the sha.
+- v1.0 `0c05b9703265e99a4676421edf6af5ea7aeeaba1`: **PASS** (section "v1.0 re-check" below).
+
+## v1.0 re-check
+
+Run 2026-11-26T23:3xZ, n=1 each, same method as above.
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-09-planner` ->
+  `0c05b9703265e99a4676421edf6af5ea7aeeaba1`.
+- `git merge-base --is-ancestor feb3c1917 0c05b9703` -> fast-forward.
+- `git diff --stat feb3c1917 0c05b9703` -> 1 file, `refactor-round-09-plan.md`, +105 -47.
+  I read the whole diff.
+- Blocks: I extracted the 8 `bash` blocks of v1.0 and compared them with v0.1's.
+  7 are byte-identical. Only `wuisec`, the `wui-actions.tst.sh` insert, changed: it
+  gains the `standalone: do_wui_dev runs do_lde_cnf before _wui_prepare` check
+  (plan :478-485).
+- **W1 folded.** I rebuilt head2 from v1.0. `git diff --numstat` -> `wui-actions.tst.sh`
+  +73 -0, and `sha256sum` gives `58549a27df33`. The other 3 head2 files are unchanged
+  (`d863b23a49f1`, `04930c0f2976`, `97d8fa671ff3`). Results:
+
+  | run | rc | pass / fail | FAIL lines |
+  |---|---|---|---|
+  | head2 | 0 | 39 / 0 | `PASS: all wui-actions.tst.sh assertions` |
+  | rc2 | 1 | 31 / 8 | the 7 of v0.1 + summary; the new order check passes on base |
+  | m2a | 1 | 35 / 4 | `wui-prepare no-nm`, `standalone wui-dev`, `standalone wui-build`, summary |
+  | m2b | 1 | 37 / 2 | `standalone wui-build`, summary |
+  | m2c | 1 | 37 / 2 | `standalone wui-test`, summary |
+  | m2d = my x2d | 1 | 37 / 2 | `standalone wui-dev order (1: REQ:pnpm...`, summary |
+
+  Every value equals plan :849-851. `shellcheck -S warning -x wui-actions.tst.sh` -> rc 0.
+- **W2 folded.** Plan :354-355 now reads "`do_wui_dev` (calling it) + `_wui_prepare`".
+  The old wording appears only at :853, where the changelog quotes it.
+- **N1, N4 and N6 folded:**
+  - The row 01 red control and brief now quote rc and fail sets.
+  - Plan :90 carries the full rulebook 4.4 `awk` command (`grep -n 'awk \.\.\.'` -> 0 hits).
+  - The r10 entry reads "3 action files + test".
+- **N2, N3 and N5** are recorded in plan section 8.
+- **No drift.** `git diff --name-only ecc05e480 origin/master -- <the 7 row files>` with
+  origin/master at `7f0c93aa3` -> empty.
+- **Hygiene.** `./run -a do_check_dist_hygiene` in a scratch clone at `0c05b9703` -> rc 0, clean.

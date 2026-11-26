@@ -59,12 +59,14 @@ callers stay untouched and byte-identical) lets all three wave-3 installers lazy
 `setup-box-stats-cron.func.sh` and pass `""` as arg 11.
 The rows share no file: both are batch 1.
 
-**Status: v1.0 signed (ready for batch-1 row placement).** Editor: **a-852** (agy).
-Cross-vendor claude panel seat **c-804** signed v1.0
-(`31060f1b86b749041c9838436fa1a7b954e23ce2`, seat commit `e65b5391e`, msg `8bf22b70` /
-`491eb1bc`; `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `90fe933e`;
-dispatch holder GO LAND `d3493542`). Zero drift on all 12 row/test files from
-`ffba81845` to `origin/master` `7e7962df5`.
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r04-01` `fc50062f3` SPL-6551, `r04-02` `b42d34d7b` SPL-6552; section 8). Editor:
+**a-852** (agy). Plan v1.0 (`ea644d377`) was signed by cross-vendor claude panel seat
+**c-804** (`31060f1b86b749041c9838436fa1a7b954e23ce2`, seat commit `e65b5391e`, msg
+`8bf22b70` / `491eb1bc`; `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg
+`90fe933e`; dispatch holder GO LAND `d3493542`). Zero drift on all 12 row/test files from
+`ffba81845` to `origin/master` `7e7962df5` at plan landing, and zero drift on all 9
+edited files from their landed shas to `origin/master` `0d5e0b252` at close.
 
 **One sha:** every count is measured on **`ffba81845`** (`ffba818456f9b6f171c0fac34a2d7c6d94918a02`,
 `origin/master` at 2026-11-26T00:47:49Z), n=1 per command unless stated. Reads are on
@@ -1113,12 +1115,77 @@ placement).
   LAND `d3493542`). Zero change to any row, site, batch, test hunk, sha256, or vendor
   (12/12 fenced `bash` blocks byte-identical); zero drift on all 12 row/test files from
   `ffba81845` to `origin/master` `7e7962df5`.
+- **Closed** (a-852, close record, no version bump): both rows landed and verified on
+  `origin/master` `0d5e0b252` (`2026-11-26T03:29Z`, n=1 each; zero drift on all 4 r04-01
+  files and all 5 r04-02 files between their landed shas and `0d5e0b252`):
+  - r04-01 `fc50062f3` (`fc50062f335c2a815829f009897166abd552fa53`, SPL-6551, claude
+    author, committed `2026-11-26T03:39:41+01:00`): R7 `a-882` agy **PASS** on
+    `883a8daa0` (`883a8daa07b13639e63a80aad019d2d1b7872db3`; `do_spl_review_line_check`
+    rc 0, `OK 4 of 4`); `git patch-id --stable`
+    `e9c5832b1ea817204a8bc0f4a550e5c761b91c88` equal on both, `git diff 883a8daa0
+    fc50062f3 -- <4 files>` empty (C7). CI on `fc50062f3`: push workflows 10
+    (`45743939340`), 15 (`45743939367`), 25 (`45743939448`), 26 (`45743939220`), 64
+    (`45743939308`), 67 (`45743939341`) **success**; scheduled workflows 10
+    (`45744475349`), 21 (`45745524147`), 40 (`45745362859`) **success**; 8 skipped
+    workflow 12 runs. Direct gate 10 (`45743939340`) **success** (R11). Diff (`git show
+    --numstat`, exact 4 files): `orc:src/bash/run/spl-issue-blocker-rca-close.func.sh`
+    `+20 -10` (sha256 `c9476da5a155`),
+    `orc:src/bash/run/spl-issue-owner-question-diss.func.sh` `+9 -34` (sha256
+    `3cfae296d937`), `orc:src/bash/tests/spl-issue-blocker-rca-close.tst.sh` `+46 -0`
+    (sha256 `29126e34f396`), `orc:src/bash/tests/spl-issue-owner-question-diss.tst.sh`
+    `+35 -0` (sha256 `fcd6c8c7efbd`), matching plan 1.3 head1 / section 6 verbatim.
+  - r04-02 `b42d34d7b` (`b42d34d7b9e57704a26e1fde93ebb65e2813389f`, SPL-6552, author
+    `c-879` claude, committed `2026-11-26T04:57:18+02:00`): R7 `a-886` agy **PASS** on
+    `5caa105c8` (`5caa105c8a21ab7745fc851b22ecfb20ff7f2176`; `do_spl_review_line_check`
+    rc 0, `OK 6 of 6`); `git patch-id --stable`
+    `00575118edbe74fb0c3006b42818d850e6b8858a` equal on both, `git diff 5caa105c8
+    b42d34d7b -- <5 files>` empty (C7). CI on `b42d34d7b`: push workflows 10
+    (`45746258276`), 15 (`45746258388`), 25 (`45746258257`), 26 (`45746258277`), 64
+    (`45746258313`), 67 (`45746258249`) **success**; 6 skipped workflow 12 runs. Direct
+    gate 10 (`45746258276`) **success** (R11). Diff (`git show --numstat`, exact 5
+    files): `orc:src/bash/run/setup-box-stats-cron.func.sh` `+9 -7` (sha256
+    `a8f432f1ec34`), `orc:src/bash/run/spl-spawn-remote-install-cron.func.sh` `+6 -36`
+    (sha256 `ade87c1e55a7`), `orc:src/bash/run/spl-unanswered-sweep-install-cron.func.sh`
+    `+6 -36` (sha256 `58b1daf259b0`),
+    `orc:src/bash/run/spl-workspace-delivery-probe-install-cron.func.sh` `+5 -32` (sha256
+    `a87a26a30b2e`), `orc:src/bash/tests/box-stats-cron.tst.sh` `+92 -0` (sha256
+    `1b6142ee1ab6`), matching plan 1.4 head2 / section 6 verbatim.
+  - **R5, R6, 2.7.5, and post-land verification on `0d5e0b252`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`0d5e0b252`) ancestry rc 0
+    for both (both `csi-spl-orc` Bash only, no hub or WUI deploy required). R6 (`git log
+    origin/master --since="2026-11-26T02:43:46+02:00" --format='%H %cI %s' -E
+    --grep='\(r04-'`) returns both rows (`b42d34d7b`, `fc50062f3`) and the 4 plan commits
+    (`ea644d377`, `58ae657aa`, `f5cc0eb38`, `f2d01ef94`). Review count (2.7.5): 2 of 2
+    (`review: a-882 agy PASS`, `review: a-886 agy PASS`), both cross-vendor to their
+    claude authors; no claude waiver seat was needed. Post-land `git grep` on `0d5e0b252`
+    (`csi-spl-orc/src/bash/run/`): plan-run driver (`_spl_issue_brc_run_plan` at
+    `spl-issue-blocker-rca-close.func.sh:47`, sole `OK DRY_RUN nothing was moved. PLAN`
+    at `:54`), plan-path creator (`spl_issue_brc_plan_path` at `:80`, 0 hits for
+    `spl_issue_oq_plan_path`), and read-only SQL query wrapper (`_spl_issue_brc_query` at
+    `:100`, sole `FATAL read-only query on` at `:105`) each exist once, with
+    `spl-issue-owner-question-diss.func.sh` delegating at `:40-41` (behind `declare -F
+    _spl_issue_brc_run_plan` at `:39`) and `:74` (behind `declare -F _spl_issue_brc_query`
+    at `:73`); periodic cron check/dry-run/remove/install state machine copies in the 3
+    wave-3 installers 3 -> 0 own copies (delegated to `_spl_simple_cron_apply` at
+    `setup-box-stats-cron.func.sh:68`, sole `FATAL the crontab does not read back what
+    was written.` at `:104`; called at `spl-spawn-remote-install-cron.func.sh:60` behind
+    `declare -F _spl_simple_cron_apply` at `:59`,
+    `spl-unanswered-sweep-install-cron.func.sh:73` behind `:72`, and
+    `spl-workspace-delivery-probe-install-cron.func.sh:66` behind `:65`).
+  - **Round close & teardown:** dispatch holder (`c-002`, msg `004f5068`) confirmed both
+    rows landed and green (gate 10 success on both) and requested the close record with
+    `Closes: SPL-6547`. `do_spl_lane_map` at `03:29Z` shows only editor `a-852` still
+    live for r04 (`c-804`, `a-882`, `a-886`, `c-879` already gone). Remote branches
+    remaining on `origin` for R8 prune (`PRUNE_SINCE=2026-11-26T02:43:46+02:00`):
+    `review/r04-02` (`5caa105c8`) and `review/c002-refactor-round-04-claude-seat`
+    (`e65b5391e`) (`review/r04-01` and `review/c002-refactor-round-04-planner` already
+    absent on `origin`).
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2 (`84178fd66`), v1.0 (`31060f1b8`, signed).
+- Editor seat: a-852 (agy): v0.1 (`4ded3bf46`), v0.2 (`84178fd66`), v1.0 (`31060f1b8`, signed), close record.
 - Panel reviewer seat: c-804 (claude, seat `e65b5391e937d9f756c445fbf29f318b72949607` on
   `review/c002-refactor-round-04-claude-seat`):
   - v0.1 `4ded3bf46a50baf4ace5e7919ea9720857af5db7`: **FAIL** (W1, W2; seat commit `16df4c069`).
@@ -1129,5 +1196,5 @@ The panel seat signs this plan (rulebook 3.2).
     `e65b5391e937d9f756c445fbf29f318b72949607`, msg `8bf22b70` / `491eb1bc`;
     `do_spl_review_line_check` rc 0, `DOCS-ONLY`, `MISSING 0`, msg `90fe933e`; holder GO
     LAND `d3493542`; 12/12 fenced `bash` blocks byte-identical, zero open W).
-- Row R7 seats: section 4; agy seat per row (claude waiver backup only while agy is out
-  of quota under ruling `dc84300a`; never mistral).
+- Row R7 seats: section 4; both agy: a-882 (r04-01), a-886 (r04-02) (section 8, round
+  closed).

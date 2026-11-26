@@ -143,6 +143,8 @@ type wuiIn struct {
 	Action   string   `json:"action,omitempty"`
 	TaskIDs  []string `json:"task_ids,omitempty"`
 	Patterns []string `json:"patterns,omitempty"`
+	// Spec 186 7.1.1: a multicast copy's shared id (wuiMulticast).
+	McID string `json:"mc_id,omitempty"`
 }
 
 type wuiErr struct {
@@ -580,9 +582,9 @@ func uiParent(v *int) (int, bool) {
 // wuiSend builds the v:1 object for a browser send and stores it through the
 // shared commit path (messages + deliveries rows).
 func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
-	task, id, isParent, tok, status, detail := s.wuiIDs(f)
-	if tok != "" {
-		s.wuiRefuse(ctx, c, f, &frameRefusal{tok, status, detail})
+	task, id, isParent, rf := s.wuiSendIDs(ctx, c, f) // wuiIDs, then spec 186's multicast step (wui_multicast.go)
+	if rf != nil {
+		s.wuiRefuse(ctx, c, f, rf)
 		return
 	}
 	f.MsgID = id
@@ -632,7 +634,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	s.topicLoopBeforeAgent(ctx, c.tenant, rt, m) // spec 182 4.2 step 3: after the last refusal, before the store
 	ref := s.wuiDMRef(ctx, c, f.RefTaskID)       // spec 067 3.3, dm_ref.go
 	s.shareMembersMemo(ctx, ref)
-	ctx = withNoteToSelf(ref, rt.noteToSelf)
+	ctx = withMcID(withNoteToSelf(ref, rt.noteToSelf), f.McID) // spec 186 7.1.3: the copy stores mc_id
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
 		s.wuiRefuse(ctx, c, f, &frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})

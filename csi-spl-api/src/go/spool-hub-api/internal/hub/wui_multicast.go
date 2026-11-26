@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -301,4 +302,94 @@ func (s *Server) outOfScopeToken(ctx context.Context, c *wuiConn, id string) str
 		return tokenMulticastNoTopic
 	}
 	return topicArchivedToken
+}
+
+// Spec 186 row M2 (7.1.1): the send-time checks of a multicast copy. A send
+// frame with mc_id is one copy: is_parent 0 and its task_id an existing
+// channel topic the author may read, else multicast_no_topic 404 (the same
+// token and detail for an unknown, an unreadable and a DM topic: the
+// refusal never says the topic exists), and an mc_id no other author has
+// used (bad_json).
+// No count of the copies (R2 QTA): each passes admit's quota as any post.
+// Then the whole chain of wuiSend runs unchanged, and the row stores mc_id.
+
+const noTopicDetail = "no such topic"
+
+// wuiSendIDs is wuiIDs as a refusal, then wuiMulticast.
+func (s *Server) wuiSendIDs(ctx context.Context, c *wuiConn, f wuiIn) (task, id string, isParent int, rf *frameRefusal) {
+	task, id, isParent, tok, status, detail := s.wuiIDs(f)
+	if tok != "" {
+		return "", "", 0, &frameRefusal{tok, status, detail}
+	}
+	return task, id, isParent, s.wuiMulticast(ctx, c, f, task, isParent)
+}
+
+// wuiMulticast is nil for a frame without mc_id, else the copy's checks.
+func (s *Server) wuiMulticast(ctx context.Context, c *wuiConn, f wuiIn, task string, isParent int) *frameRefusal {
+	if f.McID == "" {
+		return nil
+	}
+	mc := strings.ToLower(f.McID)
+	if !uuidRe.MatchString(mc) {
+		return badJSON("mc_id must be a UUID")
+	}
+	if rf := s.multicastTopic(ctx, c, task, isParent); rf != nil {
+		return rf
+	}
+	switch from, err := s.o.Store.MulticastAuthor(ctx, c.tenant, mc); {
+	case errors.Is(err, store.ErrNotFound):
+		return nil
+	case err != nil:
+		return &frameRefusal{"internal", http.StatusInternalServerError, "multicast lookup failed"}
+	case from != c.from:
+		return badJSON("mc_id belongs to another author's multicast")
+	}
+	return nil
+}
+
+// multicastTopic: a copy goes into an existing topic (is_parent 0), which
+// must hold a channel message (a pure DM topic is not a target, Q8 CHN), not
+// be hidden by the box owner lock, and sit in a channel the author may read;
+// every miss is the one 404 of an unknown id.
+func (s *Server) multicastTopic(ctx context.Context, c *wuiConn, task string, isParent int) *frameRefusal {
+	noTopic := &frameRefusal{tokenMulticastNoTopic, http.StatusNotFound, noTopicDetail}
+	if isParent != 0 {
+		return noTopic
+	}
+	a, err := s.o.Store.TopicAccess(ctx, c.tenant, task, s.o.Now())
+	if err != nil {
+		return &frameRefusal{"internal", http.StatusInternalServerError, "topic lookup failed"}
+	}
+	if !a.Found {
+		return noTopic
+	}
+	if hidden, err := s.topicLockHidden(ctx, c.tenant, task, a, c.member); err != nil || hidden {
+		return noTopic
+	}
+	for _, ch := range a.Channels {
+		if ch == "" {
+			continue
+		}
+		if may, err := s.canReadChannel(ctx, c.tenant, ch, c.member); err == nil && may {
+			return nil
+		}
+	}
+	return noTopic
+}
+
+// mcIDKey carries a multicast copy's mc_id from wuiSend to messageRow.
+type mcIDKey struct{}
+
+// withMcID is ctx, its send a copy of multicast mc when mc is not "".
+func withMcID(ctx context.Context, mc string) context.Context {
+	if mc == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, mcIDKey{}, strings.ToLower(mc))
+}
+
+// mcIDOf is the mc_id withMcID set, "" for every other row.
+func mcIDOf(ctx context.Context) string {
+	mc, _ := ctx.Value(mcIDKey{}).(string)
+	return mc
 }

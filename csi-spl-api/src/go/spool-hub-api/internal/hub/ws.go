@@ -1137,6 +1137,7 @@ func (s *Server) messageRow(ctx context.Context, tenant string, env *wire.Envelo
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
 		NoteToSelf: noteToSelfOf(ctx), // spec 042, set by wuiSend only
 		LoopID:     loopIDOf(ctx),     // spec 182 5.2, set by a loop's fire only
+		McID:       mcIDOf(ctx),       // spec 186 7.1.3, set by wuiSend only
 	}, nil
 }
 

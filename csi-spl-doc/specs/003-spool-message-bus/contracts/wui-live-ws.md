@@ -83,7 +83,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `subscribe` | `peer` (v0.5) | DM follow: `peer` = `<agent-id>` or `<agent-id>@<box-id>` (else `400 bad_frame`). The socket gets every message stored **with no channel** whose `from` or `to` is that peer (and its box, when given) — new DM roots included. A socket with a member session gets only the ones it is party to (`from` or `to` is its own id), the same rule as `view-v1` §4.3 `dm=true`. Reply `subscribed {peer}` |
 | `subscribe` | `all: true` (v0.5) | thread-list follow: every message stored in the tenant; a DM (no channel) only when the socket's own id is its `from` or `to`. Reply `subscribed {all:true}` |
 | `unsubscribe` | `task_id` \| `channel` \| `peer` \| `all` | idempotent. No reply |
-| `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?`, `is_parent?`, `mc_id?` | §4 (`mc_id` Planned, spec 186 M2) |
+| `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?`, `is_parent?`, `mc_id?` | §4 (`mc_id`: spec 186 M2) |
 | `topic_select` | `req_id`, `action`, `task_ids?`, `patterns?` | §4.1 (Planned, spec 186 M4): resolve ticked topics and title patterns on the hub |
 | `multicast_check` | `req_id`, `task_ids`, `files?`, `body` | §4.1 (Planned, spec 186 M4): read-only dry run for a multicast send |
 
@@ -150,7 +150,9 @@ Presence example (v0.3):
   it through the **same store path as box sends** (`messages` row + a
   `deliveries` row, state `sent`: the fan-out is its delivery). Billing/quota
   rules of 006 apply (`402 unpaid`, `429 quota`).
-- `mc_id` (Planned, spec 186 §7.1.1 / §7.1.3, M2): optional client-minted UUID
+- `mc_id` (spec 186 §7.1.1 / §7.1.3, M2; live: `TestMulticast*Send*`,
+  `TestMulticastNoTopic`, `TestMulticastBadFrames`, `TestMulticastRoutesAsAPost`
+  in `internal/hub/wui_multicast_test.go`): optional client-minted UUID
   shared by every copy of one multicast, sent on one ordinary `send` frame per
   target (`is_parent: 0`, each copy carrying its own `msg_id`, the target's
   `task_id` and `channel`, and shared `files` refs; patterns never travel on a
@@ -290,8 +292,9 @@ list (first page), merged by `task_id` (v0.5).
 
 `lobby_disabled` (400), `unknown_channel` (404, v0.3), plus the existing `bad_frame`, `bad_json`,
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
-`unknown_tenant`, and Planned (spec 186 §7.1): `multicast_no_topic` (404),
+`unknown_tenant`, `multicast_no_topic` (404, spec 186 §7.1.1: a `send` with
+`mc_id`; also a `multicast_checked` target token), and Planned (spec 186 §7.1):
 `topic_select_bad_pattern` (400, reply token), `multicast_none` (reply token,
 `ok: false`).
 
-<!-- version: 0.10.1 · updated: 2026-11-24 · last-edit: 2026-11-24T12:44:00Z -->
+<!-- version: 0.10.2 · updated: 2026-11-26 · last-edit: 2026-11-26T06:10:00Z -->

@@ -193,6 +193,10 @@ type Message struct {
 	// delivered to its agent and kept, but no view, topic head or fallback
 	// read shows it, to any viewer.
 	LoopID string
+	// McID is messages.mc_id (rdb 0321, spec 186 7.1.3): the client-minted
+	// multicast id every copy of one multicast shares, "" = NULL = any other
+	// row. Hub metadata: never in the v:1 object, a view row or a frame.
+	McID string
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).
@@ -302,6 +306,11 @@ type Store interface {
 	// MessageTimes returns a stored message's ts and received_at (ErrNotFound
 	// if none): a hub-built resend reuses them so it re-acks, not conflicts.
 	MessageTimes(ctx context.Context, tenantID, msgID string) (ts, receivedAt time.Time, err error)
+	// MulticastAuthor is the from_id of a stored copy of multicast mcID
+	// (spec 186 7.1.1, multicast.go), ErrNotFound when no message carries it.
+	MulticastAuthor(ctx context.Context, tenantID, mcID string) (string, error)
+	// MulticastCopies is the msg_ids of every stored copy of mcID, sorted.
+	MulticastCopies(ctx context.Context, tenantID, mcID string) ([]string, error)
 	// TopicChannel is the channel of a task's topic root - its earliest
 	// is_parent 1 row - or "" when the root is a DM or not stored.
 	TopicChannel(ctx context.Context, tenantID, taskID string) (string, error)

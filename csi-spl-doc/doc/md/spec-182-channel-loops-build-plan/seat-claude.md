@@ -199,9 +199,36 @@ rc 0. **Pass.**
   `git diff --stat` empty for `src/` before its commit would make it
   auditable.
 
+## Re-review of v0.2
+
+**PASS** on `be601fc3d7572bbc8cd228b80b74376dfebce443` (one commit on
+v0.1, `git diff --stat 6ae5fe136 be601fc3d` -> the plan only, +48/-34).
+
+- W1 fixed: plan `:454-455` names `TestOpenAPIServedToMember`
+  (`openapi_serve_test.go:32`) and `TestOpenAPIServeRouteNeedsItsOperation`
+  (`:77`); both funcs are there on `6b216a319` (`sed -n '32p;77p'`).
+- W2 fixed: the same-vendor waiver sentence is gone; plan `:165-168` states
+  rulebook 2.7.3 (cross-vendor PASS only, a replacement seat on a 15-minute
+  absence) and "this plan claims no same-vendor waiver".
+- W3 fixed: `ChannelKnown` `:77`, `cpCheckRequest` `:79` (loop `:87-91`),
+  `TopicLoopsDialog.vue` `:123` / `:158` / `:203` / `:216` / `:220` / `:224`
+  / `:233` and `all.env.yaml:1601-1606`, each matching the line read for W3;
+  `:163` is now cited as `listTopicLoops`, which it is.
+- N1, N2, N4 folded; the one "verbatim" done-test heading left is C2b
+  (`:500`), whose text is the spec's own.
+- `git grep` for the v0.1 bad cites in v0.2 (`verbatim|TestOpenAPIServe|waiver|1601-1605|:212|:217|:221`)
+  -> only the lines above, the v0.2 version row and "no cap waiver".
+- origin/master is `f9521a941`; `git diff --name-only 6b216a319 origin/master`
+  -> `refactor-round-05-plan.md`, `specs/150-topic-list-priority/spec.md`:
+  no cited path changed, so check 2 stands.
+- `HYGIENE_TREE=<clone at be601fc3d> ./run -a do_check_dist_hygiene` -> clean, rc 0.
+
+No new defect. Checks 1 and 3-6 are unchanged from v0.1 (the diff touches no
+row, batch, file list, vendor or question).
+
 ## Signature
 
-v1.0: pending (this seat signs the v1.0 sha the planner names, in a second
+v1.0: pending (this seat signs the v1.0 sha the planner names, in a further
 commit to this file).
 
-<!-- last-edit: 2026-11-26T05:48:00Z -->
+<!-- last-edit: 2026-11-26T06:00:00Z -->

@@ -330,3 +330,35 @@ column's `bash-cleancode`, `func-name-unique`, `run-lazy-loader` and
   `:18-45`). Cosmetic.
 - **N6 (R3).** None of the 7 `unknown:` lanes of the planner's box is in the plan's list (they are read
   from the other box); none has a pushed head touching a row file.
+
+## 12. v1.0: signed
+
+**PASS on v1.0 `6c477fd56cac6c501ce5a65528031bf9d3f05a56`.** W1-W3 are folded.
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-08-planner` ->
+  `6c477fd56cac6c501ce5a65528031bf9d3f05a56`;
+  `git merge-base --is-ancestor fa70bea3b 6c477fd56` -> yes (fast-forward);
+  `git diff --stat fa70bea3b 6c477fd56` -> the plan file only, 76 insertions, 21 deletions.
+- The bash blocks of v0.1 and v1.0, diffed line by line: only block 7 (section 9) changed,
+  in 3 lines. The identity `DRY_RUN=0` check gains `SPOOL_TMUX_SOCKET="$T/no.sock"`, and
+  the identity dry=1 and uninstall checks drop `ai_tmux() { return 0; }`.
+- **W1:** head1 rebuilt from v1.0's blocks on `e5af88d93`. The 4 code files have the
+  same sha256s as v0.1 (`35815c400147`, `8e966e56793f`, `0d2593700f57`, `0912482b3903`).
+  `cron-tagged-line.tst.sh` is `c56e361e4bb2`, 247 lines, as v1.0 line 942 says. Each
+  run had a logging tmux shim first on `PATH` and
+  `TMUX=/tmp/FAKE-LIVE-SERVER.sock,123,0`, n=1:
+  - `rc1`: rc 1, 40 / 6, the same 6 FAILs as v0.1.
+  - head1: rc 0, 46 / 0, `ALL PASS`.
+  - `m1a`: rc 1, 44 real / 2 fail.
+  - `m1b`: rc 1, 43 / 3.
+  - `m1c`: rc 1, 43 real / 3 fail.
+  - The shim recorded 24 calls, 0 of them on `FAKE-LIVE-SERVER.sock`. Under `m1c`, the
+    two `set-hook -g ...[1]` calls now go to `-S <scratch>/no.sock`.
+- **W2:** v1.0 section 7 names `accepted-close`, `desk-poll-ack`, `spl-hub-box-band`,
+  `spl-wui-perf-report`, `csi-spl-utl/`, `sec-*`, `*-cron.sh` and the Go/WUI duplicates
+  (one hit each in `sed -n '/^## 7/,/^## 8/p'`).
+- **W3:** v1.0 lines 590-591 give `0 / 16 / 0` and `0 / 35 / 0`.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` with this worktree detached at
+  `6c477fd56`: rc 0, clean.
+- Not re-run for v1.0: row 02 and the 24-suite column. Row 02's blocks are byte-identical
+  to v0.1 (block diff above), so the v0.1 results in sections 3 and 4 still apply.

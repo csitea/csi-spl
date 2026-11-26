@@ -122,7 +122,7 @@ func (s *Memory) ApplyPayment(_ context.Context, ev PaymentEvent, now time.Time)
 		}
 		s.tenants[c.TenantID] = t
 		if !existed {
-			s.ch.seedLocked(c.TenantID, now.UTC())
+			s.paidTenantMadeLocked(c.TenantID, now)
 		}
 		s.putPaidInviteLocked(in, now)
 		c.Status, c.PaidAt = CheckoutPaid, now
@@ -330,4 +330,15 @@ func (s *Memory) WorkspaceOrder(_ context.Context, tenant string) (WorkspaceOrde
 		return WorkspaceOrder{}, ErrNotFound
 	}
 	return cloneOrder(o), nil
+}
+
+// paidTenantMadeLocked finishes a tenant the paid transition created: its
+// default channels, and fleet_seating on like every other create (spec 158
+// M24, OD1).
+func (s *Memory) paidTenantMadeLocked(tenant string, now time.Time) {
+	s.ch.seedLocked(tenant, now.UTC())
+	if s.fleetSeating == nil {
+		s.fleetSeating = map[string]bool{}
+	}
+	s.fleetSeating[tenant] = true
 }

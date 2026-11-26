@@ -181,7 +181,7 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 	if c.Status == CheckoutPaid {
 		return PayOutcomeAlreadyPaid, nil
 	}
-	made, err := insertTenantTx(ctx, tx, c.TenantID, c.RootPubKey, c.PlanID)
+	made, err := insertTenantTx(ctx, tx, tenantInsert{c.TenantID, c.RootPubKey, c.PlanID, true})
 	if err != nil {
 		return "", err
 	}
@@ -216,16 +216,27 @@ func paidTx(ctx context.Context, tx pgx.Tx, c Checkout, ev PaymentEvent, now tim
 	return PayOutcomePaid, nil
 }
 
+// tenantInsert is the row insertTenantTx writes. fleetSeating is
+// tenants.fleet_seating (rdb 0230): the paid transition sets it true, like
+// every other create (spec 158 M24, OD1); the order submit keeps the column
+// default false until its own row says otherwise.
+type tenantInsert struct {
+	tenant       string
+	root         ed25519.PublicKey
+	plan         string
+	fleetSeating bool
+}
+
 // insertTenantTx is the tenant creation shared by the paid transition and the
 // private-workspace order submit: the row, active, with root as its root key.
 // made is false when the tenant already existed or its id was purged (nothing
 // written): a purged id is retired, as in CreateTenant (rdb 0322).
-func insertTenantTx(ctx context.Context, tx pgx.Tx, tenant string, root ed25519.PublicKey, plan string) (made bool, err error) {
-	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
-		SELECT $1, $2, $3, $4
+func insertTenantTx(ctx context.Context, tx pgx.Tx, in tenantInsert) (made bool, err error) {
+	tag, err := tx.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id, fleet_seating)
+		SELECT $1, $2, $3, $4, $5
 		WHERE NOT EXISTS (SELECT 1 FROM workspace_cancellations WHERE tenant_id = $1 AND purged_at IS NOT NULL)
 		ON CONFLICT (tenant_id) DO NOTHING`,
-		tenant, []byte(root), billing.StatusActive, plan)
+		in.tenant, []byte(in.root), billing.StatusActive, in.plan, in.fleetSeating)
 	if err != nil {
 		return false, err
 	}
@@ -420,7 +431,7 @@ func submitOrderTx(ctx context.Context, tx pgx.Tx, o WorkspaceOrder, now time.Ti
 	if !errors.Is(err, ErrNotFound) {
 		return WorkspaceOrder{}, false, err
 	}
-	made, err := insertTenantTx(ctx, tx, o.TenantID, o.RootPubKey, PlanKindPrivateVM)
+	made, err := insertTenantTx(ctx, tx, tenantInsert{o.TenantID, o.RootPubKey, PlanKindPrivateVM, false})
 	if err != nil {
 		return WorkspaceOrder{}, false, err
 	}

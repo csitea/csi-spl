@@ -372,13 +372,15 @@ func scanTable(ctx context.Context, q Querier, tb tableInfo, args pgx.NamedArgs)
 
 // rewrites are the columns a move may change on a staying <SRC> row that its
 // entry's Refs finds (C13, 5.1): M6b moved_from_*, M9 ref_task_id, the
-// channel_order entry, the rewritten issue keys; "*" = the topic-head
-// recompute, any column.
+// channel_order entry, the rewritten issue keys, a scheduled task's channel
+// and the pause it may cause (spec 187 8.1); "*" = the topic-head recompute,
+// any column.
 var rewrites = map[string][]string{
 	"messages":           {"moved_from_channel", "moved_from_task", "moved_from_parent", "ref_task_id"},
 	"tenant_memberships": {"channel_order"},
 	"fleet_lanes":        {"issue_key"},
 	"fleet_asks":         {"issue_key"},
+	"scheduled_tasks":    {"scope_where", "action_spec", "state", "paused_reason", "next_due_at"},
 	"topic_heads":        {"*"},
 	"topic_head_parts":   {"*"},
 }

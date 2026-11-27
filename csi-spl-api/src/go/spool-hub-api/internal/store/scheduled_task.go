@@ -43,14 +43,15 @@ const (
 )
 
 // The values rdb 0331's CHECKs allow for scope_object, trigger_kind,
-// action_kind, trigger_spec.on, a run's outcome and paused_reason.
+// action_kind, trigger_spec.on, a run's outcome and paused_reason (rdb 0333
+// adds channel_moved: a channel move paused it, store rewriteTasks).
 var (
 	TaskObjects      = []string{"channel", "topic", "message", "issue"}
 	TaskTriggers     = []string{"once", "every_n_minutes", "daily", "weekly", "monthly", "cron", "event"}
 	TaskActions      = []string{"move", "archive", "label", "set_priority", "notify", "agent"}
 	TaskEvents       = []string{"message_new", "topic_new", "issue_new", "issue_changed"}
 	TaskOutcomes     = []string{"running", "ok", "partial", "failed", "skipped"}
-	TaskPauseReasons = []string{"", "by_person", "done", "owner_left", "failing", "cap"}
+	TaskPauseReasons = []string{"", "by_person", "done", "owner_left", "failing", "cap", "channel_moved"}
 )
 
 // Run errors with a fixed meaning (TaskRun.Error starts with one of them).

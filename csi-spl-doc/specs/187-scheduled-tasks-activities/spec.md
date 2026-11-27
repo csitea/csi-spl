@@ -1,6 +1,6 @@
 # Spec 187: Scheduled Tasks and Activities
 
-Status: **Decided v0.7** (2026-11-25). Lanes `c-150` (v0.1, v0.2),
+Status: **Decided v0.8** (2026-11-27). Lanes `c-150` (v0.1, v0.2),
 `c-660` (v0.3) and `c-074` (v0.4 the build plan's form, v0.5 its review,
 v0.6 the owner's answer to Q1b, v0.7 to Q1c), `claude`, backup for
 `specs_and_docs` (agy held by the placer). Questions answered: 1.1.2 to
@@ -454,7 +454,9 @@ matches now (one read-only search): a count, not an approval step.
 - The hub pauses a task with a reason the list shows: `done` (a `once` task
   ran), `owner_left` (the owner left the workspace or lost the right of
   4.5), `failing` (5 runs in a row `failed`), `cap` (a cap of 5.3 is
-  reached; the task resumes itself when the window rolls over).
+  reached; the task resumes itself when the window rolls over),
+  `channel_moved` (a channel move took the task's only channel, or the
+  channel its `move` action names; 8.1, rdb `0333`).
 - Delete is soft: the row and its runs are kept 30 days, then a new chore in
   `RunSweeper`'s sweep removes them.
 
@@ -847,7 +849,13 @@ CREATE INDEX IF NOT EXISTS message_labels_label ON message_labels (tenant_id, la
 - **Channel move or copy** (spec 169): `scheduled_tasks`,
   `scheduled_task_runs`, `topic_labels` and `message_labels` are listed in
   `api/channelmove/catalogue.go`; a moved channel's id is removed from a
-  staying task's `scope_where` (`Rewritten`), and the next run says so.
+  staying task's `scope_where` and from a `move` action's `channel`
+  (`Rewritten`, `rewriteTasks` in `api/store/channel_move_apply_postgres.go`),
+  and the next run says so. A task the move leaves with `scope_where` `{}`
+  (which would read every channel) or a `move` with no target is paused,
+  reason `channel_moved` (4.4), with no next due time; a deleted task only
+  loses the id. The P7 proofs allow exactly those columns on a staying row
+  (`rewrites` in `api/channelmove/proof.go`).
 - **Next due time**: computed in Go from `trigger_kind`, `trigger_spec` and
   `tz` (for `cron`, with `taskcron.Next`), never in SQL.
 
@@ -1219,3 +1227,8 @@ and D24. No question is open.
   D24, msg `c5143a2f`): a task with an unbound scope is admin-only, S7
   refuses a member's with `403 not_allowed` (4.5, 6.2, row S7's D3 cell);
   a member makes it per epic or per channel. No question open (1.2, 10).
+- v0.8 (2026-11-27, lane `c-752`, SPL-6659; the R7 notes N3 and N1 of row
+  S1): a channel move also clears a `move` action's target, and pauses a
+  task it leaves with no channel, reason `channel_moved` (4.4, 8.1, rdb
+  `0333`); a run's error is cut to 500 characters on every run write,
+  `StartRun` too (4.6). Dispatch holder's go: msg `b3c19bbc`.

@@ -711,8 +711,32 @@ func (m *pgMove) rewriteStaying() error {
 		WHERE tenant_id = $1 AND $2::text = ANY(channel_order)`, src, ch); err != nil {
 		return fmt.Errorf("channel_order: %w", err)
 	}
+	return m.rewriteTasks()
+}
+
+// rewriteTasks is spec 187 8.1 on the staying scheduled tasks: the channel
+// id leaves scope_where, and a move action that names it loses its target.
+// A task left with scope_where {} (= every channel) or a move with no target
+// is paused, reason channel_moved (rdb 0333), next_due_at cleared as
+// SetTaskState clears it; a deleted task only loses the id. Every SET reads
+// the row as it was.
+func (m *pgMove) rewriteTasks() error {
+	if _, err := m.exec(`UPDATE scheduled_tasks SET scope_where = array_remove(scope_where, $2::text),
+			action_spec = CASE WHEN `+mvTaskTarget+` THEN action_spec - 'channel' ELSE action_spec END,
+			state = CASE WHEN `+mvTaskPause+` THEN 'paused' ELSE state END,
+			paused_reason = CASE WHEN `+mvTaskPause+` THEN 'channel_moved' ELSE paused_reason END,
+			next_due_at = CASE WHEN `+mvTaskPause+` THEN NULL ELSE next_due_at END
+		WHERE tenant_id = $1 AND ($2::text = ANY(scope_where) OR `+mvTaskTarget+`)`, m.req.Src, m.req.Channel); err != nil {
+		return fmt.Errorf("scheduled_tasks: %w", err)
+	}
 	return nil
 }
+
+// mvTaskTarget: a move task whose target is the channel ($2).
+const mvTaskTarget = `(action_kind = 'move' AND action_spec->>'channel' = $2::text)`
+
+// mvTaskPause: a task the move leaves with no channel to read or move to.
+const mvTaskPause = `(state <> 'deleted' AND (scope_where = ARRAY[$2::text] OR ` + mvTaskTarget + `))`
 
 // deleteAll removes the set in <SRC>, children first (the reverse of the
 // catalogue's insert order, F5).

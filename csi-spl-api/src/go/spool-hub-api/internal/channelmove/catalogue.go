@@ -145,8 +145,8 @@ var rewrittenTables = []Entry{
 		Reason: "spec 196 2.2 (rdb 0328): not carried as it is, its tag_id is a <SRC> tag; the topic_tag_stamps part relinks each slug to <DST>'s tag (made when missing) and deletes the <SRC> links, pruning unused tags"},
 	{Table: "channel_box_pins", Class: Rewritten, Refs: `channel_id = @channel`,
 		Reason: "spec 164 B1 (rdb 0246): not carried, its boxes are <SRC> pins; the <DST> channel starts unpinned (any box, 164 3.3) and the <SRC> rows go with the channel's delete (FK cascade)"},
-	{Table: "scheduled_tasks", Class: Rewritten, Refs: `@channel = ANY(scope_where)`,
-		Reason: "spec 187 8.1 (rdb 0331): not carried; the moved channel's id is removed from a staying task's scope_where, and its next run says so"},
+	{Table: "scheduled_tasks", Class: Rewritten, Refs: `@channel = ANY(scope_where) OR (action_kind = 'move' AND action_spec->>'channel' = @channel)`,
+		Reason: "spec 187 8.1 (rdb 0331, 0333): not carried; the moved channel's id is removed from a staying task's scope_where and from a move action's target, and a task left with no channel is paused (channel_moved)"},
 }
 
 var recomputedTables = []Entry{

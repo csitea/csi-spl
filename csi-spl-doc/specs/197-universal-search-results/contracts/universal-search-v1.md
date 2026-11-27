@@ -1,11 +1,11 @@
 # Contract: Universal Search API v1 (`GET /v1/view/search/universal`)
 
-Feature: [Spec 197 — Universal Search Panel (`/us`)](../spec.md) (v1.2.2).
+Feature: [Spec 197 — Universal Search Panel (`/s`, `/search`)](../spec.md) (v1.2.3).
 Epic: **SPL-1292**. Issue: **SPL-6662**.
 Normative order: [view-v1](../../003-spool-message-bus/contracts/view-v1.md) (door, tenant, CORS, retention), [error-envelope](../../003-spool-message-bus/contracts/error-envelope.md), [search-v1](../../003-spool-message-bus/contracts/search-v1.md) (query grammar, highlights, rate limit, time budget), then this file.
 
-**Coexistence invariant (HC1 / HC2):** This contract sits **beside** `GET /v1/view/search` (`search-v1.md`), never inside it. `GET /v1/view/search` and `search-v1.md` remain byte-identical across every build row of Spec 197.
-**Build order (v1.2):** Wave 1 (**C1**) ships this endpoint with `calendar` first (real entries only, no `'Week N'` markers, `sort=upcoming` default for `type:calendar`); Wave 2 (**B2–B4**) registers the remaining 16 kinds on the same `universalSource` interface without breaking the wire shape.
+**API coexistence invariant (HC1):** This contract sits **beside** `GET /v1/view/search` (`search-v1.md`), never inside it. `GET /v1/view/search` and `search-v1.md` remain byte-identical across every build row of Spec 197 (Wave 1 `W1` `SPL-6675` ships immediately on `/s` + `/search` reading `GET /v1/view/search`, while `C1` ships `GET /v1/view/search/universal` and Wave 2 switches the panel to it without breaking existing API callers or `roundtrips_perf_test.go:126`).
+**Build order (v1.2.3):** Wave 1 (**W1** `SPL-6675` ships immediately on `/s` + `/search` for everyone, dev then prd, per D1=`S` `msg:06a64b3a`, filtering/ordering calendar hits client-side over `/v1/view/search`; **C1** ships this endpoint with `calendar` first: real entries only, no `'Week N'` markers, `sort=upcoming` default for `type:calendar`); Wave 2 (**B2–B4**) registers the remaining 16 kinds on the same `universalSource` interface without breaking the wire shape.
 
 ---
 
@@ -26,7 +26,7 @@ OPTIONS /v1/view/search/universal
 | Param | Required | Meaning |
 |---|---|---|
 | `q` | Yes | Raw search query (`search-v1` grammar **v1.9** in Wave 2; existing `type:calendar`/`type:cal` in Wave 1). Empty / whitespace-only, > `512` UTF-16 code units, > `32` terms, or nesting > `8` -> `400 bad_query` with UTF-16 `pos` and `token`. |
-| `type` | No | Optional comma-separated kind filter (e.g. `calendar`, `topic,issue`, for shared-link `&us_type=` / API callers; v1 UI filters via `type:` in the Omnibox per owner Q3 = `NO`). If both `&type=` and a top-level `type:` term inside `q` are given, their intersection is searched; an empty intersection -> `400 bad_query`. |
+| `type` | No | Optional comma-separated kind filter (e.g. `calendar`, `topic,issue`, for shared-link `/search?q=...&type=...` / API callers; v1 UI filters via `type:` in the Omnibox per owner Q3 = `NO`). If both `&type=` and a top-level `type:` term inside `q` are given, their intersection is searched; an empty intersection -> `400 bad_query`. |
 | `sort` | No | When omitted: **`upcoming`** if `kinds == ["calendar"]` (nearest upcoming first), else **`updated_desc`** (last modified, newest first). Allowed values: `upcoming` (valid only when `kinds == ["calendar"]`; `400 bad_query` if combined with non-calendar kinds), `updated_desc`, `updated_asc`, or `relevance` (cross-kind tiered ranking: exact key/title match > FTS `ts_rank_cd` / substring tier > `updated_at DESC`). Any other value -> `400 bad_query`. |
 | `limit` | No | Page size. Default **30**, max **100** (clamped above max; `<= 0` -> default 30). |
 | `cursor` | No | Opaque base64url JSON cursor from a previous `next` for the exact same `(q, sort, kinds)`. Malformed or mismatched -> `400 bad_cursor`. |
@@ -44,7 +44,7 @@ OPTIONS /v1/view/search/universal
 - `search.UniversalDefaultTypes` (15 default kinds): `calendar`, `topic`, `card_msg`, `topic_msg`, `issue`, `lane`, `event`, `file`, `doc`, `contact`, `note`, `channel`, `user`, `robot`, `box`. (In Wave 1 `C1`, before Wave 2 registers the other 14 kinds, `calendar` is the active default source.)
 - Opt-in kinds (searched only when explicitly named via `type:` or `in:`): `file_line` (`in:file-streams`), `tenant`.
 - `search.ParseUniversal(raw, now)`: `type:message` expands to `{card_msg, topic_msg}` (confirmed by owner Q4 = `SEP`).
-- `GET /v1/view/search/operators`: marks the 4 new kinds with `"universal_only": true` so `/us` autocomplete offers them while `/s` ignores them.
+- `GET /v1/view/search/operators`: marks the 4 new kinds with `"universal_only": true` so the Omnibox `/s` / `/search` universal panel offers them once Wave 2 lands while legacy `/v1/view/search` callers ignore them.
 
 ---
 

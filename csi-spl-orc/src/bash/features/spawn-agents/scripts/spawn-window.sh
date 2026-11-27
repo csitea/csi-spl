@@ -601,8 +601,9 @@ sw_category() {  # WORKDIR BRIEF
   # A respawn (a rotation) starts from a seed with no "Kind:": the lane's kind
   # is the one its first spawn recorded. Read it, never rewrite the record.
   if [ -z "$kind" ] && [ "${SPAWN_REUSE_ID:-0}" = 1 ] && [ -z "${SPAWN_TASK_KIND:-}" ]; then
-    kind="$(sed -nE 's/.*"work_kind":"([a-z0-9_]+)".*/\1/p' "$f" 2>/dev/null | head -n1)"
-    [ -n "$kind" ] || return 0
+    # jq, as restore-core's _rs_model reads it: any JSON spacing, one value.
+    kind="$(jq -r '.work_kind // empty' "$f" 2>/dev/null || true)"
+    [[ "$kind" =~ ^[a-z0-9_]+$ ]] || return 0
     export SPAWN_TASK_KIND="$kind"
     [ "$DRY" != 1 ] || printf 'PLAN %-10s %s\n' category "work_kind ${kind} <- $f (respawn, record kept)"
     return 0

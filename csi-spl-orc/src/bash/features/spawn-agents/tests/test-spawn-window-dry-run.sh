@@ -73,6 +73,11 @@ out="$(SPAWN_REUSE_ID=1 SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=
 has "W1: a respawn's recorded work_kind tests picks the by_kind model" "--model 'sonnet'" "$(grep '^PLAN launch' <<<"$out")"
 eq "W1: the respawn leaves lifetime/category.json as it was" "$rec" "$(cat "$SPOOL_ROOT/CLE-4444/lifetime/category.json")"
 eq "W1: the respawn's launch carries --model once" 1 "$(grep '^PLAN launch' <<<"$out" | grep -o -- "--model" | wc -l)"
+# R7 round 2 N1: a spaced record (jq's, L3's fixture) reads the same as the compact one.
+mkdir -p "$SPOOL_ROOT/CLE-4446/lifetime"
+printf '{"work_kind": "tests", "category_path": ""}\n' > "$SPOOL_ROOT/CLE-4446/lifetime/category.json"
+out="$(SPAWN_REUSE_ID=1 SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4446 "$T_TMP/repo" "$T_TMP/brief.md" rotate 2>&1)"
+has "N1: a respawn's spaced record work_kind tests picks the by_kind model" "--model 'sonnet'" "$(grep '^PLAN launch' <<<"$out")"
 mkdir -p "$SPOOL_ROOT/CLE-4445/lifetime"
 out="$(SPAWN_REUSE_ID=1 SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4445 "$T_TMP/repo" "$T_TMP/brief.md" rotate 2>&1)"
 has "W1 control: a respawn with no recorded kind gets the vendor default" "--model 'opus'" "$(grep '^PLAN launch' <<<"$out")"

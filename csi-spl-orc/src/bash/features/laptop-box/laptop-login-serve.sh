@@ -2,7 +2,8 @@
 #------------------------------------------------------------------------------
 # laptop-login-serve.sh - the ONLY thing a laptop box's key may run on the
 # fleet box it pulls its Claude login from (SPL-6680, spec 037 "Laptop box";
-# owner answer Q1 = PUL: "the laptop pulls sat's login over ssh, read-only").
+# owner answer Q1 = PUL: the laptop pulls the move box's login over ssh,
+# read-only).
 # do_spl_laptop_box_login_grant installs it root-owned, with a root-owned copy
 # of agent-login-cred.sh next to it, and names it in the key's
 # authorized_keys line: restrict,command="LAPTOP_SERVE_FILES='<files>' bash

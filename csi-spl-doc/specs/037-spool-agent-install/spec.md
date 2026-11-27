@@ -195,7 +195,10 @@ only (`env.box.agent_cred_sync.claude.main`). On the laptop
 `do_spl_laptop_box_login_pull` (`spl-laptop-box-login.timer`, every 15 min)
 is `do_spl_agent_cred_sync` from the move box to this box through
 `laptop-login-peer.sh`: newer only, account label, backup, the headless
-proof. `revoke` removes the line.
+proof. `revoke` removes the line. The key line is taken only as one
+`ssh-ed25519` line: a newline or a carriage return in it is refused (a
+second line would carry no marker, and `revoke` would never remove it), and
+`LAPTOP_SERVE_LIB` only as an absolute plain path.
 
 | path | role |
 |---|---|
@@ -205,8 +208,8 @@ proof. `revoke` removes the line.
 | `csi-spl-orc/src/bash/features/laptop-box/laptop-login-peer.sh` | the laptop's ssh for the sync's peer ops: plain words only |
 | `csi-spl-orc/src/bash/tests/spl-laptop-box-login.tst.sh` | serve refusals, peer words, grant / regrant / revoke, the pull's wiring |
 
-The lane move (owner HUM-10, form 1cf6af26 = A: "Shell key to sat on her
-laptop: the same session resumes on sat"): the install makes a second key,
+The lane move (owner HUM-10, form 1cf6af26 = A: a shell key to the move box
+on her laptop, the same session resumes on the move box): the install makes a second key,
 the move key; `LAPTOP_GRANT_CMD=grant-move` adds a plain authorized_keys
 line for it on the move box, so `do_spl_lane_handover` can reach it as that
 box's user (`HANDOVER_SSH` with the move key, `BOX_SSH_<BOX>` =
@@ -221,11 +224,23 @@ the install ends, as the agents' user, with `do_spl_desk_install_service`
 prd probe login on a laptop) and `do_spl_spawn_remote_install_cron` (the
 cross-box spawn receiver). Their var log dir and their self-updating
 checkout `<checkout>-desk-cron` (both as `spl_run_paths` derives them) are
-made in the root plan, because their parents are root's. The GitHub push
+made in the root plan, because their parents are root's. `install.sh` puts
+yq and go under the agents' user's tools dir
+(`~/.local/share/spool-agent/tools/{bin,go/bin}`) only, so that dir is on
+the PATH of both systemd units and of the services step, and the step
+writes `PATH=` and `DESK_CRON_PATH_EXTRA=` at the head of that user's
+crontab (a cron job reads no profile). `sudo spl-laptop-box remove` takes
+that crontab out and expires the account before it kills the user's
+processes, so no cron job starts between the kill and `userdel`, and
+fails when the user is still there after three tries. The GitHub push
 token goes in with `sudo spl-laptop-box github-token`: read without echo
 (or from stdin), handed to `gh auth login --with-token` as the agents' user
-on stdin only, then `gh auth setup-git`; no clear-text git credential store
+on stdin only (no `GH_TOKEN`, `GITHUB_TOKEN` or gh config dir of the
+caller crosses over), then `gh auth setup-git`; no clear-text git credential store
 (SPL-3761).
+
+The install refuses a box without python3 (a minimal Debian image) before
+it reads the cnf, and names the apt line.
 
 Precondition, not checked by any action: the move box's ssh must be
 reachable from her network (the login pull and the lane move both use it).

@@ -15,6 +15,7 @@
 #      files, keeps other lines, installs both scripts root-owned; a second
 #      grant replaces it; grant-move adds a plain line for the move key;
 #      revoke removes both, only those
+#      W2: a key with a newline or a CR, a bad LAPTOP_SERVE_LIB -> exit 2
 #   4. pull: no laptop-box.env -> exit 3; a bad LAPTOP_MOVE_SSH -> exit 3;
 #      else the sync runs claude, move box -> this box, through the peer
 #------------------------------------------------------------------------------
@@ -75,6 +76,16 @@ grant LAPTOP_GRANT_CMD=grant-move LAPTOP_PUBKEY="$MKEY" DRY_RUN=0
 grep -qx "ssh-ed25519 AAAAC3NzaMoveKey1 spl-laptop-box-move:lap-a" "$AK" && grep -q "LaptopKey2 spl-laptop-box:lap-a$" "$AK" && pass "3 grant-move: a plain line, the read line kept" || { fail "3 grant-move"; cat "$AK"; }
 grant LAPTOP_GRANT_CMD=revoke DRY_RUN=0
 [[ "$(cat "$AK")" == "ssh-ed25519 AAAAother other@x" ]] && pass "3 revoke removes both of its lines, only those" || { fail "3 revoke"; cat "$AK"; }
+# W2 (R7 a-736): a key value with a newline or a CR (bash's '.' takes a
+# newline) is refused for grant and grant-move, nothing written; so is a
+# serve lib that is not an absolute plain path
+cp "$AK" "$T/ak.w2"; w2=""
+for k in "$KEY"$'\n'"ssh-ed25519 AAAAInjected x" "$KEY"$'\r'; do
+  for c in grant grant-move; do grant LAPTOP_GRANT_CMD=$c LAPTOP_PUBKEY="$k" DRY_RUN=0; w2+="$? "; done
+done
+for l in rel/lib "/x' ; id ; '" /a/../b; do grant LAPTOP_PUBKEY="$KEY" LAPTOP_SERVE_LIB="$l" DRY_RUN=0; w2+="$? "; done
+[[ "$w2" == "2 2 2 2 2 2 2 " ]] && cmp -s "$AK" "$T/ak.w2" && ! grep -q Injected "$AK" \
+  && pass "3 W2 a 2-line or CR key, a bad serve lib: refused, nothing written" || { fail "3 W2: $w2"; cat "$AK"; }
 
 # 4
 SR="$T/spool"; mkdir -p "$SR/dispatch"; export LAPTOP_ENV_FILE="$SR/dispatch/laptop-box.env"

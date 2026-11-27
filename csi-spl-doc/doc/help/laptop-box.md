@@ -29,7 +29,7 @@ the fleet box named at install (the move box), where its session resumes.
 One line, in a terminal on her laptop:
 
 ```bash
-sudo apt-get install -y git && sudo git clone https://github.com/csitea/csi-spl /opt/csi/csi-spl && cd /opt/csi/csi-spl/csi-spl-orc && sudo ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id <workspace> --move-box <move box> --move-ssh <user>@<host> --dry-run 0
+sudo apt-get install -y git python3 && sudo git clone https://github.com/csitea/csi-spl /opt/csi/csi-spl && cd /opt/csi/csi-spl/csi-spl-orc && sudo ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id <workspace> --move-box <move box> --move-ssh <user>@<host> --dry-run 0
 ```
 
 - Without `--dry-run 0` it only prints what it would do.

@@ -61,6 +61,8 @@ do_spl_laptop_box_install() {
   [[ -r "${LAPTOP_OS_RELEASE:-/etc/debian_version}" ]] || { do_log "FATAL not a Debian box (no /etc/debian_version): the laptop box is Debian only"; return 3; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 2; dry=0; fi
   co="${LAPTOP_CHECKOUT:-$(cd "$PROJ_PATH/.." && pwd)}"
+  # N4 (R7 a-736): the cnf is read with python3, before the root plan installs it
+  command -v python3 >/dev/null || { do_log "FATAL no python3 (a minimal Debian): run sudo apt-get install -y python3, then this line again"; return 3; }
   sr="$(spl_laptop_cnf_get "$co" "$env" env.box.spool_root)"; sr="${sr:-/var/spool-hub}"
   g="$(spl_laptop_cnf_get "$co" "$env" env.box.spool_root_group)"; g="${g:-spool-agents}"
   [[ -n "$u" ]] || u="$(spl_laptop_cnf_get "$co" "$env" env.steps.060-gcp-vm-satellite.box_agent_user)"
@@ -116,9 +118,21 @@ spl_laptop_install_services() {
   local u="$1" co="$2" env="$3" ten="$4" rc
   local -a as=(sudo -u "$u" -H)
   [[ -z "${LAPTOP_AS_USER:-}" ]] || read -ra as <<<"$LAPTOP_AS_USER"
-  "${as[@]}" env ENV="$env" TENANT_ID="$ten" DESK_CRON_PROBE=0 DRY_RUN=0 bash -c "${LAPTOP_SERVICES_CMD:-cd '$co/csi-spl-orc' && ./run -a do_spl_desk_install_service && ./run -a do_spl_spawn_remote_install_cron}"
+  "${as[@]}" env ENV="$env" TENANT_ID="$ten" DESK_CRON_PROBE=0 DRY_RUN=0 CT="${LAPTOP_CRONTAB:-crontab}" \
+    bash -c "$(spl_laptop_services_path_sh)${LAPTOP_SERVICES_CMD:-cd '$co/csi-spl-orc' && ./run -a do_spl_desk_install_service && ./run -a do_spl_spawn_remote_install_cron}"
   rc=$?
   (( rc == 0 )) || { do_log "FATAL the fleet services as $u failed (exit $rc): re-run the same line, it is idempotent"; return 1; }
+}
+
+# spl_laptop_services_path_sh: the shell head of the services step (W1, R7
+# a-736). install.sh puts yq and go under the agents' user's tools dir only:
+# that dir goes on PATH for the step, and into the head of its crontab (PATH
+# and DESK_CRON_PATH_EXTRA, which desk-reconcile-cron.sh puts first), since a
+# cron job reads no profile. Single-quoted: the user's shell expands $HOME.
+spl_laptop_services_path_sh() {
+  # shellcheck disable=SC2016
+  printf '%s' 't="$HOME/.local/share/spool-agent/tools"; export PATH="$HOME/.local/bin:$t/bin:$t/go/bin:$PATH"; ' \
+    '{ printf "PATH=%s\nDESK_CRON_PATH_EXTRA=%s\n" "$PATH" "$t/bin:$t/go/bin"; $CT -l 2>/dev/null | grep -vE "^(PATH|DESK_CRON_PATH_EXTRA)="; } | $CT - || exit 1; '
 }
 
 # spl_laptop_install_as_user <user> <checkout> <hub> <env> <tenant> <tag>

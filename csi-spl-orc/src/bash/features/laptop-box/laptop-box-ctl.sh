@@ -58,13 +58,17 @@ remove() {
   if [[ "$u" == "$(envget LAPTOP_MEMBER)" || "$u" == "${SUDO_USER:-}" || ! "$uid" =~ ^[0-9]+$ ]] || (( uid < 1000 )); then
     echo "refused: '$u' is not a separate agents' user (her own, root or a system user)" >&2; return 3
   fi
+  # W3 (R7 a-736): its crontabs out and the account expired (cron runs no job
+  # for it) BEFORE its processes are killed, so the 1-min spawn receiver
+  # cannot start one between pkill and userdel; userdel retried, then checked
   local c
   for c in \
     "systemctl disable --now spl-laptop-box-tick.timer spl-laptop-box-login.timer 2>/dev/null; systemctl --global disable spl-laptop-box-ask.timer 2>/dev/null; true" \
     "rm -f /etc/systemd/system/spl-laptop-box-tick.service /etc/systemd/system/spl-laptop-box-tick.timer /etc/systemd/system/spl-laptop-box-login.service /etc/systemd/system/spl-laptop-box-login.timer /etc/systemd/user/spl-laptop-box-ask.service /etc/systemd/user/spl-laptop-box-ask.timer" \
     "systemctl daemon-reload" \
-    "pkill -u '$u' || true" \
-    "userdel -r '$u' 2>/dev/null || true" \
+    "crontab -r -u '$u' 2>/dev/null; rm -f '/var/spool/cron/crontabs/$u'; usermod --expiredate 1 '$u' 2>/dev/null; true" \
+    "pkill -KILL -u '$u' || true" \
+    "for i in 1 2 3; do userdel -r '$u' 2>/dev/null; id -u '$u' >/dev/null 2>&1 || exit 0; pkill -KILL -u '$u'; sleep 1; done; exit 1" \
     "rm -rf '$SR' /usr/local/lib/spl-laptop-box /usr/local/bin/spl-laptop-box '${ENVF%/*}'"; do
     ${LAPTOP_ROOT_SH:-bash -c} "$c" || { echo "remove: failed: $c" >&2; return 1; }
   done
@@ -81,9 +85,12 @@ github_token() {
   [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "refused: no agents' user in $ENVF" >&2; return 3; }
   if [[ -t 0 ]]; then read -rsp 'GitHub push token (not shown): ' tok; echo >&2; else read -r tok; fi
   [[ "$tok" =~ ^[A-Za-z0-9_]{20,255}$ ]] || { echo "refused: that is not a GitHub token" >&2; return 2; }
-  printf '%s\n' "$tok" | ${LAPTOP_RUNUSER:-runuser} -u "$u" -- gh auth login --hostname github.com --git-protocol https --with-token ||
+  # N2 (R7 a-736): no caller token or config dir crosses into its gh
+  local -a ge=(env -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GH_CONFIG_DIR -u XDG_CONFIG_HOME)
+  umask 077
+  printf '%s\n' "$tok" | ${LAPTOP_RUNUSER:-runuser} -u "$u" -- "${ge[@]}" gh auth login --hostname github.com --git-protocol https --with-token ||
     { echo "github-token: gh did not take the token" >&2; return 1; }
-  ${LAPTOP_RUNUSER:-runuser} -u "$u" -- gh auth setup-git --hostname github.com || return 1
+  ${LAPTOP_RUNUSER:-runuser} -u "$u" -- "${ge[@]}" gh auth setup-git --hostname github.com || return 1
   echo "OK the agents push to GitHub with that token"
 }
 

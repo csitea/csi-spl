@@ -18,7 +18,8 @@
 #      status; github-token: root only, a non-token refused, the token to
 #      gh auth login on stdin only, then gh auth setup-git; remove: refused
 #      without root, refused with lanes, else the
-#      plan (timers off, units gone, the agents' user deleted)
+#      plan (timers off, units gone, the agents' user deleted); W3: its
+#      crontab out and the account expired before the kill, userdel checked
 #   9. a closed pop-up writes no answer
 #  10. not a laptop box (no laptop-box.env) -> exit 3
 #  11. LAPTOP_ASK=wui: the question is posted once as a poll form tagging
@@ -102,14 +103,22 @@ for who in mem sys-u nosuch; do
   LAPTOP_EUID=0 LAPTOP_ROOT_SH=echo ctl remove >"$T/rm3.out" 2>&1; w3+="$? $(grep -c userdel "$T/rm3.out") "
 done; cp "$T/env.w3" "$LAPTOP_ENV_FILE"
 [[ "$w3" == "3 0 3 0 3 0 " ]] && pass "8 W3 remove: refuses her user, a system user, an unknown user" || fail "8 W3 remove: $w3"
+# W3 (R7 a-736): its crontab out and the account expired before the kill,
+# userdel retried and its result checked (no '|| true')
+lno() { grep -n -m 1 -F -- "$1" "$T/rm.out" | cut -d: -f1; }
+c1="$(lno "crontab -r -u 'agt-u'")"; c2="$(lno "pkill -KILL -u 'agt-u' || true")"; c3="$(lno "userdel -r 'agt-u'")"
+if [[ -n "$c1" && -n "$c2" && -n "$c3" ]] && (( c1 < c2 && c2 < c3 )) && grep -qF "usermod --expiredate 1 'agt-u'" "$T/rm.out" \
+  && grep -F "userdel -r 'agt-u'" "$T/rm.out" | grep 'exit 1$' >/dev/null && ! grep -F "userdel -r 'agt-u'" "$T/rm.out" | grep -F '|| true' >/dev/null; then
+  pass "8 W3 remove: crontab out + account expired, then kill, then a checked userdel"
+else fail "8 W3 remove order: crontab=$c1 pkill=$c2 userdel=$c3"; cat "$T/rm.out"; fi
 ctl bogus >/dev/null 2>&1; [[ $? -eq 2 ]] && pass "8 unknown control: exit 2" || fail "8 unknown control"
 printf '#!/usr/bin/env bash\necho "runuser $* stdin=$(cat)" >>"%s/runuser.log"\n' "$T" >"$T/stub/runuser"; chmod +x "$T/stub/runuser"
 TOK="ghp_$(printf 'a%.0s' {1..36})"
 echo "$TOK" | LAPTOP_EUID=1000 LAPTOP_RUNUSER="$T/stub/runuser" ctl github-token >/dev/null 2>&1; g1=$?
 echo "not a token; id" | LAPTOP_EUID=0 LAPTOP_RUNUSER="$T/stub/runuser" ctl github-token >/dev/null 2>&1; g2=$?
 echo "$TOK" | LAPTOP_EUID=0 LAPTOP_RUNUSER="$T/stub/runuser" ctl github-token >"$T/gt.out" 2>&1; g3=$?
-if [[ $g1 -eq 3 && $g2 -eq 2 && $g3 -eq 0 ]] && grep -qx "runuser -u agt-u -- gh auth login --hostname github.com --git-protocol https --with-token stdin=$TOK" "$T/runuser.log" \
-  && grep -q "^runuser -u agt-u -- gh auth setup-git --hostname github.com" "$T/runuser.log" && [[ "$(grep -c "$TOK" "$T/runuser.log")" == 1 ]] && ! grep -q "$TOK" "$T/gt.out"; then
+if [[ $g1 -eq 3 && $g2 -eq 2 && $g3 -eq 0 ]] && grep -qx "runuser -u agt-u -- env -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GH_CONFIG_DIR -u XDG_CONFIG_HOME gh auth login --hostname github.com --git-protocol https --with-token stdin=$TOK" "$T/runuser.log" \
+  && grep -q "^runuser -u agt-u -- env -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GH_CONFIG_DIR -u XDG_CONFIG_HOME gh auth setup-git --hostname github.com" "$T/runuser.log" && [[ "$(grep -c "$TOK" "$T/runuser.log")" == 1 ]] && ! grep -q "$TOK" "$T/gt.out"; then
   pass "8 github-token: root only, checked, to gh by stdin only"
 else fail "8 github-token g=$g1/$g2/$g3"; cat "$T/runuser.log" "$T/gt.out"; fi
 # 9

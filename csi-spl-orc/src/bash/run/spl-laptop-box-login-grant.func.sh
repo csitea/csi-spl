@@ -17,8 +17,8 @@
 # @description      (env.box.agent_cred_sync.claude.main files + account).
 # @description   grant-move: one PLAIN line for the laptop's move key, tagged
 # @description   spl-laptop-box-move:<tag>: a shell for do_spl_lane_handover
-# @description   (owner HUM-10, form 1cf6af26 = A: "Shell key to sat on her
-# @description   laptop: the same session resumes on sat").
+# @description   (owner HUM-10, form 1cf6af26 = A: a shell key to the move
+# @description   box on her laptop, the same session resumes on the move box).
 # @description   revoke: removes both lines. Idempotent: a second grant
 # @description   replaces the line. Dry run unless DRY_RUN=0 (prints the line
 # @description   without the key). Needs the owner's go on a live box.
@@ -34,19 +34,21 @@
 #------------------------------------------------------------------------------
 do_spl_laptop_box_login_grant() {
   local tag="${BOX_TAG:-}" cmd="${LAPTOP_GRANT_CMD:-grant}" key="${LAPTOP_PUBKEY:-}" lib="${LAPTOP_SERVE_LIB:-/usr/local/lib/spl-laptop-box}"
-  local ak="${LAPTOP_AUTH_KEYS:-$HOME/.ssh/authorized_keys}" dry=1 files line mark tmp
+  local ak="${LAPTOP_AUTH_KEYS:-$HOME/.ssh/authorized_keys}" dry=1 files line mark tmp b64
   spl_laptop_box_tag_ok "$tag" || { do_log "FATAL BOX_TAG must be a box tag, got '$tag'"; return 2; }
   [[ "$cmd" =~ ^(grant|grant-move|revoke)$ ]] || { do_log "FATAL LAPTOP_GRANT_CMD must be grant, grant-move or revoke, got '$cmd'"; return 2; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 2; dry=0; fi
   mark="spl-laptop-box:$tag"; [[ "$cmd" == grant-move ]] && mark="spl-laptop-box-move:$tag"
-  if [[ "$cmd" == grant-move ]]; then
-    [[ "$key" =~ ^ssh-ed25519\ [A-Za-z0-9+/=]+(\ .*)?$ ]] || { do_log "FATAL LAPTOP_PUBKEY must be one ssh-ed25519 public key line"; return 2; }
-    line="${key%% *} $(awk '{print $2}' <<<"$key") $mark"
+  # W2 (R7 a-736): an absolute plain path only, it goes into command="..."
+  # and into root's install lines
+  [[ "$lib" =~ ^/[A-Za-z0-9._/-]+$ && "$lib" != *..* ]] || { do_log "FATAL LAPTOP_SERVE_LIB must be an absolute plain path, got '$lib'"; return 2; }
+  if [[ "$cmd" != revoke ]]; then
+    b64="$(spl_laptop_pubkey_blob "$key")" || { do_log "FATAL LAPTOP_PUBKEY must be one ssh-ed25519 public key line"; return 2; }
+    line="ssh-ed25519 $b64 $mark"
   fi
   if [[ "$cmd" == grant ]]; then
-    [[ "$key" =~ ^ssh-ed25519\ [A-Za-z0-9+/=]+(\ .*)?$ ]] || { do_log "FATAL LAPTOP_PUBKEY must be one ssh-ed25519 public key line"; return 2; }
     files="$(spl_laptop_serve_files)" || return 1
-    line="restrict,command=\"LAPTOP_SERVE_FILES='$files' bash $lib/laptop-login-serve.sh\" ${key%% *} $(awk '{print $2}' <<<"$key") $mark"
+    line="restrict,command=\"LAPTOP_SERVE_FILES='$files' bash $lib/laptop-login-serve.sh\" $line"
   fi
   if (( dry )); then
     do_log "INFO DRY_RUN $cmd for $tag in $ak${files:+: restrict,command=<serve the read ops on $(wc -w <<<"$files") cnf login file(s)>}${line:+ <key> $mark}"
@@ -66,6 +68,18 @@ do_spl_laptop_box_login_grant() {
   [[ "$cmd" == grant ]] && what="may read this box's Claude login, nothing else"
   [[ "$cmd" == grant-move ]] && what="may hand its lanes over to this box (a shell as this user)"
   do_log "OK $cmd: laptop box $tag $what"
+}
+
+# spl_laptop_pubkey_blob <key line>: the base64 blob of ONE ssh-ed25519 public
+# key line, else exit 1. A newline or a carriage return is refused: bash's
+# regex '.' matches a newline, so a 2-line value would write a line without
+# the marker that revoke never removes (W2, R7 a-736).
+spl_laptop_pubkey_blob() {
+  local k="$1" t b
+  [[ "$k" != *$'\n'* && "$k" != *$'\r'* ]] || return 1
+  read -r t b _ <<<"$k"
+  [[ "$t" == ssh-ed25519 && "$b" =~ ^[A-Za-z0-9+/]+=*$ ]] || return 1
+  printf '%s\n' "$b"
 }
 
 # spl_laptop_serve_files: the cnf's claude login files, space-separated (the

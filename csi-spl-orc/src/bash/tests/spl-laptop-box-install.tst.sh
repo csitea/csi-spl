@@ -27,6 +27,8 @@
 #      no user units
 #   8. the fleet services step (desk reconcile + spawn receiver, as the
 #      agents' user, no prd probe): run after install.sh; its failure -> exit 1
+#   W1 (R7 a-736): the agents' user's tools dir (yq, go) on the PATH of both
+#      units and of the services step, and at the head of its crontab
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -47,13 +49,19 @@ cat >"$T/install.sh" <<'EOF'
 { echo "ARGS $*"; echo "TOKEN ${SPOOL_JOIN_TOKEN:-}"; echo "HUB $SPOOL_HUB_URL"; echo "TF_LEFT $( [ -e "$TOKEN_FILE" ] && echo yes || echo no)"; } >>"$INSTLOG"
 exit "${INST_RC:-0}"
 EOF
-chmod +x "$T/rootrun" "$T/install.sh"
+# the agents' user's crontab: a file (never the real one of whoever runs this),
+# replaced only once stdin is read, like crontab(1): -l reads it in the same pipe
+cat >"$T/crontab" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = -l ]; then cat "$T/ct" 2>/dev/null; else cat >"$T/ct.new" && mv -f "$T/ct.new" "$T/ct"; fi
+EOF
+chmod +x "$T/rootrun" "$T/install.sh" "$T/crontab"
 run_install() {
   : >"$T/root.log"; : >"$T/inst.log"
   SNIPPET=do_spl_laptop_box_install in_orc LAPTOP_CHECKOUT="$CO" LAPTOP_OS_RELEASE="${OSREL:-$T/debian_version}" \
     LAPTOP_ROOT_RUN="$T/rootrun" LAPTOP_AS_USER=env LAPTOP_INSTALL_SH="$T/install.sh" \
     LAPTOP_SERVICES_CMD='echo "SVC $ENV $TENANT_ID $DESK_CRON_PROBE $DRY_RUN" >>"$INSTLOG"; exit ${SVC_RC:-0}' \
-    ROOTLOG="$T/root.log" INSTLOG="$T/inst.log" TMPDIR="$T" "$@" >"$T/o" 2>&1
+    LAPTOP_CRONTAB="$T/crontab" ROOTLOG="$T/root.log" INSTLOG="$T/inst.log" TMPDIR="$T" "$@" >"$T/o" 2>&1
 }
 OK=(BOX_TAG=lap-a "HOURS=Mon-Fri 09:00-17:00" TENANT_ID=t9 MOVE_BOX=home LAPTOP_MEMBER=mem)
 
@@ -136,6 +144,19 @@ run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET" INST_RC=5; rc=$?
 # 8
 run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET" SVC_RC=3; rc=$?
 [[ $rc -eq 1 ]] && grep -q "the fleet services as agt-u failed (exit 3)" "$T/o" && pass "8 a failing services step: exit 1, named" || fail "8 services rc=$rc"
+
+# W1 (R7 a-736): yq and go live in the agents' user's tools dir only. Both
+# units have it on PATH; the services step runs with it on PATH and writes
+# PATH + DESK_CRON_PATH_EXTRA at the head of its crontab, other lines kept
+run_install "${OK[@]}"; up="'Environment=PATH=%h/.local/bin:%h/.local/share/spool-agent/tools/bin:%h/.local/share/spool-agent/tools/go/bin:"
+[[ "$(grep -cF "$up" "$T/o")" == 2 ]] && grep -F "spl-laptop-box-login.service" "$T/o" | grep -F "$up" >/dev/null \
+  && pass "8 W1 units: the tick and the login pull have the tools dir on PATH" || fail "8 W1 units: $(grep -cF "$up" "$T/o") unit(s) with the tools dir"
+printf 'PATH=/old\n*/5 * * * * job # other-tag\n' >"$T/ct"; tb="$HOME/.local/share/spool-agent/tools"
+run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET" LAPTOP_SERVICES_CMD='echo "SVCPATH $PATH" >>"$INSTLOG"'; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "^SVCPATH $HOME/.local/bin:$tb/bin:$tb/go/bin:" "$T/inst.log" \
+  && [[ "$(sed -n 1p "$T/ct")" == "PATH=$HOME/.local/bin:$tb/bin:$tb/go/bin:"* && "$(sed -n 2p "$T/ct")" == "DESK_CRON_PATH_EXTRA=$tb/bin:$tb/go/bin" ]] \
+  && ! grep -qx "PATH=/old" "$T/ct" && grep -qx "\*/5 \* \* \* \* job # other-tag" "$T/ct"; then pass "8 W1 services: the tools dir on PATH and at the head of the crontab"
+else fail "8 W1 services: rc=$rc"; cat "$T/inst.log" "$T/ct"; fi
 
 # W6: every install flag is a flag (one @param per variable), through ./run
 w6="$(cd "$PROJ_ROOT" && LAPTOP_OS_RELEASE="$T/debian_version" ./run -a do_spl_laptop_box_install --laptop-checkout "$CO" --box-tag lap-a \

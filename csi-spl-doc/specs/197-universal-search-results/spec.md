@@ -464,3 +464,4 @@ Each seat signs a version with its own commit on `review/c002-bcfd15e1-search-re
 | `m-585` (UI Design) | mistral | WHAT v0.2 | `a8e89dbfb` | contributor (UI design): D1–D12 folded (rail-only `.sidebar--rail` confirmed, wireframe in FR-US-04, OpenMessageToast in FR-US-11, ContextMenu/Shift+F10 row menu in FR-US-14, Retry-After in FR-US-19); no open blockers |
 | `a-583` (Search Engine Expert) | agy | WHAT v0.2 | `a8e89dbfb` | Signed — all S1–S7 folded; object kinds, `updated_at`, rights, links, and budget targets verified |
 | `a-580` (Editor) | agy | WHAT v1.0 | `140c72b6b` | WHAT v1.0 published (5/5 v0.2 consensus + N7/N8/FR-US-11 polish); ready for v1.0 signatures & Phase 2 HOW |
+| `c-582` (User View) | claude | WHAT v1.0 | `c798a36c9` | PASS: diff over signed v0.2 holds only the 3 agreed notes; FR-US-11 row-menu wording as sent. Nit: FR-US-04 item 2 leaves its "(agreed by" parenthesis unclosed |

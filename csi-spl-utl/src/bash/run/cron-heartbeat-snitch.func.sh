@@ -200,25 +200,9 @@ _chs_log_path() {
 
 # _chs_send <from> <to> <task> <body>: one spool note; 0 when delivered.
 _chs_send() {
-  local from="$1" to="$2" task="$3" body="$4"
-  local send_bin="${CRON_HB_ALERT_SEND_BIN:-}"
-  local orc_send="${PROJ_PATH:-}/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
-  if [[ -z "$send_bin" ]]; then
-    if [[ -n "${PROJ_PATH:-}" && -f "$orc_send" ]]; then
-      send_bin="$orc_send"
-    elif command -v spool-send.sh >/dev/null 2>&1; then
-      send_bin="$(command -v spool-send.sh)"
-    fi
-  fi
-  if [[ -z "$send_bin" || ! -f "$send_bin" ]]; then
-    do_log "WARN no spool-send.sh found to send the cron alert"
-    return 1
-  fi
-  if ! SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send_bin" \
-    --from "$from" --to "$to" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
-    do_log "WARN failed to send spool note via $send_bin"
-    return 1
-  fi
+  # shellcheck source=reboot-required-check.func.sh
+  declare -F _utl_send_spool_note >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/reboot-required-check.func.sh" || return 1
+  _utl_send_spool_note "$1" "$2" "$3" "$4" "${CRON_HB_ALERT_SEND_BIN:-}" "the cron alert"
 }
 
 # _chs_fmt_age <seconds>: set _CHS_AGE to 42s, 7m, 3h or 2d.

@@ -16,6 +16,8 @@
 #  11. Failed send -> exits 1, no stamp
 #  12. Never runs needrestart without -b -k -l (list only)
 #  13. Through the csi-spl-utl ./run harness -> exits 0 under 2 s
+#  14. _utl_send_spool_note helper, one-copy across reboot-required-check and
+#      cron-heartbeat-snitch, and standalone _chs_send lazy-load (r10-02)
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -200,6 +202,69 @@ if [[ $rc -eq 0 && "$out" == *"no reboot pending"* && $ms -lt 2000 ]]; then
   pass "13. ./run -a do_os_reboot_required_check exits 0 in ${ms} ms (< 2000)"
 else
   fail "13. ./run harness (rc=$rc, ms=$ms, out=$out)"
+fi
+
+# 14. _utl_send_spool_note helper and one-copy delegation (r10-02)
+CHS_SH="$UTL_ROOT/src/bash/run/cron-heartbeat-snitch.func.sh"
+mkdir -p "$T/fake-tree/csi-spl-utl" "$T/fake-tree/csi-spl-orc/src/bash/features/spawn-agents/scripts" "$T/empty-path" "$T/spool14"
+cat > "$T/fake-tree/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh" << 'S14_EOF'
+#!/bin/bash
+printf 'SIBLING SPOOL_ROOT=%s ARGS=%s\n' "$SPOOL_ROOT" "$*" >> "$S14_LOG"
+S14_EOF
+chmod +x "$T/fake-tree/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
+S14_LOG="$T/s14.log"
+: > "$S14_LOG"
+
+out=$(S14_LOG="$S14_LOG" SPOOL_ROOT="$T/spool14" PROJ_PATH="$T/fake-tree/csi-spl-utl" bash -c '
+  source "$1"; _utl_send_spool_note "from-a" "orchestrator" "task-a" "hello-a" "" "the demo alert"' _ "$FUNC_SH" 2>&1); rc=$?
+if [[ $rc -eq 0 ]] && grep -q -- "SIBLING SPOOL_ROOT=$T/spool14 ARGS=--from from-a --to orchestrator --kind note --task task-a --body hello-a" "$S14_LOG"; then
+  pass "14. _utl_send_spool_note resolves PROJ_PATH sibling spool-send.sh and delivers note"
+else
+  fail "14. sibling send (rc=$rc, out=$out, log=$(cat "$S14_LOG"))"
+fi
+
+out=$(PATH="$T/empty-path:/usr/bin:/bin" SPOOL_ROOT="$T/spool14" PROJ_PATH="$T/no-such-tree" bash -c '
+  source "$1"; _utl_send_spool_note "from-a" "orchestrator" "task-a" "hello-a" "" "the demo alert"' _ "$FUNC_SH" 2>&1); rc=$?
+if [[ $rc -eq 1 && "$out" == *"WARN no spool-send.sh found to send the demo alert"* ]]; then
+  pass "14. _utl_send_spool_note logs missing_label and returns 1 when no sender exists"
+else
+  fail "14. missing sender (rc=$rc, out=$out)"
+fi
+
+out=$(SPOOL_ROOT="$T/spool14" bash -c '
+  source "$1"; _utl_send_spool_note "from-a" "orchestrator" "task-a" "hello-a" "$2" "the demo alert"' _ "$FUNC_SH" "$BIN_DIR/failing-send.sh" 2>&1); rc=$?
+if [[ $rc -eq 1 && "$out" == *"WARN failed to send spool note via $BIN_DIR/failing-send.sh"* ]]; then
+  pass "14. _utl_send_spool_note logs failure and returns 1 when sender fails"
+else
+  fail "14. failing sender (rc=$rc, out=$out)"
+fi
+
+if [[ "$(grep -c '^_utl_send_spool_note()' "$FUNC_SH")" -eq 1 ]] && grep -q '_utl_send_spool_note ' "$FUNC_SH"; then
+  pass "14. one copy: reboot-required-check.func.sh hosts _utl_send_spool_note"
+else
+  fail "14. host check"
+fi
+own_c="$(grep -nE 'spool-send\.sh|failed to send spool note' "$CHS_SH" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+if [[ -z "$own_c" ]] && grep -q '_utl_send_spool_note ' "$CHS_SH"; then
+  pass "14. one copy: cron-heartbeat-snitch.func.sh delegates _chs_send to _utl_send_spool_note"
+else
+  fail "14. chs delegate: own=[$own_c]"
+fi
+
+: > "$SEND_LOG"
+out=$(SPOOL_ROOT="$T/spool14" CRON_HB_ALERT_SEND_BIN="$BIN_DIR/spool-send.sh" bash -c '
+  source "$1"; _chs_send "chs@PC" "orchestrator" "cron-heartbeat-snitch" "body-14"' _ "$CHS_SH" 2>&1); rc=$?
+if [[ $rc -eq 0 ]] && grep -q -- "--from chs@PC --to orchestrator --kind note --task cron-heartbeat-snitch --body body-14" "$SEND_LOG"; then
+  pass "14. standalone: cron-heartbeat-snitch.func.sh lazy-loads _utl_send_spool_note and sends"
+else
+  fail "14. standalone chs send (rc=$rc, out=$out, log=$(cat "$SEND_LOG"))"
+fi
+out=$(PATH="$T/empty-path:/usr/bin:/bin" SPOOL_ROOT="$T/spool14" PROJ_PATH="$T/no-such-tree" CRON_HB_ALERT_SEND_BIN="" bash -c '
+  source "$1"; _chs_send "chs@PC" "orchestrator" "cron-heartbeat-snitch" "body-14"' _ "$CHS_SH" 2>&1); rc=$?
+if [[ $rc -eq 1 && "$out" == *"WARN no spool-send.sh found to send the cron alert"* ]]; then
+  pass "14. standalone: _chs_send keeps exact missing-sender wording for cron alert"
+else
+  fail "14. standalone chs missing (rc=$rc, out=$out)"
 fi
 
 echo "=========================================="

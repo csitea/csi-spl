@@ -79,10 +79,11 @@ _rrc_in_window() {
   return 1
 }
 
-# _rrc_send <from> <to> <task> <body>: one spool note; 0 when delivered.
-_rrc_send() {
-  local from="$1" to="$2" task="$3" body="$4"
-  local send_bin="${REBOOT_CHECK_ALERT_SEND_BIN:-}"
+# _utl_send_spool_note <from> <to> <task> <body> <send_bin_ovr> <missing_label>:
+# resolve spool-send.sh (override > PROJ_PATH sibling > PATH) and send one
+# spool note; return 0 on delivery, 1 on missing or failed sender.
+_utl_send_spool_note() {
+  local from="$1" to="$2" task="$3" body="$4" send_bin="$5" missing_label="$6"
   local orc_send="${PROJ_PATH:-}/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
   if [[ -z "$send_bin" ]]; then
     if [[ -n "${PROJ_PATH:-}" && -f "$orc_send" ]]; then
@@ -92,7 +93,7 @@ _rrc_send() {
     fi
   fi
   if [[ -z "$send_bin" || ! -f "$send_bin" ]]; then
-    do_log "WARN no spool-send.sh found to send the reboot advice"
+    do_log "WARN no spool-send.sh found to send $missing_label"
     return 1
   fi
   if ! SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send_bin" \
@@ -100,6 +101,11 @@ _rrc_send() {
     do_log "WARN failed to send spool note via $send_bin"
     return 1
   fi
+}
+
+# _rrc_send <from> <to> <task> <body>: one spool note; 0 when delivered.
+_rrc_send() {
+  _utl_send_spool_note "$1" "$2" "$3" "$4" "${REBOOT_CHECK_ALERT_SEND_BIN:-}" "the reboot advice"
 }
 
 # _rrc_nr_bin: the needrestart binary: NEEDRESTART_BIN, else on PATH, else

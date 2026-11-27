@@ -254,6 +254,7 @@ log_line() {  # VERDICT MSG_ID FROM DETAIL
 
 reply() {  # INBOX_ID TO TASK STATUS LINES...
   local me="$1" to="$2" task="$3" st="$4" body rc; shift 4
+  [ -n "$task" ] || { say "WARN reply to $to skipped: empty task"; return 0; }
   body="$(printf '%s\n' "$MAGIC_REP" "status: $st" "$@")"
   send --from "$me" --to "$to" --kind "$([ "$st" = ok ] && echo result || echo reject)" \
     --task "$task" --no-ask --body "$body" >/dev/null 2>&1; rc=$?
@@ -271,15 +272,28 @@ lane_refused_line() {  # ID EPOCH
   return 0
 }
 
+# One read of a request file (b52-03): the role seat may ack it into archive/
+# between reads, so it is read once (archive/ when gone from inbox/) and parsed
+# from memory. Sets _M_MSG _M_FROM _M_TASK _M_BODY. rc 1 when unreadable or the
+# msg_id is bad: the caller marks nothing seen, so the next tick retries.
+read_msg_fields() {  # INBOX_ID FILE
+  local me="$1" f="$2" raw hdr
+  raw="$(cat -- "$f" 2>/dev/null)" || raw=""
+  [ -n "$raw" ] || raw="$(cat -- "$SPOOL_ROOT/$me/archive/${f##*/}" 2>/dev/null)" || raw=""
+  [ -n "$raw" ] || return 1
+  hdr="$(jq -r '[.msg_id // "", .from // "", .task_id // ""] | join("\u001f")' <<<"$raw" 2>/dev/null)" || return 1
+  IFS=$'\x1f' read -r _M_MSG _M_FROM _M_TASK <<<"$hdr"
+  _M_BODY="$(jq -r '.body // ""' <<<"$raw" 2>/dev/null | strip_from_agent)"
+  [[ "$_M_MSG" =~ ^[0-9A-Za-z-]{8,64}$ ]]
+}
+
 handle() {  # INBOX_ID FILE
   local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester expires retry
-  local topic scope files started warn lane
-  msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
-  [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
+  local topic scope files started warn lane _M_MSG _M_FROM _M_TASK _M_BODY
+  read_msg_fields "$me" "$f" || return 0
+  msg="$_M_MSG" from="$_M_FROM" task="$_M_TASK" body="$_M_BODY"
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
   echo "$msg" >>"$STATE/seen"
-  from="$(jq -r '.from // ""' "$f")"; task="$(jq -r '.task_id // ""' "$f")"
-  body="$(body_of "$f" | strip_from_agent)"
   spl_is_participant_id "${from%@*}" || { log_line REFUSED "$msg" "$from" "sender is not an agent id"; return 0; }
   holder="$(orch_holder)"
   if [ -z "$holder" ] || [ "$(qualify "$from")" != "$holder" ]; then
@@ -483,12 +497,11 @@ issue_await() {  # BOX FROM TASK WAIT ID
 # Receiver: one issue request, once.
 handle_issue() {  # INBOX_ID FILE
   local me="$1" f="$2" msg from task body id key topic expires brief t row op token
-  msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
-  [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
+  local _M_MSG _M_FROM _M_TASK _M_BODY
+  read_msg_fields "$me" "$f" || return 0
+  msg="$_M_MSG" from="$_M_FROM" task="$_M_TASK" body="$_M_BODY"
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
   echo "$msg" >>"$STATE/seen"
-  from="$(jq -r '.from // ""' "$f")"; task="$(jq -r '.task_id // ""' "$f")"
-  body="$(body_of "$f" | strip_from_agent)"
   if [[ "$from" != *@* ]] || ! spl_is_role_seat "$from"; then
     log_line REFUSED "$msg" "$from" "issue request: not a role seat of another box"
     reply "$me" "$from" "$task" refused "reason: only a role seat of another box may ask for an issue here"
@@ -680,14 +693,12 @@ unsee() {  # MSG_ID
 }
 
 note_cancel() {  # INBOX_ID FILE
-  local me="$1" f="$2" msg from body task holder
-  msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
-  [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
+  local me="$1" f="$2" msg from body task holder _M_MSG _M_FROM _M_TASK _M_BODY
+  read_msg_fields "$me" "$f" || return 0
+  msg="$_M_MSG" from="$_M_FROM" body="$_M_BODY"
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
   echo "$msg" >>"$STATE/seen"
-  from="$(jq -r '.from // ""' "$f" 2>/dev/null)"
   holder="$(orch_holder)"
-  body="$(body_of "$f" | strip_from_agent)"
   task="$(req_field "$body" task)"
   if [ -z "$holder" ] || [ "$(qualify "$from")" != "$holder" ] || [[ ! "$task" =~ ^[0-9A-Za-z-]{8,64}$ ]]; then
     log_line CANCELLED "$msg" "$from" "ignored (not the holder, or a bad task)"

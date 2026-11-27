@@ -417,4 +417,74 @@ for f in spawn-remote.sh spawn-window.sh; do
 done
 for k in $kinds; do check "15. kind $k has its launcher" test -r "$T_SCRIPTS/spawn-$k.sh"; done
 
+# ---- 16. a request acked mid-read is still handled once (b52-03) ---------------
+# handle(), handle_issue() and note_cancel() read the file four times and
+# marked it seen after the first: an ack (inbox -> archive) in between gave
+# from="" or kind="", a REFUSED / "bad kind ''" line and a reply on a minted
+# task, and dropped a cancel for good. Now one read, archive/ when gone.
+R16="$T_TMP/race16"; mkdir -p "$R16" "$A/c-001/archive"
+real_jq="$(command -v jq)" real_cat="$(command -v cat)"
+# The ack lands right after jq read RACE_TRIGGER from the inbox file (the old
+# reads), or right after the file was cat (the one read): it races both shapes.
+"$real_cat" >"$R16/jq" <<EOF
+#!/usr/bin/env bash
+"$real_jq" "\$@"; r=\$?
+case " \$* " in *"\${RACE_TRIGGER:-.msg_id}"*)
+  for a in "\$@"; do case "\$a" in "$A/c-001/inbox/"*.json) mv -f -- "\$a" "$A/c-001/archive/" 2>/dev/null ;; esac; done ;;
+esac
+exit \$r
+EOF
+"$real_cat" >"$R16/cat" <<EOF
+#!/usr/bin/env bash
+"$real_cat" "\$@"; r=\$?
+for a in "\$@"; do case "\$a" in "$A/c-001/inbox/"*.json) mv -f -- "\$a" "$A/c-001/archive/" 2>/dev/null ;; esac; done
+exit \$r
+EOF
+"$real_cat" >"$R16/send" <<EOF
+#!/usr/bin/env bash
+task=""; while [ "\$#" -gt 0 ]; do case "\$1" in --task) task="\$2"; shift 2 ;; *) shift ;; esac; done
+printf '%s\n' "\${task:-MINTED}" >>"$R16/replies"
+EOF
+chmod +x "$R16/jq" "$R16/cat" "$R16/send"
+sed -e '/^case "\${1:-}" in$/,$d' -e "s|^HERE=.*|HERE=\"$T_SCRIPTS\"|" "$SR" >"$R16/sr-lib.sh"
+msg16() {  # DIR MSG TASK BODY
+  jq -n --arg m "$2" --arg t "$3" --arg b "$4" \
+    '{v:1, msg_id:$m, task_id:$t, ts:"x", from:"c-001@sat", to:"c-001", kind:"task", body:$b, files:[]}' >"$1/$2.json"
+}
+run16() {  # TRIGGER FUNC ARGS... ; the receiver's function with the race shims first on PATH
+  local trig="$1"; shift
+  ( unset SPAWN_LANE_TOPIC SPAWN_LANE_SCOPE SPAWN_LANE_FILES LANE_ISSUE_TOPIC
+    env SPOOL_ROOT="$A" SPAWN_REMOTE_WINDOW_CMD="$T_TMP/spawn-window-stub" SPAWN_REMOTE_SEND_CMD="$R16/send" \
+      RACE_TRIGGER="$trig" PATH="$R16:$PATH" bash -c '. "$1"; shift; mkdir -p "$STATE/briefs"; "$@"' _ "$R16/sr-lib.sh" "$@" )
+}
+replies16() { local n; n="$(grep -c -xF -- "$1" "$R16/replies" 2>/dev/null)"; echo "${n:-0}"; }
+i=0
+for trig in .msg_id .from archived; do
+  i=$((i + 1)); m="b52a0${i}-6644-4644-8644-66446644664${i}" t="b52f0${i}-6644-4644-8644-66446644664${i}"
+  d="$A/c-001/inbox"; [ "$trig" = archived ] && d="$A/c-001/archive"
+  msg16 "$d" "$m" "$t" "$(printf 'spawn-request v1\nkind: claude\ntitle: auto\nworkdir: %s\nslug: race-%s\n---\n# brief\n' "$WORK" "$i")"
+  n="$(calls)"
+  run16 "$trig" handle c-001 "$A/c-001/inbox/$m.json" 2>>"$T_TMP/r16.err"
+  eq "16. handle, acked $trig: spawned once" "$((n + 1))" "$(calls)"
+  eq "16. ... the reply is on the request's task" 1 "$(replies16 "$t")"
+  eq "16. ... no reply on a minted task" 0 "$(replies16 MINTED)"
+  check "16. ... no REFUSED / REJECTED line" bash -c '! grep -F -- "$1" "$2" | grep -qE "REFUSED|REJECTED"' _ "$m" "$A/spawn-remote/serve.log"
+  check "16. ... the file ended in archive/" test -f "$A/c-001/archive/$m.json"
+done
+m="b52c0001-6644-4644-8644-664466446644" t="b52c0002-6644-4644-8644-664466446644"
+msg16 "$A/c-001/inbox" "$m" "$m" "$(printf 'spawn-cancel v1\ntask: %s\n---\n' "$t")"
+run16 .msg_id note_cancel c-001 "$A/c-001/inbox/$m.json" 2>>"$T_TMP/r16.err"
+check "16. note_cancel acked mid-read: the cancel is recorded" grep -qxF -- "$t" "$A/spawn-remote/cancelled"
+m="b52d0001-6644-4644-8644-664466446644"
+run16 .msg_id handle c-001 "$A/c-001/inbox/$m.json" 2>>"$T_TMP/r16.err"; rc=$?
+eq "16. a file in neither inbox/ nor archive/: tick goes on (rc 0)" 0 "$rc"
+check "16. ... and it is NOT marked seen (the next tick retries)" \
+  bash -c '! grep -qxF -- "$1" "$2"' _ "$m" "$A/spawn-remote/seen"
+: >"$R16/replies"
+out="$(run16 none reply c-001 c-001@sat "" refused "reason: x" 2>&1)"
+eq "16. reply with an empty task sends nothing (no minted task)" 0 "$(wc -l <"$R16/replies")"
+has "16. ... and says so" "skipped: empty task" "$out"
+run16 none reply c-001 c-001@sat "b52e0001-6644" refused "reason: x" 2>/dev/null
+eq "16. CONTROL reply with a task still sends" 1 "$(replies16 b52e0001-6644)"
+
 t_done

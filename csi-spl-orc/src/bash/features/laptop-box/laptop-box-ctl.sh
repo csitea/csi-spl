@@ -56,8 +56,8 @@ remove() {
   fi
   local c
   for c in \
-    "systemctl disable --now spl-laptop-box-tick.timer 2>/dev/null; systemctl --global disable spl-laptop-box-ask.timer 2>/dev/null; true" \
-    "rm -f /etc/systemd/system/spl-laptop-box-tick.service /etc/systemd/system/spl-laptop-box-tick.timer /etc/systemd/user/spl-laptop-box-ask.service /etc/systemd/user/spl-laptop-box-ask.timer" \
+    "systemctl disable --now spl-laptop-box-tick.timer spl-laptop-box-login.timer 2>/dev/null; systemctl --global disable spl-laptop-box-ask.timer 2>/dev/null; true" \
+    "rm -f /etc/systemd/system/spl-laptop-box-tick.service /etc/systemd/system/spl-laptop-box-tick.timer /etc/systemd/system/spl-laptop-box-login.service /etc/systemd/system/spl-laptop-box-login.timer /etc/systemd/user/spl-laptop-box-ask.service /etc/systemd/user/spl-laptop-box-ask.timer" \
     "systemctl daemon-reload" \
     "pkill -u '$u' || true" \
     "userdel -r '$u' 2>/dev/null || true" \

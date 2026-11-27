@@ -85,7 +85,7 @@ spl_laptop_tick_out() {
     echo "TICK out lanes=$n: she continues until $(date -d "@$cu" +%H:%M)"; return 0
   fi
   if [[ -e "$d/move-now" ]] || { [[ "$at" =~ ^[0-9]+$ ]] && (( now - at >= wait )); }; then
-    spl_laptop_tick_move "$d" "$to"; return
+    spl_laptop_tick_move "$d" "$to" "$(spl_laptop_env_get "$envf" LAPTOP_MOVE_SSH)"; return
   fi
   if [[ ! "$at" =~ ^[0-9]+$ ]]; then
     { echo "$n fleet agent(s) still work on this laptop:"; sed 's/^/  /' "$d/lanes"
@@ -99,10 +99,15 @@ spl_laptop_tick_out() {
   echo "TICK out lanes=$n: waiting for her answer"
 }
 
-# spl_laptop_tick_move <state dir> <move box>: every lane to the fleet box.
+# spl_laptop_tick_move <state dir> <move box> [<user>@<host>]: every lane to
+# the fleet box, over ssh with the laptop's move key (owner, form 1cf6af26 =
+# A: a shell key to the move box, the same session resumes there).
 spl_laptop_tick_move() {
-  local d="$1" to="$2" id bad=0
+  local d="$1" to="$2" dest="${3:-}" id bad=0 bv
   spl_laptop_box_tag_ok "$to" || { do_log "FATAL LAPTOP_MOVE_BOX is not a box tag: '$to'"; return 3; }
+  bv="BOX_SSH_$(tr 'a-z-' 'A-Z_' <<<"$to")"
+  local -x HANDOVER_SSH="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -i ${LAPTOP_MOVE_KEY:-$HOME/.ssh/spl-laptop-box-move}"
+  [[ -z "$dest" ]] || export "$bv=$dest"
   while read -r id; do
     [[ -n "$id" ]] || continue
     if FROM="$id" TO_BOX="$to" DRY_RUN=0 ${LAPTOP_HANDOVER_CMD:-do_spl_lane_handover} >>"$d/moves.log" 2>&1; then

@@ -30,6 +30,7 @@
 # @param HOURS (required) - her working hours, "<days> <HH:MM>-<HH:MM>", e.g. "Mon-Fri 09:00-17:00"
 # @param TENANT_ID (required) - the workspace the box serves
 # @param MOVE_BOX (required) - the fleet box her agents move to at the end of her hours (its tag)
+# @param MOVE_SSH (optional) - <user>@<host> of that box, for the read-only login pull (do_spl_laptop_box_login_pull)
 # @param LAPTOP_ASK (optional) - how she is asked at the end of her hours: wui (default, a poll form in the web UI) or dsk (a desktop pop-up)
 # @param LAPTOP_ASK_CHANNEL (optional) - with wui: the channel the question is posted in
 # @param LAPTOP_ASK_FROM (optional) - with wui: the box's desk agent that posts it
@@ -50,6 +51,8 @@ do_spl_laptop_box_install() {
   spl_laptop_install_args_ok "$tag" "$hours" "$ten" "$env" "$max" || return 2
   spl_laptop_box_tag_ok "$to" || { do_log "FATAL MOVE_BOX must be a box tag, got '$to'"; return 2; }
   local ask; ask="$(spl_laptop_install_ask_lines)" || return 2
+  [[ -z "${MOVE_SSH:-}" || "$MOVE_SSH" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$ ]] || { do_log "FATAL MOVE_SSH must be <user>@<host>, got '$MOVE_SSH'"; return 2; }
+  ask+=" LAPTOP_MOVE_SSH=${MOVE_SSH:-}"
   [[ -z "$me" || "$me" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL LAPTOP_MEMBER is not a user name: '$me'"; return 2; }
   [[ -r "${LAPTOP_OS_RELEASE:-/etc/debian_version}" ]] || { do_log "FATAL not a Debian box (no /etc/debian_version): the laptop box is Debian only"; return 3; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 2; dry=0; fi
@@ -74,6 +77,9 @@ do_spl_laptop_box_install() {
   "${LAPTOP_ROOT_RUN:-_spool_root_run_as_root}" "${cmds[@]}" || return 1
   spl_laptop_install_as_user "$u" "$co" "$hub" "$env" "$ten" "$tag" "$sr" "$tok" || return 1
   do_log "OK this laptop is box $tag of $ten ($env): agents run as $u, up to $max at once, in $hours; her controls: spl-laptop-box status|stop|off|start|continue"
+  local h; h="$(getent passwd "$u" | cut -d: -f6)"
+  do_log "OK for the workspace admin, on $to: the login key (do_spl_laptop_box_login_grant BOX_TAG=$tag): $(cat "$h/.ssh/spl-laptop-box.pub" 2>/dev/null || echo "not found")"
+  do_log "OK   and the move key (LAPTOP_GRANT_CMD=grant-move): $(cat "$h/.ssh/spl-laptop-box-move.pub" 2>/dev/null || echo "not found")"
   [[ -n "$me" ]] || do_log "WARN no member user (SUDO_USER unset): the end-of-hours pop-up has no session; set LAPTOP_MEMBER and re-run"
 }
 

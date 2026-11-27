@@ -31,11 +31,11 @@ fails=0
 export IN_ORC_RUN="spl-laptop-box-tick"
 FB="$PROJ_ROOT/src/bash/features/laptop-box"
 SR="$T/spool"; D="$SR/dispatch/laptop-box"; mkdir -p "$D"; export LAPTOP_ENV_FILE="$SR/dispatch/laptop-box.env"
-printf '%s\n' "LAPTOP_HOURS=Mon-Fri 09:00-17:00" LAPTOP_AGENT_MAX=4 LAPTOP_BOX_TAG=lap-a LAPTOP_AGENT_USER=agt-u LAPTOP_MOVE_BOX=home LAPTOP_MEMBER=mem LAPTOP_ASK=dsk >"$SR/dispatch/laptop-box.env"
+printf '%s\n' "LAPTOP_HOURS=Mon-Fri 09:00-17:00" LAPTOP_AGENT_MAX=4 LAPTOP_BOX_TAG=lap-a LAPTOP_AGENT_USER=agt-u LAPTOP_MOVE_BOX=home LAPTOP_MEMBER=mem LAPTOP_ASK=dsk LAPTOP_MOVE_SSH=own@home.example.com >"$SR/dispatch/laptop-box.env"
 mkdir -p "$T/stub"
 printf '#!/usr/bin/env bash\ncat "%s/lanes.in" 2>/dev/null\n' "$T" >"$T/stub/lanes"
 printf '#!/usr/bin/env bash\necho join >>"%s/join.log"; rm -f "%s/dispatch/box.leave"\n' "$T" "$SR" >"$T/stub/join"
-printf '#!/usr/bin/env bash\necho "handover $FROM $TO_BOX $DRY_RUN" >>"%s/handover.log"; [ ! -e "%s/handover.fail" ]\n' "$T" "$T" >"$T/stub/handover"
+printf '#!/usr/bin/env bash\necho "handover $FROM $TO_BOX $DRY_RUN ${BOX_SSH_HOME:-} ${HANDOVER_SSH##* }" >>"%s/handover.log"; [ ! -e "%s/handover.fail" ]\n' "$T" "$T" >"$T/stub/handover"
 chmod +x "$T/stub/"*
 FRI10=$(date -d '2026-11-27 10:00' +%s); FRI18=$(date -d '2026-11-27 18:00' +%s)
 tick() {  # <epoch>
@@ -69,7 +69,7 @@ tick $((FRI18 + 1800)); b="$(cat "$T/o")"
 if [[ $a -eq 0 && ! -e "$T/handover.log" && "$(cat "$D/continue-until")" == $((FRI18 + 120 + 3600)) ]] && grep -q "she continues until" <<<"$b"; then
   echo x >"$D/ask-pending"; NOTIFY_PICK=stop SPOOL_ROOT="$SR" LAPTOP_NOTIFY="$T/stub/notify" bash "$FB/laptop-box-ask.sh"
   tick $((FRI18 + 1900))
-  [[ "$(grep -c '^handover .* home 0$' "$T/handover.log")" == 2 ]] && pass "5 Continue keeps 1 h, Stop moves at once" || fail "5 stop: $(cat "$T/o")"
+  [[ "$(grep -c '^handover .* home 0 own@home.example.com .*/spl-laptop-box-move$' "$T/handover.log")" == 2 ]] && pass "5 Continue keeps 1 h, Stop moves at once" || fail "5 stop: $(cat "$T/o")"
 else fail "5 continue: a=$a $b"; fi
 # 6
 reset; lanes c-101 c-102; tick "$FRI18"; tick $((FRI18 + 900))

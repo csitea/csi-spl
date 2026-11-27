@@ -184,6 +184,37 @@ topic on each tick (only her reply counts); `dsk` (HUM-10's answer) leaves it
 to the desktop pop-up. A `wui` box with no channel set asks no one and moves
 the lanes after the wait.
 
-Still to build, in this order: the ssh link to the move box (the login pull
-and the handover share it), the fleet services the box needs (depends on
-question 6), then the help page.
+The login pull (Q1 = PUL) needs only a read-only key on the move box. The
+laptop's agents' user gets its own ssh key at install (its public line is
+printed for the workspace admin); on the move box
+`do_spl_laptop_box_login_grant` (the owner's go) adds ONE authorized_keys
+line for it: `restrict` (no shell, pty or forwarding) and a forced command,
+`laptop-login-serve.sh`, root-owned, that serves the read ops of
+`agent-login-cred.sh` (stat, get, account) on the cnf's claude login files
+only (`env.box.agent_cred_sync.claude.main`). On the laptop
+`do_spl_laptop_box_login_pull` (`spl-laptop-box-login.timer`, every 15 min)
+is `do_spl_agent_cred_sync` from the move box to this box through
+`laptop-login-peer.sh`: newer only, account label, backup, the headless
+proof. `revoke` removes the line.
+
+| path | role |
+|---|---|
+| `csi-spl-orc/src/bash/run/spl-laptop-box-login-grant.func.sh` | `do_spl_laptop_box_login_grant` (on the move box): grant / revoke the laptop's read-only line |
+| `csi-spl-orc/src/bash/run/spl-laptop-box-login-pull.func.sh` | `do_spl_laptop_box_login_pull` (on the laptop): the newer-only pull |
+| `csi-spl-orc/src/bash/features/laptop-box/laptop-login-serve.sh` | the key's forced command: read ops on the served files, everything else refused |
+| `csi-spl-orc/src/bash/features/laptop-box/laptop-login-peer.sh` | the laptop's ssh for the sync's peer ops: plain words only |
+| `csi-spl-orc/src/bash/tests/spl-laptop-box-login.tst.sh` | serve refusals, peer words, grant / regrant / revoke, the pull's wiring |
+
+The lane move (owner HUM-10, form 1cf6af26 = A: "Shell key to sat on her
+laptop: the same session resumes on sat"): the install makes a second key,
+the move key; `LAPTOP_GRANT_CMD=grant-move` adds a plain authorized_keys
+line for it on the move box, so `do_spl_lane_handover` can reach it as that
+box's user (`HANDOVER_SSH` with the move key, `BOX_SSH_<BOX>` =
+`LAPTOP_MOVE_SSH`) and resume each lane's session there. Anyone with root
+on the laptop holds that shell: accepted by the owner. `revoke` removes both
+lines. The handover needs the same checkout path on both boxes, so the
+install line clones to the canonical path.
+
+Still to build: the fleet services the box needs (question 6 = MIN: only a
+GitHub push token on the laptop; lanes that need a GCP key stay on the
+move box), then the help page.

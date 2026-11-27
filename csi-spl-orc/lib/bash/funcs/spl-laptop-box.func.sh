@@ -53,7 +53,7 @@ spl_laptop_install_root_cmds() {
   local u="$1" co="$2" sr="$3" g="$4" tag="$5" env="$6" ten="$7" hours="$8" max="$9" to="${10}" me="${11}" ask="${12:-LAPTOP_ASK=wui}"
   local -a al; read -ra al <<<"$ask"
   local fb="$co/csi-spl-orc/src/bash/features/laptop-box" lib=/usr/local/lib/spl-laptop-box st="$sr/dispatch/laptop-box"
-  echo "DEBIAN_FRONTEND=noninteractive apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y git tmux curl tar zstd python3 perl util-linux jq ca-certificates libnotify-bin"
+  echo "DEBIAN_FRONTEND=noninteractive apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y git tmux curl tar zstd openssh-client python3 perl util-linux jq ca-certificates libnotify-bin"
   echo "getent group '$g' >/dev/null || groupadd '$g'"
   echo "id -u '$u' >/dev/null 2>&1 || { useradd -m -s /bin/bash '$u' && passwd -l '$u' >/dev/null; }"
   echo "usermod -aG '$g' '$u'"
@@ -68,11 +68,16 @@ spl_laptop_install_root_cmds() {
   echo "install -d -o root -g root -m 0755 '${LAPTOP_ENV_DIR:-/etc/spl-laptop-box}'"
   spl_laptop_root_write "${LAPTOP_ENV_DIR:-/etc/spl-laptop-box}/laptop-box.env" root root "LAPTOP_HOURS=$hours" "LAPTOP_AGENT_MAX=$max" \
     "LAPTOP_BOX_TAG=$tag" "LAPTOP_AGENT_USER=$u" "LAPTOP_MOVE_BOX=$to" "LAPTOP_MEMBER=$me" "${al[@]}"
+  echo "runuser -u '$u' -- sh -c 'mkdir -p \"\$HOME/.ssh\" && chmod 700 \"\$HOME/.ssh\" && { [ -e \"\$HOME/.ssh/spl-laptop-box\" ] || ssh-keygen -q -t ed25519 -N \"\" -C spl-laptop-box:$tag -f \"\$HOME/.ssh/spl-laptop-box\"; } && { [ -e \"\$HOME/.ssh/spl-laptop-box-move\" ] || ssh-keygen -q -t ed25519 -N \"\" -C spl-laptop-box-move:$tag -f \"\$HOME/.ssh/spl-laptop-box-move\"; }'"
   echo "install -d -o root -g root -m 0755 '$lib' && install -o root -g root -m 0755 '$fb/laptop-box-ask.sh' '$lib/laptop-box-ask.sh' && install -o root -g root -m 0755 '$fb/laptop-box-ctl.sh' /usr/local/bin/spl-laptop-box"
   spl_laptop_root_write /etc/systemd/system/spl-laptop-box-tick.service root root "[Unit]" "Description=fleet laptop box: one check (her hours, the cap, the end-of-hours ask)" \
     "[Service]" "Type=oneshot" "User=$u" "UMask=0007" "WorkingDirectory=$co/csi-spl-orc" "Environment=SPOOL_ROOT=$sr" "Environment=PATH=%h/.local/bin:%h/.local/share/spool-agent/tools/bin:/usr/local/bin:/usr/bin:/bin" "ExecStart=$co/csi-spl-orc/run -a do_spl_laptop_box_tick"
   spl_laptop_root_write /etc/systemd/system/spl-laptop-box-tick.timer root root "[Unit]" "Description=fleet laptop box: a check every 5 min" \
     "[Timer]" "OnBootSec=2min" "OnUnitActiveSec=5min" "[Install]" "WantedBy=timers.target"
+  spl_laptop_root_write /etc/systemd/system/spl-laptop-box-login.service root root "[Unit]" "Description=fleet laptop box: pull the fleet's Claude login, newer only" \
+    "[Service]" "Type=oneshot" "User=$u" "WorkingDirectory=$co/csi-spl-orc" "Environment=SPOOL_ROOT=$sr" "Environment=DRY_RUN=0" "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin" "ExecStart=$co/csi-spl-orc/run -a do_spl_laptop_box_login_pull"
+  spl_laptop_root_write /etc/systemd/system/spl-laptop-box-login.timer root root "[Unit]" "Description=fleet laptop box: the login pull every 15 min" \
+    "[Timer]" "OnBootSec=3min" "OnUnitActiveSec=15min" "[Install]" "WantedBy=timers.target"
   # W7: no member, no user units (an empty ConditionUser= would match every user)
   if [[ -n "$me" ]]; then
     spl_laptop_root_write /etc/systemd/user/spl-laptop-box-ask.service root root "[Unit]" "Description=fleet laptop box: the end-of-hours question" \
@@ -80,7 +85,7 @@ spl_laptop_install_root_cmds() {
     spl_laptop_root_write /etc/systemd/user/spl-laptop-box-ask.timer root root "[Unit]" "Description=fleet laptop box: look for the question every minute" \
       "ConditionUser=$me" "[Timer]" "OnActiveSec=1min" "OnUnitActiveSec=1min" "[Install]" "WantedBy=timers.target"
   fi
-  echo "systemctl daemon-reload && systemctl enable --now spl-laptop-box-tick.timer"
+  echo "systemctl daemon-reload && systemctl enable --now spl-laptop-box-tick.timer spl-laptop-box-login.timer"
   [[ -z "$me" ]] || echo "systemctl --global enable spl-laptop-box-ask.timer"
 }
 

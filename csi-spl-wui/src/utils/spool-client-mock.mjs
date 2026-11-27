@@ -16,7 +16,7 @@ import { isPublicChannel, normalizeChannelId } from './spool-client.mjs'
 import { mentionedIds } from './notify.mjs'
 import { mockBoxSendRefusal } from './box-lock.mjs'
 import { TOPIC_PRIORITY_DEFAULT } from './topic-list-order.mjs'
-import { loopBody, loopFormError } from './topic-loops.mjs'
+import { LOOP_KEYS, loopBody, loopFormError } from './topic-loops.mjs'
 
 /** The priorities set in this mock, over the e2e hook `spool.mock.priorities`
     = { <task_id>: 1..5 } (spec 189 B5: a channel that holds unread P1 cards). */
@@ -332,10 +332,14 @@ function mockLoopRow(form, old) {
   return row
 }
 
-/* v0.11: a write that sends triggers sends exactly one (the hub's 400 bad_loop) */
+/* v0.11: a write that sends triggers sends exactly one (the hub's 400 bad_loop);
+   one that leaves them out keeps the stored ones, a retired key such as
+   post_has_file too (change 9, as the hub's store does) */
 function mockLoopBad(form) {
   const several = Array.isArray(form.sent) && new Set(form.sent).size !== 1
-  if (several || loopFormError(form)) throw Object.assign(new Error('bad loop'), { status: 400, token: 'bad_loop' })
+  const err = loopFormError(form)
+  const kept = form.sent === undefined && err === 'feed.topic_loops.err_trigger' && LOOP_KEYS.includes(form.trigger)
+  if (several || (err && !kept)) throw Object.assign(new Error('bad loop'), { status: 400, token: 'bad_loop' })
 }
 
 /** GET: { task_id, may_edit, loops } */

@@ -25,7 +25,7 @@ import { isKnownTimeZone } from './date-iso.mjs'
  * split by poster), but a loop stored with it still reads, fires and keeps
  * its label.
  */
-const LOOP_KEYS = Object.freeze([
+export const LOOP_KEYS = Object.freeze([
   'after_agent_reply',
   'before_agent_reply',
   'after_human_reply',

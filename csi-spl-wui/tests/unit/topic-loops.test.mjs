@@ -251,6 +251,17 @@ describe('the mock routes (7.1.2), before the hub serves them', () => {
     assert.deepEqual([one.triggers, one.keyword], [['blocker_posted'], undefined], 'a save that sends its one trigger narrows it')
   })
 
+  it('a loop stored with the retired post_has_file pauses, resumes and takes a prompt edit; a save of it is refused (change 9)', () => {
+    const s = state()
+    s.loops = { t1: [{ loop_id: 'old', task_id: 't1', prompt: 'p', triggers: ['post_has_file'], state: 'on', set_by: 'HUM-1', fires_in_hour: 0, idle: '' }] }
+    assert.equal(mockEditTopicLoop(s, 't1', 'old', { state: 'paused' }).state, 'paused')
+    const on = mockEditTopicLoop(s, 't1', 'old', { state: 'on' })
+    assert.deepEqual([on.triggers, on.state], [['post_has_file'], 'on'])
+    assert.deepEqual(mockEditTopicLoop(s, 't1', 'old', { prompt: 'q' }).triggers, ['post_has_file'])
+    assert.throws(() => mockEditTopicLoop(s, 't1', 'old', { triggers: ['post_has_file'] }), (e) => e.status === 400 && e.token === 'bad_loop')
+    assert.throws(() => mockEditTopicLoop(s, 't1', 'old', { prompt: ' ' }), (e) => e.status === 400 && e.token === 'bad_loop', 'an empty prompt is still refused')
+  })
+
   it('add, list, edit, pause, delete', () => {
     const s = state()
     assert.deepEqual(mockTopicLoops(s, 't1'), { task_id: 't1', may_edit: true, loops: [] })

@@ -25,7 +25,7 @@
 import { applySeparatorKey, pointerDelta } from '~/utils/pane-widths.mjs'
 
 const props = defineProps<{
-  pane: 'sidebar' | 'topic' | 'issue'
+  pane: 'sidebar' | 'topic' | 'issue' | 'search'
   value: number
   min: number
   max: number
@@ -38,8 +38,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' })
 
-const RESIZE_LABEL_KEY: Record<'sidebar' | 'topic' | 'issue', string> = {
+const RESIZE_LABEL_KEY: Record<'sidebar' | 'topic' | 'issue' | 'search', string> = {
   sidebar: 'pane.resize_sidebar',
+  search: 'pane.resize_search',
   topic: 'pane.resize_topic',
   issue: 'pane.resize_issue',
 }

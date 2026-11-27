@@ -375,6 +375,7 @@ tests/e2e/search-in-contacts.test.mjs 9
 tests/e2e/search-type-calendar.test.mjs 9
 tests/e2e/search-left.test.mjs 6
 tests/e2e/search-original.test.mjs 7
+tests/e2e/search-panel.test.mjs 15
 tests/e2e/section-closes-pane.test.mjs 15
 tests/e2e/section-exit.test.mjs 21
 tests/e2e/section-search.test.mjs 17

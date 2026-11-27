@@ -19,7 +19,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const Q = 'green'
-const SEARCH = '[data-testid=sidebar-panel-search]'
+const SEARCH = '[data-testid=search-panel]'
 const ENTRY = `${SEARCH} [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=messages]`
 const TOPIC = 'aside.live-pane'
 

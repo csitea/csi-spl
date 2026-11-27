@@ -74,6 +74,47 @@ function operatorsLoader(operators: Ref<SearchOperator[]>) {
   }
 }
 
+/** SPL-6675: the calendars section read whole, real entries only, nearest upcoming first (utils/search-calendar.ts) */
+async function withCalendarWhole(r: SearchResult, q: Ref<string>): Promise<SearchResult> {
+  if (!r.groups.some((g) => g.type === 'calendars')) return r
+  const { completeCalendarSection } = await import('~/utils/search-calendar') // off the first paint (027 budget)
+  return completeCalendarSection(r, (cursor) => searchNextPage(q, cursor), Date.now())
+}
+
+/**
+ * SPL-6675 (owner HUM-10, t1 bcfd15e1 msg 2f0259cc): the results are their own
+ * slide-in panel (SearchPanel in layouts/default.vue), open from an Omnibox
+ * search until the reader closes it or actually opens a hit; no results page.
+ * `previewing` = the panel moved the route for a preview already, so the next
+ * preview replaces that history entry.
+ */
+function searchPanel(s: { q: Ref<string>, result: Ref<SearchResult | null>, loading: Ref<boolean>, run: (query: string) => Promise<void> }) {
+  const panelOpen = ref(false)
+  const previewing = ref(false)
+  /* a phone tap steps the panel aside (still open, hidden): the page it was
+     tapped on, coming back by Back, shows it again as it was */
+  const asideFrom = ref('')
+  /** an Omnibox search: the panel opens with its answer (the same query again keeps the answer and the chosen hit) */
+  function openPanel(query: string) {
+    panelOpen.value = true
+    previewing.value = false
+    asideFrom.value = ''
+    if (query === s.q.value && (s.result.value || s.loading.value)) return
+    void s.run(query)
+  }
+  /** the panel's X, Esc, or a hit actually opened: the section's own left pane comes back */
+  function closePanel() {
+    panelOpen.value = false
+    previewing.value = false
+    asideFrom.value = ''
+  }
+  /** a phone tap: the hit takes the screen, the list waits for Back to `from` */
+  function stepAside(from: string) { asideFrom.value = from }
+  /** the route is `path`: back where the panel stepped aside, it shows again */
+  function routeAt(path: string) { if (asideFrom.value && path === asideFrom.value) asideFrom.value = '' }
+  return { panelOpen, previewing, asideFrom, openPanel, closePanel, stepAside, routeAt }
+}
+
 /**
  * 022 global search (search-v1.md). One query at a time: a newer run drops the
  * answer of an older one. Per-group "load more" follows that group's cursor.
@@ -93,8 +134,6 @@ export const useSearchStore = defineStore('search', () => {
      back as the reader left it after an open (phone Back, a remount) */
   const activeKey = ref('')
   const scrollTop = ref(0)
-  /* > 0 while the left list's own open navigates (ChannelSidebar keeps the list) */
-  const opening = ref(0)
   let seq = 0
 
   async function run(query: string) {
@@ -109,7 +148,7 @@ export const useSearchStore = defineStore('search', () => {
     loading.value = true
     const t0 = Date.now()
     try {
-      const r = await searchFirstPage(query)
+      const r = await withCalendarWhole(await searchFirstPage(query), q)
       if (mine === seq) result.value = r
     } catch (e) {
       if (mine === seq) {
@@ -142,5 +181,7 @@ export const useSearchStore = defineStore('search', () => {
 
   const loadOperators = operatorsLoader(operators)
 
-  return { q, result, activeKey, scrollTop, opening, loading, loadingMore, error, operators, run, more, loadOperators }
+  const { panelOpen, previewing, asideFrom, openPanel, closePanel, stepAside, routeAt } = searchPanel({ q, result, loading, run })
+
+  return { q, result, activeKey, scrollTop, panelOpen, previewing, asideFrom, loading, loadingMore, error, operators, run, more, loadOperators, openPanel, closePanel, stepAside, routeAt }
 })

@@ -15,7 +15,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const BOX = '[data-test=top-bar-omnibox] textarea'
 const ASK = '[data-test=composer-open-channel]'
 const OPEN = '[data-test=composer-open-channel-yes]'
-const CHANNEL_HIT = '[data-testid=sidebar-panel-search] [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=channels]'
+const CHANNEL_HIT = '[data-testid=search-panel] [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=channels]'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -23,7 +23,8 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const query = (p) => new URL(p.url()).searchParams.get('q')
+/* SPL-6675: a search opens the search panel (no page); its query is on the panel, null when none is open */
+const query = (p) => p.$eval('[data-testid=search-panel]', (el) => el.getAttribute('data-q')).catch(() => null)
 const path = (p) => new URL(p.url()).pathname
 const posted = (p, body) => p.$$eval('article.msg', (els, body) => els.some((e) => (e.textContent || '').includes(body)), body)
 
@@ -57,7 +58,7 @@ try {
 
   await enter(p, server.base, '/channel/alerts', '#lobby')
   const asked = Boolean(await p.$(ASK))
-  ok('1 `#lobby` asks to open the channel, it is not posted or searched', asked && !query(p) && !(await posted(p, '#lobby')), { url: p.url() })
+  ok('1 `#lobby` asks to open the channel, it is not posted or searched', asked && !(await query(p)) && !(await posted(p, '#lobby')), { url: p.url() })
   if (asked) {
     await p.click(OPEN)
     await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 10000 }).catch(() => null)
@@ -67,7 +68,7 @@ try {
   await enter(p, server.base, '/channel/alerts', '/search lobby', 'go')
   const hit = await p.waitForSelector(CHANNEL_HIT, { visible: true, timeout: 15000 }).then(() => true).catch(() => false)
   const text = hit ? await p.$eval(CHANNEL_HIT, (el) => el.textContent || '') : ''
-  ok('3 `/search lobby` lists the channel #lobby as a hit', query(p) === 'lobby' && hit && /lobby/.test(text), { url: p.url(), text })
+  ok('3 `/search lobby` lists the channel #lobby as a hit', (await query(p)) === 'lobby' && hit && /lobby/.test(text), { url: p.url(), text })
   if (hit) {
     await p.click(CHANNEL_HIT)
     await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 10000 }).catch(() => null)
@@ -75,12 +76,12 @@ try {
   ok('4 the channel hit opens the channel', path(p).endsWith('/channel/lobby'), { url: p.url() })
 
   await enter(p, server.base, '/channel/alerts', '/lobby')
-  ok('5 `/lobby` asks to open the channel, it is not a search', Boolean(await p.$(ASK)) && !query(p), { url: p.url() })
+  ok('5 `/lobby` asks to open the channel, it is not a search', Boolean(await p.$(ASK)) && !(await query(p)), { url: p.url() })
 
   /* CONTROL: a line that names a channel inside a sentence is a message */
   const line = 'see #lobby ' + Date.now().toString(36)
   await enter(p, server.base, '/channel/alerts', line)
-  ok('6 CONTROL: `see #lobby …` is still posted, no search', path(p).endsWith('/channel/alerts') && !query(p) && await posted(p, line) && !(await p.$(ASK)), { url: p.url() })
+  ok('6 CONTROL: `see #lobby …` is still posted, no search', path(p).endsWith('/channel/alerts') && !(await query(p)) && await posted(p, line) && !(await p.$(ASK)), { url: p.url() })
 
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('7 no page errors', mine.length === 0, mine)

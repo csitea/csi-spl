@@ -267,6 +267,7 @@ import { useCalendarMenus } from '~/composables/useCalendarMenus'
 import { useCalendarDrag } from '~/composables/useCalendarDrag'
 import { useCalendarDeepLinks } from '~/composables/useCalendarDeepLinks'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
+import { useSearchStore } from '~/stores/search'
 
 const props = defineProps<{ focus: string, today: string, view: string, hoursOpen: boolean, kind?: string }>()
 /* view: a tab picked (the period holding today) or a month's day number (that day) */
@@ -458,6 +459,9 @@ watch([state, () => shown.value.join()], async () => {
    the dialog, its Duplicate a new event filled from it. */
 const route = useRoute()
 const router = useRouter()
+/* SPL-6675: the entry a search hit previews (?event= while the search panel is open), marked */
+const searchStore = useSearchStore()
+const found = computed(() => (searchStore.panelOpen ? String(route.query.event || '') : ''))
 const localePath = useLocalePath()
 const dialogOpen = ref(false)
 const dialogEvent = shallowRef<CalendarItem | null>(null)
@@ -530,7 +534,7 @@ defineExpose({ openHours })
 const { issueMiss, openIssue, askIssue } = useCalendarDeepLinks({
   items, state, weekStart, weekEl, peekOpen, openPeek, openEdit, say,
   showNotice: (key) => { if (noticeTimer) clearTimeout(noticeTimer); notice.value = key },
-  move: (iso) => emit('move', iso), api,
+  move: (iso) => emit('move', iso), api, previewing: () => searchStore.panelOpen,
 })
 
 /* ---- 097 T013: drag (useCalendarDrag) ------------------------------------ */
@@ -561,10 +565,12 @@ function itemAttrs(ev: CalendarItem) {
       'cal-week__item--deadline': calDeadline(ev),
       'cal-week__item--lifted': lifted.value === ev.id,
       'cal-week__item--left': preview.value?.id === ev.id,
+      'cal-week__item--found': found.value === ev.id,
             'cal-week__item--saving': saving.value === ev.id,
     }],
     'data-test': 'calendar-item',
     'data-id': ev.id,
+    'data-found': found.value === ev.id ? 'true' : undefined,
     'data-source': ev.source,
     'data-kind': ev.kind,
     'data-audience': ev.audience,
@@ -855,6 +861,7 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   background: var(--color-surface-hover);
 }
 .cal-week__item--left.cal-week__item--edit { opacity: 0.45; box-shadow: none; }
+.cal-week__item--found { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .cal-week__item--saving { opacity: 0.7; }
 .cal-week__item--ghost {
   z-index: 4;

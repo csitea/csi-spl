@@ -4,10 +4,10 @@
   "src/components/LogoDialog.vue": 1,
   "src/components/MessageComposer.vue": 1,
   "src/components/PoweredBy.vue": 1,
+  "src/components/SearchPanelHelp.vue": 2,
   "src/pages/blog.vue": 1,
   "src/pages/goals/[id].vue": 1,
   "src/pages/lobby.vue": 1,
   "src/pages/login.vue": 1,
-  "src/pages/public-calendar.vue": 1,
-  "src/pages/search.vue": 2
+  "src/pages/public-calendar.vue": 1
 }

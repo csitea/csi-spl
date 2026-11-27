@@ -172,15 +172,15 @@ describe('channelNamedIn: one word that is a visible channel', () => {
 
 // SPL-13: a search line left in the Omnibox kept search mode on every page,
 // and search mode renders no Attach and no Send.
-describe('leaving /search', () => {
+describe('leaving the search', () => {
   it('a search line is cleared', () => {
     for (const s of ['/search hello', '/s foo', '/search:x', '/search']) assert.equal(omniboxTextLeavingSearch(s), '', s)
   })
   it('CONTROL: a send draft is kept verbatim', () => {
     for (const s of ['', 'hello', '@CLE-07 /search x', '```\n/search\n```']) assert.equal(omniboxTextLeavingSearch(s), s, s)
   })
-  it('the top bar calls it when the route leaves /search', () => {
-    assert.match(read('src/components/TopBar.vue'), /watch\(onSearchPage, \(now, was\) => \{ if \(was && !now\) composer\.value\?\.leaveSearch\(\) \}/)
+  it('the top bar calls it when the search panel closes (SPL-6675)', () => {
+    assert.match(read('src/components/TopBar.vue'), /watch\(\(\) => search\.panelOpen, \(now, was\) => \{ if \(was && !now\) composer\.value\?\.leaveSearch\(\) \}/)
     assert.match(messageComposerSrc(), /defineExpose\(\{[^}]*leaveSearch/)
   })
 })
@@ -313,7 +313,7 @@ describe('operator autocomplete', () => {
     assert.match(src, /completeOperators\(opTok\.value\.token, props\.operators, roster\.peers\)/)
     assert.match(src, /data-test="search-syntax-help"/)
     assert.match(src, /OP_PICKER_CAP/)
-    assert.match(read('src/pages/search.vue'), /data-test="search-operator-help"/)
+    assert.match(read('src/components/SearchPanelHelp.vue'), /data-test="search-operator-help"/)
     assert.match(read('src/pages/monitoring/events/index.vue'), /scrollRowToTop/)
   })
   it('the catalogue carries every operator the brief names', () => {
@@ -584,7 +584,7 @@ describe('issue hits (grammar 1.2)', () => {
     assert.deepEqual(completeOperators('prio:').map((c) => c.insert), ['prio:1 ', 'prio:2 ', 'prio:3 ', 'prio:4 ', 'prio:5 '])
     assert.deepEqual(completeOperators('assignee:').map((c) => c.insert), ['assignee:me ', 'assignee:none '])
     assert.deepEqual(completeOperators('label:'), [])
-    assert.match(read('src/pages/search.vue'), /status:in_progress/)
+    assert.match(read('src/components/SearchPanelHelp.vue'), /status:in_progress/)
     assert.match(read('src/composables/useSearchSideItems.ts'), /case 'issues'/)
   })
   it('every locale names the issues group and the issue operators', () => {
@@ -623,7 +623,7 @@ describe('issue hits (grammar 1.2)', () => {
     const contentAt = composer.indexOf("t('search.help_content')")
     assert.ok(introAt > 0 && contentAt > introAt, 'popover leads with the start line')
     assert.match(composer, /\/search: \{\{ row\.example \}\}/)
-    const page = read('src/pages/search.vue')
+    const page = read('src/components/SearchPanelHelp.vue')
     const pageIntro = page.indexOf("t('search.help_intro')")
     assert.ok(pageIntro > 0 && pageIntro < page.indexOf('/search: {{ ex }}'))
     assert.match(page, /\/search: \{\{ ex \}\}/)
@@ -730,19 +730,19 @@ describe('shouldLoadOperators (signed-out gate)', () => {
 })
 
 // CLE-555 item 20 (027 perf budget): the result half of search stays off the
-// first paint. Only the lazy /search page imports search-results.mjs
+// first paint. Only the lazy search panel's list imports search-results.mjs
 // statically; everything else must use import(). CONTROL: the scan finds the
-// page's own static import, so an empty match cannot pass for "none".
+// list's own static import, so an empty match cannot pass for "none".
 describe('search-results.mjs stays out of the initial bundle', () => {
   const STATIC = /^\s*import\s[^;]*?from\s+['"](?:~\/utils\/|\.\/|\.\.\/utils\/)search-results\.mjs['"]/m
   const walk = (dir) => readdirSync(join(WUI, dir), { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? walk(join(dir, e.name)) : /\.(vue|ts|mjs)$/.test(e.name) ? [join(dir, e.name)] : [])
   const files = walk('src')
-  it('CONTROL: pages/search.vue imports it statically', () => {
-    assert.ok(files.includes(join('src', 'pages', 'search.vue')))
-    assert.match(readFileSync(join(WUI, 'src/pages/search.vue'), 'utf8'), STATIC)
+  it('CONTROL: components/SearchSidePanel.vue imports it statically', () => {
+    assert.ok(files.includes(join('src', 'components', 'SearchSidePanel.vue')))
+    assert.match(readFileSync(join(WUI, 'src/components/SearchSidePanel.vue'), 'utf8'), STATIC)
   })
-  /* CLE-77884: the left-panel list imports it too; it is itself async-only */
+  /* CLE-77884, SPL-6675: the search panel's list; it is itself async-only */
   const LAZY = [join('src', 'pages', 'search.vue'), join('src', 'components', 'SearchSidePanel.vue'), join('src', 'composables', 'useSearchSideItems.ts')]
   it('no other source file imports it statically', () => {
     const bad = files.filter((f) => !LAZY.includes(f) && STATIC.test(readFileSync(join(WUI, f), 'utf8')))

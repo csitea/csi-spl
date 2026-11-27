@@ -241,7 +241,11 @@ export function mockCalendarItems(todayIso) {
  */
 export function mockCalendarSearchHits(q, todayIso) {
   const words = String(q || '').toLowerCase().split(/\s+/).filter((w) => w && !w.includes(':'))
-  return mockCalendarItems(todayIso)
+  /* SPL-6675: a synced week-number calendar's entry, as a member's imported
+     calendar sends it (spec 097 5.2) - the WUI must not list it */
+  const marker = item({ id: '00000000-0000-4000-8000-000000000199', title: 'Week 48', kind: 'other', all_day: true,
+    starts_at: `${todayIso}T00:00:00Z`, ends_at: `${calAddDays(todayIso, 1)}T00:00:00Z` })
+  return [...mockCalendarItems(todayIso), marker]
     .filter((x) => x.source === 'event')
     .filter((x) => {
       const hay = [x.title, x.description, x.location].map((v) => String(v || '').toLowerCase())

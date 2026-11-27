@@ -80,7 +80,9 @@ function look(p) {
       field: dock ? (dock.querySelector('textarea')?.value || '') : null,
       goDisabled: dock ? dock.querySelector('[data-testid=send]')?.getAttribute('aria-disabled') : null,
       path: location.pathname,
-      q: new URLSearchParams(location.search).get('q') || '',
+      /* SPL-6675: a search opens the search panel; its query is on the panel */
+      panel: Boolean(document.querySelector('[data-testid=search-panel]')),
+      q: document.querySelector('[data-testid=search-panel]')?.getAttribute('data-q') || '',
     }
   }, DOCK)
 }
@@ -135,9 +137,9 @@ async function phoneCase(browser, width, height) {
     ok(`${tag} list: the dock says it is search-only`, l.docked && l.mode === 'search' && l.hint.length > 0 && !l.line, l)
     const q = `cle35066list${width}`
     await typeAndGo(p, q)
-    await p.waitForFunction(() => location.pathname.endsWith('/search'), { timeout: 8000 }).catch(() => {})
+    await p.waitForFunction(() => document.querySelector('[data-testid=search-panel]'), { timeout: 8000 }).catch(() => {})
     const after = await look(p)
-    ok(`${tag} list: GO with plain text opens /search?q=<text> (never nothing)`, after.path.endsWith('/search') && after.q === q, after)
+    ok(`${tag} list: GO with plain text opens the search panel with <text> (never nothing)`, after.panel && after.q === q, after)
     ok(`${tag} list: no page error`, errors.length === 0, errors)
     await p.close()
   }
@@ -173,9 +175,9 @@ async function phoneCase(browser, width, height) {
     ok(`${tag} issue open: the dock empties and the page stays on the issue`, after.field === '' && after.path.endsWith('/issues') && after.level === '3', after)
     /* /search from the same dock still searches */
     await typeAndGo(p, '/search cle35066l3')
-    await p.waitForFunction(() => location.pathname.endsWith('/search'), { timeout: 8000 }).catch(() => {})
+    await p.waitForFunction(() => document.querySelector('[data-testid=search-panel]'), { timeout: 8000 }).catch(() => {})
     const s = await look(p)
-    ok(`${tag} issue open: '/search <q>' from the dock still opens /search?q=`, s.path.endsWith('/search') && s.q === 'cle35066l3', s)
+    ok(`${tag} issue open: '/search <q>' from the dock still opens the search panel`, s.panel && s.q === 'cle35066l3', s)
     ok(`${tag} issue open: no page error`, errors.length === 0, errors)
     await p.close()
   }

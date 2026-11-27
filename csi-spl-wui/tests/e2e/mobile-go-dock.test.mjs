@@ -7,7 +7,7 @@
 //     accent fill, >= 44 x 40 px (SPL-2093), "Go / Send"
 //   - the dock is on EVERY phone level (the section chooser too) and on pages
 //     with no send target (/issues, /events), so `/search` is
-//     always reachable; `/search <q>` from the dock opens /search?q= from
+//     always reachable; `/search <q>` from the dock opens the search panel from
 //     levels 1, 2 and 3
 //   - 1440: no dock, no floating button
 // CONTROL: before SPL-1005 the floating button existed and level 1 had no
@@ -91,13 +91,14 @@ async function dockSearch(p, q) {
   await p.focus(ta)
   await p.type(ta, `/search ${q}`)
   await p.keyboard.press('Enter')
+  /* SPL-6675: the search opens the search panel; its query is on the panel */
+  const panelQ = () => p.$eval('[data-testid=search-panel]', (el) => el.getAttribute('data-q') || '').catch(() => null)
   for (let i = 0; i < 20; i++) {
     await sleep(250)
-    const u = new URL(p.url())
-    if (u.pathname.endsWith('/search') && u.searchParams.get('q')) return u.searchParams.get('q')
+    const got = await panelQ()
+    if (got) return got
   }
-  const u = new URL(p.url())
-  return u.pathname.endsWith('/search') ? (u.searchParams.get('q') || '') : null
+  return panelQ()
 }
 
 async function open(browser, vp, path) {
@@ -144,7 +145,7 @@ async function phoneCase(browser, width, height) {
     const before = (await look(p)).level
     if (SHOTS && lv === '3') await p.screenshot({ path: join(SHOTS, `mobile-go-dock-${width}-level3.png`) })
     const q = await dockSearch(p, `spl1005l${lv}`)
-    ok(`${tag} level ${lv}: '/search <q>' typed in the dock opens /search?q=`, before === lv && q === `spl1005l${lv}`, { before, q, url: p.url() })
+    ok(`${tag} level ${lv}: '/search <q>' typed in the dock opens the search panel`, before === lv && q === `spl1005l${lv}`, { before, q, url: p.url() })
     ok(`${tag} level ${lv} search: no page error`, errors.length === 0, errors)
     await p.close()
   }

@@ -3,7 +3,9 @@
  * /calendar?event=<id> (a reminder's Open, 089 T006) opens that event once
  * the shown week holds it; /calendar?d=<day>&issue=<KEY> (SPL-2034) opens that
  * deadline's pop-over, scrolled into view. A link the week lacks says so in
- * the view's notice. The watches are made here, in the view's setup.
+ * the view's notice. SPL-6675: while the search panel is open the link is a
+ * hit's preview - the entry is marked and scrolled to, no dialog; the dialog
+ * opens once the hit is opened for real (the panel closes). The watches are made here, in the view's setup.
  */
 import type { Ref, ShallowRef } from 'vue'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
@@ -26,6 +28,8 @@ export type CalendarDeepLinkOptions = {
   /** the view moves to the week of this day */
   move: (iso: string) => void
   api: ReturnType<typeof useSpoolApi>
+  /** SPL-6675: the search panel is open, so an ?event= link is a hit's preview (none: never) */
+  previewing?: () => boolean
 }
 
 /** The link each watch last acted on, shared by the steps below. */
@@ -47,14 +51,16 @@ export function useCalendarDeepLinks(o: CalendarDeepLinkOptions) {
 function watchEventLink(o: CalendarDeepLinkOptions, asked: DeepLinkAsked) {
   const { items, state, openPeek, openEdit, say } = o
   const route = useRoute()
-  watch([items, state, () => route.query.event], () => {
+  const previewing = o.previewing ?? (() => false)
+  watch([items, state, () => route.query.event, previewing], () => {
     const id = String(route.query.event || '')
     if (!id || id === asked.event) return
     const ev = items.value.find((x) => x.id === id)
     if (!ev) {
-      if (state.value === 'ready') void linkMissing(id, String(route.query.d || ''))
+      if (state.value === 'ready' && !previewing()) void linkMissing(id, String(route.query.d || ''))
       return
     }
+    if (previewing()) return void nextTick(() => revealItem(o.weekEl.value, id))
     asked.event = id
     if (calSynced(ev)) openPeek(ev)
     else openEdit(ev)
@@ -72,6 +78,12 @@ function watchEventLink(o: CalendarDeepLinkOptions, asked: DeepLinkAsked) {
       if (await eventSeen(id, day) === false && String(route.query.event || '') === id) say('calendar_event.not_available')
     } catch { /* nothing to say */ }
   }
+}
+
+/* a previewed entry in view (it carries data-found, CalendarMainView) */
+function revealItem(week: HTMLElement | null, id: string) {
+  const el = week?.querySelector<HTMLElement>(`[data-test="calendar-item"][data-id="${CSS.escape(id)}"]`)
+  el?.scrollIntoView({ block: 'center', inline: 'nearest' })
 }
 
 /* ?issue=<KEY> (SPL-2034): open that deadline's pop-over, scrolled into view.

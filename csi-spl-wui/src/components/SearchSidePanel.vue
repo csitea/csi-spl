@@ -1,19 +1,16 @@
-<!-- CLE-77884 (owner, topic 635f8072 96a88e32): "the search results should be
-     in the left most panel and not in the middle and one should be able to
-     cycle quickly via the search result on the left and whenever clicking ...
-     would open the topic or the private msg within the channel or the private
-     msgs, and not the topics". The hits of the current /search query as the
-     shared compact list (SideHitList): snippet with the match marked, who,
-     where, when. ArrowUp/Down cycle, Enter / click / tap opens a posted hit in
-     its ORIGINAL place (its channel or DM, the message scrolled to and
-     marked); every other hit its FR-023 page. The query, the list, the chosen
-     entry and the scroll position live in the search store, so they stay while
-     the reader clicks through (desktop: the sidebar holds this panel; phone:
-     pages/search.vue renders it full screen and Back returns to it).
-     Lazy: neither this file nor the list is in the first paint (027). -->
+<!-- CLE-77884 (owner, topic 635f8072 96a88e32): the hits of the current
+     search as the shared compact list (SideHitList): snippet with the match
+     marked, who, where, when. SPL-6675 (owner HUM-10, t1 bcfd15e1): this is
+     the body of the search panel (SearchPanel, its own slide-in column, not
+     the sidebar's list), with the answer's notes, errors and, for a bare
+     search, the help. A click or Up / Down previews a hit on the right and
+     the list stays; Enter, a double-click or the row's Open opens it for
+     real and closes the search. The query, the list, the chosen entry and
+     the scroll live in the search store. Lazy: neither this file nor the
+     list is in the first paint (027). -->
 <template>
   <div class="side-search" data-test="side-search">
-    <div v-if="!inPage" class="sidebar-head side-search__head">
+    <div class="sidebar-head side-search__head">
       <h2 class="side-search__title">{{ t('search.title') }}</h2>
       <button
         type="button"
@@ -26,18 +23,36 @@
         <UiIcon name="x" :size="16" />
       </button>
     </div>
-    <p v-if="!inPage && search.q" class="side-search__q"><code dir="ltr">{{ search.q }}</code></p>
+    <p v-if="search.q" class="side-search__q"><code dir="ltr">{{ search.q }}</code></p>
     <p v-if="aiError" class="msg-edit-error side-search__note" role="alert" data-testid="msg-ai-error">{{ t(aiError) }}</p>
     <div ref="scrollEl" class="sidebar-scroll side-search__scroll" @scroll.passive="noteScroll">
-      <p v-if="search.loading" class="muted side-search__note" data-test="side-search-loading" aria-live="polite">{{ t('search.loading') }}</p>
-      <!-- SPL-1833: the same plain sentence as the page, technical part only with the Debug pane on -->
-      <LazySearchErrorNotice
-        v-else-if="search.error"
-        class="side-search__note"
-        :error="search.error"
-        test-id="side-search-error"
-        @retry="search.run(search.q)"
-      />
+      <ul v-if="search.result && search.result.warnings.length" class="side-search__notes" data-test="search-warnings">
+        <li v-for="(w, i) in search.result.warnings" :key="i" class="muted">
+          <code v-if="w.token" dir="ltr">{{ w.token }}</code> {{ w.detail }}
+        </li>
+      </ul>
+      <!-- spec 160 3.6: the answer's notices, one line each (a stable code -> a text key) -->
+      <ul v-if="search.result && search.result.notices && search.result.notices.length" class="side-search__notes" data-test="search-notices">
+        <li v-for="n in search.result.notices" :key="n" class="muted">{{ te('search.notice.' + n) ? t('search.notice.' + n) : n }}</li>
+      </ul>
+      <!-- a bare /search: how to search, each example one click -->
+      <LazySearchPanelHelp v-if="!search.q" @search="(q: string) => search.openPanel(q)" />
+      <p v-else-if="search.loading" class="muted side-search__note" data-test="side-search-loading" aria-live="polite">{{ t('search.loading') }}</p>
+      <template v-else-if="search.error">
+        <ViewTokenForm v-if="search.error.status === 401" :detail="search.error.detail" @saved="search.run(search.q)" />
+        <div v-else-if="search.error.token === 'bad_query'" class="side-search__note" data-test="search-bad-query" role="alert">
+          <p>{{ t('search.bad_query', { detail: search.error.detail }) }}</p>
+          <p v-if="badAt" dir="ltr"><code>{{ badAt.before }}<mark>{{ badAt.bad }}</mark>{{ badAt.after }}</code></p>
+        </div>
+        <!-- SPL-1833: the plain sentence, technical part only with the Debug pane on -->
+        <LazySearchErrorNotice
+          v-else
+          class="side-search__note"
+          :error="search.error"
+          test-id="side-search-error"
+          @retry="search.run(search.q)"
+        />
+      </template>
       <p v-else-if="search.result && !rows.length" class="muted side-search__note" data-test="side-search-empty">{{ t('search.no_results') }}</p>
       <SideHitList
         v-else-if="rows.length"
@@ -50,6 +65,8 @@
         :label="t('search.results_label', { q: search.q })"
         @active="(k: string) => (search.activeKey = k)"
         @open="onOpen"
+        @cycle="onCycle"
+        @commit="onCommit"
         @menu="onMenu"
         @press="onPress"
         @keydown="onKey"
@@ -91,7 +108,7 @@ import { useLive } from '~/composables/useLive'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
-import { searchPath, type SearchRow } from '~/utils/search.mjs'
+import type { SearchRow } from '~/utils/search.mjs'
 import { isPlacedRow, originalHref, searchRowMenuItems, searchTarget, topicPageOf } from '~/utils/search-results.mjs'
 import { useSearchSideItems } from '~/composables/useSearchSideItems'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
@@ -101,13 +118,15 @@ import { useCopyText } from '~/composables/useCopyText'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useOpenMessage, type MessageRef } from '~/composables/useOpenMessage'
+import { useMobileStack } from '~/composables/useMobileStack'
+import { useViewPrefs } from '~/composables/useViewPrefs'
 
-defineProps<{ inPage?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const router = useRouter()
+const route = useRoute()
 const search = useSearchStore()
 const api = useSpoolApi()
 const authClient = useAuthClient()
@@ -120,6 +139,8 @@ const roster = useRosterStore()
 const liveIdentity = useLive().identity
 const { copy: copyText } = useCopyText()
 const { openMessage } = useOpenMessage()
+const stack = useMobileStack()
+const { newestLast } = useViewPrefs()
 /** the reader: the DM end that is not the peer (utils/parent-section.mjs) */
 const viewerId = computed(() => String(access.me?.humanId || liveIdentity.value || roster.me?.id || ''))
 const scrollEl = ref<HTMLElement | null>(null)
@@ -150,12 +171,47 @@ watch(() => omnibox.focusResults, () => {
   listRef.value?.focus()
 })
 
+/* SPL-6675 (owner HUM-10, t1 bcfd15e1 msgs aa7dd3cf, 2f0259cc, 6cb72656):
+   a click or Up / Down PREVIEWS a hit - it shows on the right, alone, and
+   this list stays; Enter, a double-click or the row's Open opens it for
+   real - the search panel closes and the section's own left pane is back.
+   A phone has no room beside the list: a tap shows the hit over it, and
+   Back brings the list back, its scroll and chosen entry kept. */
 function onOpen(key: string) {
   /* the long press that opened the menu lifts with a click: that click is the menu's */
   if (longPress.takeClick()) return
   const row = byKey.value.get(key)
-  if (row) void open(row)
+  if (!row) return
+  if (stack.isMobile.value) return void tapOpen(row)
+  clearTimeout(cycleTimer)
+  void preview(row)
 }
+/* the keys walk fast: a hit is previewed once the walk rests on it */
+const CYCLE_REST_MS = 180
+let cycleTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(cycleTimer))
+function onCycle(key: string) {
+  if (stack.isMobile.value) return
+  clearTimeout(cycleTimer)
+  cycleTimer = setTimeout(() => {
+    const row = byKey.value.get(key)
+    if (row && search.activeKey === key) void preview(row)
+  }, CYCLE_REST_MS)
+}
+function onCommit(key: string) {
+  clearTimeout(cycleTimer)
+  const row = byKey.value.get(key)
+  if (row) void commit(row)
+}
+
+/** the bad token of a 400, marked inside the query (pos is a UTF-16 offset = String.slice) */
+const badAt = computed(() => {
+  const e = search.error
+  const q = search.q
+  if (!e || e.pos < 0 || e.pos > q.length) return null
+  const n = Math.max(1, e.badToken.length)
+  return { before: q.slice(0, e.pos), bad: q.slice(e.pos, e.pos + n) || ' ', after: q.slice(e.pos + n) }
+})
 
 /* 022 §10 FR-050: the row's right menu - right-click, a long press on a
    phone (the bottom sheet), or the menu key */
@@ -200,6 +256,12 @@ function onPress(key: string, ev: PointerEvent) {
   el.addEventListener('pointercancel', cancel)
 }
 function onKey(ev: KeyboardEvent, key: string) {
+  /* Esc closes the search, as its X does */
+  if (ev.key === 'Escape') {
+    ev.preventDefault()
+    emit('close')
+    return
+  }
   /* FR-050: the keyboard's own menu key (or Shift+F10) opens the row's menu */
   if (!(ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey))) return
   const row = byKey.value.get(key)
@@ -213,7 +275,7 @@ async function onMenuChoose(id: string) {
   const row = menu.row
   closeMenu()
   if (!row) return
-  if (id === 'original') return void open(row)
+  if (id === 'original') return void commit(row)
   if (id === 'here') return void showHere(row)
   /* t1 b6c742f0: an AI action opens the hit where it lives, then runs there */
   if (id.startsWith('ai-')) {
@@ -226,29 +288,57 @@ async function onMenuChoose(id: string) {
   }
 }
 
-/** 022 §10 FR-051: a click, Enter or a tap opens the row's ORIGINAL - a
-    message, topic or file in the DM / channel it was posted in, scrolled to
-    and marked; every other row its FR-023 page. The list stays. */
-async function open(row: SearchRow) {
+/** a preview: the hit on the right, the list here. Its first route change
+    is a new history entry, the next ones replace it, so Back leaves the
+    search's walk in one step. */
+async function preview(row: SearchRow) {
   search.activeKey = row.key
-  /* the sidebar keeps this list across the navigation the list starts
-     (ChannelSidebar holdSearch); any other navigation lets the rail follow */
-  search.opening++
-  try {
-    await openRow(row)
-  } finally {
-    setTimeout(() => { search.opening = Math.max(0, search.opening - 1) }, 0)
-  }
+  const replace = search.previewing
+  search.previewing = true
+  await openRow(row, { replace })
 }
-async function openRow(row: SearchRow) {
+
+/** a phone tap: the panel steps aside (open, hidden) and the hit takes the
+    screen as a new history entry; Back to this page shows the list again */
+async function tapOpen(row: SearchRow) {
+  search.activeKey = row.key
+  noteScroll()
+  const from = route.fullPath
+  search.stepAside(from)
+  await openRow(row, { replace: false })
+  /* nothing moved (a hit of this very page): the list stays in view */
+  search.routeAt(route.fullPath === from ? from : '')
+}
+
+/** 022 §10 FR-051, SPL-6675: open for real - the search closes first, so the
+    section's own left pane comes back. A message or file hit opens the way
+    its card's "Open in channels view" does (owner HUM-10 msg 86f0ab8f): the
+    place's list left, its topic at the top of the middle, the card at the
+    top of the right pane (utils/parent-section-open.mjs). */
+async function commit(row: SearchRow) {
+  search.activeKey = row.key
+  search.closePanel()
+  if ((row.type === 'messages' || row.type === 'files') && row.msg_id) {
+    const [m, p] = await Promise.all([import('~/utils/open-message.mjs'), import('~/utils/parent-section-open.mjs')])
+    const out = await m.openMessage(row, {
+      self: viewerId.value, api, router, localePath,
+      openSection: (msg, deps) => p.openParentSection(msg, { ...deps, newestLast: newestLast.value, topicLevel: true, showPlace: true }),
+    })
+    if (out.ok || out.reason !== 'error') return
+  }
+  await openRow(row, { replace: false })
+}
+
+async function openRow(row: SearchRow, o: { replace: boolean }) {
   const to = searchTarget(row)
   if (!to) return
+  const go = (path: string) => (o.replace ? router.replace(localePath(path)) : router.push(localePath(path)))
   /* lane A (CLE-77882): a message or file hit opens in its original place -
      its channel or DM, a reply in its thread - marked; a deleted / unknown /
      forbidden one raises the shell notice. Only a failure to resolve at all
      falls back to the old original (its topic page). */
   if ((row.type === 'messages' || row.type === 'files') && row.msg_id) {
-    const out = await openMessage(row as MessageRef)
+    const out = await openMessage(row as MessageRef, { replace: o.replace })
     if (out.ok || out.reason !== 'error') return
   }
   if (isPlacedRow(row)) {
@@ -258,7 +348,7 @@ async function openRow(row: SearchRow) {
   if ('topic' in to) return showHere(row)
   if ('tenant' in to) {
     if (api.mock) return
-    if (row.current) return void router.push(localePath('/'))
+    if (row.current) return void go('/')
     if (to.tenant) {
       const hostUrl = await tenantHostUrl(to.tenant, localePath('/')) // SPL-959
       if (hostUrl) return void window.location.assign(hostUrl)
@@ -267,8 +357,9 @@ async function openRow(row: SearchRow) {
     }
     return
   }
-  if ('path' in to) return void router.push(localePath(to.path))
-  if ('search' in to) return void router.push(localePath(searchPath(to.search)))
+  if ('path' in to) return void go(to.path)
+  /* a box: its messages, a new search in this panel */
+  if ('search' in to) return void search.openPanel(to.search)
 }
 
 /** FR-050 Show here: a posted hit's topic in the right pane, at that message. */

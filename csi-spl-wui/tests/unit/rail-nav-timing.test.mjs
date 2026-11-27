@@ -26,6 +26,7 @@ const PRELUDE = 'const useRoute = () => globalThis.__rn.route;\n'
   + 'const useSectionExit = () => globalThis.__rn.sectionExit;\n'
   + 'const pane = () => ({ close() {} });\n'
   + 'const useOperatorPane = pane, useLiveFeed = pane, useTopicStore = pane;\n'
+  + 'const useSearchStore = () => ({ closePanel() {} });\n'
 
 const js = tsToJs(readFileSync(join(WUI, 'src/composables/useSidebarRailNav.ts'), 'utf8'))
   .replace(/^import .* from '~\/(composables|stores)\/.*$/gm, '')
@@ -42,17 +43,16 @@ function rig({ path = '/t/abc', mobile = false, level = 1, stripOnly = false, ta
     mobileStack: { isMobile: val(mobile), level: val(level), home: () => { calls.home += 1 } },
     sectionExit: { target: () => target },
   }
-  const refs = { tab: val(tab), holdFlow: val(false), holdSearch: val(true), stripOnly: val(stripOnly), onRailLink: val(false), helpRailOnly: val(false), docsRailOnly: val(docsRailOnly) }
+  const refs = { tab: val(tab), holdFlow: val(false), stripOnly: val(stripOnly), onRailLink: val(false), helpRailOnly: val(false), docsRailOnly: val(docsRailOnly) }
   return { refs, calls, nav: useSidebarRailNav(refs) }
 }
 
 describe('selectTab acts in the tick of the click', () => {
-  it('writes tab, holdFlow and holdSearch before any microtask', async () => {
+  it('writes tab and holdFlow before any microtask', async () => {
     const { refs, nav } = rig()
     const done = nav.selectTab('flow')
     assert.equal(refs.tab.value, 'flow')
     assert.equal(refs.holdFlow.value, true)
-    assert.equal(refs.holdSearch.value, false)
     await done
   })
 
@@ -60,7 +60,7 @@ describe('selectTab acts in the tick of the click', () => {
     const { refs, calls, nav } = rig({ mobile: true, level: 2, stripOnly: true, tab: 'issues' })
     const done = nav.selectTab('issues')
     assert.equal(calls.home, 1)
-    assert.equal(refs.holdSearch.value, true)
+    assert.equal(refs.holdFlow.value, false)
     await done
     assert.deepEqual(calls.navigated, [])
   })

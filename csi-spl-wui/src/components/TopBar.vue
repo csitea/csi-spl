@@ -1,7 +1,7 @@
 <!-- 022 FR-001..003: the persistent top strip. Tenant drop box + theme
      (owner 2026-09-27: no brand text) | the Omnibox (the one
      MessageComposer, so the ``` code-block composer works in it; plain text
-     goes to the page's send target, `/search <q>` opens /search?q=,
+     goes to the page's send target, `/search <q>` opens the search panel,
      `/note <text>` makes a note, spec 155 2.5) | the
      user menu (the former .app-corner, CLE-3402 / spec 021). Spec 109
      FR-008: the language switcher left this bar for the avatar menu and
@@ -137,7 +137,7 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useEditModeStore } from '~/stores/editMode'
-import { noteTitleOf, omniboxMode, pageNoteLink, searchPath, shouldLoadOperators } from '~/utils/search.mjs'
+import { noteTitleOf, omniboxMode, pageNoteLink, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 import { sendFailureKey, sendFailureParams } from '~/utils/send-failure-key.mjs'
 import { retryWith } from '~/utils/offline-queue.mjs'
@@ -340,29 +340,28 @@ watch(() => channelStore.queueFailure, (f) => {
    is in the box any more */
 watch(() => route.fullPath, () => { sendError.value = null; channelStore.sendNote = null })
 
+/* SPL-6675 (owner HUM-10, t1 bcfd15e1 msg b996a06b): no results page - a
+   search opens its own panel beside the page (SearchPanel) and the page
+   stays; the panel keeps its query in the Omnibox, ready to refine */
 function onSearch(q: string) {
-  void router.push(localePath(searchPath(q)))
+  search.openPanel(q)
 }
 
-
-/* a deep link /search?q=… shows its query in the Omnibox, ready to refine */
-const onSearchPage = computed(() => /\/search$/.test(route.path))
 function showQuery(box: { setText: (s: string) => void } | null = composer.value) {
-  const q = route.query.q
-  if (onSearchPage.value && typeof q === 'string' && q) box?.setText(`/search ${q}`)
+  if (search.panelOpen && search.q) box?.setText(`/search ${search.q}`)
 }
-watch(() => [onSearchPage.value, route.query.q], () => showQuery(), { flush: 'post' })
+watch(() => [search.panelOpen, search.q], () => showQuery(), { flush: 'post' })
 /* topic c6994436: the Teleport is `defer`red (Vue 3.5 defers it even while
    disabled), so the composer mounts AFTER this bar's onMounted - and a
    re-render can mount it a second time before `composer` points at the new
-   one. A deep link's query goes to the box that says it is ready. */
+   one. An open panel's query goes to the box that says it is ready. */
 function onComposerReady(box: { setText: (s: string) => void }) {
   showQuery(box)
 }
-/* SPL-13: leaving /search takes its query out of the Omnibox. Left there, the
-   `/search …` line kept search mode on every page, and search mode has no
+/* SPL-13: closing the search takes its query out of the Omnibox. Left there,
+   the `/search …` line kept search mode on every page, and search mode has no
    Attach and no Send - the owner read that as "the attach button is gone". */
-watch(onSearchPage, (now, was) => { if (was && !now) composer.value?.leaveSearch() }, { flush: 'post' })
+watch(() => search.panelOpen, (now, was) => { if (was && !now) composer.value?.leaveSearch() }, { flush: 'post' })
 
 /* 022 catalogue: mock hydrates immediately; live waits for a member session
    so signed-out /channel/lobby does not GET /v1/view/search/operators (401).

@@ -1177,14 +1177,14 @@ declare module '~/utils/pane-widths.mjs' {
     viewportW?: number, topicOpen?: boolean, topicW?: number, sidebarW?: number
   }): { min: number, max: number }
   export function applySeparatorKey(
-    pane: 'sidebar' | 'topic' | 'issue',
+    pane: 'sidebar' | 'topic' | 'issue' | 'search',
     key: string,
     current: number,
     min: number,
     max: number,
   ): number
   export function pointerDelta(
-    pane: 'sidebar' | 'topic' | 'issue',
+    pane: 'sidebar' | 'topic' | 'issue' | 'search',
     startWidth: number,
     startX: number,
     clientX: number,
@@ -1445,7 +1445,7 @@ declare module '~/utils/open-message.mjs' {
   export function placeOf(topicRow: unknown, info: unknown): Record<string, unknown>
   export function markOpened(msgId: string, opts?: { tries?: number, every?: number, hold?: number, doc?: Document }): void
   export function resolveTopic(taskId: string, api: unknown): Promise<{ row: Record<string, unknown> } | { reason: OpenMessageReason }>
-  export function openMessage(ref: string | Record<string, unknown>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean, showPlace?: boolean }): Promise<OpenMessageResult>
+  export function openMessage(ref: string | Record<string, unknown>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean, showPlace?: boolean, openSection?: (msg: Record<string, unknown>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string }) => Promise<boolean> }): Promise<OpenMessageResult>
 }
 
 declare module '~/utils/slash-focus.mjs' {

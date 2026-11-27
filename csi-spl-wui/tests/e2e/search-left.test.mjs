@@ -1,11 +1,13 @@
-// CLE-77884 (owner, topic 635f8072 96a88e32): the search results are the
-// LEFT panel's list, not the middle. In a real browser on the mock tenant:
-// desktop 1440 - /search?q= fills the left panel (compact hits, the match
-// marked), the middle only points at it; ArrowUp/Down cycle; Enter and a click
-// open a hit IN PLACE (its channel, not /t/), and the query + list + chosen hit
-// stay while the reader clicks through; the X closes the list. Phone 390 - the
-// list is the screen, a tap opens the original, Back returns to the list with
-// the same hit chosen; light + dark, no sideways scroll.
+// CLE-77884 (owner, topic 635f8072 96a88e32), SPL-6675 (owner HUM-10, t1
+// bcfd15e1): the search results are a list of their own, the search panel
+// beside the page - never the middle, never a /search page. In a real browser
+// on the mock tenant: desktop 1440 - an old /search?q= link opens the panel
+// (compact hits, the match marked); ArrowUp/Down cycle (wrapping); a click
+// PREVIEWS a hit in its place (its channel, not /t/), marked, and the list and
+// the chosen hit stay; the keys keep cycling the previews; Enter opens for
+// real and the panel closes; the X closes it. Phone 390 - the panel is the
+// screen, a tap opens the original, Back returns to the list with the same
+// hit chosen; light + dark, no sideways scroll.
 //
 //   node tests/e2e/search-left.test.mjs          (mock tenant, nuxi dev)
 //   BASE_URL=<generated bundle> node tests/e2e/search-left.test.mjs
@@ -21,7 +23,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.SEARCH_LEFT_SHOTS || mkdtempSync(join(tmpdir(), 'spool-search-left-'))
 /* the mock tenant (utils/mock-data.mjs): two #lobby messages say "green" */
 const Q = 'green'
-const LIST = '[data-testid=sidebar-panel-search] [data-testid=left-list][data-mode=search]'
+const LIST = '[data-testid=search-panel] [data-testid=left-list][data-mode=search]'
 const ENTRY = `${LIST} [data-testid=left-entry][data-type=messages]`
 
 const results = []
@@ -50,9 +52,9 @@ async function launch() {
 
 const selected = (p, list) => p.$$eval(`${list} [data-testid=left-entry]`, (els) => els.filter((e) => e.getAttribute('aria-selected') === 'true').map((e) => e.getAttribute('data-msg-id')))
 const entryIds = (p, sel) => p.$$eval(sel, (els) => els.map((e) => e.getAttribute('data-msg-id')))
-const inPlace = (href, id) => {
+const inPlace = (href) => {
   const u = new URL(href)
-  return u.pathname.endsWith('/channel/lobby') && !u.pathname.includes('/t/') && u.hash === '#' + id
+  return u.pathname.endsWith('/channel/lobby') && !u.pathname.includes('/t/')
 }
 const marked = (p, id) => p.waitForSelector(`.msg[data-msg-id="${id}"].search-focus, .msg[data-msg-id="${id}"].open-focus`, { timeout: 10000 }).then(() => true).catch(() => false)
 const noXScroll = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)
@@ -68,9 +70,7 @@ try {
   await p.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(ENTRY, { visible: true, timeout: NAV_TIMEOUT })
   const ids = await entryIds(p, ENTRY)
-  const middleList = await p.$('.search-page [data-testid=left-list]')
-  const hint = await p.$('.search-page [data-test=search-left-hint]')
-  ok('1 the hits are in the LEFT panel; the middle only points at them', ids.length >= 2 && !middleList && Boolean(hint), { ids })
+  ok('1 the hits are in the search panel; no results page, no middle list', ids.length >= 2 && !(await p.$('[data-test=search-page]')) && !(await p.$('.search-page')), { ids, url: p.url() })
   const mark = await p.$eval(ENTRY, (el) => (el.querySelector('mark') || {}).textContent || '')
   ok('2 an entry: who, where, when, the match marked', mark.toLowerCase() === Q && await p.$eval(ENTRY, (el) => Boolean(el.querySelector('.side-hit__who') && el.querySelector('.side-hit__where') && el.querySelector('.side-hit__when'))), { mark })
   await p.screenshot({ path: `${SHOTS}/1-desktop-list.png` })
@@ -83,39 +83,41 @@ try {
   const s2 = await selected(p, LIST)
   ok('3 focus picks the first hit; ArrowDown / ArrowUp cycle (wrapping)', s0[0] === ids[0] && s1[0] === ids[1] && s2[0] === ids[0], { s0, s1, s2 })
 
-  await p.keyboard.press('ArrowDown')
-  await p.keyboard.press('Enter')
+  await p.click(`${LIST} [data-testid=left-entry][data-msg-id="${ids[1]}"]`)
   await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 10000 }).catch(() => null)
-  ok('4 Enter opens the hit IN PLACE: its channel, not the topic page', inPlace(p.url(), ids[1]), p.url())
-  ok('5 the message is marked where it opened', await marked(p, ids[1]))
-  const kept = await p.$(ENTRY) && await p.$eval('[data-testid=sidebar-panel-search]', (el) => el.textContent.includes('green'))
-  ok('6 the query, the list and the chosen hit stay', Boolean(kept) && (await selected(p, LIST))[0] === ids[1], { sel: await selected(p, LIST) })
+  ok('4 a click previews the hit IN PLACE: its channel, not the topic page', inPlace(p.url()) && await marked(p, ids[1]), p.url())
+  const kept = await p.$(ENTRY) && await p.$eval('[data-testid=search-panel]', (el) => el.getAttribute('data-q') === 'green')
+  ok('5 the query, the list and the chosen hit stay', Boolean(kept) && (await selected(p, LIST))[0] === ids[1], { sel: await selected(p, LIST) })
   await p.screenshot({ path: `${SHOTS}/2-desktop-open.png` })
 
   /* the place focuses its own line a moment later; the list keeps the keys */
   await new Promise((r) => setTimeout(r, 2500))
   const keptFocus = await p.evaluate(() => Boolean(document.activeElement && document.activeElement.closest('[data-testid=left-list]')))
   await p.keyboard.press('ArrowUp')
-  ok('6b the keyboard stays on the list after Enter: ArrowUp keeps cycling', keptFocus && (await selected(p, LIST))[0] === ids[0], { keptFocus, sel: await selected(p, LIST) })
+  ok('6 the keyboard stays on the list after a click: ArrowUp previews the next hit', keptFocus && (await selected(p, LIST))[0] === ids[0] && await marked(p, ids[0]), { keptFocus, sel: await selected(p, LIST) })
 
-  await p.click(`${LIST} [data-testid=left-entry][data-msg-id="${ids[0]}"]`)
-  await p.waitForFunction((id) => location.hash === '#' + id, { timeout: 10000 }, ids[0]).catch(() => null)
-  ok('7 a click on the next hit opens it; the list is still there', inPlace(p.url(), ids[0]) && Boolean(await p.$(ENTRY)) && (await selected(p, LIST))[0] === ids[0], p.url())
+  await p.keyboard.press('Enter')
+  const gone = await p.waitForSelector('[data-testid=search-panel]', { hidden: true, timeout: 5000 }).then(() => true).catch(() => false)
+  /* a reply opens as "Open in channels view": its topic open beside the channel, at the reply */
+  const shownAt = await p.waitForSelector(`aside.live-pane [data-msg-id="${ids[0]}"], .feed-body .msg[data-msg-id="${ids[0]}"]`, { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
+  ok('7 Enter opens the hit for real: the panel closes, the hit shown in its channel', gone && inPlace(p.url()) && shownAt, { gone, shownAt, url: p.url() })
 
   /* dark */
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }])
   await p.screenshot({ path: `${SHOTS}/3-desktop-dark.png` })
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
 
+  await p.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector(ENTRY, { visible: true, timeout: NAV_TIMEOUT })
   await p.click('[data-testid=side-search-close]')
-  const closed = await p.waitForSelector('[data-testid=sidebar-panel-search]', { hidden: true, timeout: 5000 }).then(() => true).catch(() => false)
+  const closed = await p.waitForSelector('[data-testid=search-panel]', { hidden: true, timeout: 5000 }).then(() => true).catch(() => false)
   ok('8 the X closes the search list', closed)
 
   /* ---- phone 390 ---- */
   const m = await browser.newPage()
   m.on('pageerror', (e) => errors.push(String(e && e.message)))
   await m.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
-  const PLIST = '.search-page [data-testid=left-list][data-mode=search]'
+  const PLIST = '[data-testid=search-panel] [data-testid=left-list][data-mode=search]'
   const PENTRY = `${PLIST} [data-testid=left-entry][data-type=messages]`
   await m.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await m.waitForSelector(PENTRY, { visible: true, timeout: NAV_TIMEOUT })
@@ -125,7 +127,7 @@ try {
   const pids = await entryIds(m, PENTRY)
   await m.tap(`${PLIST} [data-testid=left-entry][data-msg-id="${pids[1]}"] .side-hit__text`)
   await m.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 10000 }).catch(() => null)
-  ok('10 phone: a tap opens the original in place, marked', inPlace(m.url(), pids[1]) && await marked(m, pids[1]), m.url())
+  ok('10 phone: a tap opens the original in place, marked', inPlace(m.url()) && await marked(m, pids[1]), m.url())
   await m.screenshot({ path: `${SHOTS}/5-phone-open.png` })
   /* the phone stack: a hit inside a topic opens at level 3 (the thread), so
      Back walks 3 -> 2 (its channel) -> the list; at most three steps */
@@ -136,7 +138,7 @@ try {
     await m.goBack({ waitUntil: 'networkidle2' }).catch(() => null)
     back = await m.waitForSelector(PENTRY, { visible: true, timeout: 4000 }).then(() => true).catch(() => false)
   }
-  ok('11 phone: Back returns to the list, the same hit chosen', back && new URL(m.url()).searchParams.get('q') === Q && (await selected(m, PLIST))[0] === pids[1], { steps, url: m.url(), sel: back ? await selected(m, PLIST) : null })
+  ok('11 phone: Back returns to the list, the same hit chosen', back && await m.$eval('[data-testid=search-panel]', (el) => el.getAttribute('data-q')).catch(() => null) === Q && (await selected(m, PLIST))[0] === pids[1], { steps, url: m.url(), sel: back ? await selected(m, PLIST) : null })
   await m.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }])
   await m.screenshot({ path: `${SHOTS}/6-phone-dark.png` })
 

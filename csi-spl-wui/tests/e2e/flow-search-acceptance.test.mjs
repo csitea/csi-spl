@@ -205,8 +205,10 @@ try {
     const before = await selectedId(d)
     await d.keyboard.press('ArrowDown')
     const next = await selectedId(d)
+    /* SPL-6675: Enter opens for real and closes the search panel, so count the hits first */
+    const n = (await entryIds(d)).length
     await d.keyboard.press('Enter')
-    ok('4.4 keyboard cycles the results and Enter opens one', Boolean(next) && (next !== before || (await entryIds(d)).length === 1) && await seen(d, focused(next)), { before, next })
+    ok('4.4 keyboard cycles the results and Enter opens one', Boolean(next) && (next !== before || n === 1) && await seen(d, focused(next)), { before, next, n })
   } else ok('4.4 keyboard: no Search list to drive', false)
 
   /* ---------- 5 deep link + deleted ---------- */

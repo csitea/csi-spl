@@ -40,6 +40,7 @@
         :data-msg-id="item.msgId || item.key"
         :title="item.title || undefined"
         @click="onClick($event, item)"
+        @dblclick="mode === 'search' && emit('commit', item.key)"
         @contextmenu="emit('menu', item.key, $event)"
         @pointerdown="emit('press', item.key, $event)"
       >
@@ -49,6 +50,15 @@
           <span v-if="item.where" class="side-hit__where muted">{{ item.where }}</span>
           <span v-if="item.when" class="side-hit__when muted">{{ item.when }}</span>
           <span v-if="item.unread" class="side-hit__dot unread-dot" data-testid="left-entry-unread" aria-hidden="true" />
+          <!-- SPL-6675: the chosen search hit's Open - the hit opened for real, the search closed -->
+          <button
+            v-if="mode === 'search' && item.key === activeKey"
+            type="button"
+            class="btn ghost side-hit__open"
+            tabindex="-1"
+            data-testid="search-hit-open"
+            @click.stop="emit('commit', item.key)"
+          >{{ $t('feed.msg_menu.open') }}</button>
         </div>
         <p v-if="segsOf(item).length" class="side-hit__text" :class="{ 'side-hit__text--fold': item.fold }">
           <template v-for="(s, i) in segsOf(item)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
@@ -76,6 +86,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   active: [key: string]
   open: [key: string]
+  /* SPL-6675, search mode: Up / Down / Home / End moved to this hit (its preview); Enter, a double-click or Open = open it for real */
+  cycle: [key: string]
+  commit: [key: string]
   menu: [key: string, ev: MouseEvent]
   press: [key: string, ev: PointerEvent]
   keydown: [ev: KeyboardEvent, key: string]
@@ -169,11 +182,20 @@ function onKey(ev: KeyboardEvent) {
     const i = cycleIndex(activeIndex.value, props.items.length, ev.key)
     if (i < 0) return
     emit('active', props.items[i].key)
+    emit('cycle', props.items[i].key)
     reveal(i)
+    /* SPL-6675: a search hit previews in its place, which focuses its own line; the keys stay here, so Enter opens it */
+    if (props.mode === 'search') keepFocus()
     return
+  }
+  /* SPL-6675 (owner HUM-10, msg 22c8a872): Shift+O opens the chosen hit for real, as Enter does */
+  if (props.mode === 'search' && ev.key === 'O' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && activeIndex.value >= 0) {
+    ev.preventDefault()
+    return void emit('commit', props.activeKey)
   }
   if (ev.key === 'Enter' && activeIndex.value >= 0) {
     ev.preventDefault()
+    if (props.mode === 'search') return void emit('commit', props.activeKey)
     emit('open', props.activeKey)
     keepFocus()
     return
@@ -222,6 +244,7 @@ defineExpose({ focus, rowEl: (key: string) => {
 .side-hit__who { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
 .side-hit__where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; font-size: 0.75rem; }
 .side-hit__when { flex: none; margin-inline-start: auto; font-size: 0.6875rem; }
+.side-hit__open { flex: none; padding: 0 8px; min-height: 0; font-size: 0.75rem; }
 .side-hit.unread .side-hit__who { font-weight: 700; }
 /* a short snippet: two lines at most, the match marked */
 .side-hit__text {

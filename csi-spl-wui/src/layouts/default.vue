@@ -60,6 +60,10 @@
           @input="setSidebar"
           @reset="resetSidebar"
         />
+        <!-- SPL-6675 (owner HUM-10, t1 bcfd15e1): the search results, their own
+             slide-in panel beside the rail (the sidebar's list hides meanwhile);
+             the page right of it shows the previewed hit -->
+        <LazySearchPanel v-if="shellIn && searchStore.panelOpen" />
         <template v-if="mountMain">
         <main class="spool-main">
           <slot />
@@ -204,6 +208,7 @@ import { useStatusPicker } from '~/composables/useStatusPicker'
 import { usePaneFocus } from '~/stores/pane-focus'
 /* which pane the reader selected last decides where the Omnibox line goes */
 const paneFocus = usePaneFocus()
+const searchStore = useSearchStore()
 /* SPL-1201: the debug pane is off for all but the rare human who ticked
    "Debug pane" (session claim diagnostics_enabled). Statically imported it
    rode in the shell chunk every reader downloads; async + gated on the same
@@ -250,6 +255,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { useOmniboxStore } from '~/stores/omnibox'
+import { useSearchStore } from '~/stores/search'
 import { isDockCollapsedPath } from '~/utils/section-search.mjs'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'

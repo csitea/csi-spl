@@ -1,7 +1,7 @@
 /*
  * ChannelSidebar's rail and section navigation (r19-01): a rail tab's click,
- * the Issues number, the search list's X. It writes the sidebar's `tab`,
- * `holdFlow` and `holdSearch` and moves the router.
+ * the Issues number. It writes the sidebar's `tab` and `holdFlow` and
+ * moves the router; a rail click also closes the search panel (SPL-6675).
  */
 import type { Ref } from 'vue'
 import { useMobileStack } from '~/composables/useMobileStack'
@@ -9,8 +9,9 @@ import { useSectionExit } from '~/composables/useSectionExit'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
+import { useSearchStore } from '~/stores/search'
 import { chatKind, isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
-import { ARCHIVE_TAB, CALENDAR_TAB, EXPENSES_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, CALENDAR_TAB, EXPENSES_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
 const PHONE_LIST_TABS = new Set<string>(['dm', 'channels', 'flow', 'people'])
@@ -57,13 +58,12 @@ function sectionLeavePath(next: string, railOnlyPage: boolean, route: ReturnType
 export function useSidebarRailNav<T extends string>(opts: {
   tab: Ref<T>
   holdFlow: Ref<boolean>
-  holdSearch: Ref<boolean>
   stripOnly: Readonly<Ref<boolean>>
   onRailLink: Readonly<Ref<boolean>>
   helpRailOnly: Readonly<Ref<boolean>>
   docsRailOnly: Readonly<Ref<boolean>>
 }) {
-  const { tab, holdFlow, holdSearch, stripOnly, onRailLink, helpRailOnly, docsRailOnly } = opts
+  const { tab, holdFlow, stripOnly, onRailLink, helpRailOnly, docsRailOnly } = opts
   const route = useRoute()
   const mobileStack = useMobileStack()
   const sectionExit = useSectionExit()
@@ -88,7 +88,6 @@ export function useSidebarRailNav<T extends string>(opts: {
       return
     }
     holdFlow.value = next === 'flow'
-    holdSearch.value = false
     tab.value = next
     /* CLE-77886: on a phone a section whose content is this sidebar's list
        (Channels, DMs, Flow, People, Agents, Boxes) shows it at level 1 under
@@ -107,17 +106,13 @@ export function useSidebarRailNav<T extends string>(opts: {
      closed first replaces ?topic=, which cancelled the navigation. A topic's
      page (/t/<id>) is the thread itself, no reply panel (spec 109 T007). */
   async function railClick(next: T) {
+    /* SPL-6675: a section picked on the rail ends the search; its list shows */
+    useSearchStore().closePanel()
     if (/^\/t\/[^/]+$/.test(productPath(route.path))) return selectTab(next)
     const to = mobileStack.isMobile.value ? '' : railSwitchPath(next, chatKind(route.path), sectionExit, localePath)
     if (to) await navigateTo(to)
     await selectTab(next)
     livePane.close(); topic.close(); operatorPane.close()
   }
-  /* CLE-77884: the search list's X - back to the list the page belongs to */
-  function closeSearch() {
-    holdSearch.value = false
-    tab.value = (tabForPath(route.path) || 'channels') as T
-    if (isSearchPage(route.path)) void navigateTo(localePath('/'))
-  }
-  return { selectTab, railClick, closeSearch, onCountClick }
+  return { selectTab, railClick, onCountClick }
 }

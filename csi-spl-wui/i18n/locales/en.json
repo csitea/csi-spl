@@ -1194,6 +1194,7 @@
     "resize_sidebar": "Resize channel sidebar",
     "resize_topic": "Resize topic pane",
     "resize_issue": "Resize issue detail",
+    "resize_search": "Resize search results",
     "resize_hint": "Drag to resize. Double-click to reset.",
     "msgs": "Msgs",
     "collapse_channels": "Collapse channels",

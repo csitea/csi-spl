@@ -1194,6 +1194,7 @@
     "resize_sidebar": "Muuta kanavasivupalkin kokoa",
     "resize_topic": "Muuta aihepaneelin kokoa",
     "resize_issue": "Muuta asian paneelin kokoa",
+    "resize_search": "Muuta hakutulosten kokoa",
     "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella.",
     "msgs": "Viestit",
     "collapse_channels": "Pienennä kanavat",

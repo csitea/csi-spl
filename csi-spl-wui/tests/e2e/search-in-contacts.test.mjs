@@ -11,7 +11,7 @@ import { loadPuppeteer } from './lib/proof.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const BOX = '[data-test=top-bar-omnibox] textarea'
-const HIT = '[data-testid=sidebar-panel-search] [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=contacts]'
+const HIT = '[data-testid=search-panel] [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=contacts]'
 const CONTACT = { contact_id: 'k-1', first_name: 'FirstName', last_name: 'LastName', email: 'first.last@example.com', phone: null, google: false, member_id: null }
 
 const results = []
@@ -48,7 +48,8 @@ try {
     await p.type(BOX, line)
     await p.$eval('[data-test=omnibox-search]', (el) => el.click())
     await sleep(800)
-    return { q: new URL(p.url()).searchParams.get('q'), hits: (await p.$$(HIT)).length }
+    /* SPL-6675: the search opens its panel beside the page; the query is on the panel */
+    return { q: await p.$eval('[data-testid=search-panel]', (el) => el.getAttribute('data-q')).catch(() => null), hits: (await p.$$(HIT)).length }
   }
 
   let r = await search('/s in:contacts first')

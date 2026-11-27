@@ -24,8 +24,11 @@
     <CalendarPhone v-if="phone" :focus="focus" :today="today" @move="show" />
     <template v-else>
     <h2 class="sr-only" data-test="calendar-heading">{{ t('calendar.title') }}</h2>
-    <div class="calendar-body" :class="{ 'calendar-body--hours': hoursPanel }">
-      <CalendarYearStrip class="calendar-body__strip"
+    <div class="calendar-body" :class="{ 'calendar-body--hours': hoursPanel, 'calendar-body--alone': searchStore.panelOpen }" :data-alone="searchStore.panelOpen ? '1' : undefined">
+      <!-- SPL-6675 (owner HUM-10 msg 6cb72656): a search hit previewed here
+           shows the calendar alone - its months strip is its left menu,
+           back once the hit is opened for real or the search closes -->
+      <CalendarYearStrip v-if="!searchStore.panelOpen" class="calendar-body__strip"
         :focus="focus"
         :today="today"
         @pick="show"
@@ -55,6 +58,7 @@ import { PUBLIC_CALENDAR_PATH, signedOutCalendarTarget } from '~/utils/public-ca
 import { wasSignedIn } from '~/utils/session-recover.mjs'
 import { calDeskView, calTodoKind } from '~/utils/calendar-desktop-view.mjs'
 import { useOmniboxStore } from '~/stores/omnibox'
+import { useSearchStore } from '~/stores/search'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 
 /* the main view is its own chunk, fetched on route entry (spec 3, AC-02) */
@@ -109,6 +113,7 @@ async function show(iso: string) {
 /* SPL-4901 (owner t1 7da30ebd msg 5af63dee): the search button opens the
    calendar's own search; a phone has it in CalendarPhone's header */
 const omnibox = useOmniboxStore()
+const searchStore = useSearchStore()
 const deskSearch = ref(false)
 watch(() => omnibox.calendarSearchAsk, () => { if (!phone.value) deskSearch.value = true })
 async function openFound(day: string, ev: CalendarItem) {
@@ -184,6 +189,8 @@ useHead(() => ({ title: t('calendar.title') }))
   overflow: hidden;
 }
 .calendar-body--hours { grid-template-columns: 240px minmax(0, 1fr) 300px; }
+.calendar-body--alone { grid-template-columns: minmax(0, 1fr); }
+.calendar-body--alone.calendar-body--hours { grid-template-columns: minmax(0, 1fr) 300px; }
 .calendar-body__strip { min-height: 0; }
 .calendar-body__hours {
   min-height: 0;

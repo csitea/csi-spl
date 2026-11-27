@@ -12,7 +12,7 @@ import { loadPuppeteer } from './lib/proof.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const BOX = '[data-test=top-bar-omnibox] textarea'
-const HIT = '[data-testid=sidebar-panel-search] [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=calendars]'
+const HIT = '[data-testid=search-panel] [data-testid=left-list][data-mode=search] [data-testid=left-entry][data-type=calendars]'
 /* calendar-mock.mjs: "Database maintenance", two days from today, 10:00 UTC */
 const ID = '00000000-0000-4000-8000-000000000102'
 const DAY = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
@@ -49,7 +49,8 @@ try {
     await p.type(BOX, line)
     await p.$eval('[data-test=omnibox-search]', (el) => el.click())
     await sleep(800)
-    return { q: new URL(p.url()).searchParams.get('q'), hits: (await p.$$(HIT)).length }
+    /* SPL-6675: the search opens its panel beside the page; the query is on the panel */
+    return { q: await p.$eval('[data-testid=search-panel]', (el) => el.getAttribute('data-q')).catch(() => null), hits: (await p.$$(HIT)).length }
   }
 
   let r = await search('/s type:cal maintenance')

@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || monitoringRailOnly || reportingRailOnly || notesRailOnly || expensesRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || monitoringRailOnly || reportingRailOnly || notesRailOnly || expensesRailOnly || helpRailOnly || docsRailOnly || searchShut, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, flow,
@@ -162,8 +162,12 @@
     </div>
     <!-- perf round 6 row 03 (SPL-2435): a rail-only page mounts no list -
          it was hidden by CSS, 137 nodes on /workspace/docs; the stores keep
-         folds and unread, so the list comes back whole on leaving -->
-    <div v-if="!railOnly" class="sidebar-body">
+         folds and unread, so the list comes back whole on leaving.
+         SPL-6675 (owner HUM-10, t1 bcfd15e1 msg 2f0259cc): while the search
+         panel is open beside the rail (SearchPanel) this list is hidden, not
+         unmounted, and comes back as it was, at its own width, when the
+         search closes or a hit is actually opened -->
+    <div v-if="!railOnly" v-show="!searchShut" class="sidebar-body" data-testid="sidebar-body">
       <div
         v-if="tab === 'dm' || (tabsBuilt.dm && !phone)"
         v-show="tab === 'dm'"
@@ -480,19 +484,6 @@
         <!-- topic 635f8072: message entries, not a list of channels / agents / topics -->
         <LazyFlowList :active="tab === 'flow'" />
       </div>
-      <!-- CLE-77884 (topic 635f8072): the /search hits, in the left panel. Not
-           a rail tab: shown by a search and held while the reader opens hits
-           (holdSearch); a rail icon or its X clears it. On a phone the search
-           page itself is this list (level 2), so it is not built twice. -->
-      <div
-        v-if="tab === 'search' && !(mobileStack.isMobile.value && onSearchPage)"
-        id="sidebar-panel-search"
-        class="sidebar-panel"
-        role="tabpanel"
-        data-testid="sidebar-panel-search"
-      >
-        <SearchSidePanel @close="closeSearch" />
-      </div>
       <!-- Issues, third rail tab. The list is the middle pane. -->
       <div
         v-if="tab === 'issues' || (tabsBuilt.issues && !phone)"
@@ -671,8 +662,6 @@ import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 /* Async: it carries @headlessui/vue + @tanstack/virtual-core
    (~17 KB gzip) that no first paint needs; it loads right after the shell. */
 const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
-/* CLE-77884: async too - only a search needs it */
-const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
@@ -687,7 +676,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
 import { railLinkSection } from '~/utils/section-strip.mjs'
-import { ARCHIVE_TAB, CALENDAR_TAB, EXPENSES_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, CALENDAR_TAB, EXPENSES_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { isHumanId } from '~/utils/agent-kind.mjs'
 import { PEOPLE_FILTER_ALL, PEOPLE_FILTER_KEY, PEOPLE_FILTER_WORKSPACE, parsePeopleFilter, peopleOrder } from '~/utils/people-order.mjs'
@@ -715,7 +704,7 @@ import { useFlowMemberRoute } from '~/composables/useFlowMemberRoute'
 import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | 'expenses'
+type SideTab = 'dm' | 'channels' | 'flow' | 'issues' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | 'expenses'
 /* The six rail tabs (utils/rail-order.ts RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -766,14 +755,11 @@ function closeRowMenu() { rowMenu.value = '' }
 function openChannelMenu(id: string) { rowMenu.value = id }
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
-/* CLE-77884: so does the search list while the reader opens its hits; a
-   navigation from anywhere else (a rail icon, a link, Open parent section)
-   lets the rail follow the page again */
-const holdSearch = ref(false)
 const searchStore = useSearchStore()
 const route = useRoute()
 const mobileStack = useMobileStack()
-const onSearchPage = computed(() => isSearchPage(route.path))
+/* SPL-6675: the search panel is open beside the rail (desktop): the list here hides */
+const searchShut = computed(() => searchStore.panelOpen && !mobileStack.isMobile.value)
 /* the list panel 1 shows: the rail tab's own (the Topics tab, which showed
    Channels on `/`, is gone: owner t1 e4bfddb1) */
 const panelTab = computed<SideTab>(() => tab.value)
@@ -782,16 +768,9 @@ const panelTab = computed<SideTab>(() => tab.value)
 watch(panelTab, (open) => { tabsBuilt[open] = true })
 watch(() => route.path, (path, prev) => {
   rowMenu.value = ''
-  if (isSearchPage(path)) {
-    holdFlow.value = false
-    holdSearch.value = true
-    tab.value = 'search'
-    return
-  }
   /* CLE-77882: a message opened in place keeps the list it was opened from */
   const held = useSidePane().listHeld.value
-  if (holdSearch.value && !held && !searchStore.opening) holdSearch.value = false
-  if (holdFlow.value || held || holdSearch.value) return
+  if (holdFlow.value || held) return
   /* SPL-989: on a phone at level 1 this list IS the screen - Back to it
      keeps the section the reader left from, whatever page sits behind. The
      first load is not a Back: `/` opens on Channels (t1 e4bfddb1). */
@@ -800,12 +779,11 @@ watch(() => route.path, (path, prev) => {
   if (next) tab.value = next
 }, { immediate: true })
 /* HUM-10 (t1 36ea84a6): a followed link to a message or a topic shows its
-   place's own list (Channels or Direct messages), not the Flow or the search
-   list it was read from. The Flow's and Search's own opens keep their list. */
+   place's own list (Channels or Direct messages), not the Flow list it was
+   read from. The Flow's own opens keep their list. */
 setLinkOpenHook((path: string) => {
   if (!/^(?:\/[^/]+)?\/(?:channel|dm|m)\//.test(path)) return
   holdFlow.value = false
-  holdSearch.value = false
   /* the same address again changes no route: the tab follows the link here */
   const next = tabForPath(path.split(/[?#]/)[0])
   if (next) tab.value = next
@@ -874,8 +852,8 @@ watch(() => route.fullPath, () => sectionExit.note(route.path, route.fullPath), 
 /* SPL-3785: at every level past 1 (the layout's sectionStrip), not only on a section's own page */
 const stripOnly = computed(() => mobileStack.isMobile.value && mobileStack.level.value !== 1)
 const onRailLink = computed(() => stripOnly.value && Boolean(railLinkSection(route.path)))
-/* the rail and section navigation: a rail tab's click, the Issues number, the search list's X (useSidebarRailNav) */
-const { selectTab, railClick, closeSearch, onCountClick } = useSidebarRailNav({ tab, holdFlow, holdSearch, stripOnly, onRailLink, helpRailOnly, docsRailOnly })
+/* the rail and section navigation: a rail tab's click, the Issues number (useSidebarRailNav) */
+const { selectTab, railClick, onCountClick } = useSidebarRailNav({ tab, holdFlow, stripOnly, onRailLink, helpRailOnly, docsRailOnly })
 /* spec 103 T006: Enter, the arrows, Home and End on a rail tab (useSidebarRailTabKeys) */
 const { onTabKey } = useSidebarRailTabKeys({ phone, tab, rail, railClick, selectTab })
 /* spec 130 section 3.1: ?flow=<id> opens the Flow tab on that member's Flow */
@@ -925,7 +903,6 @@ watch(() => sidePane.requested.value, (req) => {
      opened remains the one the omnibox writes into. */
   if (req.stay) {
     holdFlow.value = false
-    holdSearch.value = false
     tab.value = req.id
     return
   }
@@ -933,7 +910,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== 'search' && id !== USERS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB && id !== REPORTING_TAB && id !== NOTES_TAB && id !== EXPENSES_TAB) sidePane.setCurrent(id)
+  if (id !== USERS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB && id !== REPORTING_TAB && id !== NOTES_TAB && id !== EXPENSES_TAB) sidePane.setCurrent(id)
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)

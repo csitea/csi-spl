@@ -32,6 +32,18 @@ func TestDropChannel(t *testing.T) {
 		{`-(in:#ops foo) bar`, `-foo bar`, true},
 		{`type:topic in:#ops title:deploy`, `type:topic title:deploy`, true},
 		{`(a b) OR in:#ops-team in:#opsx`, `(a b) OR in:#ops-team in:#opsx`, false},
+		// R7 W1 (a-744): a group of negated terms collapses to true, which
+		// an OR or a NOT does not keep
+		{`-(-in:#ops -in:#ops) foo`, `foo`, true},
+		{`(-in:#ops -in:#ops) OR foo`, `foo`, true},
+		{`(-in:#ops -in:#ops) foo`, `foo`, false},
+		{`-(in:#ops OR in:#ops) foo`, `foo`, false},
+		{`-in:#ops`, ``, false},
+		// R7 W2: a negated term that starts with '-' keeps its parentheses
+		{`-(--foo -in:#ops)`, `-(--foo)`, false},
+		// an OR left with one AND inside an AND is one AND
+		{`foo (in:#ops OR (a b))`, `foo a b`, false},
+		{`x OR ((-in:#ops) (a OR b))`, `x OR a OR b`, false},
 	}
 	for _, c := range cases {
 		out, limited, err := DropChannel(c.q, "ops")
@@ -52,6 +64,17 @@ func TestDropChannelUnchanged(t *testing.T) {
 	for _, q := range []string{`  foo   AND  in:#dev `, `"unterminated in:#ops`, `ops in:#opsx #ops`, ``} {
 		if out, limited, err := DropChannel(q, "ops"); out != q || limited || err != nil {
 			t.Errorf("DropChannel(%q) = %q, %v, %v; want it unchanged", q, out, limited, err)
+		}
+	}
+	// R7 W3: in:contacts / in:file-streams pick a section, not the channels
+	// #contacts / #file-streams
+	for _, c := range []string{"contacts", "file-streams"} {
+		q := `in:` + c + ` foo`
+		if out, limited, err := DropChannel(q, c); out != q || limited || err != nil {
+			t.Errorf("DropChannel(%q, %q) = %q, %v, %v; want it unchanged", q, c, out, limited, err)
+		}
+		if out, limited, err := DropChannel(`in:#`+c+` foo`, c); out != `foo` || !limited || err != nil {
+			t.Errorf("DropChannel(in:#%s foo) = %q, %v, %v; want foo, true", c, out, limited, err)
 		}
 	}
 	if out, _, _ := DropChannel(`in:#ops`, " "); out != `in:#ops` {

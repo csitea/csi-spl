@@ -461,9 +461,13 @@ matches now (one read-only search): a count, not an approval step.
   query (`search.DropChannel`: the grammar reads the query, so quoted text
   and the other terms stay), and pauses the task, `channel_moved`, when
   that term limited it to the moved channel: a positive term ANDed with the
-  rest, or the last branch of an `OR`. A negated term, or one `OR` branch
-  among others, is only dropped (owner HUM-10 answer A, msg `b65adfcd`,
-  SPL-6692).
+  rest, the last branch of an `OR`, a negated `OR` branch, or a group of
+  such terms that a `NOT` or an `OR` turns into a limit. A negated term
+  ANDed with the rest, or one positive `OR` branch among others, is only
+  dropped (owner HUM-10 answer A, msg `b65adfcd`, SPL-6692). The move finds
+  the tasks to rewrite with `search.ChannelTermSQL`, a superset of the terms
+  the grammar reads (`in:" #x "`, `in:#x(foo)`, `"foo"in:#x`), and
+  `in:contacts` / `in:file-streams` stay: they pick a section, not a channel.
 - Delete is soft: the row and its runs are kept 30 days, then a new chore in
   `RunSweeper`'s sweep removes them.
 

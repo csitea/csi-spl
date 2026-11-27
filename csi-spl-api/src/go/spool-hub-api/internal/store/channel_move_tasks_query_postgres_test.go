@@ -29,6 +29,10 @@ func TestApplyChannelMoveTaskScopeQuery(t *testing.T) {
 	either := mk("either", "in:#"+f.stay+" OR channel:"+f.ch)
 	deleted := mk("deleted", "in:#"+f.ch)
 	other := mk("other", "in:#"+f.ch+"-team foo")
+	// R7 W4 (a-744): terms the parser reads that the first regex missed
+	spaced := mk("spaced", `in:" #`+f.ch+` " foo`)
+	paren := mk("paren", "in:#"+f.ch+"(foo)")
+	phrase := mk("phrase", `"foo"in:#`+f.ch)
 	if err := f.pg.SetTaskState(ctx, f.src, deleted.TaskID, TaskDeleted, "", now); err != nil {
 		t.Fatal(err)
 	}
@@ -45,6 +49,9 @@ func TestApplyChannelMoveTaskScopeQuery(t *testing.T) {
 		{either, "in:#" + f.stay, TaskOn, ""},
 		{deleted, "", TaskDeleted, ""},
 		{other, other.ScopeQuery, TaskOn, ""},
+		{spaced, "foo", TaskPaused, "channel_moved"},
+		{paren, "foo", TaskPaused, "channel_moved"},
+		{phrase, `"foo"`, TaskPaused, "channel_moved"},
 	}
 	for _, w := range want {
 		got, err := f.pg.GetTask(ctx, f.src, w.task.TaskID)

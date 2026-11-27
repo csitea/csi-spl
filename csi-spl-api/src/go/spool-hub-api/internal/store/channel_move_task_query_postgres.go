@@ -10,11 +10,11 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/search"
 )
 
-// mvTaskQuery: a task whose scope_query holds an in: (channel:) term that
-// names the channel ($2): in:#x, in:x, in=x, in:"#x", any case. The
-// catalogue's scheduled_tasks Refs (channelmove/catalogue.go) holds the same
-// test with @channel, so the P7 proofs find the rows this rewrite changes.
-const mvTaskQuery = `scope_query ~* ('(^|[[:space:](-])(in|channel)[:=]"?#?' || $2::text || '"?($|[[:space:])])')`
+// mvTaskQuery: a task whose scope_query may hold an in: (channel:) term
+// that names the channel ($2). The catalogue's scheduled_tasks Refs
+// (channelmove/catalogue.go) holds the same test with @channel, so the P7
+// proofs find the rows this rewrite changes.
+var mvTaskQuery = search.ChannelTermSQL("scope_query", "$2::text")
 
 // rewriteTaskQueries is spec 187 8.1 on a staying task's scope_query
 // (SPL-6692, owner HUM-10 answer A, msg b65adfcd): the in: terms that name

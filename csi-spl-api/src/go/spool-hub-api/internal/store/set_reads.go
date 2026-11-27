@@ -12,10 +12,12 @@ import (
 // store without it, so a wrapper or fake store still answers the same.
 
 // ChannelSetting is one channel's admin-list facts: its human members (a
-// default channel has none: it carries no rows) and its fallback opt-out.
+// default channel has none: it carries no rows), its fallback opt-out and
+// its default priority (rdb 0332, nil = unset; channel_default_priority.go).
 type ChannelSetting struct {
-	Humans     int
-	NoFallback bool
+	Humans          int
+	NoFallback      bool
+	DefaultPriority *int
 }
 
 // SetReads is implemented by Memory and Postgres.
@@ -48,7 +50,11 @@ func (s *Memory) ChannelSettings(ctx context.Context, tenant string, channels []
 		if err != nil {
 			return nil, err
 		}
-		out[ch] = ChannelSetting{Humans: len(ms), NoFallback: off}
+		dp, err := s.ChannelDefaultPriority(ctx, tenant, ch)
+		if err != nil {
+			return nil, err
+		}
+		out[ch] = ChannelSetting{Humans: len(ms), NoFallback: off, DefaultPriority: dp.Priority}
 	}
 	return out, nil
 }
@@ -71,7 +77,8 @@ func (s *Memory) LocateTopicOrMessage(ctx context.Context, tenants []string, id 
 
 // ---- Postgres -------------------------------------------------------------
 
-// ChannelSettings: the opt-outs and the live member counts as two reads of
+// ChannelSettings: the opt-outs (with the default priorities) and the live
+// member counts as two reads of
 // ONE tenant batch, where the per-channel loop paid two round trips a channel.
 func (s *Postgres) ChannelSettings(ctx context.Context, tenant string, channels []string) (map[string]ChannelSetting, error) {
 	out := make(map[string]ChannelSetting, len(channels))
@@ -85,15 +92,17 @@ func (s *Postgres) ChannelSettings(ctx context.Context, tenant string, channels 
 		return out, nil
 	}
 	err := s.queryTenantBatch(ctx, tenant,
-		tenantRead{`SELECT channel_id, no_fallback FROM channels WHERE tenant_id = $1 AND channel_id = ANY($2)`,
+		tenantRead{`SELECT channel_id, no_fallback, default_priority FROM channels WHERE tenant_id = $1 AND channel_id = ANY($2)`,
 			[]any{tenant, ids}, func(r pgx.Rows) error {
 				var id string
 				var off bool
-				if err := r.Scan(&id, &off); err != nil {
+				var prio *int
+				if err := r.Scan(&id, &off, &prio); err != nil {
 					return err
 				}
 				c := out[id]
 				c.NoFallback = off
+				c.DefaultPriority = prio
 				out[id] = c
 				return nil
 			}},

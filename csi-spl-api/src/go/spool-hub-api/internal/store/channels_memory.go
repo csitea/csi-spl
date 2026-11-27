@@ -32,6 +32,9 @@ type memChannels struct {
 	// humansOnly is the rdb 0206 mark per (tenant, channel)
 	// (channel_humans_only.go).
 	humansOnly map[[2]string]bool
+	// defPrio is the rdb 0332 default priority per (tenant, channel); absent
+	// = unset (channel_default_priority.go).
+	defPrio map[[2]string]ChannelDefaultPrio
 }
 
 // archivedCh reports an archived channel of tenant. Caller holds Memory.mu.
@@ -64,6 +67,9 @@ func (c *memChannels) init() {
 	}
 	if c.humansOnly == nil {
 		c.humansOnly = map[[2]string]bool{}
+	}
+	if c.defPrio == nil {
+		c.defPrio = map[[2]string]ChannelDefaultPrio{}
 	}
 }
 
@@ -163,6 +169,7 @@ func (s *Memory) DeleteChannel(_ context.Context, tenant, id, by string, now tim
 	delete(s.ch.archived, k)
 	delete(s.ch.humans, k)
 	delete(s.ch.ai, k)
+	delete(s.ch.defPrio, k)
 	for key := range s.ch.invited { // channel_subscriptions / backfill rows
 		if key[0] == tenant && key[1] == id {
 			delete(s.ch.invited, key)

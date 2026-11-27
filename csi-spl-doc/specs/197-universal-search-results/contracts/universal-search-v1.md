@@ -25,7 +25,7 @@ OPTIONS /v1/view/search/universal
 | Param | Required | Meaning |
 |---|---|---|
 | `q` | Yes | Raw search query (`search-v1` grammar **v1.9**). Empty / whitespace-only, > `512` UTF-16 code units, > `32` terms, or nesting > `8` -> `400 bad_query` with UTF-16 `pos` and `token`. |
-| `type` | No | Comma-separated kind filter from `/us` kind chips (e.g. `topic,issue`). If both `&type=` and a top-level `type:` term inside `q` are given, their intersection is searched; an empty intersection -> `400 bad_query`. |
+| `type` | No | Optional comma-separated kind filter (e.g. `topic,issue`, for shared-link / API callers; `/us` v1 filters via `type:` in `q` per owner Q3 = `NO`). If both `&type=` and a top-level `type:` term inside `q` are given, their intersection is searched; an empty intersection -> `400 bad_query`. |
 | `sort` | No | `updated_desc` (default: last modified, newest first), `updated_asc` (oldest first), or `relevance` (cross-kind tiered ranking: exact key/title match > FTS `ts_rank_cd` / substring tier > `updated_at DESC`). Any other value -> `400 bad_query`. |
 | `limit` | No | Page size. Default **30**, max **100** (clamped above max; `<= 0` -> default 30). |
 | `cursor` | No | Opaque base64url JSON cursor from a previous `next` for the exact same `(q, sort, kinds)`. Malformed or mismatched -> `400 bad_cursor`. |
@@ -39,10 +39,10 @@ OPTIONS /v1/view/search/universal
   - `card_msg` (aliases: `card`, `cards`, `card_msgs`) — Level 1 message (`is_parent = 1`).
   - `topic_msg` (aliases: `reply`, `replies`, `topic_msgs`) — Level 2 message (`is_parent = 0`).
   - `lane` (aliases: `lanes`) — active live + queued lanes matching `/monitoring/lanes`.
-  - `note` (aliases: `notes`) — reader's own personal notes (subject to owner poll Q6; omitted if Q6 = `W2`).
+  - `note` (aliases: `notes`) — reader's own personal notes (confirmed by owner Q6 = `INC`).
 - `search.UniversalDefaultTypes` (15 default kinds): `topic`, `card_msg`, `topic_msg`, `issue`, `calendar`, `lane`, `event`, `file`, `doc`, `contact`, `note`, `channel`, `user`, `robot`, `box`.
 - Opt-in kinds (searched only when explicitly named via `type:` or `in:`): `file_line` (`in:file-streams`), `tenant`.
-- `search.ParseUniversal(raw, now)`: `type:message` expands to `{card_msg, topic_msg}` (if Q4 = `SEP`).
+- `search.ParseUniversal(raw, now)`: `type:message` expands to `{card_msg, topic_msg}` (confirmed by owner Q4 = `SEP`).
 - `GET /v1/view/search/operators`: marks the 4 new kinds with `"universal_only": true` so `/us` autocomplete offers them while `/s` ignores them.
 
 ---
@@ -107,7 +107,7 @@ OPTIONS /v1/view/search/universal
 ### 3.2 Item Fields
 
 - `kind`: closed stable enum (`topic`, `card_msg`, `topic_msg`, `issue`, `calendar`, `lane`, `event`, `file`, `doc`, `contact`, `note`, `channel`, `user`, `robot`, `box`, `file_line`, `tenant`).
-- `id`: unique stable identifier within `kind` (`task_id`, `msg_id`, issue `KEY`, calendar `event_id`, `agent_id@box` or `agent_id`, `event_id`, `file_id/msg_id/name`, `item_id`, `contact_id`, `note_id`, `channel_id`, `HUM-n`, `agent@box`, `box_id`, `stream_id:seq`, `tenant_id`).
+- `id`: unique stable identifier within `kind` (`task_id`, `msg_id`, issue `KEY`, calendar `event_id`, `agent_id@box` or `agent_id`, namespaced event id `mine:<event_id>` | `workspace:<id>` | `system:<id>` so the three independent event sequences never collide, `file_id/msg_id/name`, `item_id`, `contact_id`, `note_id`, `channel_id`, `HUM-n`, `agent@box`, `box_id`, `stream_id:seq`, `tenant_id`).
 - `updated_at`: RFC 3339 UTC timestamp string, or `null` for timeless entities (`user`, `robot`, `tenant`).
 - `title`, `snippet`: `{ "text": string, "highlights": [[start, end], ...] }` with UTF-16 code-unit spans (`String.slice`). Plain text only — **never HTML**.
 - `href`: canonical app-relative full link per Spec 197 Section 3.3 (`""` only for `tenant`, which switches workspace host).
@@ -118,7 +118,7 @@ OPTIONS /v1/view/search/universal
   - `issue`: `key`, `status`, `priority`, `assignee`, `epic`, `labels`, `deadline`, `description_excerpt` (`<= 400` chars).
   - `calendar`: `starts_at`, `ends_at`, `all_day`, `location`, `kind`, `audience`, `description_excerpt` (`<= 400` chars).
   - `lane`: `agent_id`, `agent_box` (`""` in workspace-scoped view), `vendor`, `state` (`live` | `queued`), `scope`, `topic_id`, `topic_title`, `issues`, `wait`.
-  - `event`: `event_id`, `error_id`, `code`, `status`, `method`, `path`, `source`, `message`.
+  - `event` (Q5 = `ALL`): `scope` (`"mine"` | `"workspace"` | `"system"`). For `mine`: `event_id`, `error_id`, `code`, `status`, `method`, `path`, `source`, `message` (`href`: `/monitoring/events#<event_id>`). For `workspace` / `system`: `id`, `kind`, `level`, `actor`, `origin_kind`, `origin_ref`, `message`, plus optional error-group fields `fingerprint`, `n`, `issue_key` on `system` groups (`log_events.go:72-79`; `href`: `/monitoring/events?log=workspace#<id>` or `/monitoring/events?log=system#<id>`, added by row W6e).
   - `doc`: `doc_id`, `item_id`, `top`, `doc_title`, `heading`.
   - `contact`: `contact_id`, `email`, `phone`, `google`.
   - `note`: `note_id`, `pinned`, `priority`, `body_excerpt` (`<= 400` chars).
@@ -166,7 +166,7 @@ type universalCursor struct {
   3. The hub k-way merges all streams, applies `mod.keepResults` and `lockKeepResults`, and emits the first `limit` items. Across all unbounded SQL sources, this produces an exact cross-kind page (zero duplicates, zero skips).
   4. If more than `limit` merged items remain or any source returned more than `limit` rows, `has_more = true` and `next` encodes the `limit`-th item's watermark (or `NT: true` + `O` once inside the `null`-timestamp tail).
 - **Explicit bounded-source caps (never silent):**
-  - `event`: scans at most the newest **500** `human_events` rows (`search-v1.md:364`). If the 500-row cap is hit while `event` is queried, the answer includes notice `events_capped_500`.
+  - `event` (Q5 = `ALL`): scans at most the newest **500** rows per authorised event log (`human_events`, `search-v1.md:364`; `workspace_events` via `WorkspaceEventsPage` for workspace owner/admin; `system_events` via `SystemEventsPage` for operator workspace admin). Unauthorised scopes are skipped silently with zero `partial_errors`. If any queried event log hits its 500-row cap, the answer includes notice `events_capped_500`.
   - `sort=relevance`: ranks over a bounded per-source candidate pool (`max(limit*3, 120)` rows per source), scored by `(tier DESC, score DESC, updated_at DESC, kind ASC, id DESC)` and paged by `RO`. When paging reaches the end of the capped pool while at least one source hit the pool ceiling, `has_more` becomes `false` and the answer includes notice `relevance_pool_capped` so the UI tells the reader to narrow the query rather than implying no more matches exist.
 
 ---

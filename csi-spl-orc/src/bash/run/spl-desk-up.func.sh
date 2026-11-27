@@ -420,7 +420,11 @@ spl_desk_sidecar() {
     qlog="$(yq -r '.env.box.fallback_queue.log_every_minutes // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || qlog=""
     qwarn="$(yq -r '.env.box.fallback_queue.warn_after_minutes // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || qwarn=""
     [[ "$qlog$qwarn" =~ ^[0-9]*$ ]] || { do_log "FATAL cnf env.box.fallback_queue minutes must be whole minutes, got '$qlog' / '$qwarn'"; flock -u 9; exec 9>&-; return 1; }
+    # spec 192 L3 (owner Q1 A): the sign-in relay, on only while cnf
+    # env.box.signin_relay_kinds names a kind.
+    local relay; relay="$(spl_desk_signin_relay_cmd "$tenant")"
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
+    SPOOL_SIGNIN_RELAY_CMD="$relay" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
     SPOOL_TRACE="${SPOOL_TRACE:-}" SPOOL_FLEET_ROOT="$fleet" SPOOL_AGENT_DROP_AFTER="$drop" \
     SPOOL_AGENT_KEEP="$(spl_desk_keep_ids)" \
@@ -432,6 +436,34 @@ spl_desk_sidecar() {
   fi
   flock -u 9; exec 9>&-
   [[ -n "$SPL_DESK_PID" ]]
+}
+
+# spl_desk_signin_relay_cmd <tenant>: the sidecar's SPOOL_SIGNIN_RELAY_CMD
+# (spec 192 row L3, owner Q1 A), or nothing while cnf
+# env.box.signin_relay_kinds is empty: the relay stays off. The command runs
+# do_spl_ws_signin_relay as the user the box binds to <tenant>: this desk's
+# own user on a claimed box (spl_box_ws_guard made it W's), the fleet's agent
+# user on a box with no claim (through `sudo -n` when the desk runs as another
+# user). The sidecar splits it on spaces and runs it with no shell.
+spl_desk_signin_relay_cmd() {
+  local t="$1" kinds run au pre=""
+  kinds="$(yq -r '.env.box.signin_relay_kinds // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || kinds=""
+  [[ -n "${kinds//[[:space:],]/}" ]] || return 0
+  run="$APP_PATH/$SPL_ORG_APP-orc/run"
+  if [[ "$run" == *[[:space:]]* || ! -x "$run" ]]; then
+    do_log "WARN the sign-in relay stays off: '$run' is not an executable path without spaces" >&2; return 0
+  fi
+  local -a envv=(env "ENV=${ENV:-}" "TENANT_ID=$t" "SPOOL_TENANT=$t")
+  if [[ -z "$(spl_box_ws_claim)" ]]; then
+    au="${SPOOL_AGENT_USER:-$( (SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1; printf '%s' "${SPOOL_AGENT_USER:-}") )}"
+    if [[ ! "$au" =~ ^[a-z_][a-z0-9_-]{0,31}$ || "$au" == root ]]; then
+      do_log "WARN the sign-in relay stays off: no fleet agent user for this box (box.env SPOOL_AGENT_USER)" >&2; return 0
+    fi
+    envv+=("SPOOL_AGENT_USER=$au")
+    [[ "$(id -un)" == "$au" ]] ||
+      pre="sudo -n --preserve-env=SIGNIN_RELAY_OP,SIGNIN_RELAY_KIND,SIGNIN_RELAY_ID,DRY_RUN -u $au "
+  fi
+  printf '%s%s %s -a do_spl_ws_signin_relay\n' "$pre" "${envv[*]}" "$run"
 }
 
 # spl_desk_sidecar_recycle <pid file> <box> <box poke> <new seat 0|1>: stop the

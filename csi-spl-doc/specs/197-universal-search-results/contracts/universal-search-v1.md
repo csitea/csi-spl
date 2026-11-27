@@ -17,7 +17,7 @@ OPTIONS /v1/view/search/universal
 
 - Registered in `csi-spl-api/src/go/spool-hub-api/internal/hub/search.go` (`routeSearch`) and documented in `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` beside `/v1/view/search` (`:24322`) and `/v1/view/search/operators` (`:24434`).
 - **Read-only**, same view door (`view-v1.md` §2), same Host tenant + Postgres FORCE RLS, same CORS allow-list (`OPTIONS` preflight, any other method -> `405 method_not_allowed`).
-- **Rate limit:** Shares the per-`(tenant, reader)` **30 searches/min** bucket with `GET /v1/view/search` (`search-v1.md:445`; `429 rate_limited` with `Retry-After` and `Access-Control-Expose-Headers: Retry-After`). Quick preview cycling MUST NOT call this endpoint.
+- **Rate limit:** Shares the per-`(tenant, reader)` **30 searches/min** bucket with `GET /v1/view/search` (`search-v1.md:445`; `429 rate_limited` with `Retry-After` and `Access-Control-Expose-Headers: Retry-After`). Cursor paging ("Load more") calls count against this shared 30/min bucket just as `/v1/view/search` "Load more" does today; Quick Preview cycling MUST NOT call this endpoint.
 - **Time budget:** `7 s` Postgres `SET LOCAL statement_timeout` and `8 s` request context (`searchBudgetDefault + 1s`, `internal/hub/search.go:32,162`).
 
 ### 1.1 Query Parameters
@@ -98,9 +98,9 @@ OPTIONS /v1/view/search/universal
 | `sort` | string | Effective sort (`updated_desc`, `updated_asc`, `relevance`) |
 | `kinds` | string[] | Closed set of kinds queried for this request |
 | `warnings` | array | Non-fatal query parse warnings (`token`, `pos`, `detail`), always `[]` when empty |
-| `notices` | string[] | Stable i18n notice codes (e.g. `file_streams_staff_only`), always `[]` when empty |
-| `partial_errors` | array | `[{ "kind": "<kind>", "code": "timeout" \| "unavailable" }]` — populated **only** for real timeouts or errors on sources the caller is authorised to query. A source skipped due to role, ACL, or feature kill-switch NEVER appears here. |
-| `has_more` | bool | `true` iff more rows exist after `items` |
+| `notices` | string[] | Stable i18n notice codes (e.g. `file_streams_staff_only`, `events_capped_500`, `relevance_pool_capped`), always `[]` when empty |
+| `partial_errors` | array | `[{ "kind": "<kind>", "code": "timeout" \| "unavailable" }]` — populated **only** for real timeouts or store errors on sources the caller is authorised to query (including a `realmRefuses` store lookup error for `contact`/`note`, failing closed without aborting workspace hits with `503`). A source skipped due to role, ACL, act-as/box refusal, or feature kill-switch NEVER appears here. |
+| `has_more` | bool | `true` iff more rows exist after `items` (within bounded-source caps noted in §4) |
 | `next` | string \| null | Opaque cursor for the next page, or `null` when `has_more` is `false` |
 | `items` | array | Flat ordered list of up to `limit` hits. No total count is computed (avoids a second scan). |
 
@@ -112,7 +112,7 @@ OPTIONS /v1/view/search/universal
 - `title`, `snippet`: `{ "text": string, "highlights": [[start, end], ...] }` with UTF-16 code-unit spans (`String.slice`). Plain text only — **never HTML**.
 - `href`: canonical app-relative full link per Spec 197 Section 3.3 (`""` only for `tenant`, which switches workspace host).
 - `where`: short location label (`#channel`, DM peer, issue epic key, calendar UTC date, box id, or `""`).
-- `actor`: actor/author id (`HUM-n`, agent id, or `null` where the kind has no actor).
+- `actor`: actor/author id (`HUM-n`, agent id, or `null` where the kind has no actor); WUI resolves display names from its shell roster with id fallback.
 - `preview`: lightweight per-kind object enabling instant Quick Preview with **zero** extra round trips on keyboard cycling:
   - `topic` / `card_msg` / `topic_msg` / `file`: `task_id`, `msg_id`, `channel`, `from`, `to`, `msg_kind`, `reply_count`, `file_count`, `edited_at`, and for `file`: `file_name`, `bytes`, `file_id`. Optional rich body expand calls `POST /v1/view/previews` (outside the search rate limit).
   - `issue`: `key`, `status`, `priority`, `assignee`, `epic`, `labels`, `deadline`, `description_excerpt` (`<= 400` chars).
@@ -123,15 +123,20 @@ OPTIONS /v1/view/search/universal
   - `contact`: `contact_id`, `email`, `phone`, `google`.
   - `note`: `note_id`, `pinned`, `priority`, `body_excerpt` (`<= 400` chars).
   - `channel` / `user` / `robot` / `box` / `file_line` / `tenant`: concise identity, presence, count, or stream metadata.
-- `multicast`: `{ "eligible": bool, "task_id": string, "channel": string, "title": string }`. `eligible` is `true` **only** for `topic`, `card_msg`, `topic_msg`, and `file` belonging to a non-`issues` channel (matching Spec 186 Q2 `EX`, Q8 `CHN`, R1). `title` is the carrying topic's title so the WUI constructs `TopicPick` directly without an extra lookup.
+- `multicast`: `{ "eligible": bool, "task_id": string, "channel": string, "title": string }`. `eligible` is `true` **only** for `topic`, `card_msg`, `topic_msg`, and `file` belonging to a non-`issues` channel (matching Spec 186 Q2 `EX`, Q8 `CHN`, R1). `title` is always the carrying topic's true title (resolved via indexed lateral lookup on `messages_task_received`, `0022_messages_thread_walk.sql:19`) so the WUI constructs `TopicPick` directly without an extra lookup.
 
-### 3.3 Topic vs. Card Message Deduplication
+### 3.3 Cross-Page Topic vs. Card Message Deduplication (At the Source)
 
-When both `topic` and `card_msg` are in `kinds` and the same `task_id` matches both as a `topic` (title) and as its own root `card_msg` (`is_parent = 1`), the hub emits **one** row (`kind: "topic"`) carrying the root body `snippet` and `preview.msg_id`. When `type:card_msg` is explicitly requested without `topic`, `card_msg` rows are returned directly.
+Deduplication is enforced **at the source**, not only in the page merge, so a thread with newer replies (`topic.updated_at > card_msg.updated_at`) never emits its opening card a second time on a later page:
+
+- When `topic` is in `kinds`, the `card_msg` source excludes every root message (`is_parent = 1`) whose `task_id` also matches the query's `topic` predicate (Batch 1's shared `spool_search_candidates` probe decides both).
+- When that `topic` row is emitted, it carries the matched root body `snippet` and `preview.msg_id` so the reader sees both title and body context on one row.
+- When `type:card_msg` is explicitly requested without `topic`, `card_msg` rows are returned directly.
+- **Layer H test:** a thread whose title and root body both match and which has a newer reply, fetched with `limit=1` on page 1 then page 2 -> the opening card appears exactly once across all pages.
 
 ---
 
-## 4. Opaque Cross-Kind Cursor and Exact K-Way Merge
+## 4. Opaque Cross-Kind Cursor, Kind-Aware Boundary, and Bounded Caps
 
 ```go
 type universalCursor struct {
@@ -147,11 +152,22 @@ type universalCursor struct {
 ```
 
 - **Dated sorts (`updated_desc`, `updated_asc`):**
-  1. Every dated SQL source receives the global watermark `(A, I)` and fetches up to `limit + 1` rows strictly past `(A, K, I)` ordered by `(updated_at DESC, id DESC)` (or `ASC` for `updated_asc`).
-  2. Small entity/in-memory sources (`lane`, `event` [500 cap], `channel`, `box`, `robot`, `user`, `tenant`) filter in Go, sort by `(updated_at DESC NULLS LAST, kind ASC, id DESC)`, and slice past the watermark.
-  3. The hub k-way merges all streams, applies `mod.keepResults`, `lockKeepResults`, and topic/`card_msg` deduplication, and emits the first `limit` items. Because every source returns `limit + 1` ordered rows past the watermark, the merged page is exact (zero duplicates, zero skipped rows across pages).
-  4. If more than `limit` merged items remain or any source returned `limit + 1`, `has_more = true` and `next` encodes the `limit`-th item's watermark (or `NT: true` + `O` once inside the `null`-timestamp tail).
-- **Relevance sort (`sort=relevance`):** Bounded per-source candidate pool (`max(limit*3, 120)`), scored by `(tier DESC, score DESC, updated_at DESC, kind ASC, id DESC)`, paged via `RO`.
+  1. Every dated SQL source receives the global watermark `(A, K, I)` and applies a **kind-aware boundary** so equal `updated_at` timestamps across different kinds are never skipped or duplicated:
+     - For `updated_desc` (merge order `updated_at DESC NULLS LAST, kind ASC, id DESC`):
+       - source `kind < K`: strictly `updated_at < $A` (timestamp `A` was already emitted before `K`);
+       - source `kind == K`: `(updated_at, id) < ($A, $I)`;
+       - source `kind > K`: `updated_at <= $A` (timestamp `A` has not yet been emitted for this kind).
+     - For `updated_asc` (merge order `updated_at ASC NULLS LAST, kind ASC, id DESC`):
+       - source `kind < K`: strictly `updated_at > $A`;
+       - source `kind == K`: `(updated_at > $A OR (updated_at = $A AND id < $I))`;
+       - source `kind > K`: `updated_at >= $A`.
+     - Because `SearchMessagesUniversal` reads both `card_msg` and `topic_msg` in one SQL query, when `card_msg <= K <= topic_msg` it applies the inclusive `<= $A` (or `>= $A`) boundary, fetches up to `2*limit + 1` rows (ensuring source-level dedup never leaves a short page), and the Go merger filters strictly past `(A, K, I)`.
+  2. Small entity/in-memory sources (`lane`, `event`, `channel`, `box`, `robot`, `user`, `tenant`) filter in Go, sort by the merge key, and slice strictly past `(A, K, I)`.
+  3. The hub k-way merges all streams, applies `mod.keepResults` and `lockKeepResults`, and emits the first `limit` items. Across all unbounded SQL sources, this produces an exact cross-kind page (zero duplicates, zero skips).
+  4. If more than `limit` merged items remain or any source returned more than `limit` rows, `has_more = true` and `next` encodes the `limit`-th item's watermark (or `NT: true` + `O` once inside the `null`-timestamp tail).
+- **Explicit bounded-source caps (never silent):**
+  - `event`: scans at most the newest **500** `human_events` rows (`search-v1.md:364`). If the 500-row cap is hit while `event` is queried, the answer includes notice `events_capped_500`.
+  - `sort=relevance`: ranks over a bounded per-source candidate pool (`max(limit*3, 120)` rows per source), scored by `(tier DESC, score DESC, updated_at DESC, kind ASC, id DESC)` and paged by `RO`. When paging reaches the end of the capped pool while at least one source hit the pool ceiling, `has_more` becomes `false` and the answer includes notice `relevance_pool_capped` so the UI tells the reader to narrow the query rather than implying no more matches exist.
 
 ---
 
@@ -164,5 +180,5 @@ type universalCursor struct {
 | `401` | `view_door` | View door refusal (`view-v1.md` §2) |
 | `404` | `unknown_tenant` | Host maps to no tenant |
 | `405` | `method_not_allowed` | Any method other than `GET` / `OPTIONS` |
-| `429` | `rate_limited` | Over 30 searches/min per `(tenant, reader)` (shared with `/v1/view/search`) |
+| `429` | `rate_limited` | Over 30 searches/min per `(tenant, reader)` (shared with `/v1/view/search`; includes `Load more` cursor calls) |
 | `503` | `search_budget` | Whole request exceeded 7 s statement timeout with zero partial sources succeeding |

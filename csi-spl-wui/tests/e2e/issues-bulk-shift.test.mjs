@@ -140,7 +140,8 @@ try {
     await settle()
     const before = await cardTop(p)
     await shot(p, `412-${theme}-before`)
-    await p.click('.issues-check--card input')
+    /* SPL-6646: the first tick is the bar's select tick (no card box until the select phase) */
+    await p.click('[data-test=issues-mbar] [data-test=issues-select-listed]')
     await p.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 10000 })
     /* the lazy bar's chunk and its first paint */
     await settle()

@@ -74,13 +74,9 @@ try {
   await p.waitForSelector('[data-test=issues-card]', { visible: true, timeout: 10000 })
   await p.waitForSelector('[data-test=issues-epic-chips]', { visible: true, timeout: 10000 })
 
-  const m = await p.evaluate(() => {
-    const input = document.querySelector('.issues-check--card input')
-    const box = getComputedStyle(input, '::before')
-    const ir = input.getBoundingClientRect()
-    const card = input.closest('.issues-card-li').querySelector('[data-test=issues-card]')
-    const cr = card.getBoundingClientRect()
-    const hit = document.elementFromPoint(cr.left + 50, cr.top + 22)
+  /* SPL-6646: the header stack as it reads by default, then the card box,
+     which shows only in the select phase (the bar's select tick starts it) */
+  const hs = await p.evaluate(() => {
     const bar = document.querySelector('[data-test=issues-mbar]').getBoundingClientRect()
     const chips = document.querySelector('[data-test=issues-epic-chips]').getBoundingClientRect()
     const small = []
@@ -88,17 +84,24 @@ try {
       const r = el.getBoundingClientRect()
       if (r.width && r.height && (r.width < 43.5 || r.height < 43.5)) small.push(`${el.getAttribute('data-test') || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`)
     }
+    return { stack: Math.round(chips.bottom - bar.top), bar: Math.round(bar.height), chips: Math.round(chips.height), small }
+  })
+  await p.click('[data-test=issues-mbar] [data-test=issues-select-listed]')
+  await p.waitForSelector('.issues-check--card input', { visible: true, timeout: 10000 })
+  const m = { ...hs, ...await p.evaluate(() => {
+    const input = document.querySelector('.issues-check--card input')
+    const box = getComputedStyle(input, '::before')
+    const ir = input.getBoundingClientRect()
+    const card = input.closest('.issues-card-li').querySelector('[data-test=issues-card]')
+    const cr = card.getBoundingClientRect()
+    const hit = document.elementFromPoint(cr.left + 50, cr.top + 22)
     return {
       radius: box.borderTopLeftRadius,
       border: box.borderTopWidth,
       tap: [Math.round(ir.width), Math.round(ir.height)],
       textHitIsBox: hit === input || !!hit?.closest('.issues-check--card'),
-      stack: Math.round(chips.bottom - bar.top),
-      bar: Math.round(bar.height),
-      chips: Math.round(chips.height),
-      small,
     }
-  })
+  }) }
   ok('1 412: the card box is a square (4 px --radius-xs corners), not a 16 px circle', m.radius === '4px', m)
   ok('2 412: the card box has a 2 px border', m.border === '2px', m)
   ok('3 412: the card box keeps its 44x44 tap target', m.tap[0] >= 44 && m.tap[1] >= 44, m.tap)
@@ -107,6 +110,8 @@ try {
   ok('6 412: every control in the header stack stays >= 44 px', m.small.length === 0, m.small)
   const x = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ok('7 412: no horizontal page scroll', x <= 0, x)
+  await p.click('[data-test=issues-bulk-clear]')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-bulk-bar]'), { timeout: 5000 })
 
   /* ---- 1280x800: the desktop table, unchanged ---- */
   const desk = { width: 1280, height: 800 }

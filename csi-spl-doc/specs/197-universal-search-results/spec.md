@@ -458,3 +458,4 @@ Each seat signs a version with its own commit on `review/c002-bcfd15e1-search-re
 | `a-580` (Editor) | agy | WHAT v0.2 | — | Draft v0.2 folding all round-1 findings (R1–R8, S1–S7, W1–W3, N1–N6, D1–D12) |
 | `c-582` (User View) | claude | WHAT v0.2 | `a8e89dbfb` | PASS: R1-R8 folded (R2-R4 blockers closed). N: FR-US-11 still names a long-press "Open in new tab", but a phone long-press now ticks the row (FR-US-15); drop it or move it into the row menu |
 | `c-584` (Reviewer) | claude | WHAT v0.2 | `a8e89dbfb` | PASS: W1–W3 closed (6 M/H/L, 3.3 dedup, 3.3b + Q8); new cites re-run on `4ab7b731b`; notes N7–N8 for v0.3 |
+| `m-585` (UI Design) | mistral | WHAT v0.2 | `a8e89dbfb` | contributor (UI design): D1–D12 folded (rail-only `.sidebar--rail` confirmed, wireframe in FR-US-04, OpenMessageToast in FR-US-11, ContextMenu/Shift+F10 row menu in FR-US-14, Retry-After in FR-US-19); no open blockers |

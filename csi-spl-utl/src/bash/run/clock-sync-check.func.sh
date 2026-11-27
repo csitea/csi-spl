@@ -179,12 +179,36 @@ clock_sync_clear() {
   return 0
 }
 
+# _utl_send_throttled_alert <send_cmd> <send_tmo> <from> <to> <task> <body> <stamp> <stamp_val> <sent_label> <fail_label> [alert|note]
+# Send one --no-poke spool note (override cmd or PROJ_PATH sibling spool-send.sh)
+# under timeout -k 2; write <stamp_val> to <stamp> only on delivery. Always returns 0.
+_utl_send_throttled_alert() {
+  local send_cmd="$1" send_tmo="$2" from="$3" to="$4" task="$5" body="$6"
+  local stamp="$7" stamp_val="$8" sent_label="$9" fail_label="${10}" kind="${11:-alert}"
+  local missing_msg="alert not sent" retry_verb="alerts"
+  [[ "$kind" == note ]] && missing_msg="note not sent" retry_verb="sends"
+  local -a send
+  read -ra send <<<"$send_cmd"
+  if ! ((${#send[@]})); then
+    send=(bash "${PROJ_PATH:-.}/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh")
+    [[ -f "${send[1]}" ]] || { do_log "WARN no spool-send.sh at ${send[1]}: $missing_msg"; return 0; }
+  fi
+  if timeout -k 2 "$send_tmo" "${send[@]}" --from "$from" --to "$to" --kind note --task "$task" \
+    --no-poke --body "$body" >/dev/null 2>&1; then
+    { mkdir -p "$(dirname "$stamp")" && echo "$stamp_val" >"$stamp"; } 2>/dev/null ||
+      do_log "WARN cannot write $stamp: the next run $retry_verb again"
+    do_log "INFO $sent_label note sent to $to"
+  else
+    do_log "WARN $fail_label: the note to $to failed"
+  fi
+  return 0
+}
+
 # clock_sync_alert <state> <detail> <dry> <offset> <server> - one throttled note
 clock_sync_alert() {
   local state="$1" detail="$2" dry="$3" off="$4" server="$5" stamp prev="" at=0 now box body from
   local to="${CLOCK_SYNC_ALERT_TO:-orchestrator}" task="${CLOCK_SYNC_ALERT_TASK:-clock-sync}"
   local throttle="${CLOCK_SYNC_THROTTLE_S:-3600}" send_tmo="${CLOCK_SYNC_SEND_TIMEOUT:-20}"
-  local -a send
   box="$(spl_box_name)"
   from="${CLOCK_SYNC_ALERT_FROM:-${SPOOL_AGENT_ID:-clock-sync-check@$box}}"
   stamp="$(clock_sync_dir)/last-alert.stamp"
@@ -200,20 +224,8 @@ clock_sync_alert() {
     do_log "INFO PLAN note to $to on task $task: $body"
     return 0
   fi
-  read -ra send <<<"${CLOCK_SYNC_SEND_CMD:-}"
-  if ! ((${#send[@]})); then
-    send=(bash "${PROJ_PATH:-.}/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh")
-    [[ -f "${send[1]}" ]] || { do_log "WARN no spool-send.sh at ${send[1]}: alert not sent"; return 0; }
-  fi
-  if timeout -k 2 "$send_tmo" "${send[@]}" --from "$from" --to "$to" --kind note --task "$task" \
-    --no-poke --body "$body" >/dev/null 2>&1; then
-    { mkdir -p "$(dirname "$stamp")" && echo "$state $now" >"$stamp"; } 2>/dev/null ||
-      do_log "WARN cannot write $stamp: the next run alerts again"
-    do_log "INFO clock-sync $state note sent to $to"
-  else
-    do_log "WARN clock-sync: the note to $to failed"
-  fi
-  return 0
+  _utl_send_throttled_alert "${CLOCK_SYNC_SEND_CMD:-}" "$send_tmo" "$from" "$to" "$task" "$body" \
+    "$stamp" "$state $now" "clock-sync $state" "clock-sync"
 }
 
 # clock_sync_ms - a millisecond wall clock (no fork)

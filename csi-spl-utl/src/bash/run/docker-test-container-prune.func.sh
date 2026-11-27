@@ -129,7 +129,6 @@ _dtcp_box() {
 _dtcp_note() {
   local dry="$1" sig="$2" body="$3" once="${4:-}" stamp prev_sig="" prev_t=0 now from
   local to="${DOCKER_PRUNE_ALERT_TO:-orchestrator}" task="${DOCKER_PRUNE_ALERT_TASK:-docker-test-container-prune}"
-  local -a send
   stamp="$(_dtcp_stamp)"
   now="${DOCKER_PRUNE_NOW:-$(date +%s)}"
   from="${DOCKER_PRUNE_ALERT_FROM:-${SPOOL_AGENT_ID:-docker-test-container-prune@$(_dtcp_box)}}"
@@ -143,20 +142,10 @@ _dtcp_note() {
     do_log "INFO docker-test-container-prune note throttled by $stamp"
     return 0
   fi
-  read -ra send <<<"${DOCKER_PRUNE_SEND_CMD:-}"
-  if ! ((${#send[@]})); then
-    send=(bash "${PROJ_PATH:-.}/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh")
-    [[ -f "${send[1]}" ]] || { do_log "WARN no spool-send.sh at ${send[1]}: note not sent"; return 0; }
-  fi
-  if timeout -k 2 20 "${send[@]}" --from "$from" --to "$to" --kind note --task "$task" \
-    --no-poke --body "$body" >/dev/null 2>&1; then
-    { mkdir -p "$(dirname "$stamp")" && echo "$sig $now" >"$stamp"; } 2>/dev/null ||
-      do_log "WARN cannot write $stamp: the next run sends again"
-    do_log "INFO docker-test-container-prune note sent to $to"
-  else
-    do_log "WARN docker-test-container-prune: the note to $to failed"
-  fi
-  return 0
+  # shellcheck source=clock-sync-check.func.sh
+  declare -F _utl_send_throttled_alert >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/clock-sync-check.func.sh" || return 0
+  _utl_send_throttled_alert "${DOCKER_PRUNE_SEND_CMD:-}" 20 "$from" "$to" "$task" "$body" \
+    "$stamp" "$sig $now" "docker-test-container-prune" "docker-test-container-prune" note
 }
 
 # The steps below read and fill the locals of do_docker_test_container_prune

@@ -19,6 +19,8 @@
 #  14. A failed send -> no alert stamp, so the next run retries
 #  15. timedatectl / chronyc are only ever read (show, timesync-status, tracking)
 #  16. Through the csi-spl-utl ./run harness -> exits 0; the probe < 500 ms
+#  17. _utl_send_throttled_alert helper, one-copy across clock-sync-check,
+#      tmux-health-guard, and docker-test-container-prune, and lazy-load (r11-02)
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -237,6 +239,105 @@ if [[ $rc -eq 0 && -n "$ms" ]] && ((ms < 500)); then
   pass "16. ./run -a do_os_clock_sync_check exits 0, probe ${ms} ms (< 500)"
 else
   fail "16. ./run harness (rc=$rc, ms=${ms:-?}, out=$out)"
+fi
+
+# 17. _utl_send_throttled_alert helper and one-copy delegation (r11-02)
+THG_SH="$UTL_ROOT/src/bash/run/tmux-health-guard.func.sh"
+DTCP_SH="$UTL_ROOT/src/bash/run/docker-test-container-prune.func.sh"
+mkdir -p "$T/fake17/csi-spl-utl" "$T/fake17/csi-spl-orc/src/bash/features/spawn-agents/scripts" "$T/state17"
+S17_LOG="$T/s17.log"
+cat >"$T/fake17/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh" <<'S17_EOF'
+#!/bin/bash
+printf 'SIB17 %s\n' "$*" >>"$S17_LOG"
+S17_EOF
+chmod +x "$T/fake17/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
+: >"$S17_LOG"
+
+out=$(S17_LOG="$S17_LOG" PROJ_PATH="$T/fake17/csi-spl-utl" bash -c '
+  source "$1"
+  _utl_send_throttled_alert "" 15 "from17@b" "orchestrator" "task17" "body17" "$2" "ST 123" "demo ST" "demo"' _ "$FUNC_SH" "$T/state17/a.stamp" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"INFO demo ST note sent to orchestrator"* && "$(cat "$T/state17/a.stamp" 2>/dev/null)" == "ST 123" ]] &&
+  grep -q -- "SIB17 --from from17@b --to orchestrator --kind note --task task17 --no-poke --body body17" "$S17_LOG"; then
+  pass "17. _utl_send_throttled_alert uses PROJ_PATH sibling spool-send.sh, --no-poke, and writes stamp"
+else
+  fail "17. sibling send (rc=$rc, out=$out, stamp=$(cat "$T/state17/a.stamp" 2>/dev/null), log=$(cat "$S17_LOG"))"
+fi
+
+out=$(PROJ_PATH="$T/no-such-tree" bash -c '
+  source "$1"
+  _utl_send_throttled_alert "" 15 "from17@b" "orchestrator" "task17" "body17" "$2" "ST 123" "demo ST" "demo"' _ "$FUNC_SH" "$T/state17/missing.stamp" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARN no spool-send.sh at $T/no-such-tree/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh: alert not sent"* && ! -f "$T/state17/missing.stamp" ]]; then
+  pass "17. _utl_send_throttled_alert warns 'alert not sent' and returns 0 when default sender missing"
+else
+  fail "17. missing sender alert (rc=$rc, out=$out)"
+fi
+
+out=$(PROJ_PATH="$T/no-such-tree" bash -c '
+  source "$1"
+  _utl_send_throttled_alert "" 15 "from17@b" "orchestrator" "task17" "body17" "$2" "ST 123" "demo ST" "demo" note' _ "$FUNC_SH" "$T/state17/missing-n.stamp" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARN no spool-send.sh at $T/no-such-tree/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh: note not sent"* && ! -f "$T/state17/missing-n.stamp" ]]; then
+  pass "17. _utl_send_throttled_alert note mode warns 'note not sent' when default sender missing"
+else
+  fail "17. missing sender note (rc=$rc, out=$out)"
+fi
+
+out=$(bash -c '
+  source "$1"
+  _utl_send_throttled_alert "$2" 15 "from17@b" "orchestrator" "task17" "body17" "$3" "ST 123" "demo ST" "demo"' _ "$FUNC_SH" "$BIN_DIR/failing-send.sh" "$T/state17/fail.stamp" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARN demo: the note to orchestrator failed"* && ! -f "$T/state17/fail.stamp" ]]; then
+  pass "17. _utl_send_throttled_alert logs fail_label and skips stamp on sender failure"
+else
+  fail "17. failing sender (rc=$rc, out=$out)"
+fi
+
+if [[ "$(grep -c '^_utl_send_throttled_alert()' "$FUNC_SH")" -eq 1 ]] && grep -q '_utl_send_throttled_alert ' "$FUNC_SH"; then
+  pass "17. one copy: clock-sync-check.func.sh hosts _utl_send_throttled_alert"
+else
+  fail "17. host check"
+fi
+for uf in "$THG_SH" "$DTCP_SH"; do
+  own_u="$(grep -nE 'spool-send\.sh|the next run (alerts|sends) again|cannot write \$stamp' "$uf" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+  if [[ -z "$own_u" ]] && grep -q '_utl_send_throttled_alert ' "$uf"; then
+    pass "17. one copy: $(basename "$uf") delegates alert send to _utl_send_throttled_alert"
+  else
+    fail "17. $(basename "$uf") own=[$own_u]"
+  fi
+done
+
+: >"$SEND_LOG"
+out=$(TMUX_HEALTH_STATE_DIR="$T/state17/thg" TMUX_HEALTH_SEND_CMD="$BIN_DIR/send.sh" SPOOL_DESK_BOX="box17" bash -c '
+  source "$1"; tmux_health_alert "/tmp/sock17" HUNG "timeout" 0' _ "$THG_SH" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"INFO tmux-health HUNG note sent to orchestrator"* && -f "$T/state17/thg/tmp_sock17.stamp" ]] &&
+  grep -q -- "--from tmux-health-guard@box17 --to orchestrator --kind note --task tmux-health --no-poke" "$SEND_LOG"; then
+  pass "17. standalone: tmux-health-guard lazy-loads _utl_send_throttled_alert and sends"
+else
+  fail "17. standalone thg ok (rc=$rc, out=$out, log=$(cat "$SEND_LOG"))"
+fi
+
+out=$(TMUX_HEALTH_STATE_DIR="$T/state17/thg-fail" TMUX_HEALTH_SEND_CMD="$BIN_DIR/failing-send.sh" SPOOL_DESK_BOX="box17" bash -c '
+  source "$1"; tmux_health_alert "/tmp/sock17" HUNG "timeout" 0' _ "$THG_SH" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARN tmux-health: the note to orchestrator failed"* && ! -f "$T/state17/thg-fail/tmp_sock17.stamp" ]]; then
+  pass "17. standalone: tmux_health_alert preserves failure wording and skips stamp"
+else
+  fail "17. standalone thg fail (rc=$rc, out=$out)"
+fi
+
+: >"$SEND_LOG"
+out=$(DOCKER_PRUNE_STATE_DIR="$T/state17/dtcp" DOCKER_PRUNE_SEND_CMD="$BIN_DIR/send.sh" DOCKER_PRUNE_NOW=2000000100 DEV_BOX="box17" bash -c '
+  source "$1"; _dtcp_note 0 sig17 "body-dtcp"' _ "$DTCP_SH" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"INFO docker-test-container-prune note sent to orchestrator"* && "$(cat "$T/state17/dtcp/alert.stamp" 2>/dev/null)" == "sig17 2000000100" ]] &&
+  grep -q -- "--from docker-test-container-prune@box17 --to orchestrator --kind note --task docker-test-container-prune --no-poke --body body-dtcp" "$SEND_LOG"; then
+  pass "17. standalone: docker-test-container-prune lazy-loads _utl_send_throttled_alert and sends"
+else
+  fail "17. standalone dtcp ok (rc=$rc, out=$out, stamp=$(cat "$T/state17/dtcp/alert.stamp" 2>/dev/null), log=$(cat "$SEND_LOG"))"
+fi
+
+out=$(PROJ_PATH="$T/no-such-tree" DOCKER_PRUNE_STATE_DIR="$T/state17/dtcp-miss" DOCKER_PRUNE_SEND_CMD="" DOCKER_PRUNE_NOW=2000000100 DEV_BOX="box17" bash -c '
+  source "$1"; _dtcp_note 0 sig17 "body-dtcp"' _ "$DTCP_SH" 2>&1); rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARN no spool-send.sh at $T/no-such-tree/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh: note not sent"* && ! -f "$T/state17/dtcp-miss/alert.stamp" ]]; then
+  pass "17. standalone: _dtcp_note preserves 'note not sent' missing-sender wording"
+else
+  fail "17. standalone dtcp miss (rc=$rc, out=$out)"
 fi
 
 echo "=========================================="

@@ -133,7 +133,6 @@ tmux_health_alert() {
   local sock="$1" state="$2" detail="$3" dry="$4" stamp prev="" at=0 now box body from
   local to="${TMUX_HEALTH_ALERT_TO:-orchestrator}" task="${TMUX_HEALTH_ALERT_TASK:-tmux-health}"
   local throttle="${TMUX_HEALTH_THROTTLE_S:-1800}" send_tmo="${TMUX_HEALTH_SEND_TIMEOUT:-20}"
-  local -a send
   box="$(spl_box_name)"
   from="${TMUX_HEALTH_ALERT_FROM:-${SPOOL_AGENT_ID:-tmux-health-guard@$box}}"
   stamp="$(tmux_health_stamp "$sock")"
@@ -149,20 +148,10 @@ tmux_health_alert() {
     do_log "INFO PLAN note to $to on task $task: $body"
     return 0
   fi
-  read -ra send <<<"${TMUX_HEALTH_SEND_CMD:-}"
-  if ! ((${#send[@]})); then
-    send=(bash "${PROJ_PATH:-.}/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh")
-    [[ -f "${send[1]}" ]] || { do_log "WARN no spool-send.sh at ${send[1]}: alert not sent"; return 0; }
-  fi
-  if timeout -k 2 "$send_tmo" "${send[@]}" --from "$from" --to "$to" --kind note --task "$task" \
-    --no-poke --body "$body" >/dev/null 2>&1; then
-    { mkdir -p "$(dirname "$stamp")" && echo "$state $now" >"$stamp"; } 2>/dev/null ||
-      do_log "WARN cannot write $stamp: the next run alerts again"
-    do_log "INFO tmux-health $state note sent to $to"
-  else
-    do_log "WARN tmux-health: the note to $to failed"
-  fi
-  return 0
+  # shellcheck source=clock-sync-check.func.sh
+  declare -F _utl_send_throttled_alert >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/clock-sync-check.func.sh" || return 0
+  _utl_send_throttled_alert "${TMUX_HEALTH_SEND_CMD:-}" "$send_tmo" "$from" "$to" "$task" "$body" \
+    "$stamp" "$state $now" "tmux-health $state" "tmux-health"
 }
 
 # tmux_health_ms - a millisecond wall clock (no fork)

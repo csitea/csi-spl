@@ -2504,6 +2504,49 @@ for c in "  claude weekly 96% >= 95%: not picked|weekly" "  CORDONED |cordon" " 
     fail "41m. ${c#*|}: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
 done
 seat_clear
+# 41n. SPL-6681: do_spl_box_pick does not judge agy quota, so an agy seat
+# pinned to sat past the seats' mark fell over to a box whose agy was out of
+# quota: ask ed432ce1 launched a-822 on the main box at 10:49Z on 2026-11-27, its agy out
+# until 12-03, after a-761's blocker there was closed and it read steer (the placer's
+# spawn-place cron.out: "falls over to <main box>", then "placed: a-822@<main box>", no hold).
+# Now an agy seat (or a mistral one swapped to agy) never falls over to a box
+# whose agy is out, steer or without the login: it holds on its pin. RED on
+# 09907e786 (test only): steer is placed on box-b (the defect); out, no login
+# and mistral->agy were already held on box-b by spl_spawn_place_agy_box_hold
+# and fail only on the missing no-fall-over line. CONTROLS: box-b's agy in falls
+# over (41h); a claude seat with box-b's agy out still falls over. The mistral
+# row is written to the stub hub as queued before the enqueue refused a mistral
+# review seat (a row queued earlier is still placed, spl_spawn_place_vendor).
+WDM="$T/pc/spool/c-001/archive"
+loadb() { printf '{"hub":"ok","load":[{"box":"box-b","here":false,"live":true,"busy_ids":%s,"clis":%s,"src":"box"}]}' "$1" "${2:-null}"; }
+for c in 'steer|["c-394"]|null' 'out|["a-958"]|null' 'no login|["c-394"]|["claude"]'; do
+  IFS='|' read -r cn busy clis <<<"$c"
+  rm -rf "$WDM"; mkdir -p "$WDM"; [[ "$cn" == "no login" ]] || wdmsg a-958 box-b $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
+  seat_clear; fall_q "$K1" agy p41n-reviewer 31 "R7 reviewer for SPL-6681, review only"
+  out="$(tick41h LOAD_JSON="$(loadb "$busy" "$clis")" LAUNCH_ID=a-597)"
+  out+="$(tick41h LOAD_JSON="$(loadb "$busy" "$clis")" LAUNCH_ID=a-598)"
+  [[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K1")")" == queued ]] && ! grep -q 'falls over' <<<"$out" &&
+    grep -q "INFO no fall-over from sat to box-b for an agy seat: " <<<"$out" &&
+    grep -q "ask ${K1:0:8} is pinned to sat: box sat at 296% is past its overflow mark (270%" <<<"$out" &&
+    pass "41n. PROOF an agy review seat pinned to sat at 296%, box-b with room but its agy $cn: no fall-over, held on sat" ||
+    fail "41n. agy $cn on box-b: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+done
+rm -rf "$WDM"; mkdir -p "$WDM"; wdmsg a-958 box-b $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
+seat_clear; fall_q "$K1" agy p41n-reviewer 31 "R7 reviewer for SPL-6681, review only"
+jq --arg i "$K1" 'map(if .ask_id == $i then .placement = "mistral:hand-sat-p41n-reviewer" else . end)' "$T/hub/main.json" >"$T/h.$$" && mv "$T/h.$$" "$T/hub/main.json"
+out="$(tick41h LOAD_JSON="$(loadb '["a-958"]')" SPAWN_PLACE_CNF="$T/none.yaml" LAUNCH_ID=a-599)"
+out+="$(tick41h LOAD_JSON="$(loadb '["a-958"]')" SPAWN_PLACE_CNF="$T/none.yaml" LAUNCH_ID=a-599)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K1")")" == queued ]] && ! grep -q 'falls over' <<<"$out" &&
+  grep -q "INFO no fall-over from sat to box-b for an agy seat: agy on box-b is at its quota limit" <<<"$out" &&
+  pass "41n. a mistral review seat swapped to agy, pinned to sat at 296%, box-b's agy out: no fall-over, held on sat" ||
+  fail "41n. mistral->agy, agy out on box-b: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+seat_clear; fall_q "$K1" claude p41n-reviewer 31 "R7 reviewer for SPL-6681, review only"
+out="$(tick41h LOAD_JSON="$(loadb '["a-958"]')" LAUNCH_ID=c-599)"
+grep -qx "claude auto $T $T/briefs/p41n-reviewer.md p41n-reviewer SPAWN_BOX=box-b" "$T/launch.log" && ! grep -q 'no fall-over' <<<"$out" &&
+  pass "41n. CONTROL a claude review seat pinned to sat at 296%, box-b's agy out: falls over to box-b as before" ||
+  fail "41n. claude seat, agy out on box-b: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+rm -rf "$WDM" "$T/pc/spool/dispatch/vendor-probe/agy-limit-seen.tsv"
+seat_clear
 
 # SPL-6167 (bug round 33 row 01, rc01): a docs lane placed on an issue it
 # does not own shares it. A Kind: specs_and_docs brief with an Issue: key and

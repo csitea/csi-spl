@@ -580,7 +580,7 @@ spl_spawn_place_seat_past() {  # PLACEMENT WHY [BOX]
     [[ "$1" != *:* ]] || vendor="${1%%:*}"
     why="$(spl_spawn_place_pin_seat_full "$box" "$vendor" "$ovf")" || { printf '%s' "$box"; return 0; }
     [[ "$why" == *"past its overflow mark"* ]] || return 1
-    spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf"
+    spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf" "${1#*:}"
     return
   fi
   pick="$(BOX_PICK_OVERFLOW="$ovf" BOX_PICK_REVIEW_SEAT=1 spl_spawn_place_pick)"
@@ -607,13 +607,22 @@ spl_spawn_place_pin_seat_full() {  # BOX VENDOR OVF [PICK_OUT]
 # returns 0; returns 1 when the pick holds, finds no box with the CLI, names
 # BOX itself, or VENDOR is empty. The brief is not copied: the launch reads it
 # on this box and spawn-remote.sh carries its text to SPAWN_BOX, as for every
-# remote placement.
-spl_spawn_place_pin_fallover() {  # VENDOR BOX OVF
-  local pick
+# remote placement. A seat that launches as agy (VENDOR agy, or mistral whose
+# swap for SLUG's brief is agy) never falls over to a box whose agy is not in
+# (spl_spawn_place_agy_state: out, or steer on a closed lane's blocker): it
+# returns 1 and the seat holds on its pin (SPL-6681). do_spl_box_pick does not
+# judge agy quota; before, a-761 and a-822 fell over to the main box, its agy out until
+# 12-03, once a-761's blocker was closed and it read steer.
+spl_spawn_place_pin_fallover() {  # VENDOR BOX OVF [SLUG]
+  local pick st
   [[ -n "$1" ]] || return 1
   pick="$(BOX_PICK_KIND="$1" BOX_PICK_REVIEW_SEAT=1 BOX_PICK_OVERFLOW="$3" spl_spawn_place_pick)"
   pick="${pick%% *}"
   [[ "$pick" =~ ^[a-z0-9][a-z0-9-]*$ && "$pick" != hold && "$pick" != nokind && "$pick" != "$2" ]] || return 1
+  if [[ "$1" == agy || ( "$1" == mistral && -n "${4:-}" && "$(spl_spawn_place_swap mistral "$(spl_spawn_place_brief "$4")" | cut -f1)" == agy ) ]]; then
+    st="$(awk -F'\t' -v b="$pick" '$1 == b && $2 != "in" { print $3; exit }' <<<"$(spl_spawn_place_agy_state)")"
+    [[ -z "$st" ]] || { do_log "INFO no fall-over from $2 to $pick for an agy seat: $st" >&2; return 1; }
+  fi
   printf '%s' "$pick"
 }
 
@@ -1529,7 +1538,7 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
 # RECOVERING, AT CAP) holds on it (R7 W2). Every other pinned row keeps its pin.
 # Prints ROWS minus the held ones, the fallen-over ones with _b.
 spl_spawn_place_pin_hold() {  # MARKED ROWS
-  local id vendor slug box why kind seat rseat key held=() ps=() seats ovf alt to='{}'
+  local id vendor slug box why kind seat rseat key ak held=() ps=() seats ovf alt to='{}'
   local -A outs=() alts=()
   seats="$(spl_spawn_place_seats "$1" | jq -r '.[].ask_id')"
   while IFS=$'\t' read -r id vendor slug; do
@@ -1546,8 +1555,9 @@ spl_spawn_place_pin_hold() {  # MARKED ROWS
     [[ -v "outs[$key]" ]] || outs[$key]="$(BOX_PICK_KIND="$kind" BOX_PICK_REVIEW_SEAT="$seat" spl_spawn_place_pick_out)"
     why="$(BOX_PICK_OVERFLOW="$ovf" spl_spawn_place_pin_full "$box" "${outs[$key]}")" || continue
     if (( rseat == 1 )) && [[ "$why" == *"past its overflow mark"* ]]; then
-      [[ -v "alts[$vendor:$box]" ]] || alts[$vendor:$box]="$(spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf")"
-      alt="${alts[$vendor:$box]}"
+      ak="$vendor:$box"; [[ "$vendor" != mistral ]] || ak+=":$slug"
+      [[ -v "alts[$ak]" ]] || alts[$ak]="$(spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf" "$slug")"
+      alt="${alts[$ak]}"
       if [[ -n "$alt" ]]; then
         do_log "INFO ask ${id:0:8} is a review seat pinned to $box: $why; it falls over to $alt (the fleet pick at the seats' mark ${ovf}%, with the $vendor CLI)" >&2
         to="$(jq -c --arg i "$id" --arg b "$alt" '.[$i] = $b' <<<"$to")"

@@ -80,33 +80,35 @@ try {
     ok(`1 ${route}: Attach opens the file picker`, st.attach && await clickOpensPicker(p))
   }
 
-  // 2. after a search, leaving /search brings Attach back
+  // 2. after a search, closing the search panel brings Attach back
+  /* SPL-6675: the Omnibox opens the search panel in place, no /search page */
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.click('form.omnibox--global textarea')
   await p.keyboard.type('/search hello')
   await p.keyboard.press('Enter')
-  await p.waitForFunction(() => /\/search$/.test(location.pathname), { timeout: NAV_TIMEOUT })
+  const panelQ = await p.waitForSelector('[data-testid=search-panel]', { visible: true, timeout: NAV_TIMEOUT })
+    .then((el) => el.evaluate((n) => n.getAttribute('data-q'))).catch(() => null)
   const onSearch = await p.evaluate(attachState, ATTACH)
-  ok('2 /search: the omnibox is in search mode (no Attach)', !onSearch.attach && onSearch.text === '/search hello', onSearch)
-  // an in-app link, not a reload: a reload would reset the omnibox anyway.
-  // CLE-77934: a rail section is built when first opened, so on /search the
-  // Channels list (and its lobby link) may not exist yet: then the app's own
-  // router makes the same in-app move.
+  ok('2 search panel: the omnibox is in search mode (no Attach)', panelQ === 'hello' && !onSearch.attach && onSearch.text === '/search hello', { panelQ, ...onSearch })
+  // the panel's own X, not a router push: a push while the panel is open is
+  // a preview and keeps it open
   const left = await p.evaluate(() => {
+    const x = document.querySelector('[data-testid=search-panel] [data-testid=side-search-close]')
+    if (!x) return false
+    x.click()
+    return 'close'
+  })
+  await p.waitForFunction(() => !document.querySelector('[data-testid=search-panel]'), { timeout: NAV_TIMEOUT }).catch(() => null)
+  // then an in-app move to the channel, which 2b leaves again
+  await p.evaluate(() => {
     const a = document.querySelector('.sidebar a[href$="/channel/lobby"], a[href$="/channel/lobby"]')
-    if (a) {
-      a.click()
-      return 'link'
-    }
-    const router = document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$router
-    if (!router) return false
-    void router.push('/channel/lobby')
-    return 'router'
+    if (a) return a.click()
+    void document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$router?.push('/channel/lobby')
   })
   await p.waitForFunction(() => /\/channel\/lobby$/.test(location.pathname), { timeout: NAV_TIMEOUT }).catch(() => null)
   await p.waitForSelector(ATTACH, { visible: true, timeout: 5000 }).catch(() => null)
   const after = await p.evaluate(attachState, ATTACH)
-  ok('2 leaving /search clears the search line and Attach is back', left && after.attach && after.visible && after.onTop && after.text === '', { left, ...after })
+  ok('2 closing the search panel clears the search line and Attach is back', left && after.attach && after.visible && after.onTop && after.text === '', { left, ...after })
 
   // 2b. CONTROL: a send draft survives the same navigation
   await p.click('form.omnibox--global textarea')

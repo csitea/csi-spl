@@ -167,13 +167,14 @@ async function phone(p, base, width) {
   check(`${tag}: a tap on the scrim closes the sheet`, !gone['[data-test=user-menu-panel]']?.shown, gone)
 
   // SPL-1005: `/search x` typed in the dock -> the results
+  /* SPL-6675: the search panel opens in place, no /search page */
   await p.focus('.composer--dock textarea')
   await p.keyboard.type('/search hello')
   await p.keyboard.press('Enter')
-  await p.waitForFunction(() => /\/search/.test(location.pathname), { timeout: 10000 }).catch(() => {})
-  await sleep(400)
-  const q = await p.evaluate(() => ({ path: location.pathname, q: new URLSearchParams(location.search).get('q') }))
-  check(`${tag}: /search hello in the dock opens the results`, /\/search$/.test(q.path) && q.q === 'hello', q)
+  const panelQ = await p.waitForSelector('[data-testid=search-panel]', { visible: true, timeout: 10000 })
+    .then((el) => el.evaluate((n) => n.getAttribute('data-q'))).catch(() => null)
+  const q = await p.evaluate(() => ({ path: location.pathname }))
+  check(`${tag}: /search hello in the dock opens the results`, panelQ === 'hello' && !/\/search$/.test(q.path), { panelQ, ...q })
 }
 
 async function desktop(p, base) {

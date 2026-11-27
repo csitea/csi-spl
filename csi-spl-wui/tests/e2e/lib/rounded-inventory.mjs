@@ -15,7 +15,7 @@ export const INVENTORY_JS = `(() => {
     'top-bar__omnibox', 'app-corner', 'pane-divider', 'ui-dialog-backdrop',
     'composer', 'new-pill-wrap', 'older-sentinel', 'sr-only', 'visually-hidden',
     'login', 'login-wallpaper', 'login-wallpaper__drift', 'login-bar', 'login-bar__title', 'login-body', 'settings-layout', 'settings-content', 'settings-page',
-    'notify-box', 'debug-panel', 'pinned-root', 'search-page', 'search-results',
+    'notify-box', 'debug-panel', 'pinned-root', 'search-panel', 'search-results',
     'search-group', 'search-help', 'idp', 'native-auth', 'native-auth__form',
     'native-auth__field', 'create-row', 'msg-meta', 'msg-body', 'code-head',
     'code-lines', 'code-line', 'keys__facts', 'keys__actions', 'settings__row',

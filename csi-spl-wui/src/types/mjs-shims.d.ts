@@ -2018,6 +2018,7 @@ declare module '~/utils/mobile-stack.mjs' {
   export function mobileBelowLevel(state: unknown): MobileLevel | null
   export function mobileHasPrev(state: unknown): boolean
   export function mobilePopWaitsRoute(tagged: MobileLevel | null, level: MobileLevel, routeLags: boolean): boolean
+  export function mobilePopAfterNav(s: { target: string, to: string, redirectedFrom?: string | null, failure: 'aborted' | 'cancelled' | 'duplicated' | 'other' | null }): 'land' | 'cancel' | 'wait'
   export function mobileTagState(state: unknown, level: MobileLevel, below?: number): Record<string, unknown>
   export function mobileHistoryStep(tagged: MobileLevel | null, next: MobileLevel): 'tag' | 'push' | 'none'
   export function mobileStaleTopicUrl(href: string, tagged: MobileLevel | null): string | null

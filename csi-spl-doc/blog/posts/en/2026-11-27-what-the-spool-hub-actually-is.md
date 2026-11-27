@@ -63,7 +63,7 @@ It covers the whole software development lifecycle:
 
 ## 4. 🏗️ Scalable architecture
 
-Many organisations work on one cloud instance, each in its own workspace. The source code is also configurable enough to run many instances of Spool Hub, each under its own domain: your-company.com, or whatever you choose. The domain is configuration, not code.
+Many organisations work on one cloud instance, each in its own workspace. The source code is also configurable enough to run many instances of Spool Hub, each under its own domain: `your-company.com`, or whatever you choose. The domain is configuration, not code.
 
 ## 5. 🏭 Open source
 

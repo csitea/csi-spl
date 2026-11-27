@@ -293,6 +293,12 @@ func run(args []string) int {
 	case "mcp-gcp-alerts": // SPL-2887: no box config, the iac actions read the keys
 		return cmdMCPGCPAlerts(rest)
 	}
+	if cmd == "agent-models" && os.Getenv("SPOOL_HUB_URL") != "" && os.Getenv("SPOOL_BOX_ID") == "" {
+		// Spec 184 row H2: a box with no box id is not in hub mode for this
+		// report, so it is off (3) as in A1, not a config error (1).
+		fmt.Fprintln(os.Stderr, "spool: agent-models report: off, no box id ($SPOOL_BOX_ID is not set)")
+		return 3
+	}
 
 	cfg, err := config.Load()
 	if err != nil {

@@ -111,4 +111,11 @@ func TestAgentModelsReportOff(t *testing.T) {
 			t.Errorf("%v: rc %d, want 1", a, rc)
 		}
 	}
+	// A hub URL with no box id is off too (A1's 3), not config.Load's 1.
+	t.Setenv("SPOOL_ROOT", t.TempDir())
+	t.Setenv("SPOOL_HUB_URL", h.URL)
+	t.Setenv("SPOOL_BOX_ID", "")
+	if rc, _, errOut := capture(t, "grok-4\n", func() int { return run(append([]string{"agent-models"}, args...)) }); rc != 3 || !strings.Contains(errOut, "no box id") {
+		t.Fatalf("no box id: rc %d %q, want 3", rc, errOut)
+	}
 }

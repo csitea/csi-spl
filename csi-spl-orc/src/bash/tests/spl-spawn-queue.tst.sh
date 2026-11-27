@@ -2432,7 +2432,7 @@ cat >"$T/bin/pick-fall" <<'STUB'
 #!/usr/bin/env bash
 o="${BOX_PICK_OVERFLOW:-200}" k="${BOX_PICK_KIND:-}" nc=""
 [ "$k" != agy ] || [ "${TNK_AGY:-1}" = 1 ] || nc="  no agy CLI"
-echo "BOX sat  load5 47.4  cpus 16  296%  full  band 50..90 (box)"
+echo "BOX sat  load5 47.4  cpus 16  ${SAT_PCT:-296}%  full  band 50..90 (box)${SAT_FLAG:-}"
 echo "BOX box-b  load5 37.9  cpus 16  237%  full  band 50..90 (box)$nc"
 if [ -z "$nc" ] && [ $((237 * 100)) -lt $((90 * o)) ]; then echo "pick=box-b reason=box-b is the least past its band"
 else echo "pick=hold reason=no box with a sample is below its overflow mark (${o}% of its high): queue the lane, spawn nothing"; fi
@@ -2472,6 +2472,37 @@ grep -qx "claude auto $T $T/briefs/p41k-reviewer.md p41k-reviewer SPAWN_BOX=box-
   grep -q "review seat past the CPU overflow hold: ask ${K1:0:8} .*(pick box-b)" <<<"$out" &&
   pass "41k. a claude review seat pinned to sat at 296% under the CPU overflow hold: judged on box-b and launched on box-b, the same box (pick and launch agree)" ||
   fail "41k. pick/launch: launch=$(cat "$T/launch.log") alarms=$(alarms) | $(hubrow "$K1") | $out"
+# 41l. R7 W1 of SPL-6636 (a-292): spl_spawn_place_dark_hold judged the pin
+# before the row's _b, while the launch goes to _b. A fallen-over seat whose _b
+# (box-b) gave no reply now holds on box-b; one whose pin (sat) gave no reply
+# falls over and launches on the live box-b. RED on 86c9ebc05: the first
+# launches on the silent box-b, the second holds on sat.
+dark41() { printf '%s\t%s\t%s\t%s\t0\n' "$K1" "$1" "$(date +%s)" "$(date +%s)" >"$Q40/.place.dark"; }
+seat_clear; fall_q "$K1" claude p41l-reviewer 31 "R7 reviewer for SPL-6617, review only"; dark41 box-b
+out="$(tick41h SPAWN_PLACE_DARK_RETRY_MIN=30 LAUNCH_ID=c-594)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K1")")" == queued ]] &&
+  grep -q "ask ${K1:0:8} is pinned to box-b, which gave no reply" <<<"$out" &&
+  pass "41l. a review seat fallen over to box-b, box-b silent: held on box-b (its launch box), not tried" ||
+  fail "41l. _b dark: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+seat_clear; fall_q "$K1" claude p41l-reviewer 31 "R7 reviewer for SPL-6617, review only"; dark41 sat
+out="$(tick41h SPAWN_PLACE_DARK_RETRY_MIN=30 LAUNCH_ID=c-595)"
+grep -qx "claude auto $T $T/briefs/p41l-reviewer.md p41l-reviewer SPAWN_BOX=box-b" "$T/launch.log" &&
+  ! grep -q "ask ${K1:0:8} is pinned to sat, which gave no reply" <<<"$out" &&
+  pass "41l. a review seat pinned to a silent sat past its mark: falls over and launches on the live box-b" ||
+  fail "41l. pin dark: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+rm -f "$Q40/.place.dark"
+# 41m. R7 W2 of SPL-6636 (a-292): only the overflow hold falls over. A review
+# seat pinned to sat UNDER the seats' mark (6%) but held there by its weekly
+# quota, a cordon or DISK stays held on sat while box-b has room. RED on
+# 86c9ebc05: each falls over to box-b.
+for c in "  claude weekly 96% >= 95%: not picked|weekly" "  CORDONED |cordon" "  DISK /mnt/data 88% >= 85%: not picked|DISK"; do
+  seat_clear; fall_q "$K1" claude p41m-reviewer 31 "R7 reviewer for SPL-6617, review only"
+  out="$(tick41h SAT_PCT=6 SAT_FLAG="${c%|*}" LAUNCH_ID=c-596)"
+  [[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$K1")")" == queued ]] &&
+    grep -q "ask ${K1:0:8} is pinned to sat: box sat " <<<"$out" && ! grep -q 'falls over' <<<"$out" &&
+    pass "41m. CONTROL a review seat pinned to sat at 6% held by ${c#*|}, box-b with room: stays held on sat" ||
+    fail "41m. ${c#*|}: launch=$(cat "$T/launch.log") | $(hubrow "$K1") | $out"
+done
 seat_clear
 
 # SPL-6167 (bug round 33 row 01, rc01): a docs lane placed on an issue it

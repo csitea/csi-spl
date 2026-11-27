@@ -563,12 +563,14 @@ spl_spawn_place_seat_overflow() {
 # placement's hand-pinned box) is judged on that box at the seats' mark, as
 # spl_spawn_place_pin_hold judges it, and falls over the same way
 # (spl_spawn_place_pin_fallover); spl_spawn_place_take launches it on the box
-# printed here. Only a seat with no launch box is judged by the fleet pick, and
+# printed here; only the overflow hold falls over: a launch box held for any
+# other reason (weekly, DISK, CORDONED, DEGRADED, RECOVERING, AT CAP) holds the
+# seat (R7 W2). Only a seat with no launch box is judged by the fleet pick, and
 # its launch re-runs that pick with the same BOX_PICK_OVERFLOW and
 # BOX_PICK_REVIEW_SEAT. Before, a pinned seat passed on the fleet pick (another
 # box) and launched on its pin (sat): ask adf2ed26.
 spl_spawn_place_seat_past() {  # PLACEMENT WHY [BOX]
-  local brief ovf pick box="${3:-}" vendor=""
+  local brief ovf pick why box="${3:-}" vendor=""
   [[ "$2" == "the fleet load target says hold"*"overflow mark"* ]] || return 1
   brief="$(spl_spawn_place_brief "${1#*:}")"
   [[ -n "$brief" ]] && spl_spawn_place_seat_pass "$brief" || return 1
@@ -576,7 +578,8 @@ spl_spawn_place_seat_past() {  # PLACEMENT WHY [BOX]
   [[ -n "$box" ]] || box="$(spl_spawn_place_slug "${1#*:}" | sed -n 1p)"
   if [[ -n "$box" ]]; then
     [[ "$1" != *:* ]] || vendor="${1%%:*}"
-    spl_spawn_place_pin_seat_full "$box" "$vendor" "$ovf" >/dev/null || { printf '%s' "$box"; return 0; }
+    why="$(spl_spawn_place_pin_seat_full "$box" "$vendor" "$ovf")" || { printf '%s' "$box"; return 0; }
+    [[ "$why" == *"past its overflow mark"* ]] || return 1
     spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf"
     return
   fi
@@ -1521,7 +1524,9 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
 # the vendor's CLI. The row then carries that box as _b, the launch's SPAWN_BOX
 # (spl_spawn_place_take: _b before the pin); no such box -> it holds as before.
 # Before, 10 agy R7 seats pinned to sat at 278..547% held up to 238 min while
-# another box had room and agy. Every other pinned row keeps its pin.
+# another box had room and agy. Only the overflow hold falls over: a seat whose
+# pin is held for any other reason (weekly, DISK, CORDONED, DEGRADED,
+# RECOVERING, AT CAP) holds on it (R7 W2). Every other pinned row keeps its pin.
 # Prints ROWS minus the held ones, the fallen-over ones with _b.
 spl_spawn_place_pin_hold() {  # MARKED ROWS
   local id vendor slug box why kind seat rseat key held=() ps=() seats ovf alt to='{}'
@@ -1540,7 +1545,7 @@ spl_spawn_place_pin_hold() {  # MARKED ROWS
     key="$kind:$seat"
     [[ -v "outs[$key]" ]] || outs[$key]="$(BOX_PICK_KIND="$kind" BOX_PICK_REVIEW_SEAT="$seat" spl_spawn_place_pick_out)"
     why="$(BOX_PICK_OVERFLOW="$ovf" spl_spawn_place_pin_full "$box" "${outs[$key]}")" || continue
-    if (( rseat == 1 )); then
+    if (( rseat == 1 )) && [[ "$why" == *"past its overflow mark"* ]]; then
       [[ -v "alts[$vendor:$box]" ]] || alts[$vendor:$box]="$(spl_spawn_place_pin_fallover "$vendor" "$box" "$ovf")"
       alt="${alts[$vendor:$box]}"
       if [[ -n "$alt" ]]; then
@@ -1790,8 +1795,10 @@ spl_spawn_place_dark_clear() {  # BOX
 # uses none of a tick's SPAWN_PLACE_HOLD_TRIES. Before, five such rows took
 # all the tries, every tick. Each box costs one 300 s wait per window. It runs
 # after spl_spawn_place_agy_box_hold, which sets the _b box of an agy or mistral
-# row (R7 W4). Run again after each HOLD, so the other rows of a box that just
-# failed go too.
+# row (R7 W4), or a review seat's pin fall-over (SPL-6617): the box judged is
+# the launch box, _b before the pin, as spl_spawn_place_take launches it (R7
+# W1 of SPL-6636). Run again after each HOLD, so the other rows of a box that
+# just failed go too.
 # Prints ROWS minus the held ones.
 spl_spawn_place_dark_hold() {  # MARKED ROWS
   local f id slug pin box last now held=() ps=() retry=$(( ${SPAWN_PLACE_DARK_RETRY_MIN:-30} * 60 ))
@@ -1800,7 +1807,7 @@ spl_spawn_place_dark_hold() {  # MARKED ROWS
   now="$(date +%s)"
   while IFS=$'\t' read -r id slug pin; do
     mapfile -t ps < <(spl_spawn_place_slug "$slug")
-    box="${ps[0]:-$pin}"
+    box="${pin:-${ps[0]}}"
     [[ -n "$box" ]] || continue
     last="$(awk -F'\t' -v b="$box" '$2 == b && $4 > m { m = $4 } END { print m + 0 }' "$f")"
     (( now - last < retry )) || continue

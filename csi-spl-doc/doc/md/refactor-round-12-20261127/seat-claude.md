@@ -253,9 +253,66 @@ rc1 and rc2 above). My own 4 mutations, each one line, n=1:
   text is the same (`git grep -n FUNCNAME 3308d118f -- csi-spl-orc/lib csi-spl-iac/lib`
   -> both at `:275`). Cite the orc one.
 
+## v1.0 sign-off
+
+**PASS** on plan v1.0 `05594587af35700dfee2f25a561bef801eb31022`. W1 and W2 are folded,
+and N1-N7 are answered. No new defect.
+
+Sha read: `git ls-remote origin refs/heads/review/c002-refactor-round-12-planner` ->
+`05594587af35700dfee2f25a561bef801eb31022`, the sha a-731 named (msg 60bf136b). `git diff
+--stat 85d7115d9..05594587a` -> 1 file, the plan (166 insertions, 81 deletions), in one
+commit, author and committer the repo's canonical address. Run 2026-11-27 19:20Z-19:45Z,
+n=1, in fresh scratch copies of `3308d118f`, with the same counting as above.
+
+- **Rebuild.** The plan's 9 bash blocks, extracted from v1.0: blocks 1-3 and 5-8 are
+  byte-equal to v0.1; blocks 4 and 9 add the W2 lines (plan lines 323 and 333-334, and
+  599-600). Rebuilt heads, 12-char sha256: `check-hub-deploy.func.sh` `93d035e70cfa`,
+  `check-hub-image-regress.func.sh` `740f45d9af0d`, `check-hub-deploy.tst.sh`
+  `6cbc7b24fb3d`, `spl-desk-doctree.func.sh` `81e07447278c`, `spl-desk-wsdoc.func.sh`
+  `7570f316a395`, `desk-doctree.tst.sh` `6c8021fe85db`. All 6 equal the plan's.
+- **Controls and mutants** (`rc`, pass / fail lines, last line):
+
+| run | rc | pass / fail | last line | plan says |
+|---|---|---|---|---|
+| rc1 (base + head1 test) | 1 | 57 / 7 | `FAILED: 6` | the same (incl. `8: describe argv ()`) |
+| head1 `check-hub-deploy` | 0 | 64 / 0 | `PASS: all check-hub-deploy assertions` | 0 / 64 / 0 |
+| x1 (helper drops `--region`) `check-hub-deploy` | 1 | 62 / 2 | `FAILED: 1` (`FAIL: 8: describe argv`) | the same (plan line 707) |
+| head1, x1 `check-hub-image-regress` | 0 | 15 / 0 | `PASS: all ...` | unchanged |
+| rc2 (base + head2 test) | 1 | 39 / 11 | `desk-doctree: 11 failure(s)` (incl. `11: in roots`) | the same |
+| head2 `desk-doctree` | 0 | 50 / 0 | `desk-doctree: 0 failure(s)` | 0 / 50 / 0 |
+| x3 (in_file drops `/var/spool-hub/dispatch`) `desk-doctree` | 1 | 49 / 1 | `FAIL: 11: in roots` | the same (plan line 716) |
+| head2, x3 `desk-wsdoc` | 0 | 28 / 0 | `desk-wsdoc: 0 failure(s)` | unchanged |
+
+  So x1 and x3, which passed every v0.1 test, are now RED, and the heads stay green.
+  `shellcheck 0.10.0 -S warning -x` on both new test files: rc 0.
+- **W1.** `grep -nE 'identical 16|byte-for-byte identical|exact 16-line|exact same 16'`
+  on the v1.0 plan -> only line 947, which is about another file (`identical 11-line TSV
+  trim`). The preamble wording now reads "15 identical lines" plus the callers' own
+  `local` line (plan lines 55, 167, 219, 938).
+- **N6.** The three scoped greps at plan lines 201-203, run as printed on `3308d118f` ->
+  `0`, `0`, `0`.
+- **N7.** Plan line 391 now cites `orc:lib/bash/funcs/gcp-account-pin.func.sh:275`.
+- **N1, N3, N4/N5.** Answered at plan lines 984-991. N3 rests on holder c-002's read of
+  c-738's tree (msg `6863ba1c`), which I did not repeat.
+- **Drift.** `origin/master` moved to `504aed472`. `git diff --name-only 3308d118f
+  origin/master -- <the 6 row files, check-hub-image-regress.tst.sh, desk-wsdoc.tst.sh,
+  orc gcp-account-pin.func.sh>` -> 0 lines.
+- **Hygiene.** `cd csi-spl-iac && ./run -a do_check_dist_hygiene` on a scratch clone at
+  `05594587a` -> rc 0, `INFO distribution-hygiene: clean over the tracked tree`.
+
+Notes on v1.0:
+
+- **N8:** the x3 guard (plan line 599) is a source-text match on the whole `for root in
+  ...; do` line. It catches a dropped root, but it also goes red on a pure reformat of
+  that line. That is acceptable for this row because the row writes that line itself; the
+  R7 seat should know that a red `11: in roots` after a reformat is the guard, not a
+  behaviour change.
+- **N9:** the argv assertion (plan line 333) pins the argument order, not just the
+  arguments. Today's order matches; no action asked.
+
 ## Signatures
 
 | plan version | sha | verdict | date |
 |---|---|---|---|
 | v0.1 | `85d7115d9c5dd023c7b5b09b29542b7c3012dc6b` | PASS (W1, W2 to fold; N1-N7) | 2026-11-27 |
-| v1.0 | pending | pending | |
+| v1.0 | `05594587af35700dfee2f25a561bef801eb31022` | PASS (W1, W2 folded; N8, N9 notes) | 2026-11-27 |

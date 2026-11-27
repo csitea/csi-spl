@@ -464,9 +464,12 @@ matches now (one read-only search): a count, not an approval step.
   rest, the last branch of an `OR`, a negated `OR` branch, or a group of
   such terms that a `NOT` or an `OR` turns into a limit. A negated term
   ANDed with the rest, or one positive `OR` branch among others, is only
-  dropped (owner HUM-10 answer A, msg `b65adfcd`, SPL-6692). The move finds
+  dropped (owner HUM-10 answer A, msg `b65adfcd`, SPL-6692). A paused task
+  keeps the query with the terms dropped, so once resumed it can read wider
+  than before the move: `(in:#x foo) OR bar` becomes `foo OR bar`. The move finds
   the tasks to rewrite with `search.ChannelTermSQL`, a superset of the terms
-  the grammar reads (`in:" #x "`, `in:#x(foo)`, `"foo"in:#x`), and
+  the grammar reads (`in:" #x "`, `in:#x(foo)`, `"foo"in:#x`, and a term
+  next to any space the tokenizer skips, U+00A0 included), and
   `in:contacts` / `in:file-streams` stay: they pick a section, not a channel.
 - Delete is soft: the row and its runs are kept 30 days, then a new chore in
   `RunSweeper`'s sweep removes them.

@@ -3,8 +3,11 @@
 package search
 
 import (
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
+	"unicode"
 )
 
 // TestDropChannel: a channel move drops the in: terms that name the moved
@@ -79,5 +82,28 @@ func TestDropChannelUnchanged(t *testing.T) {
 	}
 	if out, _, _ := DropChannel(`in:#ops`, " "); out != `in:#ops` {
 		t.Errorf("an empty channel changed the query: %q", out)
+	}
+}
+
+// TestSQLSpacesIsTokenizerSpace: the space class of ChannelTermSQL holds
+// exactly the runes the tokenizer skips, so the move's SQL finds a term the
+// grammar reads next to U+00A0 or U+202F (R7 c-815, SPL-6692).
+func TestSQLSpacesIsTokenizerSpace(t *testing.T) {
+	in := map[rune]bool{}
+	esc := `\\u([0-9a-f]{4})`
+	for _, m := range regexp.MustCompile(esc+`(?:-`+esc+`)?`).FindAllStringSubmatch(sqlSpaces, -1) {
+		lo, _ := strconv.ParseUint(m[1], 16, 32)
+		hi := lo
+		if m[2] != "" {
+			hi, _ = strconv.ParseUint(m[2], 16, 32)
+		}
+		for r := lo; r <= hi; r++ {
+			in[rune(r)] = true
+		}
+	}
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if unicode.IsSpace(r) != in[r] {
+			t.Errorf("U+%04X: IsSpace %v, in sqlSpaces %v (%s)", r, unicode.IsSpace(r), in[r], sqlSpaces)
+		}
 	}
 }

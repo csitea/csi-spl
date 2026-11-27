@@ -33,6 +33,9 @@ func TestApplyChannelMoveTaskScopeQuery(t *testing.T) {
 	spaced := mk("spaced", `in:" #`+f.ch+` " foo`)
 	paren := mk("paren", "in:#"+f.ch+"(foo)")
 	phrase := mk("phrase", `"foo"in:#`+f.ch)
+	// R7 round 2 (c-815): spaces [[:space:]] misses on Postgres
+	nbsp := mk("nbsp", "in:#"+f.ch+"\u00a0foo")
+	narrow := mk("narrow", "bar\u202fin:#"+f.ch)
 	if err := f.pg.SetTaskState(ctx, f.src, deleted.TaskID, TaskDeleted, "", now); err != nil {
 		t.Fatal(err)
 	}
@@ -52,6 +55,8 @@ func TestApplyChannelMoveTaskScopeQuery(t *testing.T) {
 		{spaced, "foo", TaskPaused, "channel_moved"},
 		{paren, "foo", TaskPaused, "channel_moved"},
 		{phrase, `"foo"`, TaskPaused, "channel_moved"},
+		{nbsp, "foo", TaskPaused, "channel_moved"},
+		{narrow, "bar", TaskPaused, "channel_moved"},
 	}
 	for _, w := range want {
 		got, err := f.pg.GetTask(ctx, f.src, w.task.TaskID)

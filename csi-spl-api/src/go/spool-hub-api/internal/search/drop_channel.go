@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // DropChannel removes every in: (channel:) term that names channel from the
@@ -182,9 +183,31 @@ func same(a, b *Node) bool {
 // finds every in: (channel:) term DropChannel drops for the channel param
 // (a SQL expression): in:#x, in:x, in=x, in:"#x", in:" x ", any case, after
 // a space, a parenthesis, a phrase or a '-', before a space, a parenthesis
-// or a phrase. A superset: DropChannel decides; the channel move's rewrite
-// and the catalogue's scheduled_tasks Refs share it (SPL-6692).
+// or a phrase. A space is any rune the tokenizer skips (unicode.IsSpace),
+// not [[:space:]], which misses U+00A0 under en_US.utf8 (R7 c-815). A
+// superset: DropChannel decides; the channel move's rewrite and the
+// catalogue's scheduled_tasks Refs share it (SPL-6692).
 func ChannelTermSQL(col, param string) string {
-	return col + ` ~* ('(^|[[:space:]()"-])(in|channel)[:=]("[[:space:]]*#?' || ` + param +
-		` || '[[:space:]]*"|#?' || ` + param + ` || '($|[[:space:]()"]))')`
+	return col + ` ~* ('(^|[` + sqlSpaces + `()"-])(in|channel)[:=]("[` + sqlSpaces + `]*#?' || ` + param +
+		` || '[` + sqlSpaces + `]*"|#?' || ` + param + ` || '($|[` + sqlSpaces + `()"]))')`
 }
+
+// sqlSpaces is unicode.White_Space, the runes unicode.IsSpace reports, as
+// the body of a Postgres regex bracket (\uXXXX escapes and ranges).
+var sqlSpaces = func() string {
+	var b strings.Builder
+	esc := func(r uint16) string { return fmt.Sprintf(`\u%04x`, r) }
+	for _, r := range unicode.White_Space.R16 {
+		for lo := r.Lo; ; lo += r.Stride {
+			b.WriteString(esc(lo))
+			if r.Stride == 1 && r.Hi > lo {
+				b.WriteString("-" + esc(r.Hi))
+				break
+			}
+			if lo+r.Stride > r.Hi || lo+r.Stride < lo {
+				break
+			}
+		}
+	}
+	return b.String()
+}()

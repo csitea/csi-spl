@@ -805,6 +805,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
 			s.SweepContacts(ctx)       // spec 154 2.6 B3: soft-deleted contacts, 30 days
+			s.SweepChannelMoves(ctx)   // spec 169 T17 (8.5.6): a move no box picked up in 15 min
 			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice
 			s.SweepWUIPins(ctx)        // spec 158 P2: a workspace with no box-wui pin row is pinned
 			s.PostIssueBacklogs(ctx)   // rdb 0194: a relink to a tenant's backlog topic

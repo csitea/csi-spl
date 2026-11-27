@@ -380,7 +380,7 @@ var rewrites = map[string][]string{
 	"tenant_memberships": {"channel_order"},
 	"fleet_lanes":        {"issue_key"},
 	"fleet_asks":         {"issue_key"},
-	"scheduled_tasks":    {"scope_where", "action_spec", "state", "paused_reason", "next_due_at"},
+	"scheduled_tasks":    {"scope_where", "scope_query", "action_spec", "state", "paused_reason", "next_due_at"},
 	"topic_heads":        {"*"},
 	"topic_head_parts":   {"*"},
 }

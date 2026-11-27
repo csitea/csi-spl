@@ -456,7 +456,14 @@ matches now (one read-only search): a count, not an approval step.
   4.5), `failing` (5 runs in a row `failed`), `cap` (a cap of 5.3 is
   reached; the task resumes itself when the window rolls over),
   `channel_moved` (a channel move took the task's only channel, or the
-  channel its `move` action names; 8.1, rdb `0333`).
+  channel its `move` action names; 8.1, rdb `0333`). The move also drops
+  the `in:` (`channel:`) terms that name the moved channel from the task's
+  query (`search.DropChannel`: the grammar reads the query, so quoted text
+  and the other terms stay), and pauses the task, `channel_moved`, when
+  that term limited it to the moved channel: a positive term ANDed with the
+  rest, or the last branch of an `OR`. A negated term, or one `OR` branch
+  among others, is only dropped (owner HUM-10 answer A, msg `b65adfcd`,
+  SPL-6692).
 - Delete is soft: the row and its runs are kept 30 days, then a new chore in
   `RunSweeper`'s sweep removes them.
 

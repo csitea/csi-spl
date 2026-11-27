@@ -729,7 +729,7 @@ func (m *pgMove) rewriteTasks() error {
 		WHERE tenant_id = $1 AND ($2::text = ANY(scope_where) OR `+mvTaskTarget+`)`, m.req.Src, m.req.Channel); err != nil {
 		return fmt.Errorf("scheduled_tasks: %w", err)
 	}
-	return nil
+	return m.rewriteTaskQueries()
 }
 
 // mvTaskTarget: a move task whose target is the channel ($2).

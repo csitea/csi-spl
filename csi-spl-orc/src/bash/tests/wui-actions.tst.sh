@@ -137,5 +137,78 @@ check_wui_image "cnf wins over node" "" cnf-img 99 cnf-img
 check_wui_image "no cnf: the host's Node major" "" "" 99 node:99-bookworm-slim
 check_wui_image "no cnf, node fails: 20" "" "" "" node:20-bookworm-slim
 
+# _wui_prepare helper and one-copy delegation across wui-{dev,build,test} (r09-02)
+WUI_T=$(mktemp -d)
+trap 'rm -rf "$WUI_T"' EXIT
+wui_prep_run() {
+  local app="$1" bin_rc="${2:-0}"
+  APP_PATH="$app" WUI_BIN_RC="$bin_rc" bash -c '
+    set -uo pipefail
+    do_require_bin() { echo "REQ:$*"; return "$WUI_BIN_RC"; }
+    do_log() { echo "$*"; }
+    pnpm() { echo "PNPM:$PWD:$*"; }
+    WUI_DIR=""
+    . "$1/src/bash/run/wui-dev.func.sh"
+    _wui_prepare || exit $?
+    echo "DIR:$WUI_DIR"' _ "$PROJ_ROOT" 2>&1
+}
+out="$(wui_prep_run "$WUI_T/missing-app" 0)"; rc=$?
+[[ "$rc" = 1 && "$out" == *"FATAL missing $WUI_T/missing-app/csi-spl-wui"* ]] \
+  && pass "wui-prepare: refuses missing csi-spl-wui dir" || fail "wui-prepare missing ($rc: $out)"
+mkdir -p "$WUI_T/no-nm/csi-spl-wui"
+out="$(wui_prep_run "$WUI_T/no-nm" 0)"; rc=$?
+[[ "$rc" = 0 && "$out" == *"INFO pnpm install in $WUI_T/no-nm/csi-spl-wui"* && "$out" == *"PNPM:$WUI_T/no-nm/csi-spl-wui:install"* && "$out" == *"DIR:$WUI_T/no-nm/csi-spl-wui"* ]] \
+  && pass "wui-prepare: installs when node_modules is absent and sets WUI_DIR" || fail "wui-prepare no-nm ($rc: $out)"
+mkdir -p "$WUI_T/has-nm/csi-spl-wui/node_modules"
+out="$(wui_prep_run "$WUI_T/has-nm" 0)"; rc=$?
+[[ "$rc" = 0 && "$out" != *"PNPM:"* && "$out" == *"DIR:$WUI_T/has-nm/csi-spl-wui"* ]] \
+  && pass "wui-prepare: skips pnpm install when node_modules exists" || fail "wui-prepare has-nm ($rc: $out)"
+out="$(wui_prep_run "$WUI_T/has-nm" 1)"; rc=$?
+[[ "$rc" = 1 && "$out" == *"REQ:pnpm"* && "$out" != *"DIR:"* ]] \
+  && pass "wui-prepare: fails fast when pnpm is missing" || fail "wui-prepare no-pnpm ($rc: $out)"
+
+wui_host="$PROJ_ROOT/src/bash/run/wui-dev.func.sh"
+[[ "$(grep -c '&& pnpm install )' "$wui_host")" -eq 1 ]] && grep -q '^_wui_prepare()' "$wui_host" \
+  && pass "one copy: wui-dev.func.sh hosts _wui_prepare" || fail "one copy: wui-dev host"
+for wf in wui-build.func.sh wui-test.func.sh; do
+  wfp="$PROJ_ROOT/src/bash/run/$wf"
+  own="$(grep -nE 'pnpm install|FATAL missing' "$wfp" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+  [[ -z "$own" ]] && grep -q '_wui_prepare ' "$wfp" \
+    && pass "one copy: $wf delegates WUI preamble to _wui_prepare" \
+    || fail "one copy $wf: own=[$own]"
+done
+
+mkdir -p "$WUI_T/st-dev/csi-spl-wui" "$WUI_T/st-build/csi-spl-wui" "$WUI_T/st-test/csi-spl-wui/node_modules"
+out="$(APP_PATH="$WUI_T/st-dev" bash -c '
+  set -uo pipefail
+  do_lde_cnf() { LDE_HUB_PORT=8080; LDE_WUI_PORT=3123; }
+  do_require_bin() { :; }; do_log() { echo "$*"; }
+  pnpm() { echo "PNPM:$PWD:$*"; }
+  . "$1/src/bash/run/wui-dev.func.sh" && do_wui_dev' _ "$PROJ_ROOT" 2>&1)"; rc=$?
+[[ "$rc" = 0 && "$out" == *"PNPM:$WUI_T/st-dev/csi-spl-wui:install"* && "$out" == *"PNPM:$WUI_T/st-dev/csi-spl-wui:dev --host 0.0.0.0 --port 3123"* ]] \
+  && pass "standalone: do_wui_dev installs and starts dev server" || fail "standalone wui-dev ($rc: $out)"
+out="$(APP_PATH="$WUI_T/st-dev" bash -c '
+  set -uo pipefail
+  do_lde_cnf() { return 1; }
+  do_require_bin() { echo "REQ:$*"; }; do_log() { echo "$*"; }
+  pnpm() { echo "PNPM:$PWD:$*"; }
+  . "$1/src/bash/run/wui-dev.func.sh" && do_wui_dev' _ "$PROJ_ROOT" 2>&1)"; rc=$?
+[[ "$rc" = 1 && "$out" != *"REQ:pnpm"* && "$out" != *"PNPM:"* ]] \
+  && pass "standalone: do_wui_dev runs do_lde_cnf before _wui_prepare" || fail "standalone wui-dev order ($rc: $out)"
+out="$(APP_PATH="$WUI_T/st-build" bash -c '
+  set -uo pipefail
+  do_require_bin() { :; }; do_log() { echo "$*"; }
+  pnpm() { echo "PNPM:$PWD:$*"; [[ "$1" == generate ]] && mkdir -p .output/public || true; }
+  . "$1/src/bash/run/wui-build.func.sh" && do_wui_build' _ "$PROJ_ROOT" 2>&1)"; rc=$?
+[[ "$rc" = 0 && "$out" == *"PNPM:$WUI_T/st-build/csi-spl-wui:install"* && "$out" == *"PNPM:$WUI_T/st-build/csi-spl-wui:generate"* && "$out" == *"INFO generated $WUI_T/st-build/csi-spl-wui/.output/public"* ]] \
+  && pass "standalone: do_wui_build installs, generates, and logs output dir" || fail "standalone wui-build ($rc: $out)"
+out="$(APP_PATH="$WUI_T/st-test" bash -c '
+  set -uo pipefail
+  do_require_bin() { :; }; do_log() { echo "$*"; }
+  pnpm() { echo "PNPM:$PWD:$*"; }
+  . "$1/src/bash/run/wui-test.func.sh" && do_wui_test' _ "$PROJ_ROOT" 2>&1)"; rc=$?
+[[ "$rc" = 0 && "$out" != *":install"* && "$out" == *"PNPM:$WUI_T/st-test/csi-spl-wui:test:unit"* && "$out" == *"PNPM:$WUI_T/st-test/csi-spl-wui:typecheck"* ]] \
+  && pass "standalone: do_wui_test skips install and runs test:unit + typecheck" || fail "standalone wui-test ($rc: $out)"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

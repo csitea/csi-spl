@@ -8,15 +8,12 @@
 # @example NUXT_PUBLIC_API_BASE= ./run -a do_wui_build
 #------------------------------------------------------------------------------
 do_wui_build() {
-  do_require_bin pnpm || return 1
-  local wui="$APP_PATH/csi-spl-wui"
-  [[ -d "$wui" ]] || { do_log "FATAL missing $wui"; return 1; }
-  if [[ ! -d "$wui/node_modules" ]]; then
-    do_log "INFO pnpm install in $wui"
-    ( cd "$wui" && pnpm install ) || return 1
-  fi
-  do_log "INFO pnpm generate in $wui"
-  ( cd "$wui" && pnpm generate ) || return 1
-  [[ -d "$wui/.output/public" ]] || { do_log "FATAL generate did not write .output/public"; return 1; }
-  do_log "INFO generated $wui/.output/public"
+  local WUI_DIR=""
+  # shellcheck source=wui-dev.func.sh
+  declare -F _wui_prepare >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/wui-dev.func.sh" || return 1
+  _wui_prepare || return 1
+  do_log "INFO pnpm generate in $WUI_DIR"
+  ( cd "$WUI_DIR" && pnpm generate ) || return 1
+  [[ -d "$WUI_DIR/.output/public" ]] || { do_log "FATAL generate did not write .output/public"; return 1; }
+  do_log "INFO generated $WUI_DIR/.output/public"
 }

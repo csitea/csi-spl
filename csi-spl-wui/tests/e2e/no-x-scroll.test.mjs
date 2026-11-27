@@ -44,9 +44,9 @@ const PATHS = [
   { path: '/channel/lobby', wait: '.spool-shell' },
   { path: '/dm/CLE-07%40box-a', wait: '.spool-shell' },
   { path: '/settings/keys', wait: '[data-test=settings]' },
-  // 022: the top bar on every shell page, and the search results view
-  { path: '/search', wait: '.search-page' },
-  { path: '/search?q=deploy', wait: '.search-page' },
+  // 022: the top bar on every shell page; SPL-6675: an old /search link opens the search panel
+  { path: '/search', wait: '[data-testid=search-panel]' },
+  { path: '/search?q=deploy', wait: '[data-testid=search-panel]' },
   { path: '/issues', wait: '[data-test=issues-page]' },
 ]
 

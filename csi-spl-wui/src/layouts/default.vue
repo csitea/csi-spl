@@ -50,9 +50,10 @@
         <div v-else-if="!shellIn" class="shell-late" aria-hidden="true" :style="{ flex: `0 0 var(${collapse.collapsed.channels ? '--pane-strip-w' : '--sidebar-w'})` }" />
         <!-- 050: a collapsed panel is a strip, so resizing it makes no sense -
              hide the divider that would grow it (also while the middle is a
-             strip, which overrides the widths). CLE-35099 owns show*Divider. -->
+             strip, which overrides the widths). CLE-35099 owns show*Divider.
+             SPL-6675: none while the search panel shrinks the sidebar to its rail. -->
         <PaneDivider
-          v-if="shellIn && showSidebarDivider && !collapse.collapsed.channels && !collapse.collapsed.topic"
+          v-if="shellIn && showSidebarDivider && !collapse.collapsed.channels && !collapse.collapsed.topic && !searchStore.panelOpen"
           pane="sidebar"
           :value="displayed.sidebar"
           :min="sidebarBounds.min"

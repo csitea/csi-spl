@@ -404,10 +404,10 @@ try {
          same in a row count; report which one it was */
       why = await page.evaluate(() => ({
         rows: document.querySelectorAll('.search-row').length,
-        empty: Boolean(document.querySelector('[data-test=search-empty]')),
-        loading: Boolean(document.querySelector('[data-test=search-loading]')),
+        empty: Boolean(document.querySelector('[data-test=side-search-empty]')),
+        loading: Boolean(document.querySelector('[data-test=side-search-loading]')),
         help: Boolean(document.querySelector('[data-test=search-help]')),
-        error: (document.querySelector('[data-test=search-error], [data-test=search-bad-query]') || {}).textContent || '',
+        error: (document.querySelector('[data-test=side-search-error], [data-test=search-bad-query]') || {}).textContent || '',
         door: Boolean(document.querySelector('[data-test=view-token-form], .view-token')),
         q: new URL(location.href).searchParams.get('q') || '',
       }))

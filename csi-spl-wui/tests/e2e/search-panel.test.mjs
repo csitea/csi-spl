@@ -97,9 +97,13 @@ try {
   await p.goto(server.base + '/channel/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector(SIDE_BODY, { visible: true, timeout: NAV_TIMEOUT })
   const w0 = await sidebarW()
+  const SIDE_DIV = '[data-testid=pane-divider-sidebar]'
+  const div0 = await shown(SIDE_DIV)
   await search('/s type:cal', '')
   ok('1 an Omnibox search opens the panel and the page stays (no /search page)', await shown(PANEL) && path().endsWith('/channel/lobby') && !(await p.$('[data-test=search-page]')), { url: p.url() })
   ok('2 the sidebar\'s own list hides, its width untouched', !(await shown(SIDE_BODY)) && (await sidebarW()) === w0, { w0, w: await sidebarW() })
+  /* R7 N2: the rail left of the panel carries no sidebar divider */
+  ok('2b the sidebar divider shows before the search and hides while the panel is open', div0 && !(await shown(SIDE_DIV)), { div0 })
   const pw = await p.$eval(PANEL, (el) => el.getBoundingClientRect().width).catch(() => 0)
   ok('3 the panel is its own, wider column: ~48 % of 1440, >= 380 px', pw >= 380 && Math.abs(pw - 691) <= 2, { pw })
 

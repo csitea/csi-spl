@@ -3,7 +3,9 @@
 // was posted in, with its topic open on the right and the hit marked there;
 // Back returns to the results; the row's right menu (right-click and the menu
 // key) offers Open original, Show here, Copy link; Show here keeps the
-// search page. CLE-77884: the hits are the LEFT panel's list. Phone (390 px): a long press opens the menu as a sheet, a tap
+// search. CLE-77884: the hits are the LEFT panel's list. SPL-6675: there is no
+// search page; an old /search?q= link opens the search panel, and the checks
+// read the panel (its data-q), not the address. Phone (390 px): a long press opens the menu as a sheet, a tap
 // opens the original.
 //
 //   node tests/e2e/search-original.test.mjs          (mock tenant, nuxi dev)
@@ -23,6 +25,8 @@ const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLY = '33333333-3333-4333-8333-333333333333'
 const Q = 'Applying'
 const HIT = '[data-test=search-results] [data-test=search-row][data-type=messages]'
+/** the open search panel's query, or null when it is closed */
+const panelQ = (pg) => pg.evaluate(() => document.querySelector('[data-testid=search-panel]')?.getAttribute('data-q') ?? null)
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -84,10 +88,10 @@ try {
   const fromKey = await p.waitForSelector('[data-testid=search-row-menu]', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
   ok('3 Shift+F10 on the list opens the same menu', fromKey)
 
-  /* 4: Show here = the old preview, the page stays /search */
+  /* 4: Show here = the old preview, the search panel stays open */
   await p.click('[data-testid=search-row-menu-here]')
   const here = await p.waitForSelector(`aside.live-pane [data-msg-id="${REPLY}"]`, { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
-  ok('4 Show here opens the thread on the right of the search page', here && new URL(p.url()).pathname.endsWith('/search'), p.url())
+  ok('4 Show here opens the thread on the right of the search panel', here && (await panelQ(p)) === Q, p.url())
 
   /* 5-7: a plain click = Open original */
   await p.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -106,7 +110,7 @@ try {
   await p.screenshot({ path: `${SHOTS}/2-original-desktop.png` })
   await p.goBack({ waitUntil: 'networkidle2' })
   const back = await p.waitForSelector(HIT, { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
-  ok('7 Back returns to the results with the query', back && new URL(p.url()).searchParams.get('q') === Q, p.url())
+  ok('7 Back returns to the results with the query', back && (await panelQ(p)) === Q, p.url())
 
   /* 8: Enter on the active row = Open original */
   await p.$eval('[data-test=search-results]', (el) => el.focus())
@@ -120,12 +124,13 @@ try {
   await m.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
   await m.goto(server.base + '/search?q=' + Q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await m.waitForSelector(HIT, { visible: true, timeout: NAV_TIMEOUT })
+  const before = m.url()
   const box = await (await m.$(`${HIT} .side-hit__text`)).boundingBox()
   await m.touchscreen.touchStart(box.x + 20, box.y + 5)
   await sleep(800)
   await m.touchscreen.touchEnd()
   const sheet = await m.waitForSelector('[data-testid=search-row-menu].touch-sheet', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
-  ok('9 phone: a long press opens the menu as a sheet (and does not navigate)', sheet && new URL(m.url()).pathname.endsWith('/search'), { sheet, url: m.url() })
+  ok('9 phone: a long press opens the menu as a sheet (and does not navigate)', sheet && m.url() === before, { sheet, url: m.url() })
   await m.screenshot({ path: `${SHOTS}/3-sheet-phone.png` })
   await m.tap('[data-testid=search-row-menu-original]')
   await m.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 10000 }).catch(() => null)

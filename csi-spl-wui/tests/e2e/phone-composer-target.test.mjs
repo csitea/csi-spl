@@ -476,9 +476,11 @@ async function searchCase(browser, width, height) {
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), test: g.getAttribute('data-test') }
   }, TA)
   await p.touchscreen.tap(go.x, go.y)
-  await sleep(1000)
+  /* SPL-6675: GO opens the search panel in place, no /search page */
+  const panelQ = await p.waitForSelector('[data-testid=search-panel]', { visible: true, timeout: 10000 })
+    .then((el) => el.evaluate((n) => n.getAttribute('data-q'))).catch(() => null)
   const url = new URL(p.url())
-  ok(`${tag} AC5 type "scaffold", tap GO: /search?q=scaffold (2 taps + typing)`, url.pathname.replace(/\/$/, '') === '/search' && url.searchParams.get('q') === 'scaffold', { go, url: url.pathname + url.search })
+  ok(`${tag} AC5 type "scaffold", tap GO: the search panel for "scaffold" (2 taps + typing)`, panelQ === 'scaffold' && !url.pathname.endsWith('/search'), { go, panelQ, url: url.pathname + url.search })
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 

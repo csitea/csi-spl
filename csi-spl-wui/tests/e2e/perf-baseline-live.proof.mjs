@@ -246,7 +246,7 @@ async function round(p, cdp, rec, prof, i, out) {
   }
   // search
   t0 = await routerPush(p, '/search?q=' + encodeURIComponent(Q))
-  t1 = await whenSel(p, '[data-test=search-results], [data-test=search-empty], [data-test=search-bad-query]')
+  t1 = await whenSel(p, '[data-test=search-results], [data-test=side-search-empty], [data-test=search-bad-query]')
   s.search = { ms: t1 < 0 ? -1 : Math.round(t1 - t0), ...netSummary(rec.take()) }
   // cold / (the topic list is where a signed-in visit lands)
   await cdp.send('Network.clearBrowserCache')
@@ -308,7 +308,7 @@ function journeySteps(p) {
     ['open-topic', () => push('/t/' + J_TOPIC), '[data-test=topic-section] article.msg', 1500],
     ['open-long-topic', () => push('/t/' + J_LONG), '[data-test=topic-section] article.msg', 2500],
     ['scroll-long-topic', scroll, null, 1500],
-    ['search', () => push('/search?q=line'), '[data-test=search-results], [data-test=search-empty]', 1500],
+    ['search', () => push('/search?q=line'), '[data-test=search-results], [data-test=side-search-empty]', 1500],
     ['back-lobby', () => push('/lobby'), 'article.msg', 1500],
     ['type-40', type, null, 800],
   ]

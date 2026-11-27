@@ -420,7 +420,7 @@ async function checkUsers(browser, base, vp) {
   try {
     for (const q of ['/search', '/search?q=deploy']) {
       await p.goto(base + q, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-      await p.waitForSelector('[data-test=search-page]', { timeout: NAV_TIMEOUT }).catch(() => null)
+      await p.waitForSelector('[data-testid=search-panel]', { timeout: NAV_TIMEOUT }).catch(() => null)
       await sleep(300)
       const x = await noXScroll(p)
       ok(`${tag} ${q}: no horizontal page scroll`, x.ok, x)

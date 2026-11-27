@@ -225,7 +225,7 @@ async function main() {
         const opened = await clickFirst(p, '[data-testid=channel-properties-open], [data-testid=feed-header-properties], [data-testid=channel-props]')
         return `${ch} opened=${opened}`
       })
-      await audit(p, w, '09-search', async () => { await nav(p, BASE + '/search?q=' + encodeURIComponent('HUM')); await p.waitForSelector('[data-test=search-results], [data-test=search-empty]', { timeout: 30000 }).catch(() => {}) })
+      await audit(p, w, '09-search', async () => { await nav(p, BASE + '/search?q=' + encodeURIComponent('HUM')); await p.waitForSelector('[data-test=search-results], [data-test=side-search-empty]', { timeout: 30000 }).catch(() => {}) })
     }
     const bad = res.findings.filter((f) => f.hits.length)
     step('SPL-1009: no named member is shown by HUM-n on any audited surface', bad.length === 0,

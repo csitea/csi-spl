@@ -169,7 +169,7 @@ try {
   }
 
   await goto(p, BASE + '/search?q=' + encodeURIComponent(SEARCH))
-  await p.waitForSelector('[data-test=search-msg-snippet], [data-test=search-empty]', { timeout: 25000 }).catch(() => {})
+  await p.waitForSelector('[data-test=search-msg-snippet], [data-test=side-search-empty]', { timeout: 25000 }).catch(() => {})
   await sleep(800)
   await modes(p, 'search results', '[data-test=search-results]', 'search', '.feed-header [data-testid=card-clip-control]')
 

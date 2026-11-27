@@ -93,21 +93,22 @@ try {
   // an open operator list would take the Enter: close it first (Escape then only closes the list)
   if (await p.$('[data-test=search-operators]')) await p.keyboard.press('Escape')
   await p.keyboard.press('Enter')
-  await p.waitForFunction(() => location.pathname.endsWith('/search'), { timeout: 10000 }).catch(() => null)
-  await p.waitForFunction(() => document.querySelector('[data-test=search-results],[data-test=search-empty],[data-test=search-bad-query],[data-test=search-error],[data-testid=view-door]'), { timeout: 20000 }).catch(() => null)
-  const u = new URL(p.url())
+  /* SPL-6675: Enter opens the search panel in place, no /search page */
+  await p.waitForSelector('[data-testid=search-panel]', { timeout: 10000 }).catch(() => null)
+  await p.waitForFunction(() => document.querySelector('[data-test=search-results],[data-test=side-search-empty],[data-test=search-bad-query],[data-test=side-search-error],[data-testid=view-door]'), { timeout: 20000 }).catch(() => null)
+  const panelQ = await p.evaluate(() => document.querySelector('[data-testid=search-panel]')?.getAttribute('data-q') ?? null)
   const state = await p.evaluate(() => {
     const has = (s) => !!document.querySelector(s)
     return {
-      results: has('[data-test=search-results]'), empty: has('[data-test=search-empty]'),
-      bad: has('[data-test=search-bad-query]'), error: has('[data-test=search-error]'), door: has('[data-testid=view-door]'),
+      results: has('[data-test=search-results]'), empty: has('[data-test=side-search-empty]'),
+      bad: has('[data-test=search-bad-query]'), error: has('[data-test=side-search-error]'), door: has('[data-testid=view-door]'),
       groups: [...document.querySelectorAll('.search-group')].map((g) => `${g.dataset.group}:${g.querySelectorAll('[role=option]').length}`),
       marks: document.querySelectorAll('.search-results mark').length,
       warnings: [...document.querySelectorAll('[data-test=search-warnings] li')].map((l) => l.textContent.trim()),
     }
   })
-  step('Enter opens /search?q=<raw query> with a results / empty / error state',
-    u.searchParams.get('q') === Q && (state.results || state.empty || state.bad || state.error || state.door), { q: u.searchParams.get('q'), ...state })
+  step('Enter opens the search panel for the raw query with a results / empty / error state',
+    panelQ === Q && (state.results || state.empty || state.bad || state.error || state.door), { q: panelQ, ...state })
   res.searchState = state
   await p.screenshot({ path: `${OUT}/03-search-results.png` })
 

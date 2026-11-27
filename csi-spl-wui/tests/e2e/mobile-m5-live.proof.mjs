@@ -101,7 +101,7 @@ try {
     await p.click('[data-testid=mobile-back]')
     await sleep(1500)
     ok(`${tag} Back returns to the list`, /\/settings\/?$/.test(new URL(p.url()).pathname) && await p.evaluate(SHOWN, '[data-test=settings-nav]'), { url: p.url() })
-    for (const [path, wait, name] of [['/events', '[data-test=events-page]', 'events'], ['/archive', '[data-test=archive-page]', 'archive'], ['/search?q=deploy', '[data-test=search-page]', 'search'], ['/settings/profile', '[data-test=settings-content]', 'profile']]) {
+    for (const [path, wait, name] of [['/events', '[data-test=events-page]', 'events'], ['/archive', '[data-test=archive-page]', 'archive'], ['/search?q=deploy', '[data-testid=search-panel]', 'search'], ['/settings/profile', '[data-test=settings-content]', 'profile']]) {
       await nav(p, BASE + path, wait)
       const x = await p.evaluate(X_SCROLL)
       ok(`${tag} ${path}: no sideways page scroll`, x.sw <= x.iw, x)

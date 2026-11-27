@@ -125,9 +125,11 @@ try {
   step(`B1 ${PHONE.width}px list: the dock says it is search-only`, b.docked && b.mode === 'search', b)
   const q = 'cle35066proof'
   await typeAndGo(p, q)
-  await until(() => p.evaluate(() => location.pathname.endsWith('/search')), 15000)
-  const b2 = await look(p)
-  step(`B2 ${PHONE.width}px list: GO with plain text opens /search?q=<text>`, b2.path.endsWith('/search') && b2.q === q, b2)
+  /* SPL-6675: GO opens the search panel in place, no /search page */
+  const panelQ = () => p.evaluate(() => document.querySelector('[data-testid=search-panel]')?.getAttribute('data-q') ?? null)
+  await until(async () => (await panelQ()) === q, 15000)
+  const b2 = { ...(await look(p)), panelQ: await panelQ() }
+  step(`B2 ${PHONE.width}px list: GO with plain text opens the search panel for <text>`, b2.panelQ === q, b2)
 } catch (e) {
   step('no exception', false, { error: String(e && e.message || e) })
 } finally {

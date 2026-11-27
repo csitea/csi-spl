@@ -25,7 +25,7 @@ const PAGES = [
   ['reset', '/reset-password?token=' + 'a'.repeat(64), '.login-card'],
   ['dialog', '/channel/lobby', '[data-testid=create-channel]', '[data-testid=create-channel]'],
   ['users-pane', '/users', '[data-test=users-row]', '[data-test=users-row]'],
-  ['search', '/search?q=deploy', '[data-test=search-page]'],
+  ['search', '/search?q=deploy', '[data-testid=search-panel]'],
 ]
 
 // One signed-in owner, the auth routes only (the display-name test's hub).

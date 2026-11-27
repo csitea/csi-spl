@@ -32,7 +32,7 @@ const VIEWPORTS = [
 const PATHS = [
   { path: '/login', wait: '.login-card', open: 'lang' },
   { path: '/lobby', wait: '.spool-shell', open: 'none' },
-  { path: '/search?q=deploy', wait: '.search-page', open: 'none' },
+  { path: '/search?q=deploy', wait: '[data-testid=search-panel]', open: 'none' },
   { path: '/settings/profile', wait: '[data-test=settings]', open: 'none' },
   { path: '/channel/lobby', wait: '.spool-shell', open: 'none' },
 ]

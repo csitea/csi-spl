@@ -8,6 +8,7 @@
 // The mock search is made slow and failing with the mock-only hook
 // localStorage `spool.mock.search-fault` (utils/search-results.mjs), so the
 // real store and page path run. Real browser, mock tenant, 1440 and 390.
+// SPL-6675: the notice is in the search panel (an old /search link opens it).
 //
 // Run:
 //   node tests/e2e/search-budget-message.test.mjs
@@ -67,14 +68,13 @@ const debugOn = (p) => p.evaluate(() => {
 })
 
 const notice = (p) => p.evaluate(() => {
-  const box = document.querySelector('[data-test=search-error]')
+  const box = document.querySelector('[data-test=side-search-error]')
   const text = (sel) => (document.querySelector(sel)?.textContent || '').trim()
   return {
-    msg: text('[data-test=search-error-message]'),
+    msg: text('[data-test=side-search-error-message]'),
     all: (box?.textContent || '').trim(),
-    tech: text('[data-test=search-error-tech]'),
-    retry: Boolean(document.querySelector('[data-test=search-error-retry]')),
-    side: text('[data-test=side-search-error-message]'),
+    tech: text('[data-test=side-search-error-tech]'),
+    retry: Boolean(document.querySelector('[data-test=side-search-error-retry]')),
     redBox: Boolean(document.querySelector('.error-notice')),
     snack: document.querySelectorAll('[data-test=error-snackbar-item]').length,
   }
@@ -95,12 +95,12 @@ try {
       await page.goto(`${srv.base}/search?q=${encodeURIComponent(QUERY)}`, { waitUntil: 'domcontentloaded' })
       await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
       if (c.fault.delayMs) {
-        const waiting = Boolean(await page.waitForSelector('[data-test=search-loading]', { timeout: 10000 }).catch(() => null))
+        const waiting = Boolean(await page.waitForSelector('[data-test=side-search-loading]', { timeout: 10000 }).catch(() => null))
         ok(`${tag}: the slow search says it is searching first`, waiting)
       }
-      const shown = Boolean(await page.waitForSelector('[data-test=search-error-message]', { timeout: 15000 }).catch(() => null))
+      const shown = Boolean(await page.waitForSelector('[data-test=side-search-error-message]', { timeout: 15000 }).catch(() => null))
       ok(`${tag}: the notice is shown`, shown)
-      await page.waitForFunction((s) => document.querySelector('[data-test=search-error-message]')?.textContent?.includes(s),
+      await page.waitForFunction((s) => document.querySelector('[data-test=side-search-error-message]')?.textContent?.includes(s),
         { timeout: 10000 }, c.sentence).catch(() => null)
       await sleep(400)
       let n = await notice(page)
@@ -108,20 +108,19 @@ try {
       ok(`${tag}: no status, id or timing without the Debug pane`, !TECH_WORDS.test(n.all) && !n.tech, n.all)
       ok(`${tag}: no red error box, no red snackbar`, !n.redBox && n.snack === 0, { redBox: n.redBox, snack: n.snack })
       ok(`${tag}: a Try again button`, n.retry)
-      if (!mobile) ok(`${tag}: the left panel says the same sentence`, n.side === c.sentence, n.side)
       if (SHOT_DIR && shown) await page.screenshot({ path: `${SHOT_DIR}/search-${c.name}-${width}-after.png` })
 
       const on = await debugOn(page)
-      const techShown = on && Boolean(await page.waitForSelector('[data-test=search-error-tech]', { timeout: 10000 }).catch(() => null))
+      const techShown = on && Boolean(await page.waitForSelector('[data-test=side-search-error-tech]', { timeout: 10000 }).catch(() => null))
       n = await notice(page)
       ok(`${tag}: the Debug pane shows the technical details`, techShown && c.tech.every((w) => n.tech.includes(w)), n.tech)
       ok(`${tag}: the sentence stays the same with the Debug pane on`, n.msg === c.sentence, n.msg)
       if (SHOT_DIR && techShown) await page.screenshot({ path: `${SHOT_DIR}/search-${c.name}-${width}-after-debug.png` })
 
       await page.evaluate(() => localStorage.removeItem('spool.mock.search-fault'))
-      await page.click('[data-test=search-error-retry]').catch(() => null)
-      const cleared = await page.waitForFunction(() => !document.querySelector('[data-test=search-error]')
-        && document.querySelector('[data-test=search-left-hint],[data-test=search-empty],[data-test=search-results]'),
+      await page.click('[data-test=side-search-error-retry]').catch(() => null)
+      const cleared = await page.waitForFunction(() => !document.querySelector('[data-test=side-search-error]')
+        && document.querySelector('[data-test=side-search-empty],[data-test=search-results]'),
       { timeout: 15000 }).then(() => true).catch(() => false)
       ok(`${tag}: Try again runs the search again and the app answers`, cleared)
       await page.close()

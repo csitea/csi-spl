@@ -78,13 +78,14 @@ async function dockSearch(p, q) {
   await p.focus(ta)
   await p.type(ta, `/search ${q}`)
   await p.keyboard.press('Enter')
+  /* SPL-6675: the search opens the search panel in place, no /search page */
+  const panelQ = () => p.evaluate(() => document.querySelector('[data-testid=search-panel]')?.getAttribute('data-q') ?? null)
   for (let i = 0; i < 40; i++) {
     await sleep(250)
-    const u = new URL(p.url())
-    if (u.pathname.endsWith('/search') && u.searchParams.get('q')) return u.searchParams.get('q')
+    const q = await panelQ()
+    if (q) return q
   }
-  const u = new URL(p.url())
-  return u.pathname.endsWith('/search') ? (u.searchParams.get('q') || '') : null
+  return panelQ()
 }
 
 async function toLevel(p, lv) {

@@ -187,7 +187,18 @@ jobs:
   # ONLY when the script proved it; the code jobs below skip only on
   # == 'false' and carry !cancelled(), so a failed or skipped classify runs
   # them. The step summary lists what was skipped, so the hourly full run can
-  # show a selection miss. Gate: ci-doc-only.tst.sh.
+  # show a selection miss. A SCHEDULE run (SPL-6385, ci-volume-2026-11-24.md
+  # section 3 A1b) lists the finished push and schedule runs on its own head
+  # sha and calls ci-doc-only.sh --reuse: when the newest of them that ran
+  # every part was green, no part runs and the summary names the run it
+  # reused; a new head, a red or cancelled gate, or no list -> every part.
+  # Only this file's own timer: wf 13 calls it on a schedule of its own to
+  # try the next runner image, and that run keeps every part.
+  # A green all-parts PUSH gate counts: 5 of 163 schedule runs, 11-20..11-26,
+  # had one and no green schedule run on that head (6 had that); its one
+  # skipped job, sec, scans the same tree: gitleaks runs on every push (wf 15),
+  # trivy config and checkov on every terraform push (wf 70, wf 65).
+  # Gate: ci-doc-only.tst.sh.
   # ===========================================================================
   classify:
     name: "classify: which parts does this push need?"
@@ -220,6 +231,8 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event_name == 'workflow_dispatch' && inputs.express_base || '' }}
           HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
           REF_NAME: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
@@ -228,6 +241,14 @@ jobs:
           cls=csi-spl-orc/src/bash/scripts/ci-doc-only.sh
           tsv="$RUNNER_TEMP/jobs.tsv"; : >"$tsv"
           out=""
+          jobs_of() {  # <id TAB sha lines>: append each run's jobs to $tsv
+            while IFS=$'\t' read -r id sha; do
+              [[ -n "$id" ]] || continue
+              gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
+                --jq ".jobs[] | [\"$id\", \"$sha\", .name, (.conclusion // \"-\")] | @tsv" >>"$tsv" 2>/dev/null || true
+            done <<<"$1"
+            echo "ci-doc-only: $(wc -l <"$tsv") job rows from $(grep -c . <<<"$1") finished runs"
+          }
           if [[ "$EVENT" == push ]]; then
             # the newest 15 push/schedule runs that reached a verdict (most
             # runs end cancelled, superseded, with no jobs); one jobs call
@@ -236,13 +257,17 @@ jobs:
                 gh api "repos/$REPO/actions/workflows/10_ci-quality.yml/runs?branch=$REF_NAME&status=$st&per_page=15" \
                   --jq '.workflow_runs[] | select(.event == "push" or .event == "schedule") | "\(.id)\t\(.head_sha)"' 2>/dev/null
               done | sort -rn | awk 'NR <= 15')
-            while IFS=$'\t' read -r id sha; do
-              [[ -n "$id" ]] || continue
-              gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
-                --jq ".jobs[] | [\"$id\", \"$sha\", .name, (.conclusion // \"-\")] | @tsv" >>"$tsv" 2>/dev/null || true
-            done <<<"$ids"
-            echo "ci-doc-only: $(wc -l <"$tsv") job rows from $(grep -c . <<<"$ids") finished runs"
+            jobs_of "$ids"
             out=$(bash "$cls" --select "$HEAD_SHA" "$tsv") || out=""
+          elif [[ "$EVENT" == schedule && "$WORKFLOW_REF" == */.github/workflows/10_ci-quality.yml@* ]]; then
+            # this file's own timer only (wf 13 calls it on its schedule to
+            # test a new image: that run must run every part); the finished
+            # push/schedule runs on this very head, newest 5
+            ids=$(gh api "repos/$REPO/actions/workflows/10_ci-quality.yml/runs?branch=$REF_NAME&head_sha=$HEAD_SHA&status=completed&per_page=20" \
+                --jq ".workflow_runs[] | select((.event == \"push\" or .event == \"schedule\") and .id != $RUN_ID) | \"\(.id)\t\(.head_sha)\"" 2>/dev/null \
+              | sort -rn | awk 'NR <= 5')
+            jobs_of "$ids"
+            out=$(bash "$cls" --reuse "$HEAD_SHA" "$tsv") || out=""
           elif [[ "$EVENT" == workflow_dispatch && -n "$BASE" ]]; then
             line=$(bash "$cls" "$BASE" "$HEAD_SHA") || line=parts=all
             for p in cnf hub iac orc wui; do
@@ -259,6 +284,10 @@ jobs:
             [[ "$v" == true ]] && sum+=" $p=run" || sum+=" $p=SKIPPED"
           done
           echo "$sum" >>"$GITHUB_STEP_SUMMARY"
+          reused=$(sed -n 's/^reused=//p' <<<"$out")
+          if [[ -n "$reused" ]]; then
+            echo "**reused** the green all-parts gate of run $reused on this head: $GITHUB_SERVER_URL/$REPO/actions/runs/$reused" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ===========================================================================
   # The hub suite: csi-spl-api/src/bash/tests/run-all-tests.sh -- gofmt,

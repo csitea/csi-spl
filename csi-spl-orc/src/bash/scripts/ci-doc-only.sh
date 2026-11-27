@@ -17,6 +17,15 @@
 #     per part, `run_<part>=true|false`; false ONLY when the part is proven
 #     untouched since its own base.
 #
+#   ci-doc-only.sh --reuse <head-sha> <jobs.tsv>
+#     The scheduled full run (SPL-6385, ci-volume-2026-11-24.md section 3 A1b).
+#     <jobs.tsv> as for --select, the finished runs on <head-sha>, newest first.
+#     The newest run on <head-sha> that ran every part (no part job skipped)
+#     decides: every part job success and no other job red -> `run_<part>=false`
+#     for every part and `reused=<run id>`; red or cancelled -> every part runs.
+#     A run that skipped a part (a docs push, an earlier reuse) proves nothing
+#     and is passed over; none left -> every part runs, as before A1b.
+#
 # Why a per-part base: the express lane's base was the last GREEN gate, and on
 # a trunk that is red 96 % of the time it fired 0 of 51 times (spec 133 seat C,
 # section 1.3). Per part, a red hub job keeps running until it is green, while
@@ -191,6 +200,47 @@ select_parts() {
   exit 0
 }
 
+# reuse_full <head> <jobs.tsv>: no part when <head> already had a green full gate.
+reuse_full() {
+  local head="$1" tsv="$2" run sha name concl p full
+  local -A seen=() has=() skip=() bad=()
+  local -a order=()
+  if [[ -r "$tsv" ]]; then
+    while IFS=$'\t' read -r run sha name concl; do
+      [[ -n "$run" && "$sha" == "$head" ]] || continue
+      [[ -n "${seen[$run]:-}" ]] || { seen[$run]=1; order+=("$run"); }
+      [[ "$concl" == success || "$concl" == skipped ]] || bad[$run]=1
+      p=${name%%:*}
+      [[ "$name" == *:* && " ${PARTS[*]} " == *" $p "* ]] || continue
+      has[$run.$p]=1
+      [[ "$concl" != skipped ]] || skip[$run.$p]=1
+    done <"$tsv"
+  fi
+  for run in "${order[@]}"; do
+    full=1
+    for p in "${PARTS[@]}"; do [[ -n "${has[$run.$p]:-}" && -z "${skip[$run.$p]:-}" ]] || full=0; done
+    [[ -z "${bad[$run]:-}" ]] || break
+    if (( full )); then
+      for p in "${PARTS[@]}"; do echo "run_$p=false"; done
+      echo "reused=$run"
+      echo "ci-doc-only: ${head:0:12} had a green all-parts gate, run $run: no part runs" >&2
+      exit 0
+    fi
+    echo "ci-doc-only: run $run on ${head:0:12} skipped a part: not a full gate, passed over" >&2
+    run=""
+  done
+  for p in "${PARTS[@]}"; do echo "run_$p=true"; done
+  if [[ -n "${run:-}" ]]; then
+    echo "ci-doc-only: the newest gate on ${head:0:12}, run $run, was red or cancelled: every part runs" >&2
+  else
+    echo "ci-doc-only: no green all-parts gate on ${head:0:12}: every part runs" >&2
+  fi
+  exit 0
+}
+
+if [[ "${1:-}" == --reuse ]]; then
+  reuse_full "${2:-}" "${3:-}"
+fi
 if [[ "${1:-}" == --select ]]; then
   select_parts "${2:-}" "${3:-}"
 fi

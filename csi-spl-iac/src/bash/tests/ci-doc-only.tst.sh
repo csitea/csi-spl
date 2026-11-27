@@ -164,6 +164,41 @@ want="run_cnf=true run_hub=true run_iac=true run_orc=true run_wui=true"
 printf '%s\n' "60	1234567890abcdef1234567890abcdef12345678	hub: suite	success" >"$T/j4.tsv"
 [[ "$(sel "$s3" "$T/j4.tsv")" == *run_hub=true* ]] && pass "select: an unreadable base -> the part runs" || fail "select: unreadable base skipped"
 
+# --reuse (SPL-6385 A1b): a schedule run on a head whose newest finished
+# all-parts gate was green runs no part; a new head, a red or a cancelled one
+# runs all. A partial green gate (parts skipped) proves nothing and is passed.
+reuse() { (cd "$R" && bash "$CLS" --reuse "$1" "$2" 2>/dev/null) | paste -sd' ' -; }
+full() {  # <run> <sha> <conclusion of hub: suite> - one all-parts run
+  printf '%s\n' "$1	$2	classify: parts	success" "$1	$2	hub: suite	$3" "$1	$2	wui: e2e 1/3	success" \
+    "$1	$2	iac: suite	success" "$1	$2	orc: hermetic 1/2	success" "$1	$2	cnf: validator	success" \
+    "$1	$2	distribution-hygiene sweep	success" "$1	$2	gate health	skipped"
+}
+partial() {  # <run> <sha> - a reused or docs-only run: every part skipped
+  printf '%s\n' "$1	$2	classify: parts	success" "$1	$2	hub: suite	skipped" "$1	$2	wui: e2e 1/3	skipped" \
+    "$1	$2	iac: suite	skipped" "$1	$2	orc: hermetic 1/2	skipped" "$1	$2	cnf: validator	skipped" \
+    "$1	$2	distribution-hygiene sweep	success"
+}
+NONE="run_cnf=false run_hub=false run_iac=false run_orc=false run_wui=false"
+ALL="run_cnf=true run_hub=true run_iac=true run_orc=true run_wui=true"
+{ partial 72 "$s4"; full 71 "$s4" success; } >"$T/r1.tsv"
+[[ "$(reuse "$s4" "$T/r1.tsv")" == "$NONE reused=71" ]] && pass "reuse: a head with a green all-parts gate (behind a reused run) runs no part" \
+  || fail "reuse: green all-parts head: want '$NONE reused=71', got '$(reuse "$s4" "$T/r1.tsv")'"
+full 73 "$s3" success >"$T/r2.tsv"
+[[ "$(reuse "$s4" "$T/r2.tsv")" == "$ALL" ]] && pass "reuse: a new head (green gate only on an older sha) runs every part" \
+  || fail "reuse: new head: want '$ALL', got '$(reuse "$s4" "$T/r2.tsv")'"
+{ full 75 "$s4" failure; full 74 "$s4" success; } >"$T/r3.tsv"
+[[ "$(reuse "$s4" "$T/r3.tsv")" == "$ALL" ]] && pass "reuse: a head whose newest all-parts gate was red runs every part" \
+  || fail "reuse: red head: want '$ALL', got '$(reuse "$s4" "$T/r3.tsv")'"
+{ full 77 "$s4" cancelled; full 76 "$s4" success; } >"$T/r4.tsv"
+[[ "$(reuse "$s4" "$T/r4.tsv")" == "$ALL" ]] && pass "reuse: a head whose newest all-parts gate was cancelled runs every part" \
+  || fail "reuse: cancelled head: want '$ALL', got '$(reuse "$s4" "$T/r4.tsv")'"
+full 79 "$s4" success | sed 's/hygiene sweep	success/hygiene sweep	failure/' >"$T/r5.tsv"
+[[ "$(reuse "$s4" "$T/r5.tsv")" == "$ALL" ]] && pass "reuse: green parts but a red always-on job is no green gate" \
+  || fail "reuse: red hygiene: want '$ALL', got '$(reuse "$s4" "$T/r5.tsv")'"
+partial 78 "$s4" >"$T/r6.tsv"
+[[ "$(reuse "$s4" "$T/r6.tsv")" == "$ALL" && "$(reuse "$s4" "$T/none.tsv")" == "$ALL" ]] \
+  && pass "reuse: only a partial gate, or no list -> every part runs" || fail "reuse: partial or no list skipped a part"
+
 # --- 3. the wiring in wf 10 ---------------------------------------------------
 declare -A JOB_PART=([hub-suite]=hub [wui-suite]=wui [wui-generate]=wui [wui-e2e]=wui [iac-suite]=iac
   [orc-suite]=orc [orc-features]=orc [cnf-suite]=cnf)
@@ -196,6 +231,26 @@ check10() {  # <wf 10 file> - prints the first violation, or nothing
   done
 }
 v=$(check10 "$W10"); [[ -z "$v" ]] && pass "wf 10: each code job skips only on its own run_<part>, hygiene jobs always run" || fail "wf 10: $v"
+
+# A1b: the schedule branch reuses a green all-parts gate of its own head only,
+# and only on wf 10's own timer (wf 13 calls this file on a schedule of its own).
+check_reuse() {  # <wf 10 file> - prints the first violation, or nothing
+  local run
+  run=$(yq '.jobs.classify.steps[] | select(.id == "cls") | .run' "$1")
+  [[ "$run" == *'--reuse "$HEAD_SHA"'* ]] || { echo "the schedule branch does not call ci-doc-only.sh --reuse"; return; }
+  [[ "$run" == *'head_sha=$HEAD_SHA&status=completed'* && "$run" == *'.id != $RUN_ID'* ]] \
+    || { echo "the reuse list is not the finished runs on this head (other than this run)"; return; }
+  [[ "$run" == *'"$EVENT" == schedule && "$WORKFLOW_REF" == */.github/workflows/10_ci-quality.yml@*'* \
+     && "$(yq '.jobs.classify.steps[] | select(.id == "cls") | .env.WORKFLOW_REF' "$1")" == *github.workflow_ref* ]] \
+    || echo "the reuse branch is not limited to wf 10's own schedule (wf 13's image check would skip every part)"
+}
+v=$(check_reuse "$W10"); [[ -z "$v" ]] && pass "wf 10: a schedule run reuses only a green all-parts gate of its own head, on its own timer" || fail "wf 10: $v"
+yq '(.jobs.classify.steps[] | select(.id == "cls") | .run) |= sub(" && \"\$WORKFLOW_REF\" == \*/.github/workflows/10_ci-quality.yml@\*", "")' "$W10" >"$T/c5.yml"
+[[ -n "$(check_reuse "$T/c5.yml")" ]] && pass "CONTROL: reuse on any schedule (wf 13's call too) is caught" \
+  || fail "CONTROL: reuse on wf 13's scheduled call passed"
+yq '(.jobs.classify.steps[] | select(.id == "cls") | .run) |= sub("head_sha=\$HEAD_SHA&", "")' "$W10" >"$T/c6.yml"
+[[ -n "$(check_reuse "$T/c6.yml")" ]] && pass "CONTROL: a reuse list not filtered on the head is caught" \
+  || fail "CONTROL: a reuse list of every head passed"
 
 yq 'del(.jobs."hub-suite".if)' "$W10" >"$T/c1.yml"
 [[ -n "$(check10 "$T/c1.yml")" ]] && pass "CONTROL: hub-suite without its run_hub condition is caught" \

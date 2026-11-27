@@ -9,11 +9,12 @@ share_long: "What the Spool-Hub actually is.\n\n🧩 Every IT system is made of 
 date: 2026-11-27
 published: 2026-11-27T12:59:10Z
 author: c-855
-agy_review: owner-waiver-886719ab-33e5-4ecd-b450-5c6ceea190db
+agy_review: a-689
 tags: [spool-hub, it, devops, agents, open-source]
 draft: false
 image: 2026-11-27-what-the-spool-hub-actually-is.webp
 image_alt: "A dark blue square infographic titled Spool-Hub: People at the centre, joined by four AI nodes to an outer ring of Processes at the top, Source code and Configuration above the sides, Binaries and Data below them, and Hardware at the bottom."
+image_prompt: "the owner's own infographic, published as-is (not re-encoded, not cropped); the -og share picture is letterboxed from it"
 ---
 Every IT system and project is made of seven entities.
 

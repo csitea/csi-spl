@@ -13,7 +13,7 @@ agy_review: owner-waiver-886719ab-33e5-4ecd-b450-5c6ceea190db
 tags: [spool-hub, it, devops, agents, open-source]
 draft: false
 image: 2026-11-27-what-the-spool-hub-actually-is.webp
-image_alt: "A dark blue infographic titled What the Spool-Hub actually is: People at the centre, ringed by AI agents, with Processes at the top, Source code and Configuration at the sides, Binaries and Data below, and Hardware at the bottom."
+image_alt: "A dark blue square infographic titled Spool-Hub: People at the centre, joined by four AI nodes to an outer ring of Processes at the top, Source code and Configuration above the sides, Binaries and Data below them, and Hardware at the bottom."
 ---
 Every IT system and project is made of seven entities.
 
@@ -32,18 +32,6 @@ The combination of the seven and the interactions between them, the people above
 ## 2. 🤖 AI joins them, if it has a harness
 
 With AI, all seven work together much better. But AI needs a harness that is human friendly: not only usable, but extremely EFFECTIVE.
-
-```text
-                  processes
-                     │
-   source code ──── AI ──── configuration
-                ╲    │    ╱
-           AI ─── PEOPLE ─── AI
-                ╱    │    ╲
-      binaries ──── AI ──── data
-                     │
-                  hardware
-```
 
 It scales: given enough hardware and software resources, one person can run hundreds of agents, so a large organisation could run thousands.
 

@@ -26,6 +26,23 @@
 // MOCK=1 measures a mock bundle (serve-generated.mjs): no sign-in, no SEND,
 // no EMAIL / PW_FILE. The W1 CPU work (boot + first render) is the same code.
 //
+// JOURNEY=1 (perf round 19 row 07, SPL-6673) drives the desktop journey of the
+// p19 editor's probe (perf-round-19/editor.md 2.5) on a mock bundle, a fresh
+// context per round, 1440x900: cold-lobby, switch-alerts, switch-lobby,
+// open-topic, open-long-topic (NLONG replies seeded into the mock),
+// scroll-long-topic (40 steps), search (q=line), back-lobby, type-40 (41 keys
+// into the top-bar field, the probe's text). Per step it prints Chrome's own
+// counters (CDP Performance.getMetrics deltas): layouts and style recalcs, and
+// Nodes and JSEventListeners after a forced GC (HeapProfiler.collectGarbage
+// x2). The counts do not move with box load; wall and script ms do. It holds
+// no Puppeteer handle across a read: an undisposed handle on one detached
+// element keeps its tree alive (row 03, c-030: +1,9xx nodes per search).
+// Output: OUT/journey.json and a min..max table per step, "same" when all N
+// rounds read one count. Implies MOCK=1; PROFILES, SEND and Q are not read.
+//
+//   BASE=http://127.0.0.1:<port> OUT=<dir> JOURNEY=1 [N=5] [NLONG=400] \
+//     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/perf-baseline-live.proof.mjs
+//
 //   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [MOCK=0] [TENANT=e2e] [N=5] [PROFILES=d1440,d1440-cpu4,d1440-4g,m390-4g] [Q=perf] [SEND=1] [WATERFALL=0] \
 //     [LOCAL_MAP=127.0.0.1:8443] [USER_DATA_DIR=<dir>] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/perf-baseline-live.proof.mjs
@@ -45,7 +62,8 @@ import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
-const MOCK = process.env.MOCK === '1'
+const JOURNEY = process.env.JOURNEY === '1'
+const MOCK = process.env.MOCK === '1' || JOURNEY
 const email = MOCK ? '' : need('EMAIL')
 const pw = MOCK ? '' : readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 'e2e'
@@ -242,7 +260,128 @@ async function round(p, cdp, rec, prof, i, out) {
   return s
 }
 
+// JOURNEY=1 (header). No Puppeteer handle outlives its call: waits dispose the
+// handle waitForFunction returns, reads and focus go through evaluate.
+const J_LONG = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const J_TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const J_NLONG = Number(process.env.NLONG || 400)
+const J_TYPED = 'the quick brown fox jumps over the lazy d'
+const J_METRICS = ['LayoutCount', 'RecalcStyleCount', 'ScriptDuration', 'Nodes', 'JSEventListeners']
+const J_COUNTS = [['layouts', 'layouts'], ['recalcs', 'style recalcs'], ['nodes', 'nodes after GC'], ['listeners', 'listeners after GC']]
+
+/** J_NLONG replies under the parent J_LONG, as mock rows (spool.mock.extra-messages). */
+function journeyRows() {
+  const t0 = Date.parse('2026-11-20T08:00:00Z')
+  return Array.from({ length: J_NLONG }, (_, i) => ({
+    msg_id: i === 0 ? J_LONG : `00000000-0000-4000-8000-${String(100000000000 + i)}`, task_id: J_LONG, channel: 'lobby',
+    from: i % 3 ? 'HUM-1' : 'CLE-001', from_box: 'box-wui', to: 'ALL-0', kind: 'note', files: [],
+    body: `line ${i} **bold** and \`code\` with a [link](https://example.com/${i}) and some words to wrap around the card width a little`,
+    is_parent: i === 0 ? 1 : 0, parent_id: i === 0 ? undefined : J_LONG, received_at: new Date(t0 + i * 60000).toISOString(),
+  }))
+}
+
+/** true once sel is in the page; the JSHandle waitForFunction resolves to is disposed. */
+async function waitFor(p, sel) {
+  const h = await p.waitForFunction((s) => !!document.querySelector(s), { timeout: 30000, polling: 'raf' }, sel).catch(() => null)
+  if (!h) return false
+  await h.dispose()
+  return true
+}
+
+/** [name, action, selector that ends it (or null), settle ms] of the journey, in order. */
+function journeySteps(p) {
+  const push = (to) => p.evaluate((t) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push(t), to)
+  const scroll = () => p.evaluate(async () => {
+    const tall = (e) => e.scrollHeight > e.clientHeight + 200 && /auto|scroll/.test(getComputedStyle(e).overflowY)
+    const all = [...document.querySelectorAll('*')]
+    const el = all.find((e) => tall(e) && e.closest('[data-test=topic-section]')) || all.find(tall)
+    for (let k = 0; el && k < 40; k++) { el.scrollTop -= 300; await new Promise((r) => requestAnimationFrame(r)) }
+  })
+  const type = async () => {
+    await p.evaluate(() => (document.querySelector('form.composer.omnibox--global textarea') || document.querySelector('form.composer textarea'))?.focus())
+    await p.keyboard.type(J_TYPED, { delay: 10 })
+  }
+  return [
+    ['cold-lobby', () => p.goto(BASE + '/lobby', { waitUntil: 'domcontentloaded', timeout: 90000 }), 'article.msg', 2500],
+    ['switch-alerts', () => push('/channel/alerts'), 'article.msg', 1500],
+    ['switch-lobby', () => push('/lobby'), 'article.msg', 1500],
+    ['open-topic', () => push('/t/' + J_TOPIC), '[data-test=topic-section] article.msg', 1500],
+    ['open-long-topic', () => push('/t/' + J_LONG), '[data-test=topic-section] article.msg', 2500],
+    ['scroll-long-topic', scroll, null, 1500],
+    ['search', () => push('/search?q=line'), '[data-test=search-results], [data-test=search-empty]', 1500],
+    ['back-lobby', () => push('/lobby'), 'article.msg', 1500],
+    ['type-40', type, null, 800],
+  ]
+}
+
+/** One fresh context through the journey: per step the counter deltas, then nodes and listeners after a forced GC. */
+async function journeyRound(browser, rows) {
+  const ctx = await browser.createBrowserContext()
+  try {
+    const p = await ctx.newPage()
+    const errors = []
+    p.on('pageerror', (e) => errors.push(String(e).slice(0, 160)))
+    await p.setViewport({ width: 1440, height: 900 })
+    await p.evaluateOnNewDocument((r) => { try { localStorage.setItem('spool.mock.extra-messages', JSON.stringify(r)) } catch { /* none */ } }, rows)
+    const cdp = await p.createCDPSession()
+    await cdp.send('Performance.enable')
+    const read = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.filter((x) => J_METRICS.includes(x.name)).map((x) => [x.name, x.value]))
+    const r = { load1: Math.round(loadavg()[0] * 10) / 10, steps: {}, errors }
+    for (const [name, act, sel, settle] of journeySteps(p)) {
+      const a = await read()
+      const t0 = Date.now()
+      await act()
+      const ok = sel ? await waitFor(p, sel) : true
+      const ms = Date.now() - t0
+      await sleep(settle)
+      const b = await read()
+      await cdp.send('HeapProfiler.collectGarbage')
+      await cdp.send('HeapProfiler.collectGarbage')
+      const g = await read()
+      r.steps[name] = { ok, ms, layouts: b.LayoutCount - a.LayoutCount, recalcs: b.RecalcStyleCount - a.RecalcStyleCount,
+        scriptMs: Math.round((b.ScriptDuration - a.ScriptDuration) * 1000), nodes: g.Nodes, listeners: g.JSEventListeners }
+    }
+    return r
+  } finally {
+    await ctx.close()
+  }
+}
+
+/** The table: per step, rounds ok, p50 of the ms, min..max of each count ("same" when all rounds agree). */
+function journeyTable(rounds) {
+  const span = (xs) => { const lo = Math.min(...xs); const hi = Math.max(...xs); return lo === hi ? `${lo} (same)` : `${lo}..${hi}` }
+  console.log(`| step | ok | wall ms p50 | script ms p50 | ${J_COUNTS.map(([, h]) => h).join(' | ')} |`)
+  console.log(`|---|---|---|---|${J_COUNTS.map(() => '---|').join('')}`)
+  for (const name of Object.keys(rounds[0].steps)) {
+    const col = (k) => rounds.map((r) => r.steps[name][k])
+    const ok = col('ok').filter(Boolean).length
+    console.log(`| ${name} | ${ok}/${rounds.length} | ${pct(col('ms'), 0.5)} | ${pct(col('scriptMs'), 0.5)} | ${J_COUNTS.map(([k]) => span(col(k))).join(' | ')} |`)
+  }
+}
+
+/** JOURNEY=1: N rounds, OUT/journey.json, the table; 1 when a step's selector never showed. */
+async function journey(puppeteer) {
+  const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+  const out = { base: BASE, n: N, nlong: J_NLONG, at: new Date().toISOString(), rounds: [] }
+  try {
+    out.build = await fetch(BASE + '/build.json').then((r) => r.json()).catch(() => ({}))
+    const rows = journeyRows()
+    for (let i = 0; i < N; i++) {
+      const r = await journeyRound(browser, rows)
+      out.rounds.push(r)
+      console.log('round', i, 'load1', r.load1, JSON.stringify(Object.fromEntries(Object.entries(r.steps).map(([k, v]) => [k, [v.ok ? v.ms : -1, v.layouts, v.recalcs, v.nodes, v.listeners]]))))
+    }
+  } finally {
+    await browser.close()
+  }
+  writeFileSync(`${OUT}/journey.json`, JSON.stringify(out, null, 1))
+  console.log('build', JSON.stringify(out.build || {}))
+  journeyTable(out.rounds)
+  return out.rounds.every((r) => Object.values(r.steps).every((s) => s.ok)) ? 0 : 1
+}
+
 const puppeteer = await loadPuppeteer()
+if (JOURNEY) process.exit(await journey(puppeteer))
 const LOCAL_MAP = process.env.LOCAL_MAP || ''
 const chromeArgs = ['--no-sandbox']
 if (LOCAL_MAP) chromeArgs.push(`--host-resolver-rules=MAP ${new URL(BASE).hostname} ${LOCAL_MAP}`, '--ignore-certificate-errors')

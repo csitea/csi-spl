@@ -25,6 +25,10 @@
 #   SPOOL_AGY_PROBE_DIR     the reading cache (default $SPOOL_ROOT/dispatch/vendor-probe)
 #   SPOOL_AGY_READ_TIMEOUT_S  the bound on each agy read (default 60): a
 #                           stalled `agy acp` / `agy models` never holds a start
+#   SPOOL_AGY_READ_BUDGET_S   the bound on both reads together, kill grace
+#                           included (default 80): a watchdog restart waits
+#                           WD_START_WAIT (120 s) for the seat to start, so
+#                           two stalled reads (2 x 65 s) must not add up past it
 #
 # SPAWN_DRY_RUN=1 writes nothing and starts no agy: a fresh cached reading
 # decides, else the reading counts as unread (spawn-core.inc.sh "DRY RUN").
@@ -58,21 +62,37 @@ _spool_agy_fb_cached() {  # NAME CMD
   printf '%s\n' "$out"
 }
 
-# The bound in seconds on one agy read (at least 10).
+# The read budget in seconds (SPOOL_AGY_READ_BUDGET_S, at least 20).
+_spool_agy_fb_budget() {
+  local b="${SPOOL_AGY_READ_BUDGET_S:-80}"
+  [[ "$b" =~ ^[0-9]+$ ]] && (( b >= 20 )) || b=80
+  echo "$b"
+}
+
+# The bound in seconds on the next agy read: SPOOL_AGY_READ_TIMEOUT_S (at
+# least 10), cut to what is left of the budget (_AGY_FB_DEADLINE, an epoch,
+# set by spool_agy_fallback_decide) less the 5 s kill grace. rc 1 and
+# nothing printed when under 10 s is left: the read is not started.
 _spool_agy_fb_tmo() {
-  local t="${SPOOL_AGY_READ_TIMEOUT_S:-60}"
+  local t="${SPOOL_AGY_READ_TIMEOUT_S:-60}" left
   [[ "$t" =~ ^[0-9]+$ ]] && (( t >= 10 )) || t=60
+  if [[ "${_AGY_FB_DEADLINE:-}" =~ ^[0-9]+$ ]]; then
+    left=$(( _AGY_FB_DEADLINE - $(date +%s) - 5 ))
+    (( left >= 10 )) || return 1
+    (( left >= t )) || t=$left
+  fi
   echo "$t"
 }
 
 # agy's quota lines (agy-quota-read.py), cached; rc 4 when unread.
 spool_agy_quota() {
-  local cmd="${SPOOL_AGY_QUOTA_CMD:-}"
+  local cmd="${SPOOL_AGY_QUOTA_CMD:-}" t
   if [ -z "$cmd" ]; then
     declare -F spool_agent_exec >/dev/null || return 4
-    cmd="spool_agent_exec \"timeout -k 5 $(_spool_agy_fb_tmo) python3 -I '$_AGY_FB_LIB_DIR/../scripts/agy-quota-read.py'"
+    t="$(_spool_agy_fb_tmo)" || return 4
+    cmd="spool_agent_exec \"timeout -k 5 $t python3 -I '$_AGY_FB_LIB_DIR/../scripts/agy-quota-read.py'"
     [ -z "${AGY_BIN:-}" ] || cmd+=" --agy '$AGY_BIN'"
-    cmd+=" --timeout $(( $(_spool_agy_fb_tmo) - 5 ))"
+    cmd+=" --timeout $(( t - 5 ))"
     cmd+='"'
   fi
   _spool_agy_fb_cached agy-quota.tsv "$cmd"
@@ -80,10 +100,11 @@ spool_agy_quota() {
 
 # The model ids agy offers (`agy models`, column 1), cached; rc 4 when unread.
 spool_agy_model_ids() {
-  local cmd="${SPOOL_AGY_MODELS_CMD:-}"
+  local cmd="${SPOOL_AGY_MODELS_CMD:-}" t
   if [ -z "$cmd" ]; then
     declare -F spool_agent_exec >/dev/null || return 4
-    cmd="spool_agent_exec \"timeout -k 5 $(_spool_agy_fb_tmo) '${AGY_BIN:-agy}' models </dev/null\""
+    t="$(_spool_agy_fb_tmo)" || return 4
+    cmd="spool_agent_exec \"timeout -k 5 $t '${AGY_BIN:-agy}' models </dev/null\""
   fi
   _spool_agy_fb_cached agy-models.tsv "$cmd" | awk -F'\t' 'NF >= 1 && $1 ~ /^[A-Za-z0-9._:\/-]+$/ { print $1 }'
 }
@@ -95,6 +116,10 @@ _spool_agy_fb_frac() {  # QUOTA BUCKET
 
 # 0 when A < B (decimal fractions).
 _spool_agy_fb_lt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 < b + 0) }'; }
+
+# An Author: line: plain, bold (**Author:**), in a list item (- **Author:**)
+# or a table row (| Author | c-123 |); case-insensitive, for grep -iE.
+_AGY_FB_AUTHOR_RE='^[[:space:]]*([-*+>|][[:space:]]*)*[*_]*Author[*_]*[[:space:]]*[:|]'
 
 # 0 when the BRIEF files mark a review seat, wherever the brief sits (a
 # watchdog restart or rotation seed nests the task brief under its own
@@ -109,7 +134,7 @@ _spool_agy_fb_is_review() {  # BRIEF...
     grep -qiE '\b(review(er|s)?|R7|panel)\b' <<<"$(basename "$f")" && return 0
     [ -r "$f" ] || continue
     grep -qiE '^[*_ ]*Kind:[*_ ]*review\b' "$f" && return 0
-    grep -qiE '^[*_ ]*Author:' "$f" && return 0
+    grep -qiE "$_AGY_FB_AUTHOR_RE" "$f" && return 0
     grep -E '^#+ ' "$f" | grep -qiE '\b(review(er|s|ing)?|R7|panel)\b' && return 0
   done
   return 1
@@ -124,7 +149,7 @@ spool_agy_fallback_barred() {  # BRIEF...
   if _spool_agy_fb_is_review "$@"; then
     while read -r id; do
       [ -n "$id" ] && [ "$(spl_kind_of_agent_id "$id" 2>/dev/null)" = claude ] && au+=" $id"
-    done < <(for f in "$@"; do [ -r "$f" ] && grep -iE '^[*_ ]*Author:' "$f"; done 2>/dev/null | grep -oE '\b[acgmoq]-[0-9]{3}\b|\bCLE-[0-9]+\b' | sort -u)
+    done < <(for f in "$@"; do [ -r "$f" ] && grep -iE "$_AGY_FB_AUTHOR_RE" "$f"; done 2>/dev/null | grep -oE '\b[acgmoq]-[0-9]{3}\b|\bCLE-[0-9]+\b' | sort -u)
     if [ -n "$au" ]; then echo "a review seat of a claude author (${au# }) stays on Gemini: a claude-* model would make it a claude review (rounds rulebook 2.7.3)"
     else echo "a review seat: no fallback until the owner rules (c-001 847c41a2)"; fi
     return 0
@@ -145,6 +170,7 @@ spool_agy_fallback_decide() {  # BRIEF...
   local q ids m wk fh wmin fmin amin aw a5
   AGY_FB_MODEL="" AGY_FB_WHY="$(spool_agy_fallback_barred "$@")"
   [ -z "$AGY_FB_WHY" ] || return 0
+  local _AGY_FB_DEADLINE=$(( $(date +%s) + $(_spool_agy_fb_budget) ))
   q="$(spool_agy_quota)" || { AGY_FB_WHY="agy quota unread: stays on its default"; return 0; }
   wk="$(_spool_agy_fb_frac "$q" gemini-weekly)" fh="$(_spool_agy_fb_frac "$q" gemini-5h)"
   wmin="$(spool_agy_fallback_cnf weekly_min)" fmin="$(spool_agy_fallback_cnf five_hour_min)" amin="$(spool_agy_fallback_cnf alt_min)"

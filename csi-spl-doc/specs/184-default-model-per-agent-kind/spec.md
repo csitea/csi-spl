@@ -583,7 +583,12 @@ No prompt was sent and no model was called in any of these.
   bounded: `agy-quota-read.py` waits on agy's output with `select` up to
   its `--timeout`, and both reads run under `timeout`
   (`SPOOL_AGY_READ_TIMEOUT_S`, default 60 s), so a stalled `agy acp` or
-  `agy models` ends as an unread reading. `SPAWN_DRY_RUN=1` starts no agy
+  `agy models` ends as an unread reading. The two reads share one budget,
+  kill grace included (`SPOOL_AGY_READ_BUDGET_S`, default 80 s): the
+  second read gets what is left, and none starts with under 10 s left, so
+  two stalled reads (60 + 5, then 10 + 5) stay below the 120 s a watchdog
+  restart waits for the seat (`WD_START_WAIT`; R7 c-795 N4: 2 x 65 s did
+  not). `SPAWN_DRY_RUN=1` starts no agy
   and writes nothing: only a fresh cached reading decides, else the
   reading counts as unread.
 - **The rule** (c-001 `847c41a2`, rounds rulebook 2.7.3, cross-vendor
@@ -593,8 +598,9 @@ No prompt was sent and no model was called in any of these.
   briefs (above), marks one: `Kind: review`; `review`, `reviewer`, `R7`
   or `panel` in a file name or in ANY heading (a watchdog-restart seed
   nests the task brief, with its own heading, under its section A); any
-  `Author:` line (a seat that names an author reviews that author's
-  work). It errs toward review: a doc lane barred by mistake only waits,
+  `Author:` line, plain, bold, a list item (`- **Author:**`) or a table
+  row (`| Author | c-123 |`) (a seat that names an author reviews that
+  author's work; c-795 N3). It errs toward review: a doc lane barred by mistake only waits,
   as today. A review seat whose `Author:` is a claude lane says so in its
   reason. (R7 a-766 W1: the first-heading-only test let a restart seed of
   a claude author's review seat start on `claude-sonnet-5-5-high`.)

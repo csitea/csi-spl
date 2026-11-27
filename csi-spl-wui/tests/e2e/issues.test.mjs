@@ -574,8 +574,25 @@ try {
   const bk = await rowKeys('[data-test=issues-row]')
   const box = (k) => `[data-test=issues-row][data-key="${k}"] [data-test=issues-row-check]`
   const s0 = await bulkState()
-  ok('17a 1440: every row has a box, none checked, the header shows (no bulk bar)',
-    (await count('[data-test=issues-row-check]')) === s0.rows && s0.rows === 30 && s0.checked.length === 0 && !s0.bar && s0.head && (await count('[data-test=issues-select-page]')) === 1, s0)
+  /* SPL-6646 (owner HUM-10, t1 11d7836d: "make the selection for the issues
+     work and behave as the selections for the topics", "they should not be
+     shown be default"): no box is shown until the select phase, as on a
+     topic list; the header carries one select tick (the topics' row 2 tick) */
+  await p.mouse.move(1, 1)
+  const shown0 = await p.evaluate(() => {
+    const vis = (el) => { const cs = getComputedStyle(el); return el.getClientRects().length > 0 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 }
+    return {
+      rowBoxes: [...document.querySelectorAll('[data-test=issues-row-check]')].filter(vis).length,
+      pageBoxes: [...document.querySelectorAll('[data-test=issues-select-page]')].filter(vis).length,
+      tick: [...document.querySelectorAll('[data-test=issues-select-listed]')].filter(vis).length,
+      tickInHead: Boolean(document.querySelector('header.issues-head [data-test=issues-select-listed]')),
+    }
+  })
+  ok('17a 1440: no box shown by default (no row box, no page box), none checked, the header shows its one select tick (no bulk bar)',
+    s0.rows === 30 && s0.checked.length === 0 && !s0.bar && s0.head && shown0.rowBoxes === 0 && shown0.pageBoxes === 0 && shown0.tick === 1 && shown0.tickInHead, { s0, shown0 })
+  await p.hover(`[data-test=issues-row][data-key="${bk[0]}"]`)
+  const hov = await p.$eval(box(bk[0]), (el) => getComputedStyle(el).opacity)
+  ok('17a2 1440: a row shows its box on hover (a topic card\'s rule)', Number(hov) === 1, hov)
   /* HUM-10 (t1 0a6b440f): the desktop row box is the size the phone's drawn box may not exceed */
   const deskBox = await p.$eval(box(bk[0]), (el) => { const r = el.getBoundingClientRect(); return { w: r.width, h: r.height } })
   await p.click(box(bk[0]))
@@ -608,8 +625,11 @@ try {
   await p.keyboard.press('Escape')
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-bulk-bar]'), { timeout: 5000 }).catch(() => null)
   const s5 = await bulkState()
-  ok('17f Esc clears the selection: no box checked, the header is back', s5.checked.length === 0 && !s5.bar && s5.head, s5)
-  await p.click('[data-test=issues-select-page]')
+  await p.mouse.move(1, 1)
+  /* the focused row keeps its box (shown on focus, a topic card's rule); no other row shows one */
+  const off5 = await p.$$eval('[data-test=issues-row-check]', (els) => els.filter((el) => Number(getComputedStyle(el).opacity) > 0 && !el.closest('[data-test=issues-row]')?.contains(document.activeElement)).length)
+  ok('17f Esc clears the selection and leaves the phase: no box checked, none shown but the focused row\'s, the header is back', s5.checked.length === 0 && !s5.bar && s5.head && off5 === 0, { s5, off5 })
+  await p.click('[data-test=issues-select-listed]')
   await p.waitForSelector('[data-test=issues-bulk-note]', { visible: true, timeout: 5000 }).catch(() => null)
   const s6 = await bulkState()
   ok('17g the page box checks the 30 rows shown and offers all 64 matching (Gmail)',
@@ -635,7 +655,13 @@ try {
   await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=issues-card]', { visible: true, timeout: NAV_TIMEOUT })
   const ck = await rowKeys('[data-test=issues-card]')
-  await p.click(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
+  /* SPL-6646: a phone shows no card box until the phase; the card menu's Select (a topic card's H4) starts it */
+  const m0 = { boxes: await count('[data-test=issues-card-check]'), tick: await count('[data-test=issues-mbar] [data-test=issues-select-listed]') }
+  ok('18-0 390: no card box by default; the bar above the cards holds the select tick', m0.boxes === 0 && m0.tick === 1, m0)
+  await p.click(`[data-test=issues-card][data-key="${ck[0]}"]`, { button: 'right' })
+  await p.waitForSelector('[data-test=issues-ctxmenu-select]', { visible: true, timeout: 5000 }).catch(() => null)
+  await p.click('[data-test=issues-ctxmenu-select]')
+  await p.waitForSelector(`[data-test=issues-card-check][data-key="${ck[1]}"]`, { visible: true, timeout: 5000 }).catch(() => null)
   await p.click(`[data-test=issues-card-check][data-key="${ck[1]}"]`)
   await p.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 10000 }).catch(() => null)
   const m1 = await p.evaluate(() => {
@@ -654,23 +680,31 @@ try {
   const asg = await p.evaluate((ks) => ks.map((k) => document.querySelector(`[data-test=issues-card][data-key="${k}"] [data-test=issues-card-assignee]`)?.getAttribute('data-assignee')), [ck[0], ck[1], ck[2]])
   await p.screenshot({ path: `${SHOTS}/bulk-390.png` })
   ok('18b 390: Assignee on the bar assigns both checked cards; the unchecked card (control) is not assigned', Boolean(assignee) && asg[0] === assignee && asg[1] === assignee && asg[2] !== assignee, { assignee, asg })
-  await p.click('[data-test=issues-bulk-clear]')
-  const m2 = await bulkState()
-  ok('18c 390: Clear unchecks every card and brings the header back', m2.checked.length === 0 && !m2.bar && m2.head, m2)
+  /* SPL-6646: in the phase a tap on a card toggles it (a topic card's H4), no issue opens */
+  await p.click(`[data-test=issues-card][data-key="${ck[2]}"]`)
+  const t1 = await bulkState()
+  await p.click(`[data-test=issues-card][data-key="${ck[2]}"]`)
+  const t2 = await bulkState()
+  const tOpened = Boolean(await p.$('[data-test=issues-detail]'))
+  ok('18b2 390: in the phase a tap on a card ticks it, a second untaps it; no issue opens', t1.checked.includes(2) && !t2.checked.includes(2) && !tOpened, { t1: t1.checked, t2: t2.checked, tOpened })
   /* HUM-10 (t1 0a6b440f): the phone boxes were drawn larger than the desktop
      one; the drawn box (::before) is at most the desktop box, its tap target
      (the label) stays >= 44 px */
-  const m3 = await p.evaluate((ck0) => ['[data-test=issues-select-page]', `[data-test=issues-card-check][data-key="${ck0}"]`].map((sel) => {
-    const el = document.querySelector(sel)
-    if (!el) return { sel, missing: true }
+  const boxGeo = (sel) => p.evaluate((s) => {
+    const el = document.querySelector(s)
+    if (!el) return { sel: s, missing: true }
     const cs = getComputedStyle(el, '::before')
     const t = el.closest('label').getBoundingClientRect()
-    return { sel, w: parseFloat(cs.width), h: parseFloat(cs.height), tw: t.width, th: t.height }
-  }), ck[0])
-  await p.click(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
+    return { sel: s, w: parseFloat(cs.width), h: parseFloat(cs.height), tw: t.width, th: t.height }
+  }, sel)
+  const cardGeo = await boxGeo(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
   await p.screenshot({ path: `${SHOTS}/check-390.png` })
-  await p.click(`[data-test=issues-card-check][data-key="${ck[0]}"]`)
-  ok('18d 390: the page and card boxes are drawn no larger than the desktop row box, each a 44 px tap target',
+  await p.click('[data-test=issues-bulk-clear]')
+  const m2 = await bulkState()
+  const m2boxes = await count('[data-test=issues-card-check]')
+  ok('18c 390: Clear unchecks every card, leaves the phase (no card box) and brings the header back', m2.checked.length === 0 && !m2.bar && m2.head && m2boxes === 0, { m2, m2boxes })
+  const m3 = [await boxGeo('[data-test=issues-select-listed]'), cardGeo]
+  ok('18d 390: the select tick and the card boxes are drawn no larger than the desktop row box, each a 44 px tap target',
     m3.every((b) => !b.missing && b.w <= deskBox.w && b.h <= deskBox.h && b.tw >= 44 && b.th >= 44), { deskBox, m3 })
   await p.evaluate(() => localStorage.removeItem('spool.mock.issues-seed'))
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))

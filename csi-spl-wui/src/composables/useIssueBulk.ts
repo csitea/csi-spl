@@ -14,6 +14,14 @@ import type { IssuePickerMenu, IssuesApi } from '~/composables/issuesPageTypes'
  * bulk route; per-issue calls, BULK_PARALLEL at a time, were measured fast
  * enough on dev (2026-10-12, n=6 status PATCHes, ~0.3..0.6 s each). Moved
  * out of pages/issues.vue (r13-06).
+ *
+ * SPL-6646 (owner HUM-10, t1 11d7836d, msgs 926d0a46 + 2e9c4cdf: "make the
+ * selection for the issues work and behave as the selections for the
+ * topics", "they should not be shown be default"): the select phase is the
+ * topics' (spec 186 7.1.6). It is on while a row is checked (bulkOn); the
+ * page shows no box until then, save a desktop row's on hover and focus.
+ * The header's select tick, a row menu's Select, `x` and a hovered box
+ * enter it; Esc, Clear and unchecking the last row leave it.
  */
 export type IssueBulkOpts = {
   api: IssuesApi
@@ -97,6 +105,14 @@ function useBulkPick(o: IssueBulkOpts, s: BulkState) {
   function togglePage() {
     setSelected(toggleAll(s.selected.value, s.flatKeys.value))
   }
+  /* SPL-6646: one row ticked, unticked (`on`) or flipped by key: the row
+     menu's Select, and a phone tap on a card while the phase is on */
+  function tickKey(key: string, on?: boolean) {
+    if (!key || !s.flatKeys.value.includes(key)) return
+    setSelected(toggleKey(s.selected.value, key, on))
+    checkAnchor = key
+    o.cursorKey.value = key
+  }
   function toggleFocused() {
     const focused = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('[data-test=issues-row], [data-test=issues-card]')
     const key = focused?.getAttribute('data-key') || o.cursorKey.value
@@ -117,7 +133,7 @@ function useBulkPick(o: IssueBulkOpts, s: BulkState) {
       s.selectingAll.value = false
     }
   }
-  return { clearSelection, onCheck, togglePage, toggleFocused, selectAllMatching }
+  return { clearSelection, onCheck, togglePage, tickKey, toggleFocused, selectAllMatching }
 }
 
 function useBulkRun(o: IssueBulkOpts, s: BulkState) {

@@ -93,10 +93,18 @@ try {
       if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue
       ctl.push({ id: el.getAttribute('data-test') || el.className || el.tagName, h: +r.height.toFixed(1), top: +r.top.toFixed(1), arrowY: getComputedStyle(el).backgroundPositionY })
     }
+    return { ctl }
+  })
+  /* SPL-6646: the page box shows only in the select phase (the header's select tick starts it) */
+  await p.click('[data-test=issues-select-listed]')
+  await p.waitForSelector('[data-test=issues-select-page]', { visible: true, timeout: 5000 })
+  Object.assign(d, await p.evaluate(() => {
     const head = document.querySelector('[data-test=issues-select-page]').getBoundingClientRect()
     const box = document.querySelector('[data-test=issues-row] input.issues-check').getBoundingClientRect()
-    return { ctl, headLeft: +head.left.toFixed(1), rowLeft: +box.left.toFixed(1) }
-  })
+    return { headLeft: +head.left.toFixed(1), rowLeft: +box.left.toFixed(1) }
+  }))
+  await p.keyboard.press('Escape')
+  await p.waitForFunction(() => !document.querySelector('[data-test=issues-bulk-bar]'), { timeout: 5000 }).catch(() => null)
   const off = d.ctl.filter((c) => Math.abs(c.h - 36) > 1)
   ok('1 1280: the filter row shows its 7 controls', d.ctl.length >= 7, d.ctl.map((c) => c.id))
   ok('2 1280: every .issues-frow control is 36 px tall (+-1)', d.ctl.length > 0 && off.length === 0, off.length ? off : d.ctl.map((c) => c.h))

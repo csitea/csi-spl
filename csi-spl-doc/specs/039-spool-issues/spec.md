@@ -215,6 +215,35 @@ Refined the same morning (binding where it differs from the first request):
     how many pages Load more has read, the row selection, the keyboard cursor
     and an open sheet or picker (they do not decide which rows the list holds).
 
+### Selection: the select phase (SPL-6646)
+
+The list's ticks (owner HUM-10, t1 53ab04e7, msg 14b0e604: "the issues
+listing should have checkboxes to perform multiple actions the same way as
+in gmail") behave as the topics' select phase, spec 186 section 4.1 step 1
+(owner HUM-10, t1 11d7836d, 2026-11-26, msgs 926d0a46 and 2e9c4cdf: "make
+the selection for the issues work and behave as the selections for the
+topics", "they should not be shown be default").
+
+- **Off by default.** The list shows no box: no row box, no page box. On a
+  desktop a row's box shows on hover and on focus, as a topic card's does;
+  a phone card shows none.
+- **Entering.** The header's select tick (a phone: the bar above the cards)
+  ticks exactly the issues listed, all of them with no filter, the filtered
+  ones under a filter. A row menu's Select (right after Edit), a hovered
+  row's box and `x` on the focused row tick one row.
+- **In the phase** (one row or more checked): every row and card shows its
+  box, the bulk bar takes the header's place with the page box, Gmail's
+  "Select all N matching" and the bulk actions; shift-click checks a run;
+  `x` toggles the focused row; a phone tap on a card toggles it and does
+  not open the issue.
+- **Leaving.** Esc, Clear, unchecking the last row, a finished delete or
+  archive of every checked row, or another filter (unlike topics, a filter
+  change clears: the issues are one list) end the phase, and the boxes hide
+  again. The list's keys (C, J/K, S, P, A, L) are unchanged.
+- Code: `pages/issues.vue`, `composables/useIssueBulk.ts`; the tick rules
+  are the shared `utils/issues-bulk.ts`. Tests: `tests/e2e/issues.test.mjs`
+  (17a..18d), `tests/e2e/issues-frow-density.test.mjs` (5).
+
 ## Epic panel: order, sort, filter (FR-014, SPL-6455)
 
 Owner HUM-10, t1 topic 7132e969, 2026-11-24:

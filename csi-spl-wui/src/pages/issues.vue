@@ -68,7 +68,23 @@
              filter by unread issues" - exactly the rows the Issues tab counts -->
         <button v-if="!phone" type="button" class="btn ghost issues-head__clear" data-test="issues-filter-unread" :aria-pressed="unreadF ? 'true' : 'false'" :title="t('issues.filter_unread_hint')" @click="unreadF = !unreadF">{{ t('issues.filter_unread') }}</button>
         <button v-if="!phone" type="button" class="btn ghost issues-head__clear" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
-        <!-- owner b82f3853 (SPL-1226): the epic/feature actions button, on the
+        <!-- SPL-6646 (owner HUM-10, t1 11d7836d: "make the selection for the
+             issues work and behave as the selections for the topics", "they
+             should not be shown be default"): no box by default; this select
+             tick, as the topics' (FeedHeader row 2), enters the select phase
+             by ticking exactly the issues listed (the filtered ones under a
+             filter). In the phase the bulk bar holds the page box. -->
+        <input
+          v-if="!phone && rowCount"
+          type="checkbox"
+          class="issues-check issues-head__select"
+          data-test="issues-select-listed"
+          :checked="false"
+          :aria-label="t('issues_bulk.select_page')"
+          :title="t('issues_bulk.select_page')"
+          @click.prevent="togglePage"
+        >
+              <!-- owner b82f3853 (SPL-1226): the epic/feature actions button, on the
              title row next to the view toggle + Clear filters. It acts on the
              epic/feature being viewed (?epic=); disabled with a tooltip when the
              view is not filtered to one. Same menu component as the row's
@@ -87,7 +103,7 @@
         >
           <UiIcon name="menu" :size="16" />
         </button>
-      </header>
+</header>
       <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues_crud.shortcuts') }}</p>
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
            menu) and the epics as a chip strip in place of the sheet's header rows -->
@@ -96,7 +112,8 @@
              box, the list does not move); what it covers takes no focus -->
         <div class="issues-mbar" data-test="issues-mbar" :inert="bulkOn || undefined">
           <label v-if="!bulkOn && rowCount" class="issues-check issues-check--page">
-            <input type="checkbox" data-test="issues-select-page" :checked="bulkPage === 'all'" :aria-label="t('issues_bulk.select_page')" @click="togglePage">
+            <!-- SPL-6646: the phone's select tick (the topics' row 2 tick); the cards show no box until it or a card menu's Select starts the phase -->
+            <input type="checkbox" data-test="issues-select-listed" :checked="false" :aria-label="t('issues_bulk.select_page')" :title="t('issues_bulk.select_page')" @click.prevent="togglePage">
           </label>
           <!-- SPL-1596 (owner, t1 27b3ab77): Sort and Filter are small icon
                buttons; the line before them says what the list is sorted by -->
@@ -137,7 +154,7 @@
       <p v-if="!bulkOn && bulkResult" class="issues-bulk-done muted" role="status" data-test="issues-bulk-result" :data-failed="bulkResult.failed.join(',')">{{ t('issues_bulk.result_ok', { done: bulkResult.done, total: bulkResult.total }) }}</p>
       <p v-if="!phone && saveError && !modalOpen" class="issues-error issues-list-error" role="alert" data-test="issues-list-error">{{ t(saveError, { reason: saveReason }) }}</p>
       <div ref="scrollerEl" class="issues-scroll">
-        <table v-if="!phone" class="issues-table" :class="colWidthClasses(colWidths)" :style="colWidthVars(colWidths)" data-test="issues-table">
+        <table v-if="!phone" class="issues-table" :class="colWidthClasses(colWidths)" :style="colWidthVars(colWidths)" :data-selecting="bulkOn ? 'true' : undefined" data-test="issues-table">
           <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
             <tr class="issues-names">
               <th
@@ -179,8 +196,10 @@
             </tr>
             <tr class="issues-frow">
               <th data-col="key" class="issues-c-key">
-                <!-- HUM-10 (Gmail): every row shown checked, or none; a dash when some -->
+                <!-- HUM-10 (Gmail): every row shown checked, or none; a dash when some.
+                     SPL-6646: only in the select phase (no box by default) -->
                 <input
+                  v-if="bulkOn"
                   ref="pageBoxEl"
                   type="checkbox"
                   class="issues-check"
@@ -520,15 +539,16 @@
           </tbody>
         </table>
         <!-- SPL-992: the phone's list - one card per issue, a tap opens it full screen -->
-        <ul v-else class="issues-cards" data-test="issues-cards">
+        <ul v-else class="issues-cards" :class="{ 'issues-cards--selecting': bulkOn }" data-test="issues-cards" :data-selecting="bulkOn ? 'true' : undefined">
           <li v-if="(loading && !issues.length) || loadError || !rowCount" class="issues-note">
             <p v-if="loading && !issues.length" class="muted" data-test="issues-loading">{{ t('issues.loading') }}</p>
             <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
             <p v-else class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
           </li>
           <li v-for="issue in (rowCount ? flat : [])" :key="issue.key" class="issues-card-li" :data-checked="selSet.has(issue.key) ? 'true' : undefined">
-            <!-- HUM-10 (Gmail): the card's box, a full tap target at its start -->
-            <label class="issues-check issues-check--card" @pointerdown.stop>
+            <!-- HUM-10 (Gmail): the card's box, a full tap target at its start.
+                 SPL-6646: only in the select phase, as a topic card's on a phone -->
+            <label v-if="bulkOn" class="issues-check issues-check--card" @pointerdown.stop>
               <input
                 type="checkbox"
                 data-test="issues-card-check"
@@ -564,7 +584,7 @@
               :data-unopened="issue.unopened ? 'true' : undefined"
               :data-priority="issue.priority"
               :data-selected="cursorKey === issue.key ? 'true' : 'false'"
-              @click="onRowActivate(issue)"
+              @click="onCardActivate(issue)"
               @contextmenu="onRowContext(issue, $event)"
               @pointerdown="onCardPointerDown(issue, $event)"
               @pointermove="onCardPointerMove($event)"
@@ -1098,9 +1118,9 @@
       :open="Boolean(ctxTarget)"
       :x="ctxPoint.x"
       :y="ctxPoint.y"
-      :items="ctxItems"
+      :items="rowMenuItems"
       @close="onCtxClose"
-      @choose="onCtxChoose"
+      @choose="onRowMenuChoose"
     />
     <!-- SPL-1226: archive / delete a whole epic or feature, stating the count -->
     <UiConfirm
@@ -1223,6 +1243,7 @@
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { EpicSummary, Issue, IssueLabel } from '~/utils/issues.mjs'
+import type { IssueMenuItem } from '~/components/IssueRowMenu.vue'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
 import { useTopicStore } from '~/stores/topic'
@@ -1578,12 +1599,35 @@ const { cursorCol, cellAttrs, cellEl, focusCell, stepCol, editCell, titleEdit, d
 /* Gmail-style checkboxes and the bulk bar: composables/useIssueBulk */
 const {
   selected, selSet, bulkOn, flatKeys, bulkPage, allMatching, selectingAll, canMatchAll, bulkBusy, bulkProgress, bulkResult, bulkConfirm,
-  clearSelection, onCheck, togglePage, toggleFocused, selectAllMatching, onBulkAct, onBulkConfirmOpen, runBulkConfirm, runBulkPatch,
+  clearSelection, onCheck, togglePage, tickKey, toggleFocused, selectAllMatching, onBulkAct, onBulkConfirmOpen, runBulkConfirm, runBulkPatch,
 } = useIssueBulk({
   api, issues, flat, nextCursor, matchTotal, loadError, cursorKey, menu, menuPos, menuIndex, pageBoxEl,
   filters: filterRefs,
   loadMore, clampMenuIntoView, dropKeys, keepOrDrop, refreshEpics,
 })
+/* SPL-6646 (t1 11d7836d): the topics' select phase. A row menu offers
+   Select (spec 186 4.6, H4), right after Edit, which stays first (CLE-77816),
+   and it ticks the row; on a phone a tap on a card toggles it while the
+   phase is on, instead of opening the issue. */
+const SELECT_ITEM: IssueMenuItem = { id: 'select', icon: 'check', labelKey: 'topic_select.select' }
+const rowMenuItems = computed<IssueMenuItem[]>(() => {
+  const key = ctxTarget.value?.key || ''
+  const items = ctxItems.value
+  if (!key || !flatKeys.value.includes(key) || selSet.value.has(key)) return items
+  const at = items[0]?.id === 'edit' ? 1 : 0
+  return [...items.slice(0, at), SELECT_ITEM, ...items.slice(at)]
+})
+function onRowMenuChoose(id: string) {
+  if (id !== 'select') return onCtxChoose(id)
+  const key = ctxTarget.value?.key || ''
+  onCtxClose()
+  tickKey(key, true)
+}
+function onCardActivate(issue: Issue) {
+  if (!bulkOn.value) return onRowActivate(issue)
+  if (rowPress.takeClick()) return
+  tickKey(issue.key)
+}
 /* the page's keyboard and the click outside a pop-up: composables/useIssueKeys */
 useIssueKeys({
   route, pageEl, phone, modalOpen, creating, detail, form, flat, cursorKey, cursorCol, deadlineEditKey, filtersOpen, sortOpen, statusOpen,
@@ -1893,6 +1937,14 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-keycell { display: inline-flex; align-items: center; gap: 6px; }
 .issues-check { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; vertical-align: middle; accent-color: var(--color-accent); cursor: pointer; }
 .issues-row[data-checked='true'] > td, .issues-table .issues-row[data-checked='true'] > .issues-c-key { background: var(--color-selected); }
+/* SPL-6646 (t1 11d7836d, "they should not be shown be default"): as a topic
+   card's (spec 186 4.1 item 2), a row's box shows on hover and focus, and on
+   every row once one is checked (the select phase) */
+.issues-row .issues-check { opacity: 0; pointer-events: none; }
+.issues-row:hover .issues-check,
+.issues-row:focus-within .issues-check,
+.issues-table[data-selecting='true'] .issues-row .issues-check { opacity: 1; pointer-events: auto; }
+.issues-head__select { margin-inline-start: 4px; }
 .issues-bulk-done { margin: 0; padding: 4px 20px; font-size: 0.875rem; }
 /* owner, topic beb4024f: a resized column - the width the reader dragged,
    exactly (min = max), its body cells clipped with an ellipsis; header
@@ -2469,7 +2521,7 @@ select.issues-pctl { appearance: auto; }
     transform: translate(-50%, -60%) rotate(45deg);
   }
   .issues-check--card input:focus-visible, .issues-check--page input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -8px; }
-  .issues-card-li > .issues-card { padding-inline-start: var(--tap, 44px); }
+  .issues-cards--selecting .issues-card-li > .issues-card { padding-inline-start: var(--tap, 44px); }
   .issues-card-li[data-checked='true'] > .issues-card { background: var(--color-selected); }
   .issues-check--page { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
   .issues-bulk-done { padding: 0 12px 8px; }

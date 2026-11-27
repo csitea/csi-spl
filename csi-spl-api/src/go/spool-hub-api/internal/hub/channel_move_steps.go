@@ -56,6 +56,8 @@ type channelMoveRun struct {
 	op string
 	jr store.ChannelMoveJournals
 	j  *store.ChannelMoveJournalRow
+
+	attempted bool // the step passed its gate: a refusal now is stored (T17)
 }
 
 // channelMoveJournals answers 501 on a store with no journal (Memory: no P4).
@@ -86,6 +88,7 @@ func (s *Server) channelMoveDrive(w http.ResponseWriter, r *http.Request, op str
 	} else {
 		answer, err = run.step(r.Context(), step)
 	}
+	s.channelMoveRecord(r.Context(), run, step, err)
 	var failed channelMoveProofsFailed
 	if errors.As(err, &failed) { // P7 stays not done; the shell reads the counts
 		s.o.Log.Error().Str("move_id", run.moveID()).Str("step", step).Msg("operator.channel_move_proofs failed")
@@ -107,22 +110,30 @@ func (run *channelMoveRun) moveID() string {
 	return ""
 }
 
-// channelMoveFail answers a step's error. The text goes to the operator only.
+// channelMoveFail answers a step's error. The text goes to the operator, and
+// to the step's row in <DST> (channelMoveRecord), never to the hub's log.
 func (s *Server) channelMoveFail(w http.ResponseWriter, run *channelMoveRun, step string, err error) {
+	code, token, detail := channelMoveFailure(err)
+	if code == http.StatusInternalServerError {
+		s.o.Log.Error().Str("move_id", run.moveID()).Str("step", step).Msg("operator.channel_move_step failed")
+	}
+	writeErr(w, code, token, detail)
+}
+
+// channelMoveFailure is a step error's status, token and reason.
+func channelMoveFailure(err error) (int, string, string) {
 	var ref channelMoveRefused
 	switch {
 	case errors.As(err, &ref):
-		writeErr(w, ref.code, ref.token, ref.detail)
+		return ref.code, ref.token, ref.detail
 	case errors.Is(err, store.ErrChannelMoveRefused), errors.Is(err, store.ErrConflict):
-		writeErr(w, http.StatusConflict, "move_refused", err.Error())
+		return http.StatusConflict, "move_refused", err.Error()
 	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "unknown_channel", err.Error())
+		return http.StatusNotFound, "unknown_channel", err.Error()
 	case errors.Is(err, store.ErrMoveRequest):
-		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
-	default:
-		s.o.Log.Error().Str("move_id", run.moveID()).Str("step", step).Msg("operator.channel_move_step failed")
-		writeErr(w, http.StatusInternalServerError, "internal", err.Error())
+		return http.StatusBadRequest, "bad_request", err.Error()
 	}
+	return http.StatusInternalServerError, "internal", err.Error()
 }
 
 // load reads the journal and checks this call belongs to it.
@@ -179,6 +190,7 @@ func (run *channelMoveRun) step(ctx context.Context, step string) (map[string]an
 	if err := run.jr.StartChannelMoveStep(ctx, run.q.Dst, run.j.MoveID, run.q.Channel, step, detail); err != nil {
 		return nil, err
 	}
+	run.attempted = true
 	answer, done, err := fn(ctx)
 	if err != nil {
 		return nil, err
@@ -625,7 +637,7 @@ func (run *channelMoveRun) p7(ctx context.Context) (map[string]any, store.Channe
 	if err := run.jr.CloseChannelMove(ctx, run.q.Dst, run.j.MoveID); err != nil {
 		return nil, none, err
 	}
-	return answer, store.ChannelMoveStepDone{Proofs: map[string]any{"proofs": proofs, "mentions": mentions}}, nil
+	return answer, store.ChannelMoveStepDone{Proofs: map[string]any{"proofs": proofs, "mentions": mentions, "kept": kept, "kept_until": until}}, nil
 }
 
 // objectProofs are 5.3's proofs (T8b): each object P6 moved, read in both
@@ -756,6 +768,7 @@ func (run *channelMoveRun) mark(ctx context.Context, step string) (map[string]an
 	if err := run.gate(step); err != nil {
 		return nil, err
 	}
+	run.attempted = true
 	var detail map[string]any
 	if len(run.q.Detail) > 0 {
 		if err := json.Unmarshal(run.q.Detail, &detail); err != nil {

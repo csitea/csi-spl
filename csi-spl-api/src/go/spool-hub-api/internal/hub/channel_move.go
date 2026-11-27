@@ -114,6 +114,7 @@ type channelMovePlanAnswer struct {
 
 func (s *Server) routeChannelMove(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/operator/channel-moves", s.handleChannelMove)
+	s.routeChannelMoveStatus(mux) // spec 169 T17: where a move stands, channel_move_status.go
 }
 
 func (s *Server) handleChannelMove(w http.ResponseWriter, r *http.Request) {

@@ -122,6 +122,7 @@ type ChannelMoveJournalRow struct {
 	MoveID, Src, Channel, GoMsgID string
 	Frozen                        json.RawMessage
 	Done                          bool
+	DoneAt                        time.Time // set by ChannelMoveByID only
 	Steps                         map[string]ChannelMoveStep
 }
 
@@ -131,8 +132,30 @@ func (j ChannelMoveJournalRow) StepDone(step string) bool { return j.Steps[step]
 // ChannelMoveStep is one channel_move_steps row.
 type ChannelMoveStep struct {
 	Done                   bool
+	StartedAt              time.Time
 	DoneAt                 time.Time // zero while not done; P7 dates the kept copies from P4's (T8b)
 	Counts, Proofs, Detail json.RawMessage
+}
+
+// ChannelMoveStatuses is what a stuck move shows (spec 169 T17, section 8.5.6).
+// A refusal is stored in its step's row in <DST>, never in a hub-wide log (C13).
+type ChannelMoveStatuses interface {
+	// RefuseChannelMoveStep keeps refused as the step's detail.refused, beside
+	// what the step's start wrote. A done step is left as it is; the next start
+	// or finish of the step writes its detail anew, so the refusal goes with it.
+	RefuseChannelMoveStep(ctx context.Context, dst, moveID, channel, step string, refused any) error
+	// ChannelMoveByID reads one journal of dst with its steps; nil = none.
+	ChannelMoveByID(ctx context.Context, dst, moveID string) (*ChannelMoveJournalRow, error)
+	// WaitingChannelMoves are the open journals of every workspace whose P1
+	// finished before before and that have no other step: no box picked them up.
+	WaitingChannelMoves(ctx context.Context, before time.Time) ([]ChannelMoveWaiting, error)
+}
+
+var _ ChannelMoveStatuses = (*Postgres)(nil)
+
+// ChannelMoveWaiting is one journal no box picked up.
+type ChannelMoveWaiting struct {
+	Dst, MoveID string
 }
 
 // ChannelMoveStepDone is what a finished step writes; a nil field = {}.

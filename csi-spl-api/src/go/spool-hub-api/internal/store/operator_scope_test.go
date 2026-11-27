@@ -21,6 +21,7 @@ var operatorCallers = map[string]string{
 	"ClaimDueTopicLoops":         "discussion loop time ticker (spec 182 4.2 step 5, row L1; the goroutine is row L2's runTopicLoopTimer): claims the due loops of every workspace; no route",
 	"ApplyChannelMove":           "channel workspace move P4 (spec 169 T5, SPL-4595): one transaction writes <DST> and deletes from <SRC>; owner-only operator endpoint (T7)",
 	"ChannelMoveProofRead":       "channel workspace move P7 (spec 169 T7, SPL-4598): the proofs read <SRC> and the hub-wide tables, READ ONLY, in one snapshot; owner-only operator endpoint, behind the GO",
+	"WaitingChannelMoves":        "channel workspace move status sweep (spec 169 T17, SPL-6682): the open journals of every workspace whose P1 waits for a box, one SELECT; the hub's retention sweep has no tenant to scope to",
 	"ApplyChannelCopy":           "channel workspace copy (spec 169 T11, SPL-4595): one transaction reads <SRC> and writes <DST>, <SRC> untouched; owner-only operator endpoint (T7)",
 	"AutoMarketingChannels":      "blog share sweep (spec 090, SPL-1634, hub goroutine): the active auto-publish channels of every workspace, never a token; no route",
 	"StuckMarketingPosts":        "blog share sweep (spec 090, SPL-1634, hub goroutine): fails posts left dispatching by a dead hub, never retried; no route",

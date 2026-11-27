@@ -2734,6 +2734,45 @@
         ]
       }
     },
+    "/v1/channel-moves/{move_id}": {
+      "get": {
+        "operationId": "getChannelMovesByMoveId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "move_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{move_id, src, channel, dst, state, stuck, line, step, reason, proofs, kept, link, steps}: where the move stands, read from its journal in this workspace (spec 169 8.5.6, T17). state is waiting, running, not_moved, cleanup_failed, traces or moved; moved only once the journal's done_at is set"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "forbidden: no member of this workspace (the session door answers first)"
+          },
+          "404": {
+            "description": "unknown_move: not the biz owner of the operator workspace, or no such move in this workspace"
+          },
+          "501": {
+            "description": "unsupported: this hub's store has no channel move journal"
+          }
+        },
+        "summary": "Where a channel move stands: its steps, the stored refusal and the status line",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
     "/v1/channels": {
       "post": {
         "operationId": "postChannels",

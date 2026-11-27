@@ -159,12 +159,20 @@ func (s *Postgres) ChannelMoveJournal(ctx context.Context, dst, src, channel str
 	if err != nil {
 		return nil, err
 	}
-	err = s.queryTenant(ctx, dst, `SELECT step, done_at, counts, proofs, detail FROM channel_move_steps
+	if err := s.channelMoveSteps(ctx, dst, &j); err != nil {
+		return nil, err
+	}
+	return &j, nil
+}
+
+// channelMoveSteps reads j's step rows into j.Steps.
+func (s *Postgres) channelMoveSteps(ctx context.Context, dst string, j *ChannelMoveJournalRow) error {
+	return s.queryTenant(ctx, dst, `SELECT step, started_at, done_at, counts, proofs, detail FROM channel_move_steps
 		WHERE tenant_id = $1 AND move_id = $2::uuid`, []any{dst, j.MoveID}, func(r pgx.Rows) error {
 		var step string
 		var st ChannelMoveStep
 		var at *time.Time
-		if err := r.Scan(&step, &at, &st.Counts, &st.Proofs, &st.Detail); err != nil {
+		if err := r.Scan(&step, &st.StartedAt, &at, &st.Counts, &st.Proofs, &st.Detail); err != nil {
 			return err
 		}
 		if st.Done = at != nil; st.Done {
@@ -173,10 +181,64 @@ func (s *Postgres) ChannelMoveJournal(ctx context.Context, dst, src, channel str
 		j.Steps[step] = st
 		return nil
 	})
+}
+
+// ChannelMoveByID implements ChannelMoveStatuses.
+func (s *Postgres) ChannelMoveByID(ctx context.Context, dst, moveID string) (*ChannelMoveJournalRow, error) {
+	j := ChannelMoveJournalRow{Steps: map[string]ChannelMoveStep{}}
+	var done *time.Time
+	err := s.queryRowTenant(ctx, dst, `SELECT move_id::text, src_tenant_id, src_channel_id, go_msg_id::text, frozen, done_at
+		FROM channel_move_journal WHERE tenant_id = $1 AND move_id = $2::uuid`,
+		[]any{dst, moveID}, &j.MoveID, &j.Src, &j.Channel, &j.GoMsgID, &j.Frozen, &done)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
+	if j.Done = done != nil; j.Done {
+		j.DoneAt = *done
+	}
+	if err := s.channelMoveSteps(ctx, dst, &j); err != nil {
+		return nil, err
+	}
 	return &j, nil
+}
+
+// RefuseChannelMoveStep implements ChannelMoveStatuses. A step the hub refused
+// before its start has no row yet: the refusal opens it, not done.
+func (s *Postgres) RefuseChannelMoveStep(ctx context.Context, dst, moveID, channel, step string, refused any) error {
+	b, err := json.Marshal(refused)
+	if err != nil {
+		return err
+	}
+	return s.inTenant(ctx, dst, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO channel_move_steps (tenant_id, move_id, channel_id, step, started_at, detail)
+			VALUES ($1, $2::uuid, $3, $4, clock_timestamp(), jsonb_build_object('refused', $5::jsonb))
+			ON CONFLICT (tenant_id, move_id, step) DO UPDATE SET detail = channel_move_steps.detail || jsonb_build_object('refused', $5::jsonb)
+			WHERE channel_move_steps.done_at IS NULL`, dst, moveID, channel, step, string(b))
+		return err
+	})
+}
+
+// channelMoveWaitingMax bounds one sweep's read; the next sweep reads the rest.
+const channelMoveWaitingMax = 200
+
+// WaitingChannelMoves implements ChannelMoveStatuses, under the operator scope:
+// the sweep reads every workspace.
+func (s *Postgres) WaitingChannelMoves(ctx context.Context, before time.Time) ([]ChannelMoveWaiting, error) {
+	out := []ChannelMoveWaiting{}
+	err := s.asOperatorQuery(ctx, `SELECT j.tenant_id, j.move_id::text FROM channel_move_journal j
+		JOIN channel_move_steps p1 ON p1.tenant_id = j.tenant_id AND p1.move_id = j.move_id AND p1.step = 'P1'
+		WHERE j.done_at IS NULL AND p1.done_at IS NOT NULL AND p1.done_at < $1
+			AND NOT EXISTS (SELECT 1 FROM channel_move_steps o WHERE o.tenant_id = j.tenant_id AND o.move_id = j.move_id AND o.step <> 'P1')
+		ORDER BY p1.done_at, j.move_id LIMIT $2`, []any{before, channelMoveWaitingMax}, func(r pgx.Rows) error {
+		var w ChannelMoveWaiting
+		err := r.Scan(&w.Dst, &w.MoveID)
+		out = append(out, w)
+		return err
+	})
+	return out, err
 }
 
 // StartChannelMoveStep implements ChannelMoveJournals. A done P4 row is left

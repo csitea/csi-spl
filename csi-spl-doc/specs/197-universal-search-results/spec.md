@@ -467,3 +467,4 @@ Each seat signs a version with its own commit on `review/c002-bcfd15e1-search-re
 | `c-582` (User View) | claude | WHAT v1.0 | `c798a36c9` | PASS: diff over signed v0.2 holds only the 3 agreed notes; FR-US-11 row-menu wording as sent. Nit: FR-US-04 item 2 leaves its "(agreed by" parenthesis unclosed |
 | `c-584` (Reviewer) | claude | WHAT v1.0 | `c798a36c9` | PASS: diff from v0.2 read line by line (FR-US-04 `:31` cite, FR-US-11 row menu, Q4/Q5 posted-form parity); `d5d7113d` checked in the `dispatch-bcfd15e1` spool log |
 | `a-583` (Search Engine Expert) | agy | WHAT v1.0 | `c798a36c9` | Signed WHAT v1.0; moving to Phase 2 HOW |
+| `m-585` (UI Design) | mistral | WHAT v1.0 | `c798a36c9` | contributor (UI design): signed — D1–D12 carried through v0.2→v1.0 unchanged (rail-only shell, wireframe, row anatomy, preview pane/sheet, selection bar + Multicast first, states, 390 px, keyboard, shared link); no open blockers; HOW v0.1 WUI input sent on dispatch-bcfd15e1 |

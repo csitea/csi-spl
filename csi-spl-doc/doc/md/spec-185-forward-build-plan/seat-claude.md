@@ -159,3 +159,31 @@ I ran it on the plan's own tree, in a throwaway detached worktree of `c2633a2c8`
 | when (UTC) | who | what |
 |---|---|---|
 | 2026-11-27 | c-715 (claude) | FAIL on `c2633a2c8e5ba3e31131ad16c0380f9b9b5357fe`, W1-W5, N1-N6 |
+
+## 5. v1.0 re-review: PASS
+
+**PASS on `9663806033c936ecae85f876dc5dfeee00d7e3b8`** (plan v1.0; `git ls-remote origin
+refs/heads/review/c002-s185-fwd-build-planner` -> `9663806033c9...`, read at
+2026-11-27T06:50Z). `git log --oneline -2 9663806033` -> `966380603` v1.0 on
+`c2633a2c8` v0.1. `git diff --stat c2633a2c8 9663806033` -> only the plan file,
++71 / -70. `git diff --stat origin/master...9663806033` -> 1 file, the plan.
+
+How each fold was checked:
+
+- **W1, fixed.** The plan now cites `help-sync.test.mjs:20-22` (control `:36-48`, 82 lines). These are the lines section 2 read on `84f86ab8c`.
+- **W2, fixed.** `topicLoopHuman` is at `:217` and `topicLoopBeforeAgent` at `:227`, in section 1.2 and in N3. This matches `git show 84f86ab8c:.../topic_loop_fire.go | grep -n '^func'`.
+- **W3, fixed.** The waiver is cited as `1a7c70da` everywhere, and `dc84300a` only for grok off. `git diff c2633a2c8 9663806033 | grep -c '^+.*dc84300a'` -> 1 (the "grok is off" line).
+- **W4, fixed.** F7 now has a named `grep -oE ... | sort -u | wc -l` -> 5, plus `sync-help.mjs --check`. The `--check` flag exists: `sync-help.mjs:15`, `:105`. The control is now the reviewer re-run, as in spec 186 M9. One weakness remains, recorded as N7.
+- **W5, fixed.** F2's column names the package runs and all 30 `GetEditable` test files (8 store, 22 hub), the same 30 as section 2's grep. F4's column adds `hub/demo_test.go` and makes `store/file_detach_test.go` a new file, also listed in F4's files.
+- **N1, folded.** F3 waits until `lane-map.sh --check` is free. Re-run at 06:52:06Z -> rc=3, and the owner of `spool-client-mock.mjs` is `c-068` again. That is the plan's standing guard doing its job, not a plan defect.
+- **N2, folded.** `PUBLIC_CHANNELS` (`spool-client.mjs:296`) now includes `public`.
+- **N3, folded.** F2 does not reuse `multicastTopic` (it refuses DM topics) and uses `canReadTopic` instead. I checked `privacy.go:129-150` on `84f86ab8c`: `canReadTopic` runs `TopicAccess`, then `topicDoor`, which runs `topicLockHidden` and then `topicVerdict`. The claim holds.
+- **N4, folded.** It is now holder rulings H2 and H3 (`cc456e7e`), and H1 is Option A. I did not read `cc456e7e` in the hub; this relies on the plan's record.
+- **N5, folded.** F2 may start coding early and lands only after F1 is served.
+- **N6, folded.** The status and panel record are updated. The record cites my v0.1 message as `538ecc0b`: `ls /var/spool-hub/c-715/outbox/ | grep 538ecc0b` -> `...--relayed-538ecc0b.json`.
+
+**N7 (new, does not block).** On `84f86ab8c`, `wui-live-ws.md` already holds `bad_json` 4 times and `is_parent` 4 times, so the base count is 2, not 0. Removing one of those two from the forward section leaves the count at 5. So the F7 reviewer's 5 -> 4 control bites only when one of the three `forward_*` tokens (`forward_of`, `forward_not_found`, `forward_no_topic`) is removed. The F7 brief should say so.
+
+| when (UTC) | who | what |
+|---|---|---|
+| 2026-11-27T06:52Z | c-715 (claude) | PASS on v1.0 `9663806033c936ecae85f876dc5dfeee00d7e3b8`, W1-W5 folded, N7 |

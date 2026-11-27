@@ -30,6 +30,8 @@
 #      flag's value (--item --parent --under --after --folder --topic) is
 #      refused, no spool call, dry run or not; free text (--value deadbeef),
 #      numbers and full uuids pass; every arg after a bare -- is a positional
+#  11. _spl_desk_args_split / _spl_desk_in_file helpers, one-copy across
+#      spl-desk-doctree and spl-desk-wsdoc, and standalone lazy-load (r12-02)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -203,6 +205,90 @@ run DOCTREE_ARGS="edit $U1 $U2 --field title --value deadbeef --json"
   pass "full uuids pass; an 8-hex --value is text, not an id" || fail "full uuid dry run (rc=$rc): $(argv) / $(cat "$T/o")"
 run DOCTREE_ARGS="move $U1 $U2 --rev 12345678 --ord 1"
 [[ $rc -eq 0 ]] && pass "an 8-digit --rev is a number, not an id" || fail "rev (rc=$rc): $(cat "$T/o")"
+
+# --- 11. _spl_desk_args_split / _spl_desk_in_file and one-copy (r12-02) -------------------
+dt_f="$PROJ_ROOT/src/bash/run/spl-desk-doctree.func.sh"
+ws_f="$PROJ_ROOT/src/bash/run/spl-desk-wsdoc.func.sh"
+
+out="$(DEMO_ARGS='edit "a b" c' bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; arr=(); _spl_desk_args_split arr DEMO_ARGS "demo hint" || exit $?
+  printf "N=%d 0=%s 1=%s 2=%s\n" "${#arr[@]}" "${arr[0]}" "${arr[1]}" "${arr[2]}"' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "N=3 0=edit 1=a b 2=c" ]] &&
+  pass "11: _spl_desk_args_split splits quoted shell args into caller array" || fail "11: split ok ($rc: $out)"
+
+out="$(DEMO_ARGS='   ' bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; arr=(); _spl_desk_args_split arr DEMO_ARGS "demo hint"' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL DEMO_ARGS must carry demo hint"* ]] &&
+  pass "11: _spl_desk_args_split refuses blank var with caller hint" || fail "11: split empty ($rc: $out)"
+
+out="$(DEMO_ARGS='edit "unclosed' bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; arr=(); _spl_desk_args_split arr DEMO_ARGS "demo hint"' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL DEMO_ARGS does not parse (an unbalanced quote?):"* ]] &&
+  pass "11: _spl_desk_args_split refuses unbalanced quotes" || fail "11: split bad ($rc: $out)"
+
+out="$(DEMO_IN="$IN/body.md" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v=""; _spl_desk_in_file v DEMO_IN || exit $?
+  printf "V=%s\n" "$v"' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "V=$IN/body.md" ]] &&
+  pass "11: _spl_desk_in_file resolves readable file under /tmp" || fail "11: in ok ($rc: $out)"
+
+out="$(DEMO_IN="" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v="keep"; _spl_desk_in_file v DEMO_IN || exit $?
+  printf "V=[%s]\n" "$v"' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "V=[]" ]] &&
+  pass "11: _spl_desk_in_file allows empty when optional" || fail "11: in opt ($rc: $out)"
+
+out="$(DEMO_IN="" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v=""; _spl_desk_in_file v DEMO_IN "write needs DEMO_IN"' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL write needs DEMO_IN"* ]] &&
+  pass "11: _spl_desk_in_file logs required message and returns 1 when empty" || fail "11: in req ($rc: $out)"
+
+out="$(DEMO_IN="$IN/link" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v=""; _spl_desk_in_file v DEMO_IN' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL DEMO_IN lies in the desk state, which never leaves this action"* ]] &&
+  pass "11: _spl_desk_in_file refuses symlink into desk state" || fail "11: in link ($rc: $out)"
+
+out="$(DEMO_IN=/etc/hostname APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v=""; _spl_desk_in_file v DEMO_IN' _ "$dt_f" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL DEMO_IN must lie in the caller's worktree"* ]] &&
+  pass "11: _spl_desk_in_file refuses file outside allowed roots" || fail "11: in outside ($rc: $out)"
+
+awk '/^_spl_desk_in_file\(\)/,/^}/' "$dt_f" | grep 'for root in "${APP_PATH:-}" /tmp /var/spool-hub/dispatch; do' >/dev/null &&
+  pass "11: _spl_desk_in_file roots list names APP_PATH, /tmp and /var/spool-hub/dispatch" || fail "11: in roots"
+
+[[ "$(grep -c '^_spl_desk_args_split()' "$dt_f")" -eq 1 && "$(grep -c '^_spl_desk_in_file()' "$dt_f")" -eq 1 ]] &&
+  pass "11: one copy: spl-desk-doctree.func.sh hosts _spl_desk_args_split and _spl_desk_in_file" || fail "11: host"
+own_ws="$(grep -nE 'shlex\.split|realpath -e|lies in the desk state|must lie in the caller' "$ws_f" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+[[ -z "$own_ws" ]] && grep -q '_spl_desk_args_split ' "$ws_f" && grep -q '_spl_desk_in_file ' "$ws_f" &&
+  pass "11: one copy: spl-desk-wsdoc.func.sh delegates split and in-file to _spl_desk_*" || fail "11: wsdoc own=[$own_ws]"
+
+out="$(WSDOC_ARGS='read ws/agents/a.md' bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; a=(); _spl_desk_wsdoc_split a || exit $?
+  printf "A=%s|%s\n" "${a[0]}" "${a[1]}"' _ "$ws_f" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "A=read|ws/agents/a.md" ]] &&
+  pass "11: standalone: spl-desk-wsdoc lazy-loads _spl_desk_args_split" || fail "11: standalone ws split ($rc: $out)"
+
+out="$(WSDOC_IN="" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v=""; _spl_desk_wsdoc_in v' _ "$ws_f" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL write needs WSDOC_IN: the body file"* ]] &&
+  pass "11: standalone: spl-desk-wsdoc lazy-loads _spl_desk_in_file and preserves required msg" || fail "11: standalone ws req ($rc: $out)"
+
+out="$(WSDOC_IN="$IN/body.md" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1"; v=""; _spl_desk_wsdoc_in v || exit $?
+  printf "V=%s\n" "$v"' _ "$ws_f" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "V=$IN/body.md" ]] &&
+  pass "11: standalone: spl-desk-wsdoc resolves valid WSDOC_IN via _spl_desk_in_file" || fail "11: standalone ws ok ($rc: $out)"
 
 echo "desk-doctree: $fails failure(s)"
 ((fails == 0))

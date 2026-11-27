@@ -134,42 +134,56 @@ _spl_desk_doctree_check() {
   return 1
 }
 
-# _spl_desk_doctree_split <array name>: DOCTREE_ARGS split shell-style (quotes
-# kept, nothing expanded or run) into the named array. 1 with the FATAL when
-# it is empty or does not parse.
-_spl_desk_doctree_split() {
-  local -n _dt_out="$1"
-  local raw="${DOCTREE_ARGS:-}" split='import shlex,sys; sys.stdout.write("".join(w + "\0" for w in shlex.split(sys.argv[1])))'
-  [[ -n "${raw//[[:space:]]/}" ]] || { do_log "FATAL DOCTREE_ARGS must carry the doctree verb and its flags, e.g. DOCTREE_ARGS=list"; return 1; }
+# _spl_desk_args_split <array name> <env var> <usage hint>: split the named
+# env var shell-style (quotes kept, nothing expanded or run) into the named
+# array. 1 with the FATAL when it is empty or does not parse.
+_spl_desk_args_split() {
+  local -n _da_out="$1"
+  local var="$2" hint="$3" raw="${!2:-}"
+  local split='import shlex,sys; sys.stdout.write("".join(w + "\0" for w in shlex.split(sys.argv[1])))'
+  [[ -n "${raw//[[:space:]]/}" ]] || { do_log "FATAL $var must carry $hint"; return 1; }
   python3 -c "$split" "$raw" >/dev/null 2>&1 ||
-    { do_log "FATAL DOCTREE_ARGS does not parse (an unbalanced quote?): $raw"; return 1; }
-  mapfile -d '' -t _dt_out < <(python3 -c "$split" "$raw")
-  (( ${#_dt_out[@]} > 0 )) || { do_log "FATAL DOCTREE_ARGS is empty"; return 1; }
+    { do_log "FATAL $var does not parse (an unbalanced quote?): $raw"; return 1; }
+  mapfile -d '' -t _da_out < <(python3 -c "$split" "$raw")
+  (( ${#_da_out[@]} > 0 )) || { do_log "FATAL $var is empty"; return 1; }
 }
 
-# _spl_desk_doctree_in <var name>: DOCTREE_IN resolved (symlinks followed) into
-# the named var, empty when unset. Refused: not a readable regular file, inside
-# the desk state, or outside the caller's worktree (APP_PATH), /tmp and the
-# spool root's dispatch/ dir.
-_spl_desk_doctree_in() {
-  local -n _dt_in="$1"
-  local raw="${DOCTREE_IN:-}" real root ok=0
-  _dt_in=""
-  [[ -n "$raw" ]] || return 0
+# _spl_desk_doctree_split <array name>: DOCTREE_ARGS split shell-style into the named array.
+_spl_desk_doctree_split() {
+  _spl_desk_args_split "$1" DOCTREE_ARGS "the doctree verb and its flags, e.g. DOCTREE_ARGS=list"
+}
+
+# _spl_desk_in_file <var name> <env var> [required msg]: resolve the named
+# input file env var (symlinks followed) into the named var; empty returns 0
+# unless required_msg is given (FATAL + rc 1). Refused: not a readable regular
+# file, inside the desk state, or outside APP_PATH, /tmp and /var/spool-hub/dispatch.
+_spl_desk_in_file() {
+  local -n _di_out="$1"
+  local var="$2" req="${3:-}" raw="${!2:-}" real root ok=0
+  _di_out=""
+  if [[ -z "$raw" ]]; then
+    [[ -z "$req" ]] && return 0
+    do_log "FATAL $req"; return 1
+  fi
   real="$(realpath -e -- "$raw" 2>/dev/null)" || real=""
   if [[ ! -f "$real" || ! -r "$real" ]]; then
-    do_log "FATAL DOCTREE_IN is not a readable file: $raw"; return 1
+    do_log "FATAL $var is not a readable file: $raw"; return 1
   fi
   if [[ "$real" == "$(realpath -m -- "$SPL_STATE_DIR")/"* ]]; then
-    do_log "FATAL DOCTREE_IN lies in the desk state, which never leaves this action"; return 1
+    do_log "FATAL $var lies in the desk state, which never leaves this action"; return 1
   fi
   for root in "${APP_PATH:-}" /tmp /var/spool-hub/dispatch; do
     [[ -n "$root" ]] || continue
     root="$(realpath -m -- "$root")"
     [[ "$real" == "$root/"* ]] && { ok=1; break; }
   done
-  (( ok )) || { do_log "FATAL DOCTREE_IN must lie in the caller's worktree (${APP_PATH:-unset}), /tmp or /var/spool-hub/dispatch: $raw"; return 1; }
-  _dt_in="$real"
+  (( ok )) || { do_log "FATAL $var must lie in the caller's worktree (${APP_PATH:-unset}), /tmp or /var/spool-hub/dispatch: $raw"; return 1; }
+  _di_out="$real"
+}
+
+# _spl_desk_doctree_in <var name>: DOCTREE_IN resolved (symlinks followed) into the named var.
+_spl_desk_doctree_in() {
+  _spl_desk_in_file "$1" DOCTREE_IN
 }
 
 # _spl_desk_doctree_file_flags <array name> <in>: the file flags of the verb.

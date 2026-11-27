@@ -99,17 +99,11 @@ do_spl_desk_wsdoc() {
   printf '%s\n' "$out"
 }
 
-# _spl_desk_wsdoc_split <array name>: WSDOC_ARGS split shell-style (quotes
-# kept, nothing expanded or run) into the named array. 1 with the FATAL when
-# it is empty or does not parse.
+# _spl_desk_wsdoc_split <array name>: WSDOC_ARGS split shell-style into the named array.
 _spl_desk_wsdoc_split() {
-  local -n _ws_out="$1"
-  local raw="${WSDOC_ARGS:-}" split='import shlex,sys; sys.stdout.write("".join(w + "\0" for w in shlex.split(sys.argv[1])))'
-  [[ -n "${raw//[[:space:]]/}" ]] || { do_log "FATAL WSDOC_ARGS must carry the verb and its path, e.g. WSDOC_ARGS='list ws/'"; return 1; }
-  python3 -c "$split" "$raw" >/dev/null 2>&1 ||
-    { do_log "FATAL WSDOC_ARGS does not parse (an unbalanced quote?): $raw"; return 1; }
-  mapfile -d '' -t _ws_out < <(python3 -c "$split" "$raw")
-  (( ${#_ws_out[@]} > 0 )) || { do_log "FATAL WSDOC_ARGS is empty"; return 1; }
+  # shellcheck source=spl-desk-doctree.func.sh
+  declare -F _spl_desk_args_split >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-doctree.func.sh" || return 1
+  _spl_desk_args_split "$1" WSDOC_ARGS "the verb and its path, e.g. WSDOC_ARGS='list ws/'"
 }
 
 # _spl_desk_wsdoc_check <array name>: the verb, its arity and its path. No
@@ -140,27 +134,9 @@ _spl_desk_wsdoc_check() {
     { do_log "FATAL '${_ws_a[1]}' is not a workspace doc path (relative, segments of [A-Za-z0-9._-], ending in .md)"; return 1; }
 }
 
-# _spl_desk_wsdoc_in <var name>: WSDOC_IN resolved (symlinks followed) into
-# the named var. Refused: unset, not a readable regular file, inside the desk
-# state, or outside the caller's worktree (APP_PATH), /tmp and the spool
-# root's dispatch/ dir.
+# _spl_desk_wsdoc_in <var name>: WSDOC_IN resolved (symlinks followed) into the named var.
 _spl_desk_wsdoc_in() {
-  local -n _ws_in="$1"
-  local raw="${WSDOC_IN:-}" real root ok=0
-  _ws_in=""
-  [[ -n "$raw" ]] || { do_log "FATAL write needs WSDOC_IN: the body file"; return 1; }
-  real="$(realpath -e -- "$raw" 2>/dev/null)" || real=""
-  if [[ ! -f "$real" || ! -r "$real" ]]; then
-    do_log "FATAL WSDOC_IN is not a readable file: $raw"; return 1
-  fi
-  if [[ "$real" == "$(realpath -m -- "$SPL_STATE_DIR")/"* ]]; then
-    do_log "FATAL WSDOC_IN lies in the desk state, which never leaves this action"; return 1
-  fi
-  for root in "${APP_PATH:-}" /tmp /var/spool-hub/dispatch; do
-    [[ -n "$root" ]] || continue
-    root="$(realpath -m -- "$root")"
-    [[ "$real" == "$root/"* ]] && { ok=1; break; }
-  done
-  (( ok )) || { do_log "FATAL WSDOC_IN must lie in the caller's worktree (${APP_PATH:-unset}), /tmp or /var/spool-hub/dispatch: $raw"; return 1; }
-  _ws_in="$real"
+  # shellcheck source=spl-desk-doctree.func.sh
+  declare -F _spl_desk_in_file >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-doctree.func.sh" || return 1
+  _spl_desk_in_file "$1" WSDOC_IN "write needs WSDOC_IN: the body file"
 }

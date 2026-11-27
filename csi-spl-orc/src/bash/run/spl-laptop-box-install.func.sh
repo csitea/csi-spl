@@ -24,7 +24,11 @@
 # @description the fleet hooks, and the box seated with the join token. The
 # @description token is read from SPOOL_JOIN_TOKEN or asked on the terminal
 # @description without echo; it reaches install.sh through a 0600 file that is
-# @description removed at once, never a command line. Dry run unless DRY_RUN=0.
+# @description removed at once, never a command line. Last, as that user, the
+# @description fleet services that need no GCP key (owner Q6 = MIN): the desk
+# @description reconcile (do_spl_desk_install_service, its hub-run sidecar) and
+# @description the cross-box spawn receiver (do_spl_spawn_remote_install_cron).
+# @description Dry run unless DRY_RUN=0.
 # @description Exit 0 done, 2 usage, 3 not a Debian box, 1 a step failed.
 # @param BOX_TAG (required) - the laptop's box tag, e.g. lap-a
 # @param HOURS (required) - her working hours, "<days> <HH:MM>-<HH:MM>", e.g. "Mon-Fri 09:00-17:00"
@@ -41,7 +45,7 @@
 # @param LAPTOP_AGENT_USER (optional) - the agents' OS user, default the satellite's (cnf env.steps.060-gcp-vm-satellite.box_agent_user): the fleet's agent user
 # @param SPOOL_JOIN_TOKEN (optional) - the join token; asked on the terminal when unset
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param LAPTOP_CHECKOUT / LAPTOP_OS_RELEASE / LAPTOP_ROOT_RUN / LAPTOP_AS_USER / LAPTOP_INSTALL_SH (tests) - the checkout root, the Debian marker file, the root runner, the run-as-user prefix, install.sh
+# @param LAPTOP_CHECKOUT / LAPTOP_OS_RELEASE / LAPTOP_ROOT_RUN / LAPTOP_AS_USER / LAPTOP_INSTALL_SH / LAPTOP_SERVICES_CMD (tests) - the checkout root, the Debian marker file, the root runner, the run-as-user prefix, install.sh, the services step
 # @example ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id t1 --move-box home
 # @example sudo ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id t1 --move-box home --dry-run 0
 #------------------------------------------------------------------------------
@@ -69,6 +73,7 @@ do_spl_laptop_box_install() {
   if (( dry )); then
     do_log "INFO DRY_RUN would run as root:"; printf '    %s\n' "${cmds[@]}"
     do_log "INFO DRY_RUN then as $u: install.sh --cli claude --fleet --env $env --tenant $ten --box $tag (hub $hub, the join token from a 0600 file)"
+    do_log "INFO DRY_RUN then as $u: ENV=$env TENANT_ID=$ten do_spl_desk_install_service and do_spl_spawn_remote_install_cron (DRY_RUN=0)"
     do_log "OK DRY_RUN nothing was touched. Re-run with --dry-run 0 (as root: sudo)."
     return 0
   fi
@@ -76,6 +81,7 @@ do_spl_laptop_box_install() {
   [[ -n "$tok" ]] || { do_log "FATAL no join token: set SPOOL_JOIN_TOKEN or type it when asked (the workspace admin mints it)"; return 2; }
   "${LAPTOP_ROOT_RUN:-_spool_root_run_as_root}" "${cmds[@]}" || return 1
   spl_laptop_install_as_user "$u" "$co" "$hub" "$env" "$ten" "$tag" "$sr" "$tok" || return 1
+  spl_laptop_install_services "$u" "$co" "$env" "$ten" || return 1
   do_log "OK this laptop is box $tag of $ten ($env): agents run as $u, up to $max at once, in $hours; her controls: spl-laptop-box status|stop|off|start|continue"
   local h; h="$(getent passwd "$u" | cut -d: -f6)"
   do_log "OK for the workspace admin, on $to: the login key (do_spl_laptop_box_login_grant BOX_TAG=$tag): $(cat "$h/.ssh/spl-laptop-box.pub" 2>/dev/null || echo "not found")"
@@ -101,6 +107,18 @@ spl_laptop_install_args_ok() {
   [[ "$3" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a workspace slug, got '$3'"; return 2; }
   [[ "$4" =~ ^(dev|prd)$ ]] || { do_log "FATAL LAPTOP_ENV must be dev or prd, got '$4'"; return 2; }
   [[ "$5" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL AGENT_MAX must be 1..99, got '$5'"; return 2; }
+}
+
+# spl_laptop_install_services <user> <checkout> <env> <tenant>: as the agents'
+# user, the desk reconcile cron (its sidecar; no prd probe login on a laptop)
+# and the cross-box spawn receiver cron.
+spl_laptop_install_services() {
+  local u="$1" co="$2" env="$3" ten="$4" rc
+  local -a as=(sudo -u "$u" -H)
+  [[ -z "${LAPTOP_AS_USER:-}" ]] || read -ra as <<<"$LAPTOP_AS_USER"
+  "${as[@]}" env ENV="$env" TENANT_ID="$ten" DESK_CRON_PROBE=0 DRY_RUN=0 bash -c "${LAPTOP_SERVICES_CMD:-cd '$co/csi-spl-orc' && ./run -a do_spl_desk_install_service && ./run -a do_spl_spawn_remote_install_cron}"
+  rc=$?
+  (( rc == 0 )) || { do_log "FATAL the fleet services as $u failed (exit $rc): re-run the same line, it is idempotent"; return 1; }
 }
 
 # spl_laptop_install_as_user <user> <checkout> <hub> <env> <tenant> <tag>

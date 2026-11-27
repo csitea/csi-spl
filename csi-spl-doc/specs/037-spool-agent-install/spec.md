@@ -147,7 +147,7 @@ Decided on the plan's form (cc2a02da, answers f0757e6f, 878ec53f, 85225ba1,
 | 3 | agents at once | 4, until measured |
 | 4 | which lanes | any lane the placer picks, inside her hours |
 | 5 | end of her hours | she is asked whether to continue; no answer in 15 min, or Stop: the lanes move to the move box, `LAPTOP_MOVE_BOX` (`do_spl_lane_handover`). How she is asked is one switch: a desktop pop-up or a WUI form (the two readers answered differently) |
-| 6 | secrets on the laptop | open |
+| 6 | secrets on the laptop | MIN: a GitHub push token only (`sudo spl-laptop-box github-token`, into the agents' user's gh login, stdin only); lanes that need a GCP key stay on the move box |
 | 7 | she has root, so she can read the fleet login stored there | accepted (GO) |
 
 Rules:
@@ -167,7 +167,7 @@ Rules:
 | `csi-spl-orc/lib/bash/funcs/spl-laptop-box.func.sh` | the hours window, the tag check, the cnf read (python3: no yq yet), the root plan, the token prompt |
 | `csi-spl-orc/src/bash/tests/spl-laptop-box-install.tst.sh` | its suite (stubs only: no apt, user, sudo or hub) |
 | `csi-spl-orc/src/bash/run/spl-laptop-box-tick.func.sh` | `do_spl_laptop_box_tick`, every 5 min as the agents' user (`spl-laptop-box-tick.timer`): in her hours the box takes lanes up to the cap; outside them (or off / stopped) no new lanes, and with lanes still running it asks her, waits for Continue (1 h) or moves every lane to `MOVE_BOX` (`do_spl_lane_handover`) on Stop or after 15 min unanswered |
-| `csi-spl-orc/src/bash/features/laptop-box/laptop-box-ctl.sh` | her controls, installed root-owned as `/usr/local/bin/spl-laptop-box`: `status`, `stop` (today), `off`, `start`, `continue`, `sudo ... remove` (refused while agents still run) |
+| `csi-spl-orc/src/bash/features/laptop-box/laptop-box-ctl.sh` | her controls, installed root-owned as `/usr/local/bin/spl-laptop-box`: `status`, `stop` (today), `off`, `start`, `continue`, `sudo ... github-token` (the GitHub push token, question 6), `sudo ... remove` (refused while agents still run) |
 | `csi-spl-orc/src/bash/features/laptop-box/laptop-box-ask.sh` | the desktop pop-up (5a = DSK), root-owned, in her own session every minute (a global user timer, `ConditionUser=<her>`): Continue 1 h / Stop |
 | `csi-spl-orc/src/bash/tests/spl-laptop-box-tick.tst.sh` | the working day: hours, cap, the question, Continue, Stop, 15 min, a failed move, her controls, remove |
 
@@ -215,6 +215,19 @@ on the laptop holds that shell: accepted by the owner. `revoke` removes both
 lines. The handover needs the same checkout path on both boxes, so the
 install line clones to the canonical path.
 
-Still to build: the fleet services the box needs (question 6 = MIN: only a
-GitHub push token on the laptop; lanes that need a GCP key stay on the
-move box), then the help page.
+The fleet services (question 6 = MIN, so only those that need no GCP key):
+the install ends, as the agents' user, with `do_spl_desk_install_service`
+(the desk reconcile cron and its hub-run sidecar; `DESK_CRON_PROBE=0`, no
+prd probe login on a laptop) and `do_spl_spawn_remote_install_cron` (the
+cross-box spawn receiver). Their var log dir and their self-updating
+checkout `<checkout>-desk-cron` (both as `spl_run_paths` derives them) are
+made in the root plan, because their parents are root's. The GitHub push
+token goes in with `sudo spl-laptop-box github-token`: read without echo
+(or from stdin), handed to `gh auth login --with-token` as the agents' user
+on stdin only, then `gh auth setup-git`; no clear-text git credential store
+(SPL-3761).
+
+Precondition, not checked by any action: the move box's ssh must be
+reachable from her network (the login pull and the lane move both use it).
+Opening it (a firewall rule or IAP) is a separate owner decision. The help
+page with every one-liner: `csi-spl-doc/doc/help/laptop-box.md`.

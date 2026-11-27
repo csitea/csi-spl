@@ -19,10 +19,14 @@
 #      under the test root holds it afterwards
 #   6. no token -> exit 2, nothing run as root
 #   7. a failing install.sh -> exit 1, the token file still removed
+#   4b. the root plan also makes the services' var log dir and their
+#      <checkout>-desk-cron worktree (as the agents' user)
 #   W3-W7 (R7 a-664 on cf385342c): her config root's under /etc, files 0644,
 #      the tick's UMask; the token prompt only with a tty on stdin (a pty
 #      via script(1)); the hours: wrap-around, lists, C locale; no member,
 #      no user units
+#   8. the fleet services step (desk reconcile + spawn receiver, as the
+#      agents' user, no prd probe): run after install.sh; its failure -> exit 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -48,6 +52,7 @@ run_install() {
   : >"$T/root.log"; : >"$T/inst.log"
   SNIPPET=do_spl_laptop_box_install in_orc LAPTOP_CHECKOUT="$CO" LAPTOP_OS_RELEASE="${OSREL:-$T/debian_version}" \
     LAPTOP_ROOT_RUN="$T/rootrun" LAPTOP_AS_USER=env LAPTOP_INSTALL_SH="$T/install.sh" \
+    LAPTOP_SERVICES_CMD='echo "SVC $ENV $TENANT_ID $DESK_CRON_PROBE $DRY_RUN" >>"$INSTLOG"; exit ${SVC_RC:-0}' \
     ROOTLOG="$T/root.log" INSTLOG="$T/inst.log" TMPDIR="$T" "$@" >"$T/o" 2>&1
 }
 OK=(BOX_TAG=lap-a "HOURS=Mon-Fri 09:00-17:00" TENANT_ID=t9 MOVE_BOX=home LAPTOP_MEMBER=mem)
@@ -83,6 +88,7 @@ OSREL="$T/nope" run_install "${OK[@]}"; rc=$?
 [[ $rc -eq 3 && ! -s "$T/root.log" ]] && pass "3 not Debian: exit 3" || fail "3 not Debian: rc=$rc"
 
 # 4
+VARD="${CO%/*}"; VARD="${VARD%/*}"; VARD="${VARD%/*}/var/$(basename "$(dirname "$CO")")/${CO##*/}"
 run_install "${OK[@]}"; rc=$?
 o="$(cat "$T/o")"
 if [[ $rc -eq 0 && ! -s "$T/root.log" && ! -s "$T/inst.log" ]] \
@@ -98,6 +104,8 @@ if [[ $rc -eq 0 && ! -s "$T/root.log" && ! -s "$T/inst.log" ]] \
   && grep -qF ">'/etc/spl-laptop-box/laptop-box.env' && chown 'root:root' '/etc/spl-laptop-box/laptop-box.env' && chmod 0644" <<<"$o" \
   && grep -qF ">'$T/spool/box.env' && chown 'root:grp-x'" <<<"$o" && ! grep -q "chmod 0664" <<<"$o" && grep -q "'UMask=0007'" <<<"$o" && grep -qF '%h/.local/share/spool-agent/tools/bin:' <<<"$o" \
   && grep -q "apt-get update" <<<"$o" \
+  && grep -qF "install -d -o 'agt-u' -g 'grp-x' -m 2775 '$VARD'" <<<"$o" \
+  && grep -qF "[ -e '$CO-desk-cron/.git' ] || { install -d -o 'agt-u' -g 'agt-u' '$CO-desk-cron' && runuser -u 'agt-u' -- git -C '$CO' worktree add -q --detach '$CO-desk-cron' origin/master; }" <<<"$o" \
   && grep -q "hub https://hub.example.com" <<<"$o"; then pass "4 dry run: the plan, nothing run"
 else fail "4 dry run: rc=$rc"; echo "$o"; fi
 
@@ -106,7 +114,7 @@ SECRET="spj1.t9.secret-$$"
 run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET"; rc=$?
 if [[ $rc -eq 0 ]] && grep -q "useradd" "$T/root.log" \
   && grep -qx "ARGS --cli claude --fleet --env prd --tenant t9 --box lap-a" "$T/inst.log" \
-  && grep -qx "TOKEN $SECRET" "$T/inst.log" && grep -qx "TF_LEFT no" "$T/inst.log" \
+  && grep -qx "TOKEN $SECRET" "$T/inst.log" && grep -qx "TF_LEFT no" "$T/inst.log" && grep -qx "SVC prd t9 0 0" "$T/inst.log" \
   && ! grep -q "$SECRET" "$T/root.log" "$T/o" && ! grep -q "ARGS.*$SECRET" "$T/inst.log" \
   && [[ -z "$(grep -rl --exclude=inst.log -- "$SECRET" "$T")" ]]; then pass "5 real run: root plan, install as user, token by file only"
 else fail "5 real run: rc=$rc"; cat "$T/o" "$T/inst.log"; fi
@@ -124,6 +132,10 @@ else echo "SKIP: 6 W4: no script(1) for a pty"; fi
 # 7
 run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET" INST_RC=5; rc=$?
 [[ $rc -eq 1 && -z "$(grep -rl --exclude=inst.log -- "$SECRET" "$T")" ]] && pass "7 install fails: exit 1, token file gone" || fail "7 install fails: rc=$rc"
+
+# 8
+run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET" SVC_RC=3; rc=$?
+[[ $rc -eq 1 ]] && grep -q "the fleet services as agt-u failed (exit 3)" "$T/o" && pass "8 a failing services step: exit 1, named" || fail "8 services rc=$rc"
 
 # W6: every install flag is a flag (one @param per variable), through ./run
 w6="$(cd "$PROJ_ROOT" && LAPTOP_OS_RELEASE="$T/debian_version" ./run -a do_spl_laptop_box_install --laptop-checkout "$CO" --box-tag lap-a \

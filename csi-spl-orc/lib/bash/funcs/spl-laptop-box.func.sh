@@ -53,13 +53,20 @@ spl_laptop_install_root_cmds() {
   local u="$1" co="$2" sr="$3" g="$4" tag="$5" env="$6" ten="$7" hours="$8" max="$9" to="${10}" me="${11}" ask="${12:-LAPTOP_ASK=wui}"
   local -a al; read -ra al <<<"$ask"
   local fb="$co/csi-spl-orc/src/bash/features/laptop-box" lib=/usr/local/lib/spl-laptop-box st="$sr/dispatch/laptop-box"
-  echo "DEBIAN_FRONTEND=noninteractive apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y git tmux curl tar zstd openssh-client python3 perl util-linux jq ca-certificates libnotify-bin"
+  echo "DEBIAN_FRONTEND=noninteractive apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y git gh cron tmux curl tar zstd openssh-client python3 perl util-linux jq ca-certificates libnotify-bin"
   echo "getent group '$g' >/dev/null || groupadd '$g'"
   echo "id -u '$u' >/dev/null 2>&1 || { useradd -m -s /bin/bash '$u' && passwd -l '$u' >/dev/null; }"
   echo "usermod -aG '$g' '$u'"
   [[ -z "$me" ]] || echo "usermod -aG '$g' '$me'"
   echo "chown -R '$u:$u' '$co'"
   echo "install -d -o '$u' -g '$g' -m 2770 '$sr' '$sr/dispatch' '$st'"
+  # the fleet services' dirs, as spl_run_paths derives them for this checkout:
+  # the var log dir, and their self-updating checkout (<checkout>-desk-cron),
+  # made here because its parent is root's (an existing empty dir would make
+  # the services skip their worktree add)
+  local -a pd; mapfile -t pd < <(spl_laptop_run_paths "$co")
+  echo "install -d -o '$u' -g '$g' -m 2775 '${pd[0]}'"
+  echo "[ -e '${pd[1]}/.git' ] || { install -d -o '$u' -g '$u' '${pd[1]}' && runuser -u '$u' -- git -C '$co' worktree add -q --detach '${pd[1]}' origin/master; }"
   # W3 (R7 a-664): her config is root's. The agents' user owns the spool root,
   # so a file in it could be replaced by that user: laptop-box.env, which the
   # root control remove reads, lives in a root-owned dir under /etc.
@@ -87,6 +94,14 @@ spl_laptop_install_root_cmds() {
   fi
   echo "systemctl daemon-reload && systemctl enable --now spl-laptop-box-tick.timer spl-laptop-box-login.timer"
   [[ -z "$me" ]] || echo "systemctl --global enable spl-laptop-box-ask.timer"
+}
+
+# spl_laptop_run_paths <checkout>: SPL_VAR_APP_DIR and SPL_DESK_DIR of that
+# checkout (spl_run_paths, nothing inherited), one per line.
+spl_laptop_run_paths() {
+  declare -F spl_run_paths >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-run-paths.func.sh"
+  ( unset SPL_ORG_DIR SPL_VAR_APP_DIR SPL_VAR_ORG_DIR SPL_WT_ROOT SPL_DESK_DIR PROJ_PATH
+    APP_PATH="$1" spl_run_paths && printf '%s\n%s\n' "$SPL_VAR_APP_DIR" "$SPL_DESK_DIR" )
 }
 
 # spl_laptop_root_write <file> <owner> <group> <line>...: a root command that

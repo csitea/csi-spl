@@ -15,7 +15,9 @@
 #      moves.log line each, the question cleared
 #   7. a failed handover: exit 1, FAILED line, move-now kept for a retry
 #   8. her controls: stop (today out of hours, move-now), off/start, continue,
-#      status; remove: refused without root, refused with lanes, else the
+#      status; github-token: root only, a non-token refused, the token to
+#      gh auth login on stdin only, then gh auth setup-git; remove: refused
+#      without root, refused with lanes, else the
 #      plan (timers off, units gone, the agents' user deleted)
 #   9. a closed pop-up writes no answer
 #  10. not a laptop box (no laptop-box.env) -> exit 3
@@ -101,6 +103,15 @@ for who in mem sys-u nosuch; do
 done; cp "$T/env.w3" "$LAPTOP_ENV_FILE"
 [[ "$w3" == "3 0 3 0 3 0 " ]] && pass "8 W3 remove: refuses her user, a system user, an unknown user" || fail "8 W3 remove: $w3"
 ctl bogus >/dev/null 2>&1; [[ $? -eq 2 ]] && pass "8 unknown control: exit 2" || fail "8 unknown control"
+printf '#!/usr/bin/env bash\necho "runuser $* stdin=$(cat)" >>"%s/runuser.log"\n' "$T" >"$T/stub/runuser"; chmod +x "$T/stub/runuser"
+TOK="ghp_$(printf 'a%.0s' {1..36})"
+echo "$TOK" | LAPTOP_EUID=1000 LAPTOP_RUNUSER="$T/stub/runuser" ctl github-token >/dev/null 2>&1; g1=$?
+echo "not a token; id" | LAPTOP_EUID=0 LAPTOP_RUNUSER="$T/stub/runuser" ctl github-token >/dev/null 2>&1; g2=$?
+echo "$TOK" | LAPTOP_EUID=0 LAPTOP_RUNUSER="$T/stub/runuser" ctl github-token >"$T/gt.out" 2>&1; g3=$?
+if [[ $g1 -eq 3 && $g2 -eq 2 && $g3 -eq 0 ]] && grep -qx "runuser -u agt-u -- gh auth login --hostname github.com --git-protocol https --with-token stdin=$TOK" "$T/runuser.log" \
+  && grep -q "^runuser -u agt-u -- gh auth setup-git --hostname github.com" "$T/runuser.log" && [[ "$(grep -c "$TOK" "$T/runuser.log")" == 1 ]] && ! grep -q "$TOK" "$T/gt.out"; then
+  pass "8 github-token: root only, checked, to gh by stdin only"
+else fail "8 github-token g=$g1/$g2/$g3"; cat "$T/runuser.log" "$T/gt.out"; fi
 # 9
 reset; echo q >"$D/ask-pending"; NOTIFY_PICK="" SPOOL_ROOT="$SR" LAPTOP_NOTIFY="$T/stub/notify" bash "$FB/laptop-box-ask.sh"
 [[ ! -e "$D/answer" ]] && pass "9 a closed pop-up writes no answer" || fail "9 closed pop-up"

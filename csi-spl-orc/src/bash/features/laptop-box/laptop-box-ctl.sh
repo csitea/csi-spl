@@ -10,6 +10,9 @@
 #   spl-laptop-box off        stop until she runs start (agents move too)
 #   spl-laptop-box start      undo stop / off: agents run again in her hours
 #   spl-laptop-box continue   past her hours: keep the agents 1 more hour
+#   sudo spl-laptop-box github-token   paste the fleet's GitHub push token
+#                             once (not shown): the agents push with it
+#                             through gh (owner Q6 = MIN: no other secret)
 #   sudo spl-laptop-box remove   take it all off the laptop (refused while
 #                             agents still run here: stop first)
 # The controls only write marker files in the state dir; the tick
@@ -19,8 +22,9 @@
 #   ask-pending (the question text), answer, lanes (written by the tick).
 # Env (tests): SPOOL_ROOT, LAPTOP_STATE_DIR, LAPTOP_NOW (epoch),
 #   LAPTOP_ROOT_SH (the root runner of remove, default bash -c),
-#   LAPTOP_EUID (default $EUID), LAPTOP_ENV_FILE (default
-#   /etc/spl-laptop-box/laptop-box.env, root's), LAPTOP_ID (default id).
+#   LAPTOP_EUID (default $EUID), LAPTOP_RUNUSER (default runuser),
+#   LAPTOP_ENV_FILE (default /etc/spl-laptop-box/laptop-box.env, root's),
+#   LAPTOP_ID (default id).
 # Exit: 0 ok, 2 usage, 3 refused (remove while agents run, or not root).
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -67,6 +71,22 @@ remove() {
   echo "OK removed from this laptop. A workspace admin revokes its seat in the web UI (Monitoring -> Boxes)."
 }
 
+# github-token: the token from stdin (a terminal: asked without echo) into the
+# agents' user's gh login, then gh as its git credential helper; the token
+# rides stdin only, never an argv, a file of ours or a log (SPL-3761: no
+# clear-text git credential store).
+github_token() {
+  [[ "${LAPTOP_EUID:-$EUID}" == 0 ]] || { echo "refused: needs root: sudo spl-laptop-box github-token" >&2; return 3; }
+  local u tok; u="$(envget LAPTOP_AGENT_USER)"
+  [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "refused: no agents' user in $ENVF" >&2; return 3; }
+  if [[ -t 0 ]]; then read -rsp 'GitHub push token (not shown): ' tok; echo >&2; else read -r tok; fi
+  [[ "$tok" =~ ^[A-Za-z0-9_]{20,255}$ ]] || { echo "refused: that is not a GitHub token" >&2; return 2; }
+  printf '%s\n' "$tok" | ${LAPTOP_RUNUSER:-runuser} -u "$u" -- gh auth login --hostname github.com --git-protocol https --with-token ||
+    { echo "github-token: gh did not take the token" >&2; return 1; }
+  ${LAPTOP_RUNUSER:-runuser} -u "$u" -- gh auth setup-git --hostname github.com || return 1
+  echo "OK the agents push to GitHub with that token"
+}
+
 case "${1:-status}" in
   status) status ;;
   start) rm -f "$D/off" "$D/stopped" "$D/move-now"; echo "OK started: agents run again in your hours (next check within 5 min)" ;;
@@ -74,5 +94,6 @@ case "${1:-status}" in
   off) put off "$NOW" && put move-now "$NOW" && echo "OK off until you run: spl-laptop-box start" ;;
   continue) put continue-until "$((NOW + 3600))" && rm -f "$D/asked-at" "$D/ask-pending" "$D/answer" "$D/ask-wui" && echo "OK the agents keep running for 1 more hour" ;;
   remove) remove ;;
-  *) echo "usage: spl-laptop-box status|start|stop|off|continue|remove" >&2; exit 2 ;;
+  github-token) github_token ;;
+  *) echo "usage: spl-laptop-box status|start|stop|off|continue|github-token|remove" >&2; exit 2 ;;
 esac

@@ -316,3 +316,34 @@ seat signs the next sha that does this, if its 9 fenced blocks stay
 byte-identical.
 
 <!-- last reviewed sha: 978c1bee61fcc405452e17ff0cb6c7b7d0cb9e8a (v1.0) -->
+
+## 5. v1.1 sign-off: PASS on `1549aaf3`
+
+Plan v1.1 is `1549aaf35839f3515386c8692de529539f0685e9` (the
+`git ls-remote origin refs/heads/review/c003-refactor-round-10-planner` result).
+It is one commit on v1.0: `1549aaf35 docs(r10-plan, SPL-6649): refactor round 10
+plan v1.1 (fold panel W4)`, `37 insertions(+), 14 deletions(-)`.
+
+- **Rows unchanged:** the fenced `bash` blocks of v0.1 vs v1.1 compare as
+  `9 9 True` (byte-identical).
+- **Drift:** `git diff --name-only 84f86ab8c origin/master -- <7 row files> | wc -l`
+  -> `0` (origin/master `836ec3c7c`).
+- **W4 fixed:** 1.3's Behaviour paragraph (`:420-428`) now states the W3
+  deviation in place of the old exact-ordering claim. N2 (`:429-431`) and N4
+  (`:432-434`) are present. `sed -n 198,440p | grep -niE 'leak|stderr|deviation|untested|exact validation ordering'`
+  -> the W3, N2 and N4 lines plus the old secrets sentence; no `exact validation ordering`.
+
+This seat signs `1549aaf35839f3515386c8692de529539f0685e9`. W1 to W4 are closed
+and nothing blocks. Two wording slips in the new text do not touch any row; fold
+them into the retro or the next edit:
+
+- **N5 (`:429-431`).** Base does not "set `as_agent` as an unlocal shell variable".
+  `do_install_agy_cli` defines a nested **function** `as_agent()`
+  (`install-agy-cli.func.sh:45-48` on `84f86ab8c`), which stays global after the
+  call. Only the agy wrapper has it: `grep -n as_agent` on mistral-vibe and
+  openai-codex -> 0 lines.
+- **N6 (`:422`).** On head1 the `model` query runs after the whole of
+  `_spl_agent_cli_prep` succeeds (pin, `DRY_RUN`, agent user and home), not
+  only after the `version` check.
+
+<!-- last reviewed sha: 1549aaf35839f3515386c8692de529539f0685e9 (v1.1, signed) -->

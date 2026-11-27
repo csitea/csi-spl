@@ -1,8 +1,8 @@
 # Spec 197: Universal Search Results Page (`/us`)
 
-Status: **Phase 1 — WHAT Draft v0.2** (2026-11-27).
+Status: **Phase 1 — WHAT v1.0** (2026-11-27; unanimous 5/5 panel consensus on v0.2 `a8e89dbfb`; owner polls Q1–Q8 posted as `a3d8e5fc` and `d5d7113d`, answers pending).
 Editor seat: `a-580` (`agy`, doc only).
-v0.1 `edfb2ffee`; v0.2 folds round-1 reviews from `c-582` (User View, R1–R8, msg `fe0b4f36`), `a-583` (Search Engine Expert, S1–S7, msg `4a8bdee5`), `c-584` (Reviewer, W1–W3 and N1–N6, msgs `006bcc5d` & `5fe72660`), and `m-585` (UI Design, D1–D12, msg `f0ccffab`).
+v0.1 `edfb2ffee`; v0.2 `a8e89dbfb` folded all round-1 reviews (`c-582` R1–R8, `a-583` S1–S7, `c-584` W1–W3/N1–N6, `m-585` D1–D12) and was signed by all five seats (`993ceb8c1`, `9c4eb9b56`, `04145b860`, `140c72b6b`); v1.0 folds the three non-blocking v0.2 signature notes (`c-582` FR-US-11 row-menu link wording, `c-584` N7 posted-form parity and N8 `useSidebarRailOnly.ts:31` line cite).
 Epic: **SPL-1292**. Issue: **SPL-6662**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:bcfd15e1-2022-473f-b4a9-ae34eb756f1e` (`t1` `#spool-hub-ui`).
 Review branch: `review/c002-bcfd15e1-search-results-spec`.
@@ -122,7 +122,7 @@ Proposals not explicitly stated in the owner's words are marked **[Proposal]** a
 
 - **FR-US-04 (Desktop shell).** `/us` renders inside `layouts/default.vue` with:
   1. The persistent **Top Bar** (with the Omnibox).
-  2. The **leftmost sections icon rail only** (`.sidebar--rail`, desktop only via `useSidebarRailOnly.ts:1-3,24,38`) — no channel/DM/search list panel beside the rail, matching the owner's *"top bar and the left most sections panel , but only a listing with the found objects"* (agreed by `c-582` R1 and `c-584` N6; note to `m-585`: panel 1's channel/DM list is hidden here rather than kept open, and on a phone the sections are the usual section strip as on `/notes`, `useSidebarRailOnly.ts:24`).
+  2. The **leftmost sections icon rail only** (`.sidebar--rail`, desktop only via `useSidebarRailOnly.ts:1-3,24,38`) — no channel/DM/search list panel beside the rail, matching the owner's *"top bar and the left most sections panel , but only a listing with the found objects"* (agreed by `c-582` R1 and `c-584` N6; note to `m-585`: panel 1's channel/DM list is hidden here rather than kept open, and on a phone the sections are the usual section strip (`useSidebarRailOnly.ts:31`, as on `/notes` at `:24`).
   3. The **main results column** (`.feed-col` with `.feed-header` and `.feed-body`, `main.css:135,333,382`) holding ONLY the search header (title, query chip, Refresh, Sort, Copy Link — replaced by the Selection Bar while rows are ticked), optional kind chips, and the single flat listing of found objects.
   4. An optional **right-side Quick Preview pane** (the right topic-pane slot with `PaneDivider` resizer) that opens only when the user invokes preview (`FR-US-12`), and closes cleanly back to the full-width listing.
 
@@ -209,7 +209,7 @@ Audited via `git ls-tree -r --name-only origin/master csi-spl-wui/src/pages`. To
 ### 3.5 Open, Quick Preview, Cycle, and Return (`FR-US-11` – `FR-US-13`)
 
 - **FR-US-11 (Open, cycle, & return with full state).**
-  - Each row's title is a real link (`<a href>` = the hit's canonical full link from `FR-US-06`). `Ctrl/Cmd+click`, middle-click, and the long-press "Open in new tab" open it in a new tab; the new tab shows the item alone (with no results strip), and the `/us` tab keeps its place.
+  - Each row's title is a real link (`<a href>` = the hit's canonical full link from `FR-US-06`). `Ctrl/Cmd+click`, middle-click, and the row menu's "Open in new tab" (desktop right-click / `ContextMenu` / `Shift+F10`) open it in a new tab; the new tab shows the item alone (with no results strip), and the `/us` tab keeps its place.
   - Plain click, tap, or `Enter` opens the hit in the current tab at its canonical full link (reusing `openMessage()` / `searchTarget()`).
   - While viewing an item opened from `/us`, a slim **Results navigation strip** at the top of the view shows `k of N` (or `k of N+` when `has_more` is true), **Previous**, **Next**, and **Back to results**.
   - `[` and `]` (or `Alt+ArrowUp` / `Alt+ArrowDown`) step directly to the previous/next hit in the result list without returning to `/us` first (stepping past the last loaded hit fetches the next page when `has_more` is true). Single-key shortcuts (`[`, `]`, `x`, `/`, `Space`, `Esc`) act ONLY while focus is not in a text field, a `contenteditable`, or an open dialog; in the composer they type as usual.
@@ -370,7 +370,7 @@ Show kind filter chips (All, Topics, Cards, Messages, Issues, Calendar, Lanes, E
 
 ### Q4 — Card messages vs. topic reply messages *(posted in `a3d8e5fc` with `SEP`/`ONE`)*
 
-Recommended: **SEP** (matches owner msg `32ae406f` naming "topics msgs , card msgs" separately; combined with Section 3.3's deduplication rule so a topic hitting on both title and root body renders once). Reviewer note (`c-584` W2): a third reading is `(TOP) Topics and replies only: a card is its topic`.
+Recommended: **SEP** (matches owner msg `32ae406f` naming "topics msgs , card msgs" separately; combined with Section 3.3's deduplication rule so a topic hitting on both title and root body renders once). Reviewer note (`c-584` W2): a third reading is `(TOP) Topics and replies only: a card is its topic *(not posted in form a3d8e5fc; posted form carries SEP/ONE only, and Section 3.3's dedup rule prevents duplicate cards under SEP)*`.
 
 ```poll
 How should Level 1 card messages and Level 2 topic replies appear in /us?
@@ -379,7 +379,7 @@ How should Level 1 card messages and Level 2 topic replies appear in /us?
 (TOP) Topics and replies only: a card is its topic
 ```
 
-### Q5 — Events scope in `/us` *(posted in `a3d8e5fc`; factual update from `a-583` S3)*
+### Q5 — Events scope in `/us` *(posted as ALL-recommended in `a3d8e5fc`; corrected to MIN-recommended in follow-up post `d5d7113d` after `a-583` S3)*
 
 **Factual update (verified on `origin/master` `4ab7b731b`):** `pages/monitoring/events/index.vue:6` reads ONLY `GET /api/v1/auth/events` (`human_events`, Mine log); WUI has no Workspace or System event view (`git grep -n "v1/view/events\|v1/operator/events" origin/master -- csi-spl-wui/src/ | wc -l` -> `0`). Updated recommendation: **MIN** for v1 so every event hit opens a real full link.
 
@@ -447,7 +447,10 @@ Phase 2 begins ONLY once all panel seats sign WHAT v1.0. It will specify:
 | 2026-11-27 | `c-582` (User View) | Reviewed v0.1 `edfb2ffee` (msg `fe0b4f36`, R1–R8); all 8 folded into WHAT v0.2 |
 | 2026-11-27 | `a-583` (Search Engine Expert) | Reviewed v0.1 `edfb2ffee` (msg `4a8bdee5`, S1–S7 incl. critical S3 on events view); all 7 folded into WHAT v0.2 |
 | 2026-11-27 | `c-584` (Reviewer) | Reviewed v0.1 `edfb2ffee` (msgs `006bcc5d` & `5fe72660`, FAIL: W1–W3, N1–N6); all folded into WHAT v0.2 |
-| 2026-11-27 | `a-580` (Editor) | Published WHAT Draft v0.2 on `review/c002-bcfd15e1-search-results-spec`; sent Q8 form + Q5 factual note to holder |
+| 2026-11-27 | `a-580` (Editor) | Published WHAT Draft v0.2 (`a8e89dbfb`) on `review/c002-bcfd15e1-search-results-spec`; sent Q8 form + Q5 factual correction (`ALL` -> `MIN`) to holder |
+| 2026-11-27 | `c-002` (Holder) | Verified `a8e89dbfb` and events-page grep; posted Q5 correction (`MIN` recommended) + Q8 poll (`W2`/`V1`) to HUM-10 as `msg:d5d7113d` (msg `113380e0`) |
+| 2026-11-27 | `c-582`, `c-584`, `m-585`, `a-583` | All four sibling panel seats signed WHAT v0.2 (`a8e89dbfb`) via commits `993ceb8c1`, `9c4eb9b56`, `04145b860`, and `140c72b6b` (5/5 consensus) |
+| 2026-11-27 | `a-580` (Editor) | Published WHAT v1.0 folding the three non-blocking v0.2 signature notes (`c-582` FR-US-11, `c-584` N7/N8) |
 
 ### 9.2 Signatures
 
@@ -460,3 +463,4 @@ Each seat signs a version with its own commit on `review/c002-bcfd15e1-search-re
 | `c-584` (Reviewer) | claude | WHAT v0.2 | `a8e89dbfb` | PASS: W1–W3 closed (6 M/H/L, 3.3 dedup, 3.3b + Q8); new cites re-run on `4ab7b731b`; notes N7–N8 for v0.3 |
 | `m-585` (UI Design) | mistral | WHAT v0.2 | `a8e89dbfb` | contributor (UI design): D1–D12 folded (rail-only `.sidebar--rail` confirmed, wireframe in FR-US-04, OpenMessageToast in FR-US-11, ContextMenu/Shift+F10 row menu in FR-US-14, Retry-After in FR-US-19); no open blockers |
 | `a-583` (Search Engine Expert) | agy | WHAT v0.2 | `a8e89dbfb` | Signed — all S1–S7 folded; object kinds, `updated_at`, rights, links, and budget targets verified |
+| `a-580` (Editor) | agy | WHAT v1.0 | `140c72b6b` | WHAT v1.0 published (5/5 v0.2 consensus + N7/N8/FR-US-11 polish); ready for v1.0 signatures & Phase 2 HOW |

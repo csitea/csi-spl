@@ -6,6 +6,10 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 export SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool MISTRAL_BIN=/opt/x/vibe
+# spec 184: the model cnf is a fixture, empty unless a case says otherwise,
+# so a model set in the checkout's cnf never changes these launch lines.
+printf 'env:\n  box:\n    agent_model:\n      default: { claude: "" }\n      by_kind: {}\n' > "$T_TMP/model-empty.yaml"
+export SPOOL_AGENT_MODEL_CNF="$T_TMP/model-empty.yaml"
 WD="$T_TMP/plain"; mkdir -p "$WD"
 echo brief > "$T_TMP/brief.md"
 
@@ -291,6 +295,54 @@ eq "T001 control: a launcher with a literal flag is caught (1 line)" 1 "$(t001_l
 has "T001 control: ... and named" "spawn-qwen.sh" "$(t001_literal "$FX")"
 fleet="$T_FEAT/../spool-install/assets/claude/settings/00-fleet.json"
 eq "T001: 00-fleet.json env block turns the updater off" 1 "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["env"]["DISABLE_AUTOUPDATER"])' "$fleet")"
+
+# ---- spec 184 row L2: the launch passes the model --------------------------
+# With the empty cnf (every case above) no line carries a model, the plan
+# says cli-default; a cnf model goes into the launch AND the resume stub, once.
+n_of() { grep -oF -- "$1" <<<"$2" | wc -l; }
+for k in claude grok agy qwen mistral; do
+  hasnt "L2 $k: the empty cnf adds no --model to the launch" "--model" "$(cat "$T_TMP/plan-$k/launch.cmd")"
+  hasnt "L2 $k: ... nor VIBE_ACTIVE_MODEL" "VIBE_ACTIVE_MODEL" "$(cat "$T_TMP/plan-$k/launch.cmd")"
+done
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-77 "$WD" "$T_TMP/brief.md" x 2>&1)"
+has "L2: the empty cnf plans model=cli-default" "model=cli-default" "$out"
+has "L2: ... and records cli-default in lifetime/model.txt" "PLAN model      cli-default -> ${SPOOL_ROOT}/CLE-77/lifetime/model.txt" "$out"
+hasnt "L2: ... and the resume stub carries no --model" "--model" "$(grep '^PLAN restore' <<<"$out")"
+cat > "$T_TMP/model-set.yaml" <<'YML'
+env:
+  box:
+    agent_model:
+      default: { claude: sonnet, grok: grok-4.7, mistral: mistral-large, qwen: qwen-x, agy: "", codex: "" }
+      by_kind:
+        tests: { grok: grok-4.6 }
+YML
+mkdir -p "$T_TMP/plan-m"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model-set.yaml" SPAWN_PLAN_DIR="$T_TMP/plan-m" bash "$T_SCRIPTS/spawn-claude.sh" CLE-77 "$WD" "$T_TMP/brief.md" x 2>&1)"
+launch="$(cat "$T_TMP/plan-m/launch.cmd")"
+eq "L2 claude: default.claude sonnet -> the launch carries --model 'sonnet' once" 1 "$(n_of "--model 'sonnet'" "$launch")"
+has "L2 claude: ... after the permission flags, before the seed pointer" "--dangerously-skip-permissions --model 'sonnet' \"Read and follow your seed" "$launch"
+eq "L2 claude: the resume stub carries --model 'sonnet' once" 1 "$(n_of "--model 'sonnet'" "$(grep '^PLAN restore' <<<"$out")")"
+has "L2 claude: ... before the resume flag" "--dangerously-skip-permissions --model 'sonnet' --resume <SESSION_ID>" "$out"
+has "L2 claude: the plan names the model" "model=sonnet" "$out"
+has "L2 claude: ... and lifetime/model.txt records it" "PLAN model      sonnet -> ${SPOOL_ROOT}/CLE-77/lifetime/model.txt" "$out"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model-set.yaml" SPAWN_TASK_KIND=tests SPAWN_PLAN_DIR="$T_TMP/plan-m" bash "$T_SCRIPTS/spawn-grok.sh" GRK-77 "$WD" "$T_TMP/brief.md" x 2>&1)"
+eq "L2 grok: the by_kind cell of SPAWN_TASK_KIND wins, once in the launch" 1 "$(n_of "--model 'grok-4.6'" "$(cat "$T_TMP/plan-m/launch.cmd")")"
+has "L2 grok: ... and in the resume stub" "--permission-mode bypassPermissions --model 'grok-4.6' --resume" "$out"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model-set.yaml" SPAWN_PLAN_DIR="$T_TMP/plan-m" bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" "$T_TMP/brief.md" x 2>&1)"
+launch="$(cat "$T_TMP/plan-m/launch.cmd")"
+has "L2 mistral: VIBE_ACTIVE_MODEL joins the exec prefix of the launch" "SPT_NOENV=1 VIBE_ACTIVE_MODEL='mistral-large' bash '" "$launch"
+hasnt "L2 mistral: ... never as a flag" "--model" "$launch"
+eq "L2 mistral: the resume stub carries it once, before vibe" 1 "$(n_of "VIBE_ACTIVE_MODEL='mistral-large' vibe --auto-approve" "$(grep '^PLAN restore' <<<"$out")")"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model-set.yaml" SPAWN_PLAN_DIR="$T_TMP/plan-m" bash "$T_SCRIPTS/spawn-qwen.sh" QWN-77 "$WD" "$T_TMP/brief.md" x 2>&1)"
+hasnt "L2 qwen: no model words yet (7.1.3), nothing passed" "--model" "$(cat "$T_TMP/plan-m/launch.cmd")"
+has "L2 qwen: ... one WARN names it" "WARN: QWN-77: qwen has no model words yet" "$out"
+has "L2 qwen: ... and the record says cli-default" "model=cli-default" "$out"
+printf 'env:\n  box:\n    agent_model:\n      default: { claude: "a b" }\n' > "$T_TMP/model-bad.yaml"
+cp "$T_TMP/plan-claude/launch.cmd" "$T_TMP/launch-empty.cmd"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model-bad.yaml" SPAWN_PLAN_DIR="$T_TMP/plan-m" bash "$T_SCRIPTS/spawn-claude.sh" CLE-77 "$WD" "$T_TMP/brief.md" "do the thing" 2>&1)"; rc=$?
+eq "L2 control: a refused model (a space) still starts the seat" 0 "$rc"
+has "L2 control: ... with one WARN" "WARN: CLE-77: no model for claude" "$out"
+eq "L2 control: ... on the launch line of the empty cnf, byte for byte (the plan dir aside)" "$(cat "$T_TMP/launch-empty.cmd")" "$(sed "s#$T_TMP/plan-m/#$T_TMP/plan-claude/#" "$T_TMP/plan-m/launch.cmd")"
 
 # c-636 (restart drill 4): a spawn records its brief at <id>/lifetime/brief.md,
 # the file restore-mistral.sh reads, else a restored seat gets no task back.

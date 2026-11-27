@@ -59,6 +59,10 @@
 #                        (its writes route through `sudo -u <box user>`); mistral
 #                        sets rwX: vibe's write_file / search_replace are its only
 #                        quoting-safe write path (spawn-mistral.sh)
+#   SPAWN_MODEL_IN       where the model words of spool_model_args go (spec 184
+#                        7.1.3): unset = after the permission and extra flags
+#                        (claude, grok); exec-prefix = appended to
+#                        SPAWN_EXEC_PREFIX (mistral: VIBE_ACTIVE_MODEL='<m>')
 #
 # DRY RUN: SPAWN_DRY_RUN=1 performs NO side effect and prints the plan: one
 # `PLAN <step> …` line per side effect, then the seed prompt between
@@ -653,6 +657,44 @@ _sp_kind_ok() {  # ID KIND
   [ "${SPAWN_REUSE_ID:-0}" = 1 ] && spool_spawn_is_seat "$1"
 }
 
+# The model this seat starts with (spec 184 row L2, 4 steps 2 and 4):
+# SPAWN_MODEL_USED (the model, or empty = the CLI's own default) and
+# SPAWN_MODEL_FLAGS (" --model '<m>'", after the permission and extra flags);
+# with SPAWN_MODEL_IN=exec-prefix the words go to SPAWN_EXEC_PREFIX instead.
+# Empty model: nothing added, the launch line stays as it was. A model the
+# resolver refuses, or a vendor with no model words yet, starts on the CLI
+# default with one WARN.
+_spawn_model_words() {
+  local w
+  SPAWN_MODEL_FLAGS=""
+  SPAWN_MODEL_USED="$(spool_agent_model "$SPAWN_KIND")" || {
+    echo "WARN: ${TITLE}: no model for ${SPAWN_KIND} (above), it starts on the CLI default" >&2
+    SPAWN_MODEL_USED=""
+  }
+  [ -n "$SPAWN_MODEL_USED" ] || return 0
+  w="$(spool_model_args "$SPAWN_KIND" "$SPAWN_MODEL_USED")" || w=""
+  if [ -z "$w" ]; then
+    echo "WARN: ${TITLE}: ${SPAWN_KIND} has no model words yet (spec 184 7.1.3), model ${SPAWN_MODEL_USED} not passed, it starts on the CLI default" >&2
+    SPAWN_MODEL_USED=""
+  elif [ "${SPAWN_MODEL_IN:-}" = exec-prefix ]; then
+    SPAWN_EXEC_PREFIX="${SPAWN_EXEC_PREFIX:-env} ${w}"
+  else
+    SPAWN_MODEL_FLAGS=" ${w}"
+  fi
+}
+
+# spec 184 7.1.4: <spool root>/<id>/lifetime/model.txt, the model this start
+# used or cli-default. A record, never an input (a restore re-resolves); a
+# failed write is one WARN, never a failed spawn.
+_spawn_model_record() {
+  local f="${MSGDIR}/lifetime/model.txt" m="${SPAWN_MODEL_USED:-cli-default}"
+  if _sp_live; then
+    { mkdir -p "${f%/*}" && printf '%s\n' "$m" >"$f"; } 2>/dev/null ||
+      echo "WARN: ${TITLE}: ${f} not written (model ${m})" >&2
+  fi
+  _sp_plan model "${m} -> ${f}"
+}
+
 # Step 1 of spawn_main: refuse a test sandbox, resolve the spool env, the
 # permission flags and the identity, and validate TITLE and WORKDIR.
 spawn_guards_env() {
@@ -696,7 +738,8 @@ spawn_guards_env() {
     SPAWN_REQUESTER="$(spool_spawn_gate)" || exit $?
   fi
 
-  _sp_plan adapter "kind=${SPAWN_KIND} prefix=${SPAWN_ID_PREFIX:-<none>} bin=${SPAWN_BIN} name-flag=${SPAWN_NAME_FLAG:-<none>} prompt-flag=${SPAWN_PROMPT_FLAG:-<positional>} resume=${SPAWN_RESUME_FLAG} <${SPAWN_RESUME_ID}> continue=${SPAWN_CONTINUE_FLAG} perm=${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ extra=${SPAWN_EXTRA_FLAGS}}${SPAWN_EXEC_PREFIX:+ exec-prefix=${SPAWN_EXEC_PREFIX}}"
+  _spawn_model_words
+  _sp_plan adapter "kind=${SPAWN_KIND} prefix=${SPAWN_ID_PREFIX:-<none>} bin=${SPAWN_BIN} name-flag=${SPAWN_NAME_FLAG:-<none>} prompt-flag=${SPAWN_PROMPT_FLAG:-<positional>} resume=${SPAWN_RESUME_FLAG} <${SPAWN_RESUME_ID}> continue=${SPAWN_CONTINUE_FLAG} perm=${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ extra=${SPAWN_EXTRA_FLAGS}}${SPAWN_EXEC_PREFIX:+ exec-prefix=${SPAWN_EXEC_PREFIX}} model=${SPAWN_MODEL_USED:-cli-default}"
   _sp_plan run-as "$(spool_agent_cmd_text) (SPOOL_RUN_AS_AGENT=${SPOOL_RUN_AS_AGENT})"
   _sp_plan spool "SPOOL_ROOT=${SPOOL_ROOT} SPOOL_BIN=${SPOOL_BIN} seed-bin=$(spool_agent_spool_bin)"
 
@@ -815,7 +858,7 @@ spawn_launch_session() {
   # The resume stub carries the same permission flags as the launch. A grok
   # resumed without them falls back to whatever config.toml says; claude's
   # own restore in the box engine repeats its own permission mode (auto for claude).
-  RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_UMASK:+umask ${SPAWN_UMASK} ; }${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}} ${SPAWN_RESUME_FLAG} "
+  RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_UMASK:+umask ${SPAWN_UMASK} ; }${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${SPAWN_MODEL_FLAGS} ${SPAWN_RESUME_FLAG} "
   _sp_plan restore "${RESTORE}<${SPAWN_RESUME_ID}>'"
 
   # The pointer travels inside a double-quoted argument of the agent's login
@@ -836,7 +879,9 @@ spawn_launch_session() {
   fi
   _sp_cfg_env=""
   [ "$SPAWN_KIND" = claude ] && [ -n "${SPAWN_CLAUDE_CONFIG_DIR:-}" ] && _sp_cfg_env=" CLAUDE_CONFIG_DIR='${SPAWN_CLAUDE_CONFIG_DIR}'"
-  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}${_sp_cfg_env}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror ${SPAWN_UMASK:+--umask '${SPAWN_UMASK}' }-- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
+  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}${_sp_cfg_env}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror ${SPAWN_UMASK:+--umask '${SPAWN_UMASK}' }-- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${SPAWN_MODEL_FLAGS}${_sp_prompt_args}"
+
+  _spawn_model_record
 
   if ! _sp_live; then
     _sp_plan launch "$(spool_agent_cmd_text) -c \"${LAUNCH}\""

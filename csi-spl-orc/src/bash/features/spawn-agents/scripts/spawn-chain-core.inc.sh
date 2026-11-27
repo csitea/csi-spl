@@ -18,9 +18,14 @@ _CH_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 spool_env_resolve
 
 _ch_bin() { if [ "$CHAIN_KIND" = claude ]; then printf '%s' "$CLAUDE_BIN"; else printf '%s' "$GROK_BIN"; fi; }
+# The model words (spec 184 7.1.3) follow the perm flags; an empty model adds
+# nothing, a refused one (WARN above) runs the CLI default.
 _ch_flags() {  # [NAME]
+  local m w=""
   if [ "$CHAIN_KIND" = claude ]; then printf '%s' "${1:+--name '$1' }"; fi
   spool_claude_perm_flags "$CHAIN_KIND"
+  m="$(spool_agent_model "$CHAIN_KIND")" && w="$(spool_model_args "$CHAIN_KIND" "$m")" || w=""
+  printf '%s' "${w:+ $w}"
 }
 _ch_run() {  # WORKDIR NAME PROMPT
   local esc cmd

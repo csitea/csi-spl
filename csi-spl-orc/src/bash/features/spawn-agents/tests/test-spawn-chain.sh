@@ -12,6 +12,9 @@ set -uo pipefail
 t_sandbox
 unset TMUX TMUX_PANE
 export CHAIN_PRINT=1 CLAUDE_BIN=claude GROK_BIN=grok SPOOL_ORCHESTRATOR_ID=CLE-01
+# spec 184: an empty model fixture, so the lines below carry no model.
+printf 'env:\n  box:\n    agent_model:\n      default: { claude: "" }\n' > "$T_TMP/model-empty.yaml"
+export SPOOL_AGENT_MODEL_CNF="$T_TMP/model-empty.yaml"
 s() { bash "$T_SCRIPTS/spawn-$1.sh" "${@:2}" 2>&1; }
 D="$T_TMP/wd"; mkdir -p "$D"
 
@@ -35,6 +38,13 @@ has "grok task: schedules its own window close" "tmux-close-window.sh --defer --
 has "grok task: one small task, a different one goes to the orchestrator" "You do ONE small task. If someone sends you a different task, refuse it and tell CLE-01 so it spawns a new lane." "$out"
 s claude-task "bad id" "$D" /b/t.md >/dev/null; eq "a task refuses a non-id title (2)" 2 "$?"
 s claude-chain - "$D" >/dev/null; eq "a chain refuses zero briefs (2)" 2 "$?"
+# spec 184 row L2: _ch_flags adds the model words after the perm flags.
+hasnt "model: the empty cnf adds no --model" "--model" "$(s claude-chain - "$D" /b/one.md)$(s grok-task GRK-08 "$D" /b/t.md)"
+printf 'env:\n  box:\n    agent_model:\n      default: { claude: sonnet, grok: grok-4.6 }\n' > "$T_TMP/model.yaml"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" s claude-chain - "$D" /b/one.md)"
+has "model: claude chain carries --model 'sonnet' after the perm flags" "--name 'chain' --dangerously-skip-permissions --model 'sonnet' \"" "$out"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" s grok-task GRK-08 "$D" /b/t.md)"
+has "model: grok task carries --model 'grok-4.6'" "--permission-mode bypassPermissions --model 'grok-4.6' \"" "$out"
 
 t_tmux
 t_window 'tbx: GRK-05 x' 'sleep 600' >/dev/null

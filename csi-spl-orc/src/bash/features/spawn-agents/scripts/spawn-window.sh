@@ -598,6 +598,8 @@ sw_category() {  # WORKDIR BRIEF
   kind="$(grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$brief" | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]')"
   cat="$(grep -m1 -oE '^Category:[*_ ]*[a-z0-9_]+(/[a-z0-9_]+)*' "$brief" | sed -E 's/^Category:[*_ ]*//')"
   [ -n "$kind$cat" ] || return 0
+  # spec 184 7.1.2: the launcher's spool_agent_model reads the task kind here.
+  [ -z "$kind" ] || export SPAWN_TASK_KIND="$kind"
   f="${SPOOL_ROOT}/${TITLE}/lifetime/category.json"
   if [ "$DRY" = 1 ]; then
     printf 'PLAN %-10s %s\n' category "work_kind ${kind:-none}, category_path ${cat:-none} -> $f"
@@ -627,7 +629,7 @@ fi
 envs=()
 for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_DESK_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
          SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN SPAWN_CLAUDE_CONFIG_DIR GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN CODEX_BIN SPOOL_MISTRAL_MAX_PRICE SPAWN_GIT_IDENTITY \
-         SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
+         SPAWN_TASK_KIND SPAWN_MODEL SPAWN_MODEL_MAP SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
   [ -n "${!v:-}" ] && envs+=("$v=${!v}")
 done
 printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"

@@ -22,7 +22,9 @@
 #   - VIBE_<FIELD> overrides any config.toml field, so the launch turns off
 #     telemetry (+ Sentry), the update check / prompt and the experiments
 #     fetch without touching the agent user's config.toml. The model is
-#     config.toml's active_model (install pins it; a hand-set one is kept).
+#     config.toml's active_model (install pins it; a hand-set one is kept),
+#     unless spool_agent_model names one (spec 184): VIBE_ACTIVE_MODEL='<m>'
+#     then joins SPAWN_EXEC_PREFIX (SPAWN_MODEL_IN=exec-prefix).
 #
 # Usage: spawn-mistral.sh <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]
 #   TITLE is a spool agent id with the letter m, e.g. m-004 (no legacy prefix).
@@ -60,6 +62,7 @@ SPAWN_AGENT_ACL=rwX
 # 2026-10-09, n=2; specs/110 vibe-bash-timeout-sudo.md). 840 lets such a call
 # finish before it times out, and stays under the watchdog's S4 cap for bash
 # (wd_tool_cap, 900).
+SPAWN_MODEL_IN=exec-prefix
 SPAWN_EXEC_PREFIX="env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false VIBE_TOOLS__BASH__DEFAULT_TIMEOUT=840 SPT_NOENV=1"
 spawn_rename_how() {
   # $SLUG is embedded already escaped for a double-quoted argument, so the

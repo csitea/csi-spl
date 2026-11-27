@@ -55,4 +55,14 @@ done
 has "auto: names the id it would take, without claiming it" "PLAN claim      c-005" \
   "$(SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude auto "$T_TMP/repo" "$T_TMP/brief.md" x 2>&1)"
 
+# spec 184 row L2: the brief's Kind: reaches the launcher as SPAWN_TASK_KIND,
+# so its by_kind cell picks the model; the live pane gets it through the env list.
+printf 'env:\n  box:\n    agent_model:\n      default: { claude: opus }\n      by_kind:\n        tests: { claude: sonnet }\n' > "$T_TMP/model.yaml"
+printf '# brief\nKind: tests\n' > "$T_TMP/brief-k.md"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4442 "$T_TMP/repo" "$T_TMP/brief-k.md" x 2>&1)"
+has "L2: the brief's Kind: tests picks the by_kind model" "--model 'sonnet'" "$(grep '^PLAN launch' <<<"$out")"
+out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4443 "$T_TMP/repo" "$T_TMP/brief.md" x 2>&1)"
+has "L2 control: a brief with no Kind: gets the vendor default" "--model 'opus'" "$(grep '^PLAN launch' <<<"$out")"
+has "L2: the live pane's env carries SPAWN_TASK_KIND, SPAWN_MODEL and SPAWN_MODEL_MAP" "SPAWN_TASK_KIND SPAWN_MODEL SPAWN_MODEL_MAP" "$(cat "$SW")"
+
 t_done

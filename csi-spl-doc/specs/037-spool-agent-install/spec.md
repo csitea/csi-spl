@@ -128,3 +128,45 @@ Then, inside tmux: `spool-agent claude`. `--dry-run` prints the plan;
 - `./run` writes its log under a dir derived from the checkout path; a user
   running a checkout owned by someone else hits a read-only log dir. The
   installer is meant to run from the user's own clone.
+
+## Laptop box (SPL-6680)
+
+A member's own Debian laptop runs fleet agents during her working hours, so
+its hardware is used (owner HUM-10, topic 87573eb9, msgs 1b125e4e, 8c6f8e07,
+9ab3bcea: "the interface for her ( and she does have sudo ) on her Debian
+laptop , should be just oneliners , nothing else"; "the aim is to utilize the
+hardware resources of her box for at least the working time of her").
+
+Decided on the plan's form (cc2a02da, answers f0757e6f, 878ec53f, 85225ba1,
+0dd2fe4f):
+
+| # | question | answer |
+|---|---|---|
+| 1 | agent logins on the laptop | the laptop pulls sat's Claude login over ssh, read-only (it is behind her home network: sat cannot push) |
+| 2 | working hours | she sets them in the install one-liner (`--hours "Mon-Fri 09:00-17:00"`) |
+| 3 | agents at once | 4, until measured |
+| 4 | which lanes | any lane the placer picks, inside her hours |
+| 5 | end of her hours | she is asked whether to continue; no answer in 15 min, or Stop: the lanes move to sat (`do_spl_lane_handover`). How she is asked is one switch: a desktop pop-up or a WUI form (the two readers answered differently) |
+| 6 | secrets on the laptop | open |
+| 7 | she has root, so she can read the fleet login stored there | accepted (GO) |
+
+Rules:
+
+- **Her account is never used.** The agents run as their own OS user (no
+  sudo, a locked password); her own Claude CLI, if any, is not touched.
+- **Only one-liners.** Each step she runs is one line on the help page
+  `csi-spl-doc/doc/help/laptop-box.md`; nothing is done on her machine by an
+  agent, and no agent messages her.
+- **No secret on a command line.** The join token is read from
+  `SPOOL_JOIN_TOKEN` or asked without echo, and reaches the installer through
+  a 0600 file that is removed at once.
+
+| path | role |
+|---|---|
+| `csi-spl-orc/src/bash/run/spl-laptop-box-install.func.sh` | `do_spl_laptop_box_install`: packages, the agents' user, the spool root, box.env + `dispatch/laptop-box.env` (hours, cap), then `install.sh --cli claude --fleet` as that user |
+| `csi-spl-orc/lib/bash/funcs/spl-laptop-box.func.sh` | the hours window, the tag check, the cnf read (python3: no yq yet), the root plan, the token prompt |
+| `csi-spl-orc/src/bash/tests/spl-laptop-box-install.tst.sh` | its suite (stubs only: no apt, user, sudo or hub) |
+
+Still to build, in this order: the working-hours timer (start / stop /
+pause / remove), the agent cap, the end-of-hours ask and the move to sat,
+the login pull from sat, then the help page.

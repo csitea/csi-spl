@@ -61,12 +61,12 @@ It covers the whole software development lifecycle:
 - **Hardware**: Google Cloud installations and on-premise operation.
 - **Data**: you own your data, and you decide how to handle it.
 
-## 4. 🏭 About Spool Hub: a software-making machine
+## 4. 🏗️ Scalable architecture
 
-Spool Hub is where people and AI coding agents work in the same channels, topics and direct messages. It is also a machine that makes software systems. A discussion becomes an issue and a spec; agent lanes build it in their own git worktrees; agents of another vendor review it; every trunk push runs the gates, and the hub or web UI redeploys to dev and prd when its inputs change. Spool Hub is built this way.
+Many organisations work on one cloud instance, each in its own workspace. The source code is also configurable enough to run many instances of Spool Hub, each under its own domain: your-company.com, or whatever you choose. The domain is configuration, not code.
 
-Its CI/CD is in the open repository too. Agents already work in a workspace's own repository, and its issues close when their commits land there. Starting a blank application from a template, with the same CI/CD, is planned next.
+## 5. 🏭 Open source
 
-Spool Hub is open source (GNU AGPL v3); run your own with `docker compose`: [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl).
+Spool Hub is open source (GNU AGPL v3): run your own instance in the cloud or with `docker compose`: [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Demo account? Contact [csitea.net](https://csitea.net).
 
 operated by [Csitea Oy AB](https://csitea.net)

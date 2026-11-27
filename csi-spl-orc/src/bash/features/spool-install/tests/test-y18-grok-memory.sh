@@ -17,6 +17,7 @@
 #      nothing written in the real ~/.grok/rules
 #   9. one copy: of the steps, only claude-memory.inc.sh reads the memory
 #      repo or its slug (r87-02); Y18 and Y20 source it
+#  10. _spl_memory_step_install and wave-2 delegation to _spl_user_step_install (r09-01)
 # The `grok inspect` checks run only with grok on PATH (a dev box); without
 # it they print one INFO line and count nothing (CI's runners have no grok,
 # and its orc job refuses a SKIP line).
@@ -123,6 +124,70 @@ then pass "action dry run: rc 0, the real ~/.grok/rules untouched"; else fail "a
 got="$(cd "$FEAT/steps" && grep -lE 'git-common-dir|s/\[\^A-Za-z0-9\]/-/g' -- * | tr '\n' ' ')"
 if [ "$got" = "claude-memory.inc.sh " ]
 then pass "9: defined once, in claude-memory.inc.sh"; else fail "9: defined once (want 'claude-memory.inc.sh ', got '$got')"; fi
+
+# 10. _spl_memory_step_install and wave-2 delegation to _spl_user_step_install (r09-01 one copy)
+me="$(id -un)"
+printf 'fake_mem_step() { echo "CALL:$*"; }\n' >"$T/fake-mem-step.sh"
+mkdir -p "$T/nogit"
+git -C "$R" -c user.name=t -c user.email=t@example.com commit --allow-empty -qm init
+git -C "$R" worktree add -q --detach "$T/wt-mem"
+mkdir -p "$T/wt-mem/csi-spl-orc/src/bash/features/spool-install/steps" "$T/wt-mem/csi-spl-orc/lib/bash/funcs"
+cp "$FEAT/steps/claude-memory.inc.sh" "$FEAT/steps/y18-grok-memory.sh" "$FEAT/steps/y20-agy-memory.sh" \
+  "$T/wt-mem/csi-spl-orc/src/bash/features/spool-install/steps/"
+cp "$ORC/lib/bash/funcs/spl-claude-project-slug.func.sh" "$T/wt-mem/csi-spl-orc/lib/bash/funcs/"
+mem_run() {
+  local pp="$1"; shift
+  PROJ_PATH="$pp" T_MH="$T/mh" bash -c '
+    set -uo pipefail; do_log() { echo "$*"; }
+    getent() { printf "x:x:0:0::%s:/bin/sh\n" "$T_MH"; }
+    . "$1/src/bash/run/spl-grok-memory-install.func.sh" && _spl_memory_step_install "${@:2}"' _ "$ORC" "$@" 2>&1
+}
+out="$(mem_run "$ORC" "demo" "$T/fake-mem-step.sh" fake_mem_step "$me" 2 "$R" DEMO_REPO)"; rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"FATAL DRY_RUN must be 0 or 1, got: '2'"* ]]
+then pass "10. _spl_memory_step_install refuses invalid DRY_RUN"; else fail "10. bad dry ($rc: $out)"; fi
+out="$(mem_run "$ORC" "demo" "$T/no-such-step.sh" fake_mem_step "$me" 1 "$R" DEMO_REPO)"; rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"FATAL the step $T/no-such-step.sh is not readable"* ]]
+then pass "10. _spl_memory_step_install refuses an unreadable step"; else fail "10. unreadable step ($rc: $out)"; fi
+out="$(mem_run "$T/nogit" "demo" "$T/fake-mem-step.sh" fake_mem_step "$me" 1 "" DEMO_REPO)"; rc=$?
+if [ "$rc" = 1 ] && [[ "$out" == *"FATAL cannot tell the repo of $T/nogit (set DEMO_REPO)"* ]]
+then pass "10. _spl_memory_step_install names repo_var when PROJ_PATH is not a git repo"; else fail "10. nogit ($rc: $out)"; fi
+out="$(mem_run "$T/wt-mem/csi-spl-orc" "demo" "$T/fake-mem-step.sh" fake_mem_step "$me" 1 "" DEMO_REPO)"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"CALL:$T/mh 1 $R"* ]] && [[ "$out" == *"INFO demo: $me ($T/mh), repo $R, DRY_RUN=1"* ]]
+then pass "10. _spl_memory_step_install derives main worktree root from a linked worktree"; else fail "10. wt derive ($rc: $out)"; fi
+out="$(mem_run "$T/nogit" "demo" "$T/fake-mem-step.sh" fake_mem_step "$me" 1 "$R" DEMO_REPO)"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"CALL:$T/mh 1 $R"* ]] && [[ "$out" == *"OK demo: $me (DRY_RUN=1)"* ]]
+then pass "10. _spl_memory_step_install honours explicit repo override"; else fail "10. repo override ($rc: $out)"; fi
+
+grok_f="$ORC/src/bash/run/spl-grok-memory-install.func.sh"
+agy_f="$ORC/src/bash/run/spl-agy-memory-install.func.sh"
+own_g="$(grep -nE 's/\^SPOOL_AGENT_USER=|getent passwd|sudo -n -u' "$grok_f" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+if [ -z "$own_g" ] && grep -q '^_spl_memory_step_install()' "$grok_f" && [ "$(grep -c -- '--git-common-dir' "$grok_f")" -eq 1 ] && grep -q '_spl_user_step_install ' "$grok_f"
+then pass "10. one copy: spl-grok-memory-install.func.sh hosts _spl_memory_step_install and delegates user loop"; else fail "10. grok host: own=[$own_g]"; fi
+own_a="$(grep -nE 's/\^SPOOL_AGENT_USER=|getent passwd|sudo -n -u|--git-common-dir' "$agy_f" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+if [ -z "$own_a" ] && grep -q '_spl_memory_step_install ' "$agy_f"
+then pass "10. one copy: spl-agy-memory-install.func.sh delegates to _spl_memory_step_install"; else fail "10. agy delegate: own=[$own_a]"; fi
+loop_hosts="$(grep -l 's/\^SPOOL_AGENT_USER=//p' \
+  "$ORC/src/bash/run/spl-git-pager-off-install.func.sh" \
+  "$ORC/src/bash/run/spl-vibe-output-cap-install.func.sh" \
+  "$ORC/src/bash/run/spl-vibe-push-guard-install.func.sh" \
+  "$grok_f" "$agy_f" | xargs -r -n1 basename | tr '\n' ' ')"
+if [ "$loop_hosts" = "spl-git-pager-off-install.func.sh " ]
+then pass "10. one copy: all 5 per-user spool-install actions share _spl_user_step_install"; else fail "10. 5/5 loop hosts: [$loop_hosts]"; fi
+
+H10="$T/home10"; mk_home "$H10"; mkdir -p "$H10/.gemini"
+bash -c '. "$1" && spool_install_agy_memory_row "$2" probe-fact.md' _ \
+  "$FEAT/steps/y20-agy-memory.sh" "$H10/.claude/projects/$slug/memory" \
+  >"$H10/.claude/projects/$slug/memory/agy-allow.list"
+out="$(env -u GROK_MEMORY_REPO PROJ_PATH="$T/wt-mem/csi-spl-orc" GROK_MEMORY_USERS="$me" DRY_RUN=1 H10="$H10" bash -c '
+  do_log() { echo "$*"; }; getent() { printf "x:x:0:0::%s:/bin/sh\n" "$H10"; }
+  . "$1/src/bash/run/spl-grok-memory-install.func.sh" && do_spl_grok_memory_install' _ "$ORC" 2>&1)"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"INFO grok memory: $me ($H10), repo $R, DRY_RUN=1"* ]] && [[ "$out" == *"would: write $H10/.grok/rules/fleet-memory-0-where.md"* ]] && [[ "$out" == *"OK grok memory: $me (DRY_RUN=1)"* ]] && [ ! -e "$H10/.grok/rules" ]
+then pass "10. spl-grok-memory-install sourced alone derives repo and plans dry run"; else fail "10. grok standalone ($rc: $out)"; fi
+out="$(env -u AGY_MEMORY_REPO PROJ_PATH="$T/wt-mem/csi-spl-orc" AGY_MEMORY_USERS="$me" DRY_RUN=1 H10="$H10" bash -c '
+  do_log() { echo "$*"; }; getent() { printf "x:x:0:0::%s:/bin/sh\n" "$H10"; }
+  . "$1/src/bash/run/spl-agy-memory-install.func.sh" && do_spl_agy_memory_install' _ "$ORC" 2>&1)"; rc=$?
+if [ "$rc" = 0 ] && [[ "$out" == *"INFO agy memory: $me ($H10), repo $R, DRY_RUN=1"* ]] && [[ "$out" == *"would: write $H10/.gemini/config/rules/fleet-memory-0-where.md"* ]] && [[ "$out" == *"OK agy memory: $me (DRY_RUN=1)"* ]] && [ ! -e "$H10/.gemini/config/rules" ]
+then pass "10. spl-agy-memory-install sourced alone derives repo and plans dry run"; else fail "10. agy standalone ($rc: $out)"; fi
 
 echo "--- y18 grok memory: $((n - fails))/$n passed, $notrun grok checks not run"
 [ "$fails" = 0 ]

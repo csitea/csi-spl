@@ -57,7 +57,7 @@ _spl_hub_run_describe() {
     return 1; }
 }
 
-# do_hub_deploy_verify_gcp - the Cloud Run check (today's body, unchanged)
+# do_hub_deploy_verify_gcp - the Cloud Run check: describe via _spl_hub_run_describe, then the verdict
 do_hub_deploy_verify_gcp() {
   local svc="" json="" image ready created latest
   _spl_hub_run_describe || return 1

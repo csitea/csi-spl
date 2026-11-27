@@ -311,7 +311,9 @@ out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$E
   for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
   source "$PROJ_PATH/src/bash/run/check-hub-image-regress.func.sh"
   do_check_hub_image_regress' 2>&1); rc=$?
-[[ $rc -eq 1 && "$out" == *"FATAL cannot describe "* && "$out" == *"NOT_FOUND"* ]] &&
+# The describe failure returns at once: it never reaches the image read
+# (pins the '|| return 1' after _spl_hub_run_describe).
+[[ $rc -eq 1 && "$out" == *"FATAL cannot describe "* && "$out" == *"NOT_FOUND"* && "$out" != *"reports no container image"* ]] &&
   pass "8: standalone: check-hub-image-regress preserves FATAL on describe failure" || fail "8: standalone chir fail (rc=$rc out=$out)"
 
 [[ $fails -eq 0 ]] && echo "PASS: all check-hub-deploy assertions" || { echo "FAILED: $fails"; exit 1; }

@@ -38,6 +38,14 @@
 #   RESTORE_NOBRIEF_CLAUSE the brief sentence of a brief-mode kick given no
 #                       brief file (mistral: re-read the session's first message)
 #
+# The model (spec 184 row L3, owner Q4 "rot"): every restore re-resolves it
+# from the setting in force (spool_agent_model; the task kind from
+# SPAWN_TASK_KIND, else lifetime/category.json), never from lifetime/model.txt,
+# which it rewrites as a record. The live check (spool_agent_models) drops a
+# model the CLI does not list, with one WARN. The words (spool_model_args) go
+# after the extra flags, mistral's VIBE_ACTIVE_MODEL into RESTORE_EXEC_PREFIX.
+# No model set: nothing added, the line stays byte-identical.
+#
 # Usage (every adapter): restore-<kind>.sh <TITLE> <RUNDIR> <SESSION_ID> [BRIEF_FILE|KICK]
 # RESTORE_PRINT=1 prints the command instead of running it.
 set -uo pipefail
@@ -46,6 +54,8 @@ _RS_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_RS_DIR/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/agent-state.inc.sh
 . "$_RS_DIR/../lib/agent-state.inc.sh"
+# shellcheck source=../lib/agent-models.inc.sh
+. "$_RS_DIR/../lib/agent-models.inc.sh"
 
 _rs_fail() { echo "ERROR: $*" >&2; [ "${RESTORE_PRINT:-0}" = 1 ] && exit 1; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; }
 
@@ -111,6 +121,45 @@ _rs_write_kick() {  # FILE KICK
   chmod 0664 "$1" 2>/dev/null || true
 }
 
+# _rs_model ID: the model this restore starts on, re-resolved from the setting
+# in force (spec 184 row L3, owner Q4 "rot"): spool_agent_model with the task
+# kind of SPAWN_TASK_KIND, else lifetime/category.json .work_kind. Never read
+# from lifetime/model.txt, a record only (7.1.4). Live check (Q3 "liv", 4 step
+# 3): a model the CLI's list (spool_agent_models) does not hold starts on the
+# CLI default with one WARN; a vendor with no list (exit 4) skips the check; a
+# full claude name passes on syntax alone (G8). Sets RS_MODEL (model or "")
+# and RS_MODEL_FLAGS (spool_model_args, after the extra flags); mistral's
+# VIBE_ACTIVE_MODEL goes onto RESTORE_EXEC_PREFIX instead.
+_rs_model() {  # ID
+  _rs_model_pick "$1"
+  RS_MODEL_FLAGS="$(spool_model_args "$RESTORE_KIND" "$RS_MODEL")" || RS_MODEL_FLAGS=""
+  [ -n "$RS_MODEL_FLAGS" ] || RS_MODEL=""  # a vendor with no model words (qwen, codex, agy) starts on its default
+  if [ "$RESTORE_KIND" = mistral ] && [ -n "$RS_MODEL_FLAGS" ]; then
+    RESTORE_EXEC_PREFIX="${RESTORE_EXEC_PREFIX:-env} ${RS_MODEL_FLAGS}"; RS_MODEL_FLAGS=""
+  fi
+}
+
+_rs_model_pick() {  # ID -> RS_MODEL
+  local k="${SPAWN_TASK_KIND:-}" m list
+  RS_MODEL=""
+  [ -n "$k" ] || k="$(jq -r '.work_kind // empty' "$SPOOL_ROOT/$1/lifetime/category.json" 2>/dev/null || true)"
+  m="$(spool_agent_model "$RESTORE_KIND" "$k")" || m=""
+  [ -n "$m" ] || return 0
+  if list="$(spool_agent_models "$RESTORE_KIND" 2>/dev/null)" && ! grep -qxF -- "$m" <<<"$list" \
+    && ! { [ "$RESTORE_KIND" = claude ] && [[ "$m" == claude-* ]]; }; then
+    echo "WARN model ${m} refused by ${RESTORE_KIND}, started on the CLI default (not in its live list)" >&2
+    return 0
+  fi
+  RS_MODEL="$m"
+}
+
+# _rs_write_model ID: lifetime/model.txt, the model this restore started on or
+# cli-default (spec 184 7.1.4). Non-fatal.
+_rs_write_model() {  # ID
+  mkdir -p "$SPOOL_ROOT/$1/lifetime" 2>/dev/null || true
+  printf '%s\n' "${RS_MODEL:-cli-default}" 2>/dev/null > "$SPOOL_ROOT/$1/lifetime/model.txt" || true
+}
+
 restore_main() {
   local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc kick_file display cur args cmd stub pane sock pane_env fresh=""
   SPOOL_ENV_NO_BINS=0 spool_env_resolve
@@ -137,7 +186,8 @@ restore_main() {
     [ -n "$cur" ] && [ "$(an_decorate "$cur")" != "$cur" ] && tmux -u rename-window -t "$pane" "$(an_decorate "$cur")" 2>/dev/null
   fi
 
-  args="$(spool_claude_perm_flags "$RESTORE_KIND")${RESTORE_EXTRA_FLAGS:+ ${RESTORE_EXTRA_FLAGS}} $("$RESTORE_ARGS" "$sid")" || _rs_fail "no permission flags for ${RESTORE_KIND}"
+  _rs_model "$title"
+  args="$(spool_claude_perm_flags "$RESTORE_KIND")${RESTORE_EXTRA_FLAGS:+ ${RESTORE_EXTRA_FLAGS}}${RS_MODEL_FLAGS:+ ${RS_MODEL_FLAGS}} $("$RESTORE_ARGS" "$sid")" || _rs_fail "no permission flags for ${RESTORE_KIND}"
   [ "$RESTORE_KIND" = claude ] && args="--name '${display}' ${args}"
   cmd="export ${pane_env}_TMUX_PANE='${pane}' ${pane_env}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror ${RESTORE_UMASK:+--umask '${RESTORE_UMASK}' }-- '${bin}' ${args}"
   stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${RESTORE_UMASK:+umask ${RESTORE_UMASK} ; }${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }${bin##*/} ${args}'"
@@ -150,6 +200,7 @@ restore_main() {
   fi
 
   _rs_clear_hold "$title"
+  _rs_write_model "$title"
   if [ -n "$kick" ] && ! _rs_write_kick "$kick_file" "$kick"; then
     echo "WARN ${title}: cannot write the kick to ${kick_file}; restoring without it" >&2
     kick=""

@@ -7,7 +7,9 @@
 # The launch words are spawn-mistral.sh's, read from that file rather than
 # copied (specs/110 T005): its SPAWN_EXEC_PREFIX (env -u MISTRAL_API_KEY and the
 # VIBE_* off switches) and its cnf --max-price cap, so a restored lane runs
-# under exactly the line it was spawned with.
+# under exactly the line it was spawned with. Its model is not read from the
+# spawn: restore-core re-resolves it and adds VIBE_ACTIVE_MODEL to the prefix
+# (spec 184 row L3).
 #
 # vibe renames its process to "Vibe CLI" (comm and cmdline): match a live m-
 # lane by SPOOL_AGENT_ID in its environ, never by the name vibe.

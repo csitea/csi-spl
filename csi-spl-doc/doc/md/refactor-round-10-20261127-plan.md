@@ -64,8 +64,11 @@ behaviour change:
 The two rows touch different sub-projects (`csi-spl-orc/` vs `csi-spl-utl/`) and share no
 file: both are **Batch 1**.
 
-**Status: v0.1 draft for panel review.** Editor: **a-546** (agy). Panel seat: cross-vendor
-claude panel seat **c-420** (`c003-refactor-round-10-claude-panel-seat`).
+**Status: v1.0 for panel sign-off.** Editor: **a-546** (agy). Panel seat: cross-vendor
+claude panel seat **c-420** (`c003-refactor-round-10-claude-panel-seat`, v0.1 FAIL
+`33502ecbc` msg `e8c2c01e` / holder `35462d95`; W1-W3 and N1-N4 folded in v1.0; all 9
+fenced `bash` blocks byte-identical to v0.1 `25212ee7f`; zero drift on all 10 checked
+paths from `84f86ab8c` to `origin/master`).
 
 **One sha:** every count is measured on **`84f86ab8c`**
 (`84f86ab8c2f6daf774bef27ea34bbfb1aa1172fc`, `origin/master` at 2026-11-27T06:11:06Z),
@@ -159,10 +162,13 @@ Queue, lane map, brief, and branch reads are live state and carry their own time
   - Broad duplicate-block scan across `orc:src/bash/run/*.func.sh`,
     `iac:src/bash/run/*.func.sh`, and `utl:src/bash/run/*.func.sh` on `84f86ab8c`
     surfaced an exact 21-line byte-for-byte duplicate in `csi-spl-utl/src/bash/run/`:
-    `_rrc_send` (`reboot-required-check.func.sh:83-103`) and `_chs_send`
-    (`cron-heartbeat-snitch.func.sh:202-222`), both non-secret, zero-PG, fast hermetic
+    `_rrc_send` (`reboot-required-check.func.sh:82-103`) and `_chs_send`
+    (`cron-heartbeat-snitch.func.sh:201-222`), both non-secret, zero-PG, fast hermetic
     tests (`reboot-required-check.tst.sh`, `cron-heartbeat-snitch.tst.sh`), differing only
-    in the override env var and the missing-sender label -> **row 02** (1.4). The scan
+    in the override env var and the missing-sender label -> **row 02** (1.4). Note (W2):
+    this is the pair r98 (`:756`) and r99 (`:838`) left out because touching
+    `csi-spl-utl/` has no narrow case in `ci-doc-only.sh:124` (`28ed98f7a` classifies as
+    `parts=all`); we name and accept this one-time night-phase full-CI cost here. The scan
     also surfaced two clean `r11` follow-ups (`utl:src/bash/run/` 6 `*_SEND_CMD` spool
     note senders and `orc:src/bash/run/install-force-push-guard.func.sh` +
     `spl-cmd-guard-mode.func.sh` user-home resolution), recorded in section 7.
@@ -435,6 +441,11 @@ forwarding (both standalone checks pass on unmodified `base` too).
   not yet defined, so normal `DRY_RUN=1` checks and `--wrap`/`--beat` runs incur zero
   extra sourcing cost (case 16 CPU budget in `cron-heartbeat-snitch.tst.sh` unchanged).
 - None of the 3 edited files reads or writes any secret, key, or credential (non-secret).
+- **CI cost (W2, accepted):** `ci-doc-only.sh:124` has no `csi-spl-utl/` narrow case
+  (`28ed98f7a` classifies as `parts=all`), the reason r98 (`:756`) and r99 (`:838`) left
+  this pair out. Landing row 02 triggers one full CI workflow 10 run (`parts=all`) during
+  the night phase; this one-time CI cost is explicitly named and accepted to close the
+  exact 21-line duplicate.
 - Line-cap check (`bash-cleancode.tst.sh`, cap 75):
   `_utl_send_spool_note` 20 lines, `_rrc_send` 3 lines; `_chs_send` 5 lines.
   None of the 3 edited files has any entry in `.shellcheck-warning-baseline.txt`,
@@ -453,11 +464,11 @@ Shape (built as head2 of 1.5):
   at `:205` (3 direct `_utl_send_spool_note` checks covering `PROJ_PATH` sibling
   discovery, missing sender with `<missing_label>`, and failing sender; 2 one-copy checks
   covering both files; and 2 standalone `_chs_send` lazy-load checks for delivery and
-  missing-sender wording). 208 -> 274 lines (`+66 -0`). Total edited files: **3** (within
+  missing-sender wording). 208 -> 273 lines (`+65 -0`). Total edited files: **3** (within
   rulebook 3.1's max 5).
 - head2's files, sha256 (12 chars): `reboot-required-check.func.sh` `31c561a9057a`,
   `cron-heartbeat-snitch.func.sh` `ede6e55e8558`,
-  `reboot-required-check.tst.sh` `280ed77bd391`.
+  `reboot-required-check.tst.sh` `42c0579ceea6`.
 
 Verbatim helper, caller, and test hunks (head2 on `84f86ab8c`):
 
@@ -681,8 +692,8 @@ The tests that name the sites (R2): `git grep -nE` over `orc/src/bash/tests/*`,
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r10-01-orc-install-agent-cli-prep)` | one fact, one copy (developer guide 2.2.4) | `install-agy-cli.func.sh:23-57`, `install-mistral-vibe.func.sh:25-53`, and `install-openai-codex.func.sh:28-56` are the exact 3 wrappers over `install.sh --cli <name> --cli-only` in `orc:src/bash/run/`, duplicating the ~24-line `yq` / `org_app` / `cnf` / `X.Y.Z` pin / `DRY_RUN` / `spool-env` / agent home / `as_agent` execution preamble (1.3, r09 section 7 #1) | `orc:src/bash/run/install-agy-cli.func.sh:23-57`<br>`orc:src/bash/run/install-mistral-vibe.func.sh:25-53`<br>`orc:src/bash/run/install-openai-codex.func.sh:28-56`<br>`orc:src/bash/tests/install-agy-cli.tst.sh:17,122` | copies of the agent CLI wrapper prep and target-user exec preamble across `install-{agy-cli,mistral-vibe,openai-codex}` 3 -> 1 (hosted once as `_spl_agent_cli_prep` and `_spl_agent_cli_exec` in `install-agy-cli.func.sh`; 3/3 `install.sh --cli` wrappers consolidated) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head1's `install-agy-cli.tst.sh` on parent FAILs 8 checks (`rc1`, rc 1, 14 pass, 8 fail: 4 `_spl_agent_cli_prep` + 1 `_spl_agent_cli_exec` + 3 one-copy checks naming `:30` and `:33`; both standalone vibe/codex checks pass on base), then GREEN (`0/22/0`, +10 new checks); hermetic mutations `m1a` (`mistral` `def_dry=1`, rc 1, 1 fail), `m1b` (`codex` empty pin env, rc 1, 1 fail), and `m1c` (`_spl_agent_cli_exec` drops `${envs[@]}`, rc 1, 8 fail) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with equal counts plus 10 new checks in `install-agy-cli.tst.sh`. Tests: **`orc:.../install-agy-cli.tst.sh`**, `orc:.../install-mistral-vibe.tst.sh`, `orc:.../install-openai-codex.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r10-02-utl-spool-note-send)` | one fact, one copy (developer guide 2.2.4) | `reboot-required-check.func.sh:82-103` (`_rrc_send`) and `cron-heartbeat-snitch.func.sh:201-222` (`_chs_send`) duplicate the exact 21-line `spool-send.sh` override / `PROJ_PATH` sibling / `PATH` resolution, missing-sender `WARN`, `SPOOL_ROOT` note send, and failure `WARN` (1.4) | `utl:src/bash/run/reboot-required-check.func.sh:82-103`<br>`utl:src/bash/run/cron-heartbeat-snitch.func.sh:201-222`<br>`utl:src/bash/tests/reboot-required-check.tst.sh:18,205` | copies of the 21-line `spool-send.sh` note sender across `reboot-required-check` and `cron-heartbeat-snitch` 2 -> 1 (hosted once as `_utl_send_spool_note` in `reboot-required-check.func.sh`, lazy-loaded inside `_chs_send`) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head2's `reboot-required-check.tst.sh` on parent FAILs 5 checks (`rc2`, rc 1, 15 pass, 5 fail: 3 `_utl_send_spool_note` + 2 one-copy checks naming `:205` and `:219`; both standalone `_chs_send` checks pass on base), then GREEN (`0/20/0`, +7 new checks); mutations `m2a` (skip `PROJ_PATH` sibling, rc 1, 1 fail), `m2b` (`_chs_send` wrong missing label, rc 1, 1 fail), and `m2c` (return 0 on failed send, rc 1, 2 fail) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change; column passes on parent and head with equal counts plus 7 new checks in `reboot-required-check.tst.sh`. Tests: **`utl:.../reboot-required-check.tst.sh`**, `utl:.../cron-heartbeat-snitch.tst.sh`, `utl:.../print-help.tst.sh`, `orc:.../reliability-checks-cron.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 01 `refactor(r10-01-orc-install-agent-cli-prep)` | one fact, one copy (developer guide 2.2.4) | `install-agy-cli.func.sh:23-57`, `install-mistral-vibe.func.sh:25-53`, and `install-openai-codex.func.sh:28-56` are the exact 3 wrappers over `install.sh --cli <name> --cli-only` in `orc:src/bash/run/`, duplicating the ~24-line `yq` / `org_app` / `cnf` / `X.Y.Z` pin / `DRY_RUN` / `spool-env` / agent home / `as_agent` execution preamble (1.3, r09 section 7 #1) | `orc:src/bash/run/install-agy-cli.func.sh:23-57`<br>`orc:src/bash/run/install-mistral-vibe.func.sh:25-53`<br>`orc:src/bash/run/install-openai-codex.func.sh:28-56`<br>`orc:src/bash/tests/install-agy-cli.tst.sh:17,122` | copies of the agent CLI wrapper prep and target-user exec preamble across `install-{agy-cli,mistral-vibe,openai-codex}` 3 -> 1 (hosted once as `_spl_agent_cli_prep` and `_spl_agent_cli_exec` in `install-agy-cli.func.sh`; 3/3 `install.sh --cli` wrappers consolidated) | 1.3's shape (verbatim blocks in 1.3). **Red control:** head1's `install-agy-cli.tst.sh` on parent FAILs 8 checks (`rc1`, rc 1, 14 pass, 8 fail: 4 `_spl_agent_cli_prep` + 1 `_spl_agent_cli_exec` + 3 one-copy checks naming `:30` and `:33`; both standalone vibe/codex checks pass on base), then GREEN (`0/22/0`, +10 new checks); hermetic mutations `m1a` (`mistral` `def_dry=1`, rc 1, 1 fail), `m1b` (`codex` empty pin env, rc 1, 1 fail), and `m1c` (`_spl_agent_cli_exec` drops `${envs[@]}`, rc 1, 8 fail) caught (1.5); outputs in the body. **Behaviour:** zero functional change (accepted deviation W3 in 1.3: `mistral-vibe` malformed cnf prints `yq` stderr once instead of twice; same rc 2 and `FATAL`); column passes on parent and head with equal counts plus 10 new checks in `install-agy-cli.tst.sh`. Tests: **`orc:.../install-agy-cli.tst.sh`**, `orc:.../install-mistral-vibe.tst.sh`, `orc:.../install-openai-codex.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 4 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 02 `refactor(r10-02-utl-spool-note-send)` | one fact, one copy (developer guide 2.2.4) | `reboot-required-check.func.sh:82-103` (`_rrc_send`) and `cron-heartbeat-snitch.func.sh:201-222` (`_chs_send`) duplicate the exact 21-line `spool-send.sh` override / `PROJ_PATH` sibling / `PATH` resolution, missing-sender `WARN`, `SPOOL_ROOT` note send, and failure `WARN` (1.4) | `utl:src/bash/run/reboot-required-check.func.sh:82-103`<br>`utl:src/bash/run/cron-heartbeat-snitch.func.sh:201-222`<br>`utl:src/bash/tests/reboot-required-check.tst.sh:18,205` | copies of the 21-line `spool-send.sh` note sender across `reboot-required-check` and `cron-heartbeat-snitch` 2 -> 1 (hosted once as `_utl_send_spool_note` in `reboot-required-check.func.sh`, lazy-loaded inside `_chs_send`) | 1.4's shape (verbatim blocks in 1.4). **Red control:** head2's `reboot-required-check.tst.sh` on parent FAILs 5 checks (`rc2`, rc 1, 15 pass, 5 fail: 3 `_utl_send_spool_note` + 2 one-copy checks naming `:205` and `:219`; both standalone `_chs_send` checks pass on base), then GREEN (`0/20/0`, +7 new checks); mutations `m2a` (skip `PROJ_PATH` sibling, rc 1, 1 fail), `m2b` (`_chs_send` wrong missing label, rc 1, 1 fail), and `m2c` (return 0 on failed send, rc 1, 2 fail) caught (1.5); outputs in the body. **Behaviour:** zero behaviour change (CI cost W2 accepted: `csi-spl-utl/` runs `parts=all` once at night, 1.4); column passes on parent and head with equal counts plus 7 new checks in `reboot-required-check.tst.sh`. Tests: **`utl:.../reboot-required-check.tst.sh`**, `utl:.../cron-heartbeat-snitch.tst.sh`, `utl:.../print-help.tst.sh`, `orc:.../reliability-checks-cron.tst.sh`, `orc:.../run-eager-files.tst.sh`, `no-literal-paths.tst.sh`, `func-name-unique.tst.sh`, `iac:.../no-box-path-source.tst.sh`, `action-header-tags.tst.sh`, `param-required.tst.sh`, `run-lazy-loader.tst.sh`, `bash-cleancode.tst.sh`, `gcloud-account-pinned.tst.sh`, `shellcheck -S warning -x` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `iac:` = `csi-spl-iac/`, `orc:` = `csi-spl-orc/`, `utl:` = `csi-spl-utl/`.
 
@@ -743,8 +754,9 @@ at 2026-11-27T06:30:04Z):
   `c-957` netvisor spec). Verified via `do_spl_lane_map` at 06:11:14Z — live lanes on this
   box (`a-546`, `a-544` b52-03 `spawn-remote.sh`, `a-542` SPL-6588 WUI loops R7, `a-264`
   b52 planner, `a-537` b52-02 R7, `a-934` s182 planner, `a-292` SPL-6636/6617 reviewer,
-  `a-445` b52-01 R7) touch none of our 10 paths. No live lane owns any of the 10 paths;
-  the holder re-reads at placement per R3.
+  `a-445` b52-01 R7) touch none of our 10 paths. No live lane owns any of the 10 paths (also re-checked by panel `c-420` at 06:55Z on
+  the 7 row paths: exit 4, 8 `unknown:` on the planner box, 0 owned; N3); the holder
+  re-reads at placement per R3.
 - **Bug round 52 beside us:** `b52-01` (SPL-5254 WUI popstate, landed `84f86ab8c`),
   `b52-02` (`spl-review-go.func.sh`, `c-391` / `a-537`), `b52-03` (`spawn-remote.sh`,
   `a-544`) have **0 overlap** with our 10 paths.
@@ -809,8 +821,8 @@ at 2026-11-27T06:30:04Z):
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `a-546` | agy | editor | v0.1 pending push | draft | v0.1 drafted on `84f86ab8c`; all 16 base, 12 head1, 13 head2 suites, `rc1`/`rc2`, 6 mutations, and `shellcheck` verified |
-| `c-420` | claude | panel | pending | pending | queued/live cross-vendor panel seat |
+| `a-546` | agy | editor | `25212ee7f` (v0.1) -> v1.0 | v1.0 | W1-W3 and N1-N4 folded; all 9 fenced `bash` blocks byte-identical to v0.1 `25212ee7f` |
+| `c-420` | claude | panel | `25212ee7f` (v0.1) -> v1.0 pending | FAIL (v0.1) / pending (v1.0) | v0.1 FAIL `33502ecbc` (msg `e8c2c01e` / holder `35462d95`, W1-W3 + N1-N4); re-review of v1.0 requested |
 
 ## 5. Proposed row briefs
 
@@ -859,6 +871,7 @@ NOT `cloud-sql-backup-verify.func.sh`, NOT `csi-spl-orc/`, NOT
 in the body; mutations `m2a` (rc 1, 1 fail), `m2b` (rc 1, 1 fail), and `m2c` (rc 1, 2
 fail) caught. Gates: the row's tests (section 2, `SPOOL_TEST=1`, in the worktree),
 `shellcheck -S warning -x` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`.
+Note (W2, accepted): touching `csi-spl-utl/` runs `parts=all` in CI once (`ci-doc-only.sh:124`).
 `Docs: none (internal helper consolidation; no behaviour changes)`. Kind `simple_coding`,
 vendor claude; R7 **agy seat** (claude waiver backup only while agy is out of quota or
 paused, valid only under ruling `dc84300a` — cite ruling `dc84300a` in the row brief if
@@ -873,14 +886,14 @@ the claude backup is used; never mistral; re-checked at placement).
 | batches | batch 1: rows 01 and 02 |
 | copies of the agent CLI wrapper prep and target-user exec preamble across row 01's 3 actions (1.3) | 3 on `84f86ab8c` (`install-agy-cli`, `install-mistral-vibe`, `install-openai-codex`) -> 1 (hosted once as `_spl_agent_cli_prep` + `_spl_agent_cli_exec` in `install-agy-cli.func.sh`; **3/3** `install.sh --cli` wrappers consolidated) |
 | copies of the 21-line `spool-send.sh` note sender across row 02's 2 actions (1.4) | 2 on `84f86ab8c` (`reboot-required-check`, `cron-heartbeat-snitch`) -> 1 (hosted once as `_utl_send_spool_note` in `reboot-required-check.func.sh`) |
-| lines (`git diff --numstat` of each head) | row 01: `install-agy-cli.func.sh` +38 -22, `install-mistral-vibe.func.sh` +7 -22, `install-openai-codex.func.sh` +6 -22, `install-agy-cli.tst.sh` +66 -0; row 02: `reboot-required-check.func.sh` +11 -5, `cron-heartbeat-snitch.func.sh` +3 -19, `reboot-required-check.tst.sh` +66 -0 |
+| lines (`git diff --numstat` of each head) | row 01: `install-agy-cli.func.sh` +38 -22, `install-mistral-vibe.func.sh` +7 -22, `install-openai-codex.func.sh` +6 -22, `install-agy-cli.tst.sh` +66 -0; row 02: `reboot-required-check.func.sh` +11 -5, `cron-heartbeat-snitch.func.sh` +3 -19, `reboot-required-check.tst.sh` +65 -0 |
 | measured on | `84f86ab8c`; n=1 per command unless stated |
 
 ## 7. Left out, measured
 
 | what | why | measured by |
 |---|---|---|
-| `utl:src/bash/run/` `*_SEND_CMD` spool note senders (first candidate for `r11`, 6 non-secret actions in 2 batches of <= 4 files + test): `clock-sync-check.func.sh:205`, `docker-test-container-prune.func.sh:148`, `gh-runner-health.func.sh:295`, `net-cert-expiry-check.func.sh:186`, `orphan-process-reap.func.sh:143`, `tmux-health-guard.func.sh:154` duplicate the `send=(bash "${PROJ_PATH:-.}/../csi-spl-orc/.../spool-send.sh")` + `[[ -f "${send[1]}" ]]` pattern | left for `r11` (rulebook 5.1 aims at 2 rows; r10 already has 2 disjoint Batch 1 rows) | `git grep -n 'spool-send.sh' 84f86ab8c -- csi-spl-utl/src/bash/run/` (n=1) |
+| `utl:src/bash/run/` `*_SEND_CMD` spool note senders (first candidate for `r11`, 6 non-secret actions in 2 batches of <= 4 files + test): `clock-sync-check.func.sh:205`, `docker-test-container-prune.func.sh:148`, `gh-runner-health.func.sh:295`, `net-cert-expiry-check.func.sh:186`, `orphan-process-reap.func.sh:143`, `tmux-health-guard.func.sh:154` duplicate the `send=(bash "${PROJ_PATH:-.}/../csi-spl-orc/.../spool-send.sh")` + `[[ -f "${send[1]}" ]]` pattern | left for `r11` (rulebook 5.1 aims at 2 rows; r10 already has 2 disjoint Batch 1 rows; note W2: `csi-spl-utl/` runs `parts=all` in CI until `ci-doc-only.sh:124` gains a `utl` case) | `git grep -n 'spool-send.sh' 84f86ab8c -- csi-spl-utl/src/bash/run/` (n=1) |
 | `utl:src/bash/run/systemd-unit-health.func.sh:148-181` (`_unit_health_send`) and `cloud-sql-backup-verify.func.sh:226-245` (`_csq_send_spool`) | distinct semantics from row 02: both require `-x "$send_bin"` (not `-f`) and fall back to `command -v spool` (`spool send`); `systemd-unit-health` also writes its stamp file inside `_unit_health_send`; candidate for `r11` | `git show 84f86ab8c:csi-spl-utl/src/bash/run/{systemd-unit-health,cloud-sql-backup-verify}.func.sh` (n=1) |
 | `orc:src/bash/run/install-force-push-guard.func.sh:29-42` and `spl-cmd-guard-mode.func.sh:50-64` (`_scg_homes`) user/home resolution | left for `r11`; note subtle difference (`FAIL; rc=1; continue` vs `FATAL; return 1` on missing home) that an `r11` helper must preserve | `git show 84f86ab8c:csi-spl-orc/src/bash/run/{install-force-push-guard,spl-cmd-guard-mode}.func.sh` (n=1) |
 | `orc:src/bash/run/net-usb-tether-profiles.func.sh` and `net-wired-priority.func.sh` NM keyfile writer | both test suites (`net-usb-tether-profiles.tst.sh:201`, `net-wired-priority.tst.sh:172`) mutate `install -D -m 0600` in copied `$T/red2.func.sh` files; moving the writer out of one file requires re-designing its existing red control | `git show 84f86ab8c:csi-spl-orc/src/bash/tests/net-{usb-tether-profiles,wired-priority}.tst.sh` (n=1) |
@@ -897,14 +910,40 @@ the claude backup is used; never mistral; re-checked at placement).
   `do_sec_shellcheck` rc 0; both red controls (`rc1`, `rc2`) and all 6 hermetic mutation
   checks (`m1a`, `m1b`, `m1c`, `m2a`, `m2b`, `m2c`) run in fresh scratch clones and
   verified RED; all helper, caller, and test hunks included verbatim in 1.3 and 1.4.
-  Pushed to `review/c003-refactor-round-10-planner`.
+  Pushed to `review/c003-refactor-round-10-planner` (`25212ee7f`).
+- v1.0 (a-546): folded cross-vendor claude panel (`c-420`, v0.1 FAIL on `25212ee7f`, seat
+  commit `33502ecbc311398b8bf60d1d1912f4328bba0fdf`, msg `e8c2c01e` / holder `35462d95`)
+  W1-W3 and N1-N4 (zero row change; all 9 fenced `bash` blocks byte-identical to v0.1
+  `25212ee7f`; zero drift across all 10 checked paths from `84f86ab8c` to
+  `origin/master`):
+  - **W1 (1.4, section 6):** fixed `reboot-required-check.tst.sh` line count and sha256
+    to match verbatim-block reconstruction with one trailing blank line (`208 -> 273`,
+    `+65 -0`, sha256 `42c0579ceea6`; our scratch generator had inserted a second blank
+    line giving 274 / `280ed77bd391`).
+  - **W2 (1.2 (a), 1.4, section 2, section 5, section 7):** explicitly named that
+    touching `csi-spl-utl/` triggers `parts=all` in CI (`ci-doc-only.sh:124`, `28ed98f7a`,
+    the reason r98 `:756` and r99 `:838` left this pair out) and explicitly accepted this
+    one-time night-phase CI cost to keep row 02.
+  - **W3 (1.3, section 2):** stated the accepted `install-mistral-vibe` malformed-cnf
+    deviation (1 `yq` stderr line on `head1` instead of 2 on `base`, same rc 2 and
+    `FATAL`; 16/240 panel sweep cases, other 224/240 identical).
+  - **N1 (1.2 (a)):** unified line citations to `:82-103` and `:201-222`.
+  - **N2 / N4 (1.3):** noted stopping the global `as_agent` leak (no caller relies on it)
+    and that the `sudo -n -u` branch stays untested hermetically as on base.
+  - **N3 (2.2):** recorded panel's 06:55Z lane-map check (exit 4, 8 `unknown:` on planner
+    box, 0 owned).
+  Pushed fast-forward to `review/c003-refactor-round-10-planner` for panel sign-off.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-546 (agy): v0.1 draft.
-- Panel reviewer seat: c-420 (claude, `c003-refactor-round-10-claude-panel-seat`): pending
-  review of v0.1.
+- Editor seat: a-546 (agy): v0.1 (`25212ee7f`), v1.0.
+- Panel reviewer seat: c-420 (claude, `c003-refactor-round-10-claude-panel-seat`, seat
+  branch `review/c003-refactor-round-10-claude-seat`):
+  - v0.1 `25212ee7fcdfd8749290f1479bbefb232de8af48`: FAIL with W1-W3 + N1-N4 (seat commit
+    `33502ecbc311398b8bf60d1d1912f4328bba0fdf`, msg `e8c2c01e` / holder `35462d95`; all
+    folded in v1.0).
+  - v1.0: pending sign-off.
 - Row R7 seats: section 4; agy per row (claude waiver backup only under ruling `dc84300a`;
   never mistral).

@@ -649,6 +649,16 @@ try {
   const s8 = await bulkState()
   ok('17i Delete asks once, naming the count, then both rows go and the summary says so',
     dlg.count === '2' && dlg.btn === 'Delete 2' && s8.rows === 62 && !s8.bar && s8.result === 'Done: 2 of 2.', { dlg, rows: s8.rows, result: s8.result })
+  /* SPL-6646 (R7 N2): under a filter the select tick checks exactly the filtered rows */
+  await p.goto(server.base + '/issues?priority=1&view=list', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=issues-row]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.click('[data-test=issues-select-listed]')
+  await p.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 5000 }).catch(() => null)
+  const s9 = await bulkState()
+  const s9st = await p.$$eval('[data-test=issues-row] [data-test=issues-row-priority]', (els) => els.map((e) => e.getAttribute('data-priority')))
+  ok('17j a filter (priority 1): the select tick checks every listed row and only those, all prio 1, fewer than the 62 unfiltered',
+    s9.rows > 0 && s9.rows < 30 && s9.checked.length === s9.rows && s9.count === `Selected: ${s9.rows}` && s9st.length === s9.rows && s9st.every((v) => v === '1'), { s9, s9st })
+  await p.click('[data-test=issues-bulk-clear]')
 
   /* the phone: a box per card, the bar fits 390 with 44 px targets */
   await p.setViewport({ width: 390, height: 844, isMobile: true })
@@ -706,6 +716,43 @@ try {
   const m3 = [await boxGeo('[data-test=issues-select-listed]'), cardGeo]
   ok('18d 390: the select tick and the card boxes are drawn no larger than the desktop row box, each a 44 px tap target',
     m3.every((b) => !b.missing && b.w <= deskBox.w && b.h <= deskBox.h && b.tw >= 44 && b.th >= 44), { deskBox, m3 })
+  /* SPL-6646 (R7 W1): in the select phase a card's swipes rest, as a topic
+     card's do (spec 186 4.6): a LEFT swipe archives nothing, opens nothing
+     and changes no tick; a tap after it still toggles the card */
+  const ph = await browser.newPage()
+  ph.on('pageerror', (e) => errors.push(String(e && e.message)))
+  await ph.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+  await ph.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await ph.waitForSelector('[data-test=issues-card]', { visible: true, timeout: NAV_TIMEOUT })
+  const sk = await ph.$$eval('[data-test=issues-card]', (els) => els.map((e) => e.getAttribute('data-key')))
+  await ph.click(`[data-test=issues-card][data-key="${sk[0]}"]`, { button: 'right' })
+  await ph.waitForSelector('[data-test=issues-ctxmenu-select]', { visible: true, timeout: 5000 }).catch(() => null)
+  await ph.click('[data-test=issues-ctxmenu-select]').catch(() => null)
+  await ph.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 5000 }).catch(() => null)
+  const sb = await ph.$eval(`[data-test=issues-card][data-key="${sk[1]}"]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } })
+  const tch = await ph.target().createCDPSession()
+  const at = (x) => [{ x: Math.round(x), y: Math.round(sb.y + sb.h / 2), id: 1, radiusX: 4, radiusY: 4, force: 1 }]
+  await tch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(sb.x + sb.w - 20) })
+  for (let i = 1; i <= 12; i++) {
+    await tch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(sb.x + sb.w - 20 - (200 * i) / 12) })
+    await new Promise((r) => setTimeout(r, 16))
+  }
+  await tch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await tch.detach().catch(() => {})
+  const toast = await ph.waitForSelector('[data-testid=archive-toast-undo]', { visible: true, timeout: 1500 }).then(() => true, () => false)
+  const sw = await ph.evaluate((k) => ({
+    card: Boolean(document.querySelector(`[data-test=issues-card][data-key="${k}"]`)),
+    menu: Boolean(document.querySelector('[data-test=issues-ctxmenu]')),
+    opened: Boolean(document.querySelector('[data-test=issues-detail]')),
+    checked: [...document.querySelectorAll('[data-test=issues-card-check]')].filter((b) => b.checked).map((b) => b.getAttribute('data-key')),
+    bar: Boolean(document.querySelector('[data-test=issues-bulk-bar]')),
+  }), sk[1])
+  ok('18e 390: in the select phase a LEFT swipe on a card archives nothing (card stays, no Undo toast), opens no menu or issue, ticks nothing',
+    sw.card && !toast && !sw.menu && !sw.opened && sw.bar && JSON.stringify(sw.checked) === JSON.stringify([sk[0]]), { toast, sw, sk: sk.slice(0, 2) })
+  await ph.click(`[data-test=issues-card][data-key="${sk[1]}"]`)
+  const swTap = await ph.$$eval('[data-test=issues-card-check]', (els) => els.filter((b) => b.checked).map((b) => b.getAttribute('data-key')))
+  ok('18e2 390: after that swipe a tap on the card ticks it (no click left swallowed)', swTap.includes(sk[1]) && swTap.includes(sk[0]), swTap)
+  await ph.close()
   await p.evaluate(() => localStorage.removeItem('spool.mock.issues-seed'))
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('9 no page errors', mine.length === 0, mine)

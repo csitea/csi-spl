@@ -16,6 +16,9 @@ export type IssueSwipeOpts = {
   choose: (issue: Issue) => void
   openCtxMenu: (tg: IssueMenuTarget, x: number, y: number) => void
   askAction: (action: 'archive' | 'delete', tg: IssueMenuTarget) => void
+  /* SPL-6646: true in the select phase; a card's swipes rest then, as a
+     topic card's do while its selection is non-empty (spec 186 4.6) */
+  selecting: () => boolean
 }
 type SwipeState = { key: string, dx: number, dir: 'archive' | 'hide' | 'menu', armed: boolean, settle: boolean }
 type SwipeHeld = { el: HTMLElement | null, issue: Issue | null, timer: ReturnType<typeof setTimeout> | null }
@@ -45,7 +48,7 @@ export function useIssueSwipe(o: IssueSwipeOpts) {
   function onCardPointerDown(issue: Issue, ev: PointerEvent) {
     held.issue = issue
     held.el = ev.currentTarget as HTMLElement
-    cardSwipe.down(ev)
+    if (!o.selecting()) cardSwipe.down(ev)
     onRowPointerDown(issue, ev)
   }
   function onCardPointerMove(ev: PointerEvent) {
@@ -54,7 +57,15 @@ export function useIssueSwipe(o: IssueSwipeOpts) {
   }
   function onCardPointerUp() { cardSwipe.up(); rowPress.up() }
   function onCardPointerCancel() { cardSwipe.cancel(); rowPress.cancel() }
-  return { swipe, rowPress, onRowContext, onRowPointerDown, onRowActivate, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel }
+  /* the select phase starts: a swipe under way snaps back */
+  function restSwipe() { cardSwipe.cancel() }
+  /* a card tap in the select phase: the click a swipe or a long-press lift
+     sends is eaten; both flags are consumed, so none is left for a later tap */
+  function takeCardClick() {
+    const swiped = cardSwipe.takeClick()
+    return rowPress.takeClick() || swiped
+  }
+  return { swipe, rowPress, onRowContext, onRowPointerDown, onRowActivate, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel, restSwipe, takeCardClick }
 }
 
 /* HUM-10 (owner, t1 aedca86a, f83f73b9): "the same swipes which work for the

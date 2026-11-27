@@ -75,7 +75,7 @@
              by ticking exactly the issues listed (the filtered ones under a
              filter). In the phase the bulk bar holds the page box. -->
         <input
-          v-if="!phone && rowCount"
+          v-if="!phone && flatKeys.length"
           type="checkbox"
           class="issues-check issues-head__select"
           data-test="issues-select-listed"
@@ -84,7 +84,7 @@
           :title="t('issues_bulk.select_page')"
           @click.prevent="togglePage"
         >
-              <!-- owner b82f3853 (SPL-1226): the epic/feature actions button, on the
+        <!-- owner b82f3853 (SPL-1226): the epic/feature actions button, on the
              title row next to the view toggle + Clear filters. It acts on the
              epic/feature being viewed (?epic=); disabled with a tooltip when the
              view is not filtered to one. Same menu component as the row's
@@ -103,7 +103,7 @@
         >
           <UiIcon name="menu" :size="16" />
         </button>
-</header>
+      </header>
       <p v-if="!phone" class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues_crud.shortcuts') }}</p>
       <!-- SPL-992 (epic SPL-988): a phone gets Filters (a bottom sheet), Sort (a
            menu) and the epics as a chip strip in place of the sheet's header rows -->
@@ -111,7 +111,7 @@
         <!-- SPL-3026: with a row checked the bulk bar lies over this bar (same
              box, the list does not move); what it covers takes no focus -->
         <div class="issues-mbar" data-test="issues-mbar" :inert="bulkOn || undefined">
-          <label v-if="!bulkOn && rowCount" class="issues-check issues-check--page">
+          <label v-if="!bulkOn && flatKeys.length" class="issues-check issues-check--page">
             <!-- SPL-6646: the phone's select tick (the topics' row 2 tick); the cards show no box until it or a card menu's Select starts the phase -->
             <input type="checkbox" data-test="issues-select-listed" :checked="false" :aria-label="t('issues_bulk.select_page')" :title="t('issues_bulk.select_page')" @click.prevent="togglePage">
           </label>
@@ -1589,8 +1589,8 @@ const { ctxTarget, ctxPoint, ctxItems, keysOn, openCtxMenu, openEpicMenu, onCtxC
   choose, openIssueKey, openMenu, askAction, askDelete, loadComments, sendToDiscussion,
 })
 /* a card's swipes and a row's long-press: composables/useIssueSwipe */
-const { swipe, rowPress, onRowContext, onRowPointerDown, onRowActivate, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel } = useIssueSwipe({
-  stack, cursorKey, choose, openCtxMenu, askAction,
+const { swipe, rowPress, onRowContext, onRowPointerDown, onRowActivate, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel, restSwipe, takeCardClick } = useIssueSwipe({
+  stack, cursorKey, choose, openCtxMenu, askAction, selecting: () => bulkOn.value,
 })
 /* SPL-1027: the sheet's cells, in place: composables/useIssueCells */
 const { cursorCol, cellAttrs, cellEl, focusCell, stepCol, editCell, titleEdit, deadlineEditKey, startTitleEdit, commitRowTitle, onRowTitleKey, startDeadlineEdit, onRowDeadline } = useIssueCells({
@@ -1625,9 +1625,11 @@ function onRowMenuChoose(id: string) {
 }
 function onCardActivate(issue: Issue) {
   if (!bulkOn.value) return onRowActivate(issue)
-  if (rowPress.takeClick()) return
+  if (takeCardClick()) return
   tickKey(issue.key)
 }
+/* SPL-6646 (R7 W1): the card swipes rest in the select phase; one under way snaps back */
+watch(bulkOn, (on) => { if (on) restSwipe() })
 /* the page's keyboard and the click outside a pop-up: composables/useIssueKeys */
 useIssueKeys({
   route, pageEl, phone, modalOpen, creating, detail, form, flat, cursorKey, cursorCol, deadlineEditKey, filtersOpen, sortOpen, statusOpen,

@@ -53,18 +53,32 @@ function onResize() { viewportW.value = window.innerWidth; placeUnderStrip() }
    section the strip "should always be shown"): on a phone the panel starts
    under the section strip, never over it. The strip moves (the bars slide
    away on a scroll, the keyboard folds it, the dock goes to the top), so its
-   bottom is read again on each of those, once per frame. No strip painted:
-   the panel starts under the top bar as before. */
+   bottom is read again on each of those, once per frame. The first read is
+   synchronous: a page that is not visible runs no animation frame, and the
+   panel then sat over the strip (R7 c-094 W1); a hidden page reads at once
+   and again when it is shown. The rail itself is watched too, so a rail that
+   mounts or resizes later still moves the panel (W2). No strip painted: the
+   panel starts under the top bar as before. */
 const stripBottom = ref<number | null>(null)
 const phoneTop = computed(() => (stripBottom.value === null ? undefined : { top: stripBottom.value + 'px' }))
 let placeFrame = 0
+let railSeen: Element | null = null
+let railObs: ResizeObserver | null = null
+function readStrip() {
+  if (!phone.value) return
+  const rail = document.querySelector('[data-testid=sidebar-rail]')
+  if (rail !== railSeen) {
+    railObs?.disconnect()
+    railSeen = rail
+    if (rail && railObs) railObs.observe(rail)
+  }
+  const r = rail?.getBoundingClientRect()
+  stripBottom.value = r && r.width > 0 && r.height > 0 ? Math.max(0, r.bottom) : null
+}
 function placeUnderStrip() {
   if (!phone.value || placeFrame) return
-  placeFrame = requestAnimationFrame(() => {
-    placeFrame = 0
-    const r = document.querySelector('[data-testid=sidebar-rail]')?.getBoundingClientRect()
-    stripBottom.value = r && r.width > 0 && r.height > 0 ? Math.max(0, r.bottom) : null
-  })
+  if (document.visibilityState === 'hidden') { readStrip(); return }
+  placeFrame = requestAnimationFrame(() => { placeFrame = 0; readStrip() })
 }
 let shellObs: MutationObserver | null = null
 watch(phone, placeUnderStrip)
@@ -75,14 +89,19 @@ onMounted(() => {
   stored.value = typeof v === 'number' && Number.isFinite(v) ? v : null
   window.addEventListener('resize', onResize, { passive: true })
   document.addEventListener('transitionend', placeUnderStrip, { capture: true, passive: true })
+  document.addEventListener('visibilitychange', placeUnderStrip)
   shellObs = new MutationObserver(placeUnderStrip)
   for (const el of document.querySelectorAll('.app-frame, .spool-shell')) shellObs.observe(el, { attributes: true })
-  placeUnderStrip()
+  if (typeof ResizeObserver !== 'undefined') railObs = new ResizeObserver(placeUnderStrip)
+  readStrip()
+  nextTick(placeUnderStrip)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   document.removeEventListener('transitionend', placeUnderStrip, { capture: true })
+  document.removeEventListener('visibilitychange', placeUnderStrip)
   shellObs?.disconnect()
+  railObs?.disconnect()
   if (placeFrame) cancelAnimationFrame(placeFrame)
 })
 

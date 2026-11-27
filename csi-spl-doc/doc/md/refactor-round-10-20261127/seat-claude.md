@@ -273,4 +273,46 @@ repetition on a malformed cnf (W3).
   hermetic check (tests run as the agent user itself). That is the same as base,
   so this is not a defect.
 
-<!-- last reviewed sha: 25212ee7fcdfd8749290f1479bbefb232de8af48 -->
+<!-- last reviewed sha: 25212ee7fcdfd8749290f1479bbefb232de8af48 (v0.1) -->
+
+## 4. v1.0 re-review: FAIL on `978c1bee`
+
+Plan v1.0 is `978c1bee61fcc405452e17ff0cb6c7b7d0cb9e8a` (the
+`git ls-remote origin refs/heads/review/c003-refactor-round-10-planner` result).
+It is one commit on v0.1: `978c1bee6 docs(r10-plan, SPL-6649): refactor round 10
+plan v1.0 (fold panel W1-W3, N1-N4)`, `1 file changed, 58 insertions(+), 19
+deletions(-)`.
+
+- **Rows unchanged:** I extracted the 9 fenced `bash` blocks of v0.1 and v1.0
+  with a python regex: `9 9 True` (byte-identical). The heads, red controls and
+  sweep of sections 1.3 and 1.4 therefore stand as measured on v0.1.
+- **Drift:** `git diff --name-only 84f86ab8c origin/master -- <7 row files> | wc -l`
+  -> `0` (origin/master `836ec3c7c`).
+- **W1 fixed:** `:467` `+65 -0`, `208 -> 273`, and `:471`
+  `reboot-required-check.tst.sh` `42c0579ceea6`. `280ed77bd391` now appears only in
+  the changelog (`:922`).
+- **W2 fixed:** 1.2 (a), 1.4 and section 2 name `ci-doc-only.sh:124`,
+  `28ed98f7a`, r98 `:756` and r99 `:838`, and accept the one `parts=all` run.
+- **N1 fixed:** `:165-166` now read `:82-103` and `:201-222`.
+  **N3 fixed** (2.2).
+- **W3 folded into the row table only.** Row 01's table cell (`:695`) now says
+  `accepted deviation W3 in 1.3 ... prints yq stderr once instead of twice`.
+
+**W4 (plan `:420-424`, `:927-932`).** Section 1.3 does not carry the folds the
+changelog says it does. 1.3's **Behaviour** paragraph (`:420-424`) is unchanged
+from v0.1 and still says `preserve exact validation ordering, exact
+FATAL/INFO/FAIL/OK messages`. The row table it points to (`:695`, "W3 in 1.3")
+contradicts that sentence.
+
+`git show 978c1bee6:<plan> | sed -n 198,425p | grep -niE 'leak|stderr|deviation|untested'`
+-> one hit only, `:225` `... never read or leaked;`. That is the old secrets
+sentence. So neither the W3 deviation nor N2 (`as_agent` leak) nor N4 (untested
+`sudo -n -u` branch) is in 1.3, though changelog `:927-932` says
+"(1.3) stated" and "(1.3) noted".
+
+Fix: in `:420-424`, replace "exact validation ordering, exact ... messages" with
+the W3 deviation, and add the N2 and N4 lines. Nothing else needs to change. This
+seat signs the next sha that does this, if its 9 fenced blocks stay
+byte-identical.
+
+<!-- last reviewed sha: 978c1bee61fcc405452e17ff0cb6c7b7d0cb9e8a (v1.0) -->

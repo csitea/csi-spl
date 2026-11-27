@@ -32,11 +32,12 @@ Owner HUM-10 directives and fleet rules, by pointer:
   rulebook wins over this plan.
 
 **What this round is.** Round 10 ([refactor-round-10-20261127-plan.md](refactor-round-10-20261127-plan.md),
-editor `a-546`) is still open at plan time: `r10-01` landed as `35467af49` (SPL-6660,
-agy R7 `a-589` PASS), while `r10-02` (`c-799`, SPL-6672, agy R7 `a-628`) has not yet
-landed on `origin/master`. Per rulebook 5.2 and the brief, we plan now; r11 rows start
-only after the panel signs AND round 10's rows are served. The perf floor (rulebook 4.4),
-re-measured on `992866d69` at 2026-11-27T11:18:15Z (14 days):
+editor `a-546`) is closed (`c696a294d`, SPL-6649): both rows landed on `origin/master`
+with cross-vendor agy R7 PASS (`r10-01` `35467af49`, SPL-6660, agy R7 `a-589` PASS;
+`r10-02` `054294929`, SPL-6672, agy R7 `a-628` PASS; both Bash-only, verified ancestors
+of `origin/master` and the box checkout, no hub or WUI deploy required). The rulebook 5.2
+serve gate is met, so r10 does not hold r11 rows once the plan is signed and landed. The
+perf floor (rulebook 4.4), re-measured on `992866d69` at 2026-11-27T11:18:15Z (14 days):
 `perf 37 refactor 112 perf-share 24.8% floor-met` (5 x 37 = 185 >= 149), so this is a
 refactor round.
 
@@ -67,8 +68,16 @@ zero behaviour change:
 The two rows touch different sub-projects (`csi-spl-orc/` vs `csi-spl-utl/`) and share no
 file: both are **Batch 1**.
 
-**Status: v0.1 for panel review.** Editor: **a-629** (agy). Panel seat: cross-vendor
-claude panel seat (`c002-refactor-round-11-claude-panel-seat`, queued as ask `53de3c81`).
+**Status: v1.0 for panel sign-off (folds panel W1 and notes N1-N7; text-only, zero row changes).**
+Editor: **a-629** (agy). Cross-vendor claude panel seat **c-862**
+(`c002-refactor-round-11-claude-panel-seat`) signed v0.1
+`937716f6cc0d5706980b8d2c0bd24308c50feefe` (**PASS**, W1 text-only to fold in v1.0; seat
+commit `eedf5e7fe5ad952a4a8d7d827f3a3a9bf3eb13ea` on
+`review/c002-refactor-round-11-claude-seat`, msg `6e490bd7` / holder `3525cddb`, relay
+`281ecf9c`; `REVIEW_LINE_SYNTAX=1` rc 0 on planner box; all 9 fenced `bash` blocks
+byte-identical to v0.1 `937716f6`; zero drift on all 10 checked paths from `992866d69` to
+`origin/master` `677e80255`). Awaiting `c-862` sign-off on v1.0 and holder
+`do_spl_review_line_check` rc 0 confirmation before landing to `master`.
 
 **One sha:** every count is measured on **`992866d69`**
 (`992866d6988a4518ea1df92e9797b3ab4e4d21c9`, `origin/master` at 2026-11-27T11:18:15Z),
@@ -170,6 +179,16 @@ Queue, lane map, brief, and branch reads are live state and carry their own time
       `box-beat-telemetry.func.sh:217-229` (`rm -f "$pending"` instead of stamp write,
       `"note kept in $pending"`) have distinct delivery/post-send semantics; left in
       section 7.
+    - **Why row 02 does not reuse `r10-02`'s `_utl_send_spool_note`** (W1, naming the two
+      `csi-spl-utl` sender families so `r12` does not count them as one): `r10-02`
+      (`054294929`) extracted Family A `_utl_send_spool_note`
+      (`reboot-required-check.func.sh:85`), which takes a `*_SEND_BIN` override plus
+      `PROJ_PATH` sibling / `PATH` fallback, runs with no `timeout` and no `--no-poke`,
+      writes no stamp, and returns `1` on missing/failed sender; row 02 extracts Family B
+      `_utl_send_throttled_alert` (`clock-sync-check.func.sh`), which parses a
+      `*_SEND_CMD` array (sibling `spool-send.sh` fallback, no `PATH`), runs under
+      `timeout -k 2` with `--no-poke`, writes the throttle stamp on delivery only, and
+      always returns `0`.
   - Remaining r10 section 7 items (`systemd-unit-health.func.sh` +
     `cloud-sql-backup-verify.func.sh` — where `cloud-sql-backup-verify.func.sh:125` also
     carries pre-existing `SC2155` warning — NM keyfile writers with `sed` test mutations,
@@ -178,8 +197,9 @@ Queue, lane map, brief, and branch reads are live state and carry their own time
 - **(b) R7 notes of r10-01 (`a-589` agy), r10-02 (`c-799` / `a-628`), and r10 panel (`c-420`):**
   - `r10-01` (`35467af49`, SPL-6660, R7 `a-589` PASS on `a2b86e645`): commit body carries
     zero refactor follow-up notes.
-  - `r10-02` (SPL-6672, `c-799`, agy R7 `a-628`): still open on `origin/master` at plan
-    time; any R7 follow-up notes from `r10-02` will feed r12.
+  - `r10-02` (`054294929`, SPL-6672, `c-799`, agy R7 `a-628` PASS on `28a8dfa24`): landed
+    on `origin/master` and round 10 closed (`c696a294d`, SPL-6649); commit body carries
+    zero refactor follow-up notes.
   - r10 panel (`c-420`) W1-W4 and N1-N4 were all folded in r10 v1.0 / v1.1 (`6f9fef225`);
     W2 (`csi-spl-utl/` `parts=all` CI cost in `ci-doc-only.sh:124`) is carried forward
     explicitly in row 02 (1.4).
@@ -730,7 +750,11 @@ fi
 `clock-sync-check` and `tmux-health-guard`; `"note not sent"` / `"sends again"` for
 `docker-test-container-prune`), exact stamp payloads and failure handling, and exact
 return codes (all 4 standalone `tmux_health_alert` and `_dtcp_note` checks pass on
-unmodified `base` too, proving equivalence).
+unmodified `base` too, proving equivalence). Distinct from `r10-02`'s Family A
+`_utl_send_spool_note` (`reboot-required-check.func.sh:85`, 1.2 (a)). Per panel N2/N3:
+the lazy sources only define functions (`func-name-unique.tst.sh` 0/2/0, no top-level
+side effects), and `source ... || return 0` is silent only on a broken tree (zero
+behaviour change on a whole tree; kept as written without adding a `WARN` message).
 
 ### 1.5 Before and on the rows' heads
 
@@ -896,10 +920,15 @@ at 2026-11-27T11:30:48Z):
   `c-314` / `a-602` SPL-6647 calendar phone, `c-309` / `a-567` s181 B14, `a-580` search
   panel) touch none of our 10 paths. No live lane owns any of the 10 paths; the holder
   re-reads at placement per R3.
-- **Unlanded row from r10:** `r10-02` (`c-799`, SPL-6672, `reboot-required-check.func.sh`,
-  `cron-heartbeat-snitch.func.sh`, `reboot-required-check.tst.sh`) has **0 overlap** with
-  our 10 paths; per rulebook 5.2, r11 rows still wait for `r10-02` to be served before
-  spawning.
+- **Panel lane-map check (12:17:44Z):** panel seat `c-862` ran
+  `lane-map.sh --check <7 row paths> --agent c-862` -> **exit 4** (4 `unknown:` lanes,
+  none on any row path; 0 owned) and confirmed zero drift on the 7 row files up to
+  `origin/master` `6a8a09e75` (re-checked up to `677e80255`: 0 drift across all 10 paths).
+- **Landed row `r10-02` (rulebook 5.2 gate met):** `r10-02` (`054294929`, SPL-6672,
+  `c-799`, `reboot-required-check.func.sh`, `cron-heartbeat-snitch.func.sh`,
+  `reboot-required-check.tst.sh`) and round 10's close record (`c696a294d`, SPL-6649)
+  have landed on `origin/master` and the box checkout with **0 overlap** with our 10
+  paths. Both r10 rows are Bash-only and served; rulebook 5.2 does not hold r11 rows.
 - **Spawn queue** (`cd csi-spl-orc && ./run -a do_spl_spawn_queue`, at 2026-11-27T11:18:29Z):
   95 queued, 0 placing (including `53de3c81` this round's claude panel seat, CI A1b/A2/A3
   refactor rows, bug lanes `d552df78` / `75b8810c` / `65bd772b`, WUI asks `f7b4d754` /
@@ -960,8 +989,8 @@ at 2026-11-27T11:30:48Z):
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `a-629` | agy | editor | v0.1 | draft | all 17 base/head suites green; shellcheck + `do_sec_shellcheck` rc 0; `rc1`/`rc2` + 6 mutations verified RED on `992866d69` |
-| `c002-refactor-round-11-claude-panel-seat` | claude | panel | v0.1 pending | pending | queued as ask `53de3c81`; cross-vendor sign-off requested on v0.1 |
+| `a-629` | agy | editor | v0.1 (`937716f6`) -> v1.0 | draft -> folded W1, N1-N7 | all 17 base/head suites green; shellcheck + `do_sec_shellcheck` rc 0; `rc1`/`rc2` + 6 mutations verified RED on `992866d69`; all 9 fenced `bash` blocks in v1.0 byte-identical to `937716f6` |
+| `c-862` | claude | panel | `937716f6cc0d5706980b8d2c0bd24308c50feefe` (v0.1); v1.0 pending | v0.1 **PASS** (W1 folded in v1.0); v1.0 pending | seat commit `eedf5e7fe5ad952a4a8d7d827f3a3a9bf3eb13ea` (`review/c002-refactor-round-11-claude-seat`), msg `6e490bd7` / holder `3525cddb`, relay `281ecf9c`; all 7 head sha256 matched; `rc1`/`rc2` + `m1a`/`m2b` + 10 sibling suites verified; `REVIEW_LINE_SYNTAX=1` rc 0 on planner box; awaiting `c-862` sign-off on v1.0 |
 
 ## 5. Proposed row briefs
 
@@ -1036,6 +1065,7 @@ the claude backup is used; never mistral; re-checked at placement).
 
 | what | why | measured by |
 |---|---|---|
+| `utl:src/bash/run/` two distinct spool note-sender families (`_utl_send_spool_note` vs `_utl_send_throttled_alert`) | Family A (`_utl_send_spool_note`, `reboot-required-check.func.sh:85`, `r10-02` `054294929`: `*_SEND_BIN` + `PATH`, no `timeout`/`--no-poke`/stamp, rc 1) and Family B (`_utl_send_throttled_alert`, `clock-sync-check.func.sh`, `r11-02`: `*_SEND_CMD` array + sibling only, `timeout -k 2`, `--no-poke`, stamp write, rc 0) have intentionally different contracts; kept separate so `r12` does not count them as one copy | `git show 054294929:csi-spl-utl/src/bash/run/reboot-required-check.func.sh` vs 1.4 (W1, n=1) |
 | Remaining 4 `utl:src/bash/run/` `*_SEND_CMD` actions: `orphan-process-reap.func.sh:141-155`, `gh-runner-health.func.sh:293-306`, `net-cert-expiry-check.func.sh:184-196`, `box-beat-telemetry.func.sh:217-229` | `orphan-process-reap.func.sh:208` has a pre-existing `SC2071 (error)` (`[[ "$r_ts" > ... ]]`) that fails `do_sec_shellcheck` without a separate lint fix (fix first, then wave 2 in r12); `gh-runner-health.func.sh` sources `gh-box-token.func.sh` (secret-class, excluded); `net-cert-expiry-check` omits `timeout` and `--no-poke`; `box-beat-telemetry` uses `pending-note` removal instead of stamp write | `git grep -n 'SEND_CMD' 992866d69 -- csi-spl-utl/src/bash/run/`; `shellcheck -S warning -x` on each file (n=1) |
 | `utl:src/bash/run/systemd-unit-health.func.sh:148-181` (`_unit_health_send`) and `cloud-sql-backup-verify.func.sh:226-245` (`_csq_send_spool`) | distinct semantics (`-x "$send_bin"` + `spool send` fallback; `systemd-unit-health` writes stamp inside `_unit_health_send`), and `cloud-sql-backup-verify.func.sh:125` carries a pre-existing `SC2155` warning (`export CLOUDSDK_CONFIG="$(...)"`); candidate for r12 after shellcheck cleanup | `shellcheck -S warning -x csi-spl-utl/src/bash/run/{systemd-unit-health,cloud-sql-backup-verify}.func.sh` (n=1) |
 | `orc:src/bash/run/net-usb-tether-profiles.func.sh` and `net-wired-priority.func.sh` NM keyfile writer | both test suites mutate `install -D -m 0600` in copied `$T/red2.func.sh` files; moving the writer requires re-designing existing red controls | r10 section 7 (n=1) |
@@ -1052,15 +1082,43 @@ the claude backup is used; never mistral; re-checked at placement).
   `do_sec_shellcheck` rc 0; both red controls (`rc1`, `rc2`) and all 6 hermetic mutation
   checks (`m1a`, `m1b`, `m1c`, `m2a`, `m2b`, `m2c`) run in fresh scratch clones and
   verified RED; all helper, caller, and test hunks included verbatim in 1.3 and 1.4.
-  Pushed to `review/c002-refactor-round-11-planner`.
+  Pushed to `review/c002-refactor-round-11-planner` (`937716f6cc0d5706980b8d2c0bd24308c50feefe`).
+- v1.0 (a-629): folded cross-vendor claude panel (`c-862`, v0.1 **PASS** on
+  `937716f6cc0d5706980b8d2c0bd24308c50feefe`, seat commit
+  `eedf5e7fe5ad952a4a8d7d827f3a3a9bf3eb13ea` on `review/c002-refactor-round-11-claude-seat`,
+  msg `6e490bd7` / holder `3525cddb`, relay `281ecf9c`) **W1** and **N1-N7** (text-only;
+  zero row code or test changes; all 9 fenced `bash` blocks byte-identical to v0.1
+  `937716f6`; zero drift across all 10 checked paths from `992866d69` to `origin/master`
+  `677e80255`):
+  - **W1 (intro, 1.2 (a)-(b), 1.4, 2.2, section 7):** updated `r10-02` to landed
+    (`054294929`, SPL-6672, agy R7 `a-628` PASS; r10 closed at `c696a294d`, SPL-6649; both
+    Bash-only and verified ancestors of `origin/master` and the box checkout, so rulebook
+    5.2's serve gate is met), and named the two distinct `csi-spl-utl` sender families so
+    `r12` does not count them as one (Family A `_utl_send_spool_note` from `r10-02` vs
+    Family B `_utl_send_throttled_alert` in `r11-02`).
+  - **N1:** `W` stays `2026-11-27T09:21:57+02:00` (`6f9fef225`, read once per rulebook
+    5.3; `c696a294d` does not move `W`).
+  - **N2 / N3 (1.4):** recorded that lazy sources only define functions
+    (`func-name-unique.tst.sh` 0/2/0, no top-level side effects) and `source ... || return 0`
+    is silent only on a broken tree (kept as written).
+  - **N4 / N5:** noted panel box could not read the planner-box candidates file
+    (unverified by panel seat) and old-cycle briefs carry 2026-11-18 mtimes on the planner
+    box vs 2026-10-15 on the panel box (all before `W`).
+  - **N6 / N7:** `sudo -n -u` branch untested hermetically as on base (1.3) and
+    `parts=all` CI cost (1.4) accepted by panel.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-629 (agy): v0.1.
-- Panel reviewer seat: `c002-refactor-round-11-claude-panel-seat` (claude, queued as ask
-  `53de3c81`, seat branch `review/c002-refactor-round-11-claude-seat`):
-  - v0.1: pending sign-off.
+- Editor seat: a-629 (agy): v0.1 (`937716f6`), v1.0 (folds W1 and N1-N7, text-only).
+- Panel reviewer seat: c-862 (claude, `c002-refactor-round-11-claude-panel-seat`, seat
+  `eedf5e7fe5ad952a4a8d7d827f3a3a9bf3eb13ea` on
+  `review/c002-refactor-round-11-claude-seat`):
+  - v0.1 `937716f6cc0d5706980b8d2c0bd24308c50feefe`: **PASS** with text-only W1 to fold in
+    v1.0 and N1-N7 (msg `6e490bd7` / holder `3525cddb`, relay `281ecf9c`; all 7 head sha256
+    matched; `rc1`/`rc2`, `m1a`/`m2b`, and 10 sibling suites verified;
+    `REVIEW_LINE_SYNTAX=1` rc 0 on planner box).
+  - v1.0: pending sign-off and holder `do_spl_review_line_check` rc 0 confirmation.
 - Row R7 seats: section 4; agy per row (claude waiver backup only under ruling `dc84300a`;
   never mistral).

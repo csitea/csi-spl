@@ -54,6 +54,11 @@
 #      patch) -> placed once. A trunk twin by subject only (a conflict fix
 #      on landing) and a branch under trunk count as landed; CONTROL a slug
 #      with no review branch still falls back to its key, with a WARN line
+#  13. SPL-6701: the queue view asks spl_spawn_after_state. RED before the
+#      fix: a queued row whose After: key has landed (no tick yet) printed
+#      HELD "never placed before it lands"; GREEN: a RELEASED line with the
+#      land time, no HELD line. CONTROL a queued row whose key has not
+#      landed still prints HELD with the placer's reason
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -246,7 +251,7 @@ if [[ "$(state "$A1")" == queued && "$(launched row-b3)" == 0 ]] &&
   pass "2. SPL-9001 not landed: held, nothing launched, still queued, .place.wait says why"
 else fail "2. $out | $(hubrow "$A1") | $(cat "$T/launch.log" 2>/dev/null) | $(cat "$T/spool/asks/.place.wait" 2>/dev/null)"; fi
 out="$(on do_spl_spawn_queue 2>&1)"
-grep -q '^HELD a1a1a1a1 row-b3 after SPL-9001: never placed before it lands on origin/master$' <<<"$out" &&
+grep -q '^HELD a1a1a1a1 row-b3 after SPL-9001: waiting on SPL-9001: not landed on origin/master$' <<<"$out" &&
   grep -q '^WAIT a1a1a1a1 held: waiting on SPL-9001: not landed on origin/master' <<<"$out" &&
   pass "2. do_spl_spawn_queue prints the HELD line and the placer's WAIT line" || fail "2. queue view: $out"
 
@@ -507,6 +512,21 @@ got="$(on "spl_spawn_after_row_landed slug-b" 2>/dev/null)"; rc=$?
 got="$(on "spl_asks_init; spl_spawn_after_state $T/briefs/row-after-b.md" 2>&1)"
 grep -q 'WARN after: slug-b has no review/slug-b on origin: judged by its lane' <<<"$got" && grep -q $'^free\tslug-b (SPL-9004) landed' <<<"$got" &&
   pass "12. CONTROL the key fallback names its source in one WARN line" || fail "12. fallback: $got"
+
+# 13. the queue view tells a released row from a held one ---------------------------
+export HUB_ISSUES="$HUB_ISSUES SPL-9013=wip"
+E1=e1e1e1e1-0000-4000-8000-000000009401; E2=e2e2e2e2-0000-4000-8000-000000009402
+put "$E1" row-q-free; put "$E2" row-q-held
+on do_spl_spawn_enqueue ASK_ID="$E1" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-q-free SPAWN_AFTER=SPL-9003 >/dev/null 2>&1
+on do_spl_spawn_enqueue ASK_ID="$E2" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-q-held SPAWN_AFTER=SPL-9013 >/dev/null 2>&1
+[[ "$(state "$E1")" == queued && "$(state "$E2")" == queued ]] || fail "13. not queued: $(hubrow "$E1") $(hubrow "$E2")"
+out="$(on do_spl_spawn_queue 2>&1)"
+if ! grep -q '^HELD e1e1e1e1' <<<"$out" &&
+   grep -q '^RELEASED e1e1e1e1 row-q-free after SPL-9003: SPL-9003 landed [0-9T:-]*Z$' <<<"$out"; then
+  pass "13. a queued row whose After: key landed: RELEASED with its land time, no HELD line"
+else fail "13. released row: $out"; fi
+grep -q '^HELD e2e2e2e2 row-q-held after SPL-9013: waiting on SPL-9013: not landed on origin/master$' <<<"$out" &&
+  pass "13. CONTROL a queued row whose After: key has not landed: still HELD, with the placer's reason" || fail "13. held row: $out"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

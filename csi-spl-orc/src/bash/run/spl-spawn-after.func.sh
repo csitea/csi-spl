@@ -422,17 +422,23 @@ spl_spawn_after_write() {  # BRIEF AFTER DELAY
   return "$rc"
 }
 
-# One "HELD <ask8> <slug> after <x>[ +Nm]" line per queued row of ROWS whose
-# brief is here and carries an After: line; the placer's .place.wait line (a
-# WAIT line) says how far it is.
+# One "HELD <ask8> <slug> after <x>[ +Nm]: <why>" line per queued row of
+# ROWS whose brief is here and whose prerequisite spl_spawn_after_state finds
+# held, resp. "RELEASED ...: <why>" when it is free (landed and past its
+# delay: the placer takes it when the line has room, SPL-6701). Fetches
+# origin once, as the placer does; the placer's .place.wait line (a WAIT
+# line) says how far it is.
 spl_spawn_q_afters() {  # ROWS
-  local id slug spec brief
+  local id slug spec brief st word fetched=0
   declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
   while IFS=$'\t' read -r id slug; do
     brief="$(spl_spawn_place_brief "$slug")"
     spec="$(spl_spawn_after_of "$brief")"
     [[ -n "$spec" ]] || continue
-    echo "HELD ${id:0:8} $slug after ${spec%%$'\t'*}$( [[ "${spec#*$'\t'}" == 0 ]] || echo " +${spec#*$'\t'}m"): never placed before it lands on origin/master"
+    (( fetched )) || { spl_spawn_after_fetch; fetched=1; }
+    st="$(spl_spawn_after_state "$brief")"
+    word=HELD; [[ "$st" == free$'\t'* ]] && word=RELEASED
+    echo "$word ${id:0:8} $slug after ${spec%%$'\t'*}$( [[ "${spec#*$'\t'}" == 0 ]] || echo " +${spec#*$'\t'}m"): ${st#*$'\t'}"
   done < <(jq -r '.[] | select(.state == "queued" and (.placement // "") != "") | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   return 0
 }

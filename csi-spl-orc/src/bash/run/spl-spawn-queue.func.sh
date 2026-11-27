@@ -27,7 +27,8 @@
 # @description head, so re-raise it on a live task now; reads that fail mark
 # @description nothing and say so in one WARN line.
 # @description A queued row whose brief waits on a prerequisite (spec 157 4.2,
-# @description SPAWN_AFTER) gets one HELD line naming it (spl_spawn_q_afters).
+# @description SPAWN_AFTER) gets one HELD line naming it and why, or one RELEASED
+# @description line once it has landed (spl_spawn_q_afters, SPL-6701).
 # @description The order is the hub's (priority, then class, then time in
 # @description line: spec 150 3.4, poll Q5 A); the placer
 # @description may take a lower row to keep the bands (do_spl_spawn_place).

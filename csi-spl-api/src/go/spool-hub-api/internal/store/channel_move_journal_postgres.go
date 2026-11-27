@@ -221,7 +221,8 @@ func (s *Postgres) RefuseChannelMoveStep(ctx context.Context, dst, moveID, chann
 	})
 }
 
-// channelMoveWaitingMax bounds one sweep's read; the next sweep reads the rest.
+// channelMoveWaitingMax bounds one sweep's read to the oldest waits: the sweep
+// changes no journal, so a wait past them is read once an older one moves on.
 const channelMoveWaitingMax = 200
 
 // WaitingChannelMoves implements ChannelMoveStatuses, under the operator scope:

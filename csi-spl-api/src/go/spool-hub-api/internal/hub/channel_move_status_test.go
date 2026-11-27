@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -23,16 +24,18 @@ type moveStatusFix struct {
 	*moveFix
 	reader string
 	skew   *atomic.Int64
+	log    *logBuf
 }
 
 func moveStatusFixture(t *testing.T) moveStatusFix {
 	t.Helper()
-	skew := &atomic.Int64{}
+	skew, buf := &atomic.Int64{}, &logBuf{}
 	f := moveFixture(t, false, func(o *hub.Options) {
 		o.Now = func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }
+		o.Log = zerolog.New(buf)
 	})
 	f.moveID, _ = f.must(t, "step", "P1", nil)["move_id"].(string)
-	return moveStatusFix{moveFix: f, reader: seatAs(t, f.e, f.op, rbac.BizOwner, f.dst, rbac.Developer), skew: skew}
+	return moveStatusFix{moveFix: f, reader: seatAs(t, f.e, f.op, rbac.BizOwner, f.dst, rbac.Developer), skew: skew, log: buf}
 }
 
 // status is GET /v1/channel-moves/{id} in <DST>'s host.
@@ -87,7 +90,8 @@ func hubLines(t *testing.T, e *env, tenant, task, channel string) []string {
 // workspace's admin, a member of <SRC> (all three <DST> members), an unknown
 // id. A wait of 15 minutes posts one line in the GO's topic and one #alerts
 // line, once however often the sweep runs. P2's refusal is stored in its row
-// and posted once, however often it is refused for that reason. RED CONTROL:
+// and posted once, however often it is refused for that reason. A repeat a
+// second later is the dedupe's no-op, logged as nothing (R7 W2). RED CONTROL:
 // drop s.channelMoveRecord from channelMoveDrive -> the refusal is not stored,
 // the state stays waiting and this test fails.
 func TestChannelMoveStatusC35(t *testing.T) {
@@ -114,16 +118,18 @@ func TestChannelMoveStatusC35(t *testing.T) {
 			t.Errorf("%s: %d %v, want %d", name, code, out, want)
 		}
 	}
-	if code, _ := f.status(t, f.reader, uuid4()); code != http.StatusNotFound {
-		t.Errorf("an unknown move: %d, want 404", code)
+	for _, id := range []string{uuid4(), "not-a-uuid"} {
+		if code, _ := f.status(t, f.reader, id); code != http.StatusNotFound {
+			t.Errorf("an unknown move %q: %d, want 404", id, code)
+		}
 	}
 
 	f.e.srv.SweepChannelMoves(context.Background())
 	if lines := hubLines(t, f.e, f.op, f.formTask, ""); len(lines) != 0 {
 		t.Fatalf("a wait of a moment posted %q", lines)
 	}
-	f.skew.Store(int64(16 * time.Minute))
-	for range 2 {
+	for i := range 2 { // the second sweep is a later tick: its TS differs
+		f.skew.Store(int64(16*time.Minute + time.Duration(i)*2*time.Second))
 		f.e.srv.SweepChannelMoves(context.Background())
 	}
 	if st := f.state(t); st["state"] != "waiting" || st["stuck"] != true {
@@ -140,6 +146,7 @@ func TestChannelMoveStatusC35(t *testing.T) {
 
 	for range 2 {
 		f.refused(t, "step", "P2", "no orchestrator seat", nil)
+		f.skew.Add(int64(2 * time.Second))
 	}
 	st = f.state(t)
 	reason, _ := st["reason"].(string)
@@ -151,11 +158,17 @@ func TestChannelMoveStatusC35(t *testing.T) {
 	if len(lines) != 2 || !strings.HasPrefix(lines[1], "Not moved. Nothing of the channel changed: ") || !strings.Contains(lines[1], "no orchestrator seat") {
 		t.Fatalf("the GO's topic after two refusals: %q", lines)
 	}
+	for _, l := range strings.Split(f.log.String(), "\n") { // other fixtures' moves share the sweep
+		if strings.Contains(l, f.moveID) && strings.Contains(l, "not posted") {
+			t.Errorf("a repeat logged as a failure: %s", l)
+		}
+	}
 }
 
 // C35, each later row of 8.5.6's table from a seeded journal: P6 refused after
-// P4 -> cleanup_failed; P7 refused with a proof -> traces, naming the proof and
-// its count; P7 done but no done_at -> not "moved"; done_at -> moved with
+// P4 -> cleanup_failed; P7 refused without a proof (a bucket it could not
+// read) -> cleanup_failed with its reason and proofs [] (R7 W1); P7 refused
+// with a proof -> traces, naming the proof and its count; P7 done but no done_at -> not "moved"; done_at -> moved with
 // P7's kept list. RED CONTROL: answer "moved" on P7 done (channelMoveStatusOf)
 // -> the journal without done_at reads as moved and this test fails.
 func TestChannelMoveStatusTableC35(t *testing.T) {
@@ -179,6 +192,13 @@ func TestChannelMoveStatusTableC35(t *testing.T) {
 	}
 	if err := jr.FinishChannelMoveStep(ctx, f.dst, f.moveID, f.ch, "P6", store.ChannelMoveStepDone{}); err != nil {
 		t.Fatal(err)
+	}
+	if err := cs.RefuseChannelMoveStep(ctx, f.dst, f.moveID, f.ch, "P7", map[string]any{"token": "internal", "reason": "bucket unreadable"}); err != nil {
+		t.Fatal(err)
+	}
+	if st := f.state(t); st["state"] != "cleanup_failed" || st["reason"] != "bucket unreadable" ||
+		!strings.Contains(st["line"].(string), "bucket unreadable") || st["proofs"] == nil {
+		t.Fatalf("P7 refused without a proof: %v", st)
 	}
 	proofs := []map[string]any{{"name": "messages in " + f.src, "count": 3}}
 	if err := cs.RefuseChannelMoveStep(ctx, f.dst, f.moveID, f.ch, "P7", map[string]any{"token": "proofs_failed", "reason": "a proof of section 5 is not 0", "proofs": proofs}); err != nil {

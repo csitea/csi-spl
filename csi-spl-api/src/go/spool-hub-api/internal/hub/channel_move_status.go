@@ -192,7 +192,7 @@ func (s *Server) channelMoveStatusOf(dst string, j *store.ChannelMoveJournalRow)
 	case j.Done:
 		st.State, st.Line = moveStateMoved, "Moved. "+in+": "+st.Link
 		st.Kept = channelMoveKeptOf(j.Steps["P7"])
-	case step == "P7":
+	case step == "P7" && len(ref.Proofs) > 0: // a P7 that read no proof is a clean-up failure
 		st.State, st.Proofs = moveStateTraces, ref.Proofs
 		st.Line = in + ", but " + j.Src + " still holds traces: " + channelMoveTraceNames(ref.Proofs) + ". " + st.Link
 	case ref != nil && j.StepDone("P4"):
@@ -294,8 +294,8 @@ func (s *Server) channelMoveStatusPost(ctx context.Context, dst string, j *store
 	if ch == "" {
 		ch = store.ChannelLobby
 	}
-	id := uid.FromSeed("spool-channel-move-status:" + j.MoveID + ":" + st.State + ":" + st.Step + ":" + st.Reason)
-	if err := s.postHubNote(ctx, op, ch, g.TaskID, id, st.Line); err != nil {
+	id := uid.FromSeed("spool-channel-move-status:" + j.MoveID + ":" + st.State + ":" + st.Step + ":" + st.Reason + ":" + channelMoveTraceNames(st.Proofs))
+	if err := s.postHubNote(ctx, op, ch, g.TaskID, id, st.Line); err != nil && !errors.Is(err, store.ErrConflict) {
 		log.Err(err).Msg("channel_move_status: line not posted")
 	}
 	if st.State == moveStateWaiting {
@@ -312,7 +312,7 @@ func (s *Server) channelMoveWaitAlert(ctx context.Context, op, moveID, topic str
 	}
 	body := "A channel move waits for a box: P1 is done and no step started for 15 minutes. Nothing has moved. " +
 		"Move `" + moveID + "`, its status in [its topic](/t/" + topic + ")."
-	if err := s.postFleetAlert(ctx, op, uid.FromSeed("spool-channel-move-waiting:"+moveID), body); err != nil {
+	if err := s.postFleetAlert(ctx, op, uid.FromSeed("spool-channel-move-waiting:"+moveID), body); err != nil && !errors.Is(err, store.ErrConflict) {
 		log.Err(err).Msg("channel_move_status: alert not posted")
 	}
 }

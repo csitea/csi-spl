@@ -844,9 +844,11 @@ Built (T17, `api/hub/channel_move_status.go`):
   session's first (`humanTenant`, as C29: a caller who is no `<DST>` member gets its 403), then
   the biz owner of the operator workspace; anyone else and an unknown id get the same 404.
 - **The status line** is a hub note (`HUB-0`) in the GO's topic, posted after each operator step
-  or mark, under an id seeded by the move, the state, the step and the reason: one line per
-  state, and a step refused again for the same reason posts nothing new. `running`, and a wait
-  under 15 minutes, post nothing.
+  or mark, under an id seeded by the move, the state, the step, the reason and P7's failed
+  proofs: one line per state, and a step refused again for the same reason posts nothing new
+  (the repeat is the store's dedupe, logged as nothing). `running`, and a wait under 15
+  minutes, post nothing. A P7 refused without a failed proof (a bucket it could not read) is
+  `cleanup_failed` with its reason and `proofs: []`, never `traces`.
 - **The `#alerts` line** is posted once per move, with the waiting line, by
   `SweepChannelMoves` on the hub's retention sweep (`WaitingChannelMoves` reads every
   workspace's open journals whose only step is a P1 done 15 minutes ago). It names the move id

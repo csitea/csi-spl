@@ -241,11 +241,22 @@ jobs:
           cls=csi-spl-orc/src/bash/scripts/ci-doc-only.sh
           tsv="$RUNNER_TEMP/jobs.tsv"; : >"$tsv"
           out=""
-          jobs_of() {  # <id TAB sha lines>: append each run's jobs to $tsv
-            while IFS=$'\t' read -r id sha; do
+          jobs_of() {  # <id TAB sha [TAB conclusion] lines>: append each run's jobs to $tsv
+            local id sha concl rows bad
+            while IFS=$'\t' read -r id sha concl; do
               [[ -n "$id" ]] || continue
-              gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
-                --jq ".jobs[] | [\"$id\", \"$sha\", .name, (.conclusion // \"-\")] | @tsv" >>"$tsv" 2>/dev/null || true
+              bad=""
+              rows=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
+                --jq ".jobs[] | [\"$id\", \"$sha\", .name, (.conclusion // \"-\")] | @tsv" 2>/dev/null) || { rows=""; bad=jobs-api-error; }
+              [[ -n "$rows" ]] && printf '%s\n' "$rows" >>"$tsv"
+              # a run listed with its conclusion (the reuse list) never vanishes:
+              # a failed or empty jobs call (a cancelled or startup_failure run
+              # has 0 jobs) or a run that was not green adds a row
+              # ci-doc-only.sh reads as red, so no older green run is reused
+              [[ -n "$concl" ]] || continue
+              [[ -n "$bad" || -n "$rows" ]] || bad=no-jobs
+              [[ -n "$bad" || "$concl" == success ]] || bad="run-$concl"
+              [[ -z "$bad" ]] || printf '%s\t%s\t%s\t%s\n' "$id" "$sha" "run conclusion" "$bad" >>"$tsv"
             done <<<"$1"
             echo "ci-doc-only: $(wc -l <"$tsv") job rows from $(grep -c . <<<"$1") finished runs"
           }
@@ -264,7 +275,7 @@ jobs:
             # test a new image: that run must run every part); the finished
             # push/schedule runs on this very head, newest 5
             ids=$(gh api "repos/$REPO/actions/workflows/10_ci-quality.yml/runs?branch=$REF_NAME&head_sha=$HEAD_SHA&status=completed&per_page=20" \
-                --jq ".workflow_runs[] | select((.event == \"push\" or .event == \"schedule\") and .id != $RUN_ID) | \"\(.id)\t\(.head_sha)\"" 2>/dev/null \
+                --jq ".workflow_runs[] | select((.event == \"push\" or .event == \"schedule\") and .id != $RUN_ID) | \"\(.id)\t\(.head_sha)\t\(.conclusion // \"none\")\"" 2>/dev/null \
               | sort -rn | awk 'NR <= 5')
             jobs_of "$ids"
             out=$(bash "$cls" --reuse "$HEAD_SHA" "$tsv") || out=""

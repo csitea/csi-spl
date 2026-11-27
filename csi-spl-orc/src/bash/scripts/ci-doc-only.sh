@@ -205,7 +205,7 @@ reuse_full() {
   local head="$1" tsv="$2" run sha name concl p full
   local -A seen=() has=() skip=() bad=()
   local -a order=()
-  if [[ -r "$tsv" ]]; then
+  if [[ -n "$head" && -r "$tsv" ]]; then
     while IFS=$'\t' read -r run sha name concl; do
       [[ -n "$run" && "$sha" == "$head" ]] || continue
       [[ -n "${seen[$run]:-}" ]] || { seen[$run]=1; order+=("$run"); }

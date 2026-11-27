@@ -199,6 +199,28 @@ partial 78 "$s4" >"$T/r6.tsv"
 [[ "$(reuse "$s4" "$T/r6.tsv")" == "$ALL" && "$(reuse "$s4" "$T/none.tsv")" == "$ALL" ]] \
   && pass "reuse: only a partial gate, or no list -> every part runs" || fail "reuse: partial or no list skipped a part"
 
+# W1 (a-725 R7): a newer run on the head whose jobs call failed, that has no
+# jobs (cancelled, startup_failure) or that was not green must not vanish from
+# the list: wf 10's jobs_of adds a red row for it, so the older green gate is
+# not reused. Driven through the workflow's own jobs_of with a stub gh.
+jobs_fn=$(yq '.jobs.classify.steps[] | select(.id == "cls") | .run' "$W10" | awk '/^jobs_of\(\) \{/,/^}/')
+run_jobs_of() {  # <fn> <ids> <tsv>: jobs_of against a stub gh (91 = api error, 92 = 0 jobs, 90 = green full)
+  ( export REPO=o/r; tsv="$3"; : >"$tsv"
+    gh() { case "$2" in */91/*) return 1 ;; */92/*) return 0 ;; */90/*) full 90 "$s4" success ;; esac; }
+    eval "$1"; jobs_of "$2" >/dev/null )
+}
+for c in "91	$s4	success" "92	$s4	cancelled" "92	$s4	startup_failure"; do
+  run_jobs_of "$jobs_fn" "$c"$'\n'"90	$s4	success" "$T/w1.tsv"
+  [[ "$(reuse "$s4" "$T/w1.tsv")" == "$ALL" ]] && pass "reuse: a newer run ($(tr '\t' ' ' <<<"${c:0:2} ${c##*	}")) with an api error or no jobs runs every part" \
+    || fail "reuse: newer run '${c:0:2} ${c##*	}' hid behind an older green gate: $(reuse "$s4" "$T/w1.tsv")"
+done
+run_jobs_of "$jobs_fn" "90	$s4	success" "$T/w2.tsv"
+[[ "$(reuse "$s4" "$T/w2.tsv")" == "$NONE reused=90" ]] && pass "reuse: the stubbed jobs_of still reuses a lone green all-parts gate" \
+  || fail "reuse: stubbed jobs_of on a green gate: $(reuse "$s4" "$T/w2.tsv")"
+run_jobs_of "$(sed '/run conclusion/d' <<<"$jobs_fn")" "91	$s4	success"$'\n'"90	$s4	success" "$T/w3.tsv"
+[[ "$(reuse "$s4" "$T/w3.tsv")" != "$ALL" ]] && pass "CONTROL: a jobs_of that drops a run with an api error reuses the older gate (caught above)" \
+  || fail "CONTROL: dropping the red row still ran every part: the W1 cases prove nothing"
+
 # --- 3. the wiring in wf 10 ---------------------------------------------------
 declare -A JOB_PART=([hub-suite]=hub [wui-suite]=wui [wui-generate]=wui [wui-e2e]=wui [iac-suite]=iac
   [orc-suite]=orc [orc-features]=orc [cnf-suite]=cnf)

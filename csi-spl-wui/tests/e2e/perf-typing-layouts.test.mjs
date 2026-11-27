@@ -2,7 +2,9 @@
 // force a layout per key it does not need. `fitGlobalBox` collapsed the field
 // to `height: auto` and read `scrollHeight` again on every key of a draft that
 // still fit: two forced layouts per key (plan perf-round-19-plan.md row 01,
-// editor 2.7 / 2.11: 41 + 41 per 41 keys, n=3). Row 02 lowers the ceiling.
+// editor 2.7 / 2.11: 41 + 41 per 41 keys, n=3). Row 02 (SPL-6654) lowered the
+// ceiling: the draft's width came from a hidden span read with
+// getBoundingClientRect on every key, one more forced layout per key.
 //
 //   desktop (1440x900), the mock, /lobby, a fresh page per run:
 //     1 40 typed characters cost at most CEILING layouts (CDP
@@ -25,8 +27,8 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RUNS = Number(process.env.PERF_TYPING_RUNS ?? 3)
-/* row 01's after-arm, 86 in 5 of 5 (before: 166 in 5 of 5), + 10% */
-const CEILING = Number(process.env.PERF_TYPING_CEILING ?? 94)
+/* row 02's after-arm, 44 in 5 of 5 (before, row 01's tree: 86 in 5 of 5), + 10% */
+const CEILING = Number(process.env.PERF_TYPING_CEILING ?? 48)
 const BOX = 'form.composer.omnibox--global textarea'
 const TYPED = 'the quick brown fox jumps over a lazy do'
 /* enough to wrap the 1440 px top-bar field onto a second line */

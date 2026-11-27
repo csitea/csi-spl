@@ -43,32 +43,50 @@ function useChipWidth(chipEl: Ref<HTMLElement | null>, lifted: () => boolean) {
   return chipW
 }
 
-/** The draft's one-line width, measured in a hidden span with the field's font. */
+/** The field's font as the old hidden span took it: a canvas font and its spacings in px. */
+export interface MeterFont { font: string, letter: number, word: number }
+
+export function meterFont(cs: CSSStyleDeclaration): MeterFont {
+  return {
+    font: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`,
+    letter: parseFloat(cs.letterSpacing) || 0,
+    word: parseFloat(cs.wordSpacing) || 0,
+  }
+}
+
+/* the span (white-space: pre) added the letter spacing after every
+   character and the word spacing at every space; the canvas adds neither */
+export function meterWidth(ctx: CanvasRenderingContext2D, f: MeterFont, value: string): number {
+  if (ctx.font !== f.font) ctx.font = f.font
+  let w = ctx.measureText(value).width
+  if (f.letter) w += f.letter * Array.from(value).length
+  if (f.word) w += f.word * (value.match(/[ \u00a0]/g)?.length ?? 0)
+  return w
+}
+
+/* p19-02 (SPL-6654): the draft's one-line width from a canvas measureText.
+   The hidden span it replaces was styled and read with getBoundingClientRect
+   on every key: one forced layout per key (plan perf-round-19 row 02). The
+   font is read once per focus and again on a re-judge (chip, glyph, dock,
+   viewport width: where the field's font size can change). */
 function useDraftMeter() {
-  let measureEl: HTMLSpanElement | null = null
+  let ctx: CanvasRenderingContext2D | null = null
+  let font: MeterFont | null = null
+  const forget = () => { font = null }
   function draftWidth(el: HTMLTextAreaElement, value: string): number {
     if (typeof document === 'undefined') return 0
-    if (!measureEl) {
-      measureEl = document.createElement('span')
-      measureEl.setAttribute('aria-hidden', 'true')
-      measureEl.style.cssText = 'position:fixed;inset-inline-start:0;top:0;visibility:hidden;white-space:pre;pointer-events:none;'
-      document.body.appendChild(measureEl)
-    }
-    const cs = getComputedStyle(el)
-    measureEl.style.fontStyle = cs.fontStyle
-    measureEl.style.fontWeight = cs.fontWeight
-    measureEl.style.fontSize = cs.fontSize
-    measureEl.style.fontFamily = cs.fontFamily
-    measureEl.style.letterSpacing = cs.letterSpacing
-    measureEl.style.wordSpacing = cs.wordSpacing
-    measureEl.textContent = value
-    return measureEl.getBoundingClientRect().width
+    ctx ??= document.createElement('canvas').getContext('2d')
+    if (!ctx) return 0
+    font ??= meterFont(getComputedStyle(el))
+    return meterWidth(ctx, font, value)
   }
+  /* capture: before the field's own focus handler judges the wrap */
+  onMounted(() => window.addEventListener('focus', forget, true))
   onBeforeUnmount(() => {
-    measureEl?.remove()
-    measureEl = null
+    window.removeEventListener('focus', forget, true)
+    ctx = null
   })
-  return draftWidth
+  return { draftWidth, forget }
 }
 
 /* SPL-1851: a text set by code (setText: a poll's "Chat about this") is
@@ -120,7 +138,7 @@ export function useComposerWrap(o: WrapOpts) {
   const multilineLayout = computed(() =>
     Boolean(props.global) && multiline.value && !o.parked.value && (Boolean(o.modeGlyph.value) || o.chip.value))
   const chipW = useChipWidth(o.chipEl, () => multilineLayout.value)
-  const draftWidth = useDraftMeter()
+  const meter = useDraftMeter()
   function oneLineContentWidth(el: HTMLTextAreaElement): number {
     const end = parseFloat(getComputedStyle(el).paddingInlineEnd) || 0
     const pad = omniboxOneLinePad({ glyph: Boolean(o.modeGlyph.value), chip: o.chip.value, chipWidth: chipW.value, phone: o.docked.value })
@@ -133,13 +151,16 @@ export function useComposerWrap(o: WrapOpts) {
       return false
     }
     const value = o.text.value
-    const next = omniboxIsMultiline({ text: value, textWidth: draftWidth(el, value), contentWidth: oneLineContentWidth(el) })
+    const next = omniboxIsMultiline({ text: value, textWidth: meter.draftWidth(el, value), contentWidth: oneLineContentWidth(el) })
     if (next === multiline.value) return false
     keepCaret(o.inputEl, el, value)
     multiline.value = next
     return true
   }
-  const rejudge = () => { if (props.global && syncMultiline()) void nextTick(() => o.fit()) }
+  const rejudge = () => {
+    meter.forget()
+    if (props.global && syncMultiline()) void nextTick(() => o.fit())
+  }
   watch(chipW, rejudge)
   watch([o.modeGlyph, o.chip, o.docked], rejudge)
   onViewportWidth(props, rejudge)

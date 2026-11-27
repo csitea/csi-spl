@@ -172,6 +172,16 @@
 #        step with no Owner-go line -> rc 4 (was GO); controls: the six with
 #        an Owner-go line naming a HUM-10 message -> GO; the six only under
 #        Never, under Why or in a fenced block -> GO
+#    36. the author brief's tests in ran: (b52-02, rulebook C4, c-001
+#        ee10c09a): RED CONTROLS ran: with do_check_pre_push_lint only (a-099),
+#        without PRE_PUSH_TIER=full (a-113), without a named *.tst.sh /
+#        rc*.sh / shellcheck / test-*.sh (round row), the item only mentioned
+#        in read: or as `NOT RUN <item>` with no why, another round's
+#        rc01-b51.sh on a b52-02 brief (panel N6) -> rc 12 naming them;
+#        controls: all present, `NOT RUN <item>: <why>` in read:, a sibling
+#        row's rc02-b52.sh on a b52-01 brief, a name after NOT, under Never
+#        or Files you must NOT touch, an If line's PRE_PUSH_TIER=full, a
+#        DOCS-ONLY sha -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1146,7 +1156,9 @@ f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000
 run REVIEW_GO_MSG="$f"; rc=$?
 (( rc == 0 )) && [[ $(gos) == 1 ]] && pass "27. RED CONTROL: \`apply-gh-runner-cpu-budget\` in a list of tests is no keyword -> GO" || fail "27. c-710 line rc=$rc out=$(tail -2 "$T/out")"
 reset; abrief c-222 $'## Do\n\nNames only: `apply.sh`, `spl-billing-sa.tst.sh`, `IAM_ROLE`, `x/billing`, `apply_x`, `reapply`.'
-f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 27000000-0000-4000-8000-000000000002)
+# the brief names spl-billing-sa.tst.sh, so ran: names it too (check [12], b52-02)
+rlog g-111 "bash csi-spl-orc/src/bash/tests/foo.tst.sh; bash spl-billing-sa.tst.sh"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS 'bash csi-spl-orc/src/bash/tests/foo.tst.sh; bash spl-billing-sa.tst.sh')" 27000000-0000-4000-8000-000000000002)
 run REVIEW_GO_MSG="$f"; rc=$?
 (( rc == 0 )) && [[ $(gos) == 1 ]] && pass "27. apply, IAM, billing joined by -, _, . or / are names -> GO" || fail "27. joined names rc=$rc out=$(tail -2 "$T/out")"
 for fx in 'apply|run `terraform apply` for step 016' 'apply|terraform plan, then apply.' 'IAM|Rotate the IAM binding.' \
@@ -1413,7 +1425,9 @@ n=$(wc -l <"$T/b34.out")
   fail "34. scan n=$n (want 49), wrong: ${bad:-none} out=$(head -c 600 "$T/b34.out")"
 for p in red_r05_01 red_r05_02 red_r04_01 red_r04_02 red_r03_01 red_r03_02; do
   reset; abrief c-222 "$(cat "$B34/0-$p.md")"
-  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 34000000-0000-4000-8000-000000000001)
+  # red_r03_01's row names do_check_pre_push, so ran: names it too (check [12], b52-02)
+  rlog g-111 "bash csi-spl-orc/src/bash/tests/foo.tst.sh; ./run -a do_check_pre_push"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS 'bash csi-spl-orc/src/bash/tests/foo.tst.sh; ./run -a do_check_pre_push')" 34000000-0000-4000-8000-000000000001)
   run REVIEW_GO_MSG="$f"; rc=$?
   (( rc == 0 && $(gos) == 1 )) && pass "34. RED CONTROL: the $p brief line passes [4] -> GO" ||
     fail "34. $p rc=$rc out=$(tail -2 "$T/out")"
@@ -1454,6 +1468,55 @@ for c in 'Never|## Never\nNever run %s.\n## Do\n1. Fix the unit test.' \
   (( rc == 0 && $(gos) == 1 )) && pass "35. control: the six actions only in ${c%%|*} -> GO" ||
     fail "35. ${c%%|*} rc=$rc out=$(tail -3 "$T/out")"
 done
+
+# --- 36. the author brief's tests in ran: (b52-02, rulebook C4) ----------------------------------------
+# GO d8bfb277 (a-099) and GO 245ec817 (a-113) went out on review lines whose
+# ran: lacked the brief's do_check_pre_push / PRE_PUSH_TIER=full. The probes
+# are rc02-b52.sh's (bug-round-52-plan.md section 4.2) plus panel N6.
+C36_LOG='node --test foo.test.mjs; bash csi-spl-orc/src/bash/tests/foo.tst.sh; bash bar.tst.sh; bash own.tst.sh; bash test-y1.sh; bash rc01-b52.sh; bash rc02-b52.sh; bash rc01-b51.sh; shellcheck -S warning a.sh; PRE_PUSH_TIER=full ./run -a do_check_pre_push; ./run -a do_check_pre_push_lint'
+C36_DO=$'## Do\n1. Run `bash own.tst.sh` and `cd csi-spl-iac && ./run -a do_check_pre_push`.\n'
+# c36 <brief> <ran> [read]: case 36's review of the author brief; rc returned
+c36() {
+  local l
+  reset; abrief c-222 "$1"; rlog g-111 "$C36_LOG"
+  l="$(line g-111 grok PASS "$2")" && l="${l/| read: 1 PASS 0 failures |/| read: ${3:-1 PASS 0 failures} |}"
+  f=$(msg 20261028T115900Z g-111@boxa "$l" 36000000-0000-4000-8000-000000000001)
+  run REVIEW_GO_MSG="$f"
+}
+for p in \
+  "a-099: do_check_pre_push_lint only|do_check_pre_push|"$'## Do\n1. Run `node --test foo.test.mjs` and `cd csi-spl-iac && ./run -a do_check_pre_push`.'"|node --test foo.test.mjs ; do_check_pre_push_lint ; do_check_dist_hygiene|" \
+  "a-113: no PRE_PUSH_TIER=full|PRE_PUSH_TIER=full|"$'## Do\n1. `bash own.tst.sh`.\n2. `cd csi-spl-iac && ./run -a do_check_pre_push`; this row touches the store/hub: run it with PRE_PUSH_TIER=full.'"|bash own.tst.sh; cd csi-spl-iac && ./run -a do_check_pre_push|" \
+  "round row: rc / tst / shellcheck|rc01-b52.sh, bar.tst.sh, shellcheck|"$'## Do\n1. Run `bash rc01-b52.sh <sha>`, `foo.tst.sh`, `bar.tst.sh`, `shellcheck -S warning a.sh` and `do_check_pre_push`.'"|bash foo.tst.sh; ./run -a do_check_pre_push|" \
+  "test-*.sh named, *.inc.sh not|test-y1.sh|${C36_DO}"$'2. Run `bash test-y1.sh`; it sources `spool-env.inc.sh`.'"|bash own.tst.sh; ./run -a do_check_pre_push|" \
+  "a plain read: mention|do_check_pre_push|${C36_DO}|bash own.tst.sh|checked the brief naming do_check_pre_push" \
+  "NOT RUN with no why|do_check_pre_push|${C36_DO}|bash own.tst.sh|NOT RUN do_check_pre_push" \
+  "N6: another round's rc01-b51.sh on a b52-02 brief|rc01-b51.sh|"$'# Lane brief: b52-02-orc-x\n## Do\n1. Run `bash rc02-b52.sh <sha>`, the other round\'s red control `bash rc01-b51.sh <sha>` and `bash own.tst.sh`.'"|bash own.tst.sh; bash rc02-b52.sh|"; do
+  rd="${p##*|}" rest="${p%|*}" ran="${rest##*|}" rest="${rest%|*}"
+  lbl="${rest%%|*}" rest="${rest#*|}" miss="${rest%%|*}" brief="${rest#*|}"
+  c36 "$brief" "$ran" "$rd"; refused "36. RED CONTROL: $lbl -> rc 12" $? 12 "misses brief-named test(s) (C4): $miss$"
+done
+for p in \
+  "all present|"$'## Do\n1. Run `bash rc01-b52.sh <sha>`, `foo.tst.sh`, `bar.tst.sh`, `shellcheck -S warning a.sh` and `PRE_PUSH_TIER=full ./run -a do_check_pre_push`.'"|bash rc01-b52.sh; bash foo.tst.sh; bash bar.tst.sh; shellcheck -S warning a.sh; PRE_PUSH_TIER=full ./run -a do_check_pre_push|" \
+  "NOT RUN <item>: <why> in read:|${C36_DO}|bash own.tst.sh|NOT RUN do_check_pre_push: reviewer box lacks local pg" \
+  "a sibling row's rc02-b52.sh on a b52-01 brief|"$'# Lane brief: b52-01-wui-x\n## Do\n1. Run `bash rc01-b52.sh <sha>`, `bash own.tst.sh` and `do_check_pre_push`. Plan also has b52-02 (`rc02-b52.sh`).'"|bash rc01-b52.sh; bash own.tst.sh; ./run -a do_check_pre_push|" \
+  "a name after NOT|${C36_DO}"$'2. Edit a.sh, NOT `bar.tst.sh`.'"|bash own.tst.sh; ./run -a do_check_pre_push|" \
+  "a name under Never|${C36_DO}"$'## Never\n- `bar.tst.sh` on the live spool root.'"|bash own.tst.sh; ./run -a do_check_pre_push|" \
+  "a name under Files you must NOT touch|${C36_DO}"$'## Files you must NOT touch\n- `csi-spl-orc/src/bash/tests/bar.tst.sh`'"|bash own.tst.sh; ./run -a do_check_pre_push|" \
+  "an If line's PRE_PUSH_TIER=full|${C36_DO}"$'2. If change 3 needs a migration, run it with PRE_PUSH_TIER=full.'"|bash own.tst.sh; ./run -a do_check_pre_push|"; do
+  lbl="${p%%|*}" rd="${p##*|}" rest="${p%|*}" ran="${rest##*|}" brief="${rest#"$lbl|"}" brief="${brief%"|$ran"}"
+  c36 "$brief" "$ran" "$rd"; rc=$?
+  (( rc == 0 && $(gos) == 1 )) && pass "36. control: $lbl -> GO" || fail "36. $lbl rc=$rc out=$(tail -3 "$T/out")"
+done
+# a DOCS-ONLY sha (ran: none) needs no test: check [12] is skipped
+idx="$T/c36.idx" old="$SHA"
+GIT_INDEX_FILE="$idx" "${G[@]}" -C "$T/repo" read-tree origin/master
+GIT_INDEX_FILE="$idx" "${G[@]}" -C "$T/repo" update-index --add --cacheinfo "100644,$(echo d | "${G[@]}" -C "$T/repo" hash-object -w --stdin),n.md"
+SHA=$("${G[@]}" -C "$T/repo" commit-tree -p origin/master -m docs "$(GIT_INDEX_FILE="$idx" "${G[@]}" -C "$T/repo" write-tree)")
+"${G[@]}" -C "$T/repo" push -q -f origin "$SHA:refs/heads/review/c002-x"
+c36 "$C36_DO" "none"; rc=$?
+(( rc == 0 && $(gos) == 1 )) && pass "36. control: a DOCS-ONLY sha (ran: none), the brief naming tests -> GO" ||
+  fail "36. DOCS-ONLY rc=$rc out=$(tail -3 "$T/out")"
+SHA="$old" && "${G[@]}" -C "$T/repo" push -q -f origin "$SHA:refs/heads/review/c002-x"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

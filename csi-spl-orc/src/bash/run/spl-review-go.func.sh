@@ -68,6 +68,18 @@
 # @description       exit 2: never fetched), [8] and that check passes: every
 # @description       module test named in ran: is a command in the log (a
 # @description       docs-only line names none: refused)
+# @description  [12] unless that check says DOCS-ONLY, every test the author
+# @description       brief's instruction text names (*.tst.sh, test-*.sh but
+# @description       not *.inc.sh, *.test.mjs, rc<NN>*.sh, do_check_pre_push,
+# @description       an unconditional PRE_PUSH_TIER=full, shellcheck) is in
+# @description       ran:, or in read: as `NOT RUN <item>: <why>` (rulebook
+# @description       C4, b52-02); not read from a Why / Never / Files you
+# @description       must NOT touch / At brief time / Lane-map clearance
+# @description       section, a `>` quote, a fenced block, a NOT / never /
+# @description       except / excluding / stay off name, an If / When /
+# @description       Unless line's PRE_PUSH_TIER=full, nor a sibling row's
+# @description       rc<NN>-<round>.sh (the brief's own round, another row;
+# @description       another round's red control still counts)
 # @description   [5] the row's branch on origin (git ls-remote, read only) is
 # @description       still the reviewed sha; else (SPL-5670) the sha is the
 # @description       tip of another origin ref (a re-push under a new name),
@@ -864,6 +876,10 @@ _spl_review_go_one() {
   why="$(REVIEW_LINE="$line" REVIEW_LINE_REPO="${REVIEW_GO_REPO:-}" do_spl_review_line_check 2>&1)"; rc=$?
   (( rc == 2 )) && { _spl_review_go_hold "$@" 6 "the reviewer's log is on box $rbox: run the check there (never fetched)"; return 6; }
   (( rc == 0 )) || { _spl_review_go_hold "$@" 8 "review line check failed (rc $rc): $(tail -n2 <<<"$why" | paste -sd' ')"; return 8; }
+  if [[ "$why" != *"DOCS-ONLY "* ]]; then
+    why="$(_spl_review_go_c4_missing "$abrief" "$line")" ||
+      { _spl_review_go_hold "$@" 12 "review ran:/read: misses brief-named test(s) (C4): $why"; return 12; }
+  fi
   why="$(_spl_review_go_tip "$branch")"
   if [[ "$why" != "$sha" ]]; then
     where="$(_spl_review_go_elsewhere "$branch" "$sha" "$author" "$why")" ||
@@ -873,6 +889,73 @@ _spl_review_go_one() {
   why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log" "$holder")"
   [[ -z "$why" ]] || { _spl_review_go_wait "$@" "$author" "$rid" "$sha" "$(_spl_review_go_slug "$rid" "$brief")" "$why"; return 10; }
   _spl_review_go_send "$holder" "$mid" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}" "$where"
+}
+
+# _spl_review_go_c4_missing <author brief> <review line>: rc 0 when every test
+# the author brief's instruction text requires is named in ran: or as `NOT RUN
+# <item>: <why>` in read: (check [12], rulebook C4 rounds-rulebook.md:126);
+# else the missing items, comma-separated, on stdout and rc 1. A sibling row's
+# rc<NN>-<round>.sh is skipped only when <round> is the brief's own round (the
+# `[br]NN-MM` id in its first 12 lines) and <NN> is another row (b52 panel N6).
+_spl_review_go_c4_missing() {
+  python3 - "$1" "$2" <<'EOF_PY'
+import re, sys
+path, line = sys.argv[1:3]
+if " ran: " not in line:
+    sys.exit(0)
+ran, _, read = line.split(" ran: ", 1)[1].split(" | log: ", 1)[0].partition(" | read: ")
+covered = " ; ".join([ran] + re.findall(r"(?i)\bNOT RUN\s+([^:;|]+):\s*\S", read))
+try:
+    lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+except OSError:
+    sys.exit(0)
+own = next((m.groups() for l in lines[:12] for m in [re.search(r"\b([br]\d{2})-(\d{2})\b", l)] if m), None)
+NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured|at (?:queue|brief) time|lane-map clearance)\b")
+NEVER = re.compile(r"(?i)^(never|don['’]t|do not|out of scope|files you must not touch|must not touch|owned elsewhere)\b")
+FENCE = re.compile(r"\s*(?:" + "`" * 3 + r"|~~~)")
+out, skip, fence = [], 0, False
+for l in lines:
+    if FENCE.match(l):
+        fence = not fence
+        continue
+    h = None if fence else re.match(r"(#{1,6})\s+(.*)", l)
+    if h:
+        if skip and len(h.group(1)) > skip:
+            continue
+        skip = len(h.group(1)) if NARR.match(h.group(2).strip()) or NEVER.match(h.group(2).strip()) else 0
+        if skip:
+            continue
+    elif fence or skip or re.match(r"\s*>", l):
+        continue
+    l = re.sub(r"(?i)\b(?:not|never|except|excluding|stay off)\s+`?[A-Za-z0-9._/-]+\.(?:tst\.sh|test\.mjs|sh)`?", "", l)
+    out.append(re.sub(r"(?i)\b(?:sibling|other row|another row)\b[^.;\n]*\brc[0-9]{2}[A-Za-z0-9._-]*\.sh\b", "", l))
+txt = "\n".join(out)
+req = []
+for m in re.findall(r"(?<![\w/.-])(?:[A-Za-z0-9._-]+/)*([A-Za-z0-9._-]+\.(?:tst\.sh|test\.mjs)|test-[A-Za-z0-9._-]+\.sh|rc[0-9]{2}[A-Za-z0-9._-]*\.sh)(?![\w.-])", txt):
+    rc = re.match(r"rc(\d{2})(?:-([br]\d{2}))?", m)
+    if m.endswith(".inc.sh") or m in req or (rc and own and rc.group(1) != own[1] and rc.group(2) in (None, own[0])):
+        continue
+    req.append(m)
+if re.search(r"(?<!\w)do_check_pre_push(?!\w)", txt):
+    req.append("do_check_pre_push")
+if any("PRE_PUSH_TIER=full" in l and not re.search(r"(?i)\b(?:if|when|unless)\b.*PRE_PUSH_TIER=full", l) for l in out):
+    req.append("PRE_PUSH_TIER=full")
+if re.search(r"(?<![\w.-])shellcheck(?![\w.-])", txt):
+    req.append("shellcheck")
+miss = []
+for item in req:
+    if item == "PRE_PUSH_TIER=full":
+        ok = item in covered
+    elif item == "do_check_pre_push":
+        ok = re.search(r"(?<!\w)do_check_pre_push(?!\w)", covered)
+    else:
+        ok = re.search(r"(?<![\w.-])" + re.escape(item) + r"(?![\w.-])", covered)
+    if not ok:
+        miss.append(item)
+if miss:
+    print(", ".join(miss))
+    sys.exit(1)
+EOF_PY
 }
 
 # _spl_review_go_tip <branch>: the sha origin's branch points at (read only:

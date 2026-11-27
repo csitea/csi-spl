@@ -717,28 +717,44 @@ try {
   ok('18d 390: the select tick and the card boxes are drawn no larger than the desktop row box, each a 44 px tap target',
     m3.every((b) => !b.missing && b.w <= deskBox.w && b.h <= deskBox.h && b.tw >= 44 && b.th >= 44), { deskBox, m3 })
   /* SPL-6646 (R7 W1): in the select phase a card's swipes rest, as a topic
-     card's do (spec 186 4.6): a LEFT swipe archives nothing, opens nothing
-     and changes no tick; a tap after it still toggles the card */
+     card's do (spec 186 4.6). The phase is entered the phone's way: a RIGHT
+     swipe on a card, then the menu's Select; the first tap after it must tick
+     its card (the swipe's swallowed click must not linger into the phase) */
   const ph = await browser.newPage()
   ph.on('pageerror', (e) => errors.push(String(e && e.message)))
   await ph.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
   await ph.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await ph.waitForSelector('[data-test=issues-card]', { visible: true, timeout: NAV_TIMEOUT })
   const sk = await ph.$$eval('[data-test=issues-card]', (els) => els.map((e) => e.getAttribute('data-key')))
-  await ph.click(`[data-test=issues-card][data-key="${sk[0]}"]`, { button: 'right' })
-  await ph.waitForSelector('[data-test=issues-ctxmenu-select]', { visible: true, timeout: 5000 }).catch(() => null)
-  await ph.click('[data-test=issues-ctxmenu-select]').catch(() => null)
-  await ph.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 5000 }).catch(() => null)
-  const sb = await ph.$eval(`[data-test=issues-card][data-key="${sk[1]}"]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } })
-  const tch = await ph.target().createCDPSession()
-  const at = (x) => [{ x: Math.round(x), y: Math.round(sb.y + sb.h / 2), id: 1, radiusX: 4, radiusY: 4, force: 1 }]
-  await tch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(sb.x + sb.w - 20) })
-  for (let i = 1; i <= 12; i++) {
-    await tch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(sb.x + sb.w - 20 - (200 * i) / 12) })
-    await new Promise((r) => setTimeout(r, 16))
+  const cardAt = (k) => ph.$eval(`[data-test=issues-card][data-key="${k}"]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } })
+  /* a one-finger drag (CDP touch, the swipe-archive suite's way) */
+  const touchDrag = async (b, x0, dx) => {
+    const tch = await ph.target().createCDPSession()
+    const at = (x) => [{ x: Math.round(x), y: Math.round(b.y + b.h / 2), id: 1, radiusX: 4, radiusY: 4, force: 1 }]
+    await tch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(x0) })
+    for (let i = 1; i <= 12; i++) {
+      await tch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(x0 + (dx * i) / 12) })
+      await new Promise((r) => setTimeout(r, 16))
+    }
+    await tch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await tch.detach().catch(() => {})
   }
-  await tch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-  await tch.detach().catch(() => {})
+  const ticked = () => ph.$$eval('[data-test=issues-card-check]', (els) => els.filter((b) => b.checked).map((b) => b.getAttribute('data-key')))
+  const sa = await cardAt(sk[0])
+  await touchDrag(sa, sa.x + sa.w / 2 + 20, 150)
+  const rMenu = await ph.waitForSelector('[data-test=issues-ctxmenu-select]', { visible: true, timeout: 5000 }).then(Boolean, () => false)
+  /* the phone menu settles at the finger first; a person taps after that */
+  await sleepMs(600)
+  if (rMenu) await ph.tap('[data-test=issues-ctxmenu-select]')
+  await ph.waitForSelector('[data-test=issues-bulk-bar]', { visible: true, timeout: 5000 }).catch(() => null)
+  const inPhase = await ticked()
+  await ph.tap(`[data-test=issues-card][data-key="${sk[2]}"]`)
+  const firstTap = await ticked()
+  ok('18e0 390: a RIGHT swipe -> Select enters the phase with that card ticked; the very first tap on another card ticks it (no click left swallowed)',
+    rMenu && JSON.stringify(inPhase) === JSON.stringify([sk[0]]) && firstTap.includes(sk[0]) && firstTap.includes(sk[2]) && firstTap.length === 2, { rMenu, inPhase, firstTap, sk: sk.slice(0, 3) })
+  await ph.tap(`[data-test=issues-card][data-key="${sk[2]}"]`)
+  const sb = await cardAt(sk[1])
+  await touchDrag(sb, sb.x + sb.w - 20, -200)
   const toast = await ph.waitForSelector('[data-testid=archive-toast-undo]', { visible: true, timeout: 1500 }).then(() => true, () => false)
   const sw = await ph.evaluate((k) => ({
     card: Boolean(document.querySelector(`[data-test=issues-card][data-key="${k}"]`)),
@@ -749,9 +765,18 @@ try {
   }), sk[1])
   ok('18e 390: in the select phase a LEFT swipe on a card archives nothing (card stays, no Undo toast), opens no menu or issue, ticks nothing',
     sw.card && !toast && !sw.menu && !sw.opened && sw.bar && JSON.stringify(sw.checked) === JSON.stringify([sk[0]]), { toast, sw, sk: sk.slice(0, 2) })
-  await ph.click(`[data-test=issues-card][data-key="${sk[1]}"]`)
-  const swTap = await ph.$$eval('[data-test=issues-card-check]', (els) => els.filter((b) => b.checked).map((b) => b.getAttribute('data-key')))
+  await ph.tap(`[data-test=issues-card][data-key="${sk[1]}"]`)
+  const swTap = await ticked()
   ok('18e2 390: after that swipe a tap on the card ticks it (no click left swallowed)', swTap.includes(sk[1]) && swTap.includes(sk[0]), swTap)
+  const sc = await cardAt(sk[3])
+  await touchDrag(sc, sc.x + sc.w / 2 + 20, 150)
+  const rMenu2 = await ph.waitForSelector('[data-test=issues-ctxmenu]', { visible: true, timeout: 1500 }).then(() => true, () => false)
+  const rTicks = await ticked()
+  ok('18e3 390: in the select phase a RIGHT swipe opens no menu and changes no tick',
+    !rMenu2 && JSON.stringify([...rTicks].sort()) === JSON.stringify([sk[0], sk[1]].sort()), { rMenu2, rTicks })
+  await ph.tap(`[data-test=issues-card][data-key="${sk[3]}"]`)
+  const rTap = await ticked()
+  ok('18e4 390: after that right swipe the first tap ticks its card', rTap.includes(sk[3]), rTap)
   await ph.close()
   await p.evaluate(() => localStorage.removeItem('spool.mock.issues-seed'))
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))

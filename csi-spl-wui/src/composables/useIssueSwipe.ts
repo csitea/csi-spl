@@ -48,7 +48,10 @@ export function useIssueSwipe(o: IssueSwipeOpts) {
   function onCardPointerDown(issue: Issue, ev: PointerEvent) {
     held.issue = issue
     held.el = ev.currentTarget as HTMLElement
-    if (!o.selecting()) cardSwipe.down(ev)
+    /* in the select phase no swipe starts; the down still drops a swallow a
+       right swipe's menu left behind, so this tap is not eaten (R7 W1) */
+    if (o.selecting()) cardSwipe.takeClick()
+    else cardSwipe.down(ev)
     onRowPointerDown(issue, ev)
   }
   function onCardPointerMove(ev: PointerEvent) {
@@ -57,8 +60,10 @@ export function useIssueSwipe(o: IssueSwipeOpts) {
   }
   function onCardPointerUp() { cardSwipe.up(); rowPress.up() }
   function onCardPointerCancel() { cardSwipe.cancel(); rowPress.cancel() }
-  /* the select phase starts: a swipe under way snaps back */
-  function restSwipe() { cardSwipe.cancel() }
+  /* the select phase starts: a swipe under way snaps back, and the click a
+     committed right swipe left to swallow (its menu ate it) is dropped, so
+     the first tap in the phase ticks its card (R7 W1) */
+  function restSwipe() { cardSwipe.cancel(); cardSwipe.takeClick() }
   /* a card tap in the select phase: the click a swipe or a long-press lift
      sends is eaten; both flags are consumed, so none is left for a later tap */
   function takeCardClick() {

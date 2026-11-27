@@ -237,14 +237,16 @@ topics", "they should not be shown be default").
   `x` toggles the focused row; a phone tap on a card toggles it and does
   not open the issue. A phone card's swipes rest (no archive, no menu), as
   a topic card's do while its selection is non-empty (spec 186 4.6); a
-  swipe under way when the phase starts snaps back.
+  swipe under way when the phase starts snaps back. Entered by a right
+  swipe and the menu's Select, the phase takes the very next tap: the
+  click the swipe's menu ate is not held over to swallow it.
 - **Leaving.** Esc, Clear, unchecking the last row, a finished delete or
   archive of every checked row, or another filter (unlike topics, a filter
   change clears: the issues are one list) end the phase, and the boxes hide
   again. The list's keys (C, J/K, S, P, A, L) are unchanged.
 - Code: `pages/issues.vue`, `composables/useIssueBulk.ts`; the tick rules
   are the shared `utils/issues-bulk.ts`. Tests: `tests/e2e/issues.test.mjs`
-  (17a..18e), `tests/e2e/issues-frow-density.test.mjs` (5).
+  (17a..18e4), `tests/e2e/issues-frow-density.test.mjs` (5).
 
 ## Epic panel: order, sort, filter (FR-014, SPL-6455)
 

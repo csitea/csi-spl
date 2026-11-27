@@ -1,6 +1,6 @@
 # Spec 187: Scheduled Tasks and Activities
 
-Status: **Decided v0.8** (2026-11-27). Lanes `c-150` (v0.1, v0.2),
+Status: **Decided v0.9** (2026-11-27). Lanes `c-150` (v0.1, v0.2),
 `c-660` (v0.3) and `c-074` (v0.4 the build plan's form, v0.5 its review,
 v0.6 the owner's answer to Q1b, v0.7 to Q1c), `claude`, backup for
 `specs_and_docs` (agy held by the placer). Questions answered: 1.1.2 to
@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
     action_kind      text        NOT NULL CHECK (action_kind IN ('move','archive','label','set_priority','notify','agent')),
     action_spec      jsonb       NOT NULL,
     state            text        NOT NULL DEFAULT 'on' CHECK (state IN ('on','paused','deleted')),
-    paused_reason    text        NOT NULL DEFAULT '' CHECK (paused_reason IN ('','by_person','done','owner_left','failing','cap')),
+    paused_reason    text        NOT NULL DEFAULT '' CHECK (paused_reason IN ('','by_person','done','owner_left','failing','cap','channel_moved')),
     next_due_at      timestamptz,
     fail_streak      integer     NOT NULL DEFAULT 0,
     instance_tenants text[]      NOT NULL DEFAULT '{}',          -- instance task: {} = every workspace
@@ -940,7 +940,7 @@ var TaskTriggers = []string{"once", "every_n_minutes", "daily", "weekly", "month
 var TaskActions  = []string{"move", "archive", "label", "set_priority", "notify", "agent"}
 var TaskEvents   = []string{"message_new", "topic_new", "issue_new", "issue_changed"}
 var TaskOutcomes = []string{"running", "ok", "partial", "failed", "skipped"}
-var TaskPauseReasons = []string{"", "by_person", "done", "owner_left", "failing", "cap"}
+var TaskPauseReasons = []string{"", "by_person", "done", "owner_left", "failing", "cap", "channel_moved"}
 // Run errors with a fixed meaning (TaskRun.Error starts with one of them).
 var TaskRunErrors = []string{"chain_self", "chain_depth", "no_agent", "no_answer", "token_quota", "cap"}
 
@@ -1232,3 +1232,6 @@ and D24. No question is open.
   task it leaves with no channel, reason `channel_moved` (4.4, 8.1, rdb
   `0333`); a run's error is cut to 500 characters on every run write,
   `StartRun` too (4.6). Dispatch holder's go: msg `b3c19bbc`.
+- v0.9 (2026-11-27, lane `c-879`, SPL-6683; the R7 note N1 of SPL-6659):
+  the S1 DDL of 8.1 and `TaskPauseReasons` of 9.1.1 list `channel_moved`,
+  as the code and rdb `0333` do. Text only.

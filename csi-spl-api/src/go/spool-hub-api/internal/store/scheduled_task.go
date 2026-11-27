@@ -189,8 +189,8 @@ var (
 //     instance's ones that run in tenant, CreatedAt then TaskID.
 //   - StartRun sets RunID = TaskRunID(TaskID, Cause), Outcome running when
 //     "", StartedAt now when zero, Level workspace when "". FinishRun
-//     writes the result fields by (TenantID, RunID), EndedAt now when zero,
-//     and cuts Error to 500 characters; ErrNotFound when the run is gone.
+//     writes the result fields by (TenantID, RunID), EndedAt now when zero;
+//     ErrNotFound when the run is gone. Both cut Error to 500 characters.
 //   - ListRuns: newest StartedAt first, at most limit (100 when <= 0).
 
 // TaskRunID is a run's id: UUIDv5 of the cause in the task id's namespace

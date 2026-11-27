@@ -132,3 +132,43 @@ The anchor `not\s+your(?:s|\s+files)\s*(?:\(|:|$)` still skips a `## Not yours: 
 ### Unchanged from v0.1 review
 
 Rows b53-02 and b53-03, R1, R3 (`lane-map --check` exit 4, re-run at placement) and hygiene: as above.
+
+---
+
+## Re-review: v0.3 at `ba1be64a9bd570ca31316df5676962a1f4c24f97` - verdict **PASS**
+
+Read at 17:2xZ: `git ls-remote origin refs/heads/review/c001-bug-round-53-planner` printed `ba1be64a9bd570ca31316df5676962a1f4c24f97`. `git log --oneline 3308d118f..ba1be64a9` lists v0.1, v0.2 and v0.3 (a fast-forward). `origin/master` is `3308d118f`. `git diff --stat 0fb8a0f9c ba1be64a9` -> plan only, 26+/21-.
+
+### Red controls re-run (n=1 each way)
+
+Hashes of the scripts extracted from v0.3 section 4: `rc01-b53.sh 77ae67144914 10404 B`, `rc02-b53.sh 38e1b5d20e6e 10399 B`, `rc03-b53.sh 4aea04a9e42c 10659 B`. On `3308d118f`, rc01, rc02 and rc03 exit 1 on the base and 0 with fix-shape. rc01 on the base: all 7 red probes are off their want, and all 11 controls hold. With fix-shape, all 18 lines are at want (counted with awk: 0 lines off want, either way).
+
+### W4 and N7 folded
+
+`NEG_LIVE_TMUX` (plan `:217`, used at `:221` as `TGT.search(NEG_LIVE_TMUX.sub(r"\1", l))`) now removes only the word `live` after a negator, and only when no `TGT` word stands between them. The `NEVER` anchor is `(?:\(|$)` at both sites (`grep` on the plan: 2 hits, no `:` form). Probe briefs on the v0.3 fix-shape, `_spl_review_go_owner_go`, base -> fix:
+
+| probe | base | v0.3 fix |
+|---|---|---|
+| p1 later sentence `live prd database` | 1 | 1 |
+| p2 `e.g. the live prd database` | 1 | 1 |
+| p5 rdb claim, then `ENV=prd` next line | 1 | 1 (`ENV=prd`) |
+| p6 `## Not yours to skip: do these` | 1 | 1 |
+| p6b `## Not yours: do these` | 1 | 1 |
+| p7 backticked rdb claim + `do_gcp_project_delete` | 1 | 1 |
+| p8 `do not wait, then run on prd in the live tmux pane` | 1 | 1 |
+| p9 `no delay to the prod db via the live tmux` | 1 | 1 |
+| p11 `never in the live tmux server, then on prd` | 1 | 1 |
+| p12 `to the live db, not the live tmux server` | 1 | 1 |
+| p14 `## Not yours (b52)` note, then a real `do_spl_desk_up` step under `## Do` | 1 | 1 |
+| p10 the r08 shape (`never the box's live tmux server`) | 1 | **0** (the intended clear) |
+| p13 `no live tmux, no live tmux` (no target at all) | 1 | 0 (correct: nothing to gate) |
+
+No false GO found. I did not re-read the 5 real sat briefs that the plan says flip from `rc=1` to `rc=0`; they are on sat only.
+
+### Hygiene
+
+In a throwaway `git clone --shared` checked out at `ba1be64a9`, `HYGIENE_TREE=<that clone> ./run -a do_check_dist_hygiene` -> `INFO distribution-hygiene: clean over the tracked tree`, exit 0. I removed the clone afterwards.
+
+### Signature
+
+c-749 (claude, panel seat) signs plan v0.3 **`ba1be64a9bd570ca31316df5676962a1f4c24f97`**: PASS. Rows b53-02 and b53-03, R1 and R3 are as in the v0.1 review above; the holder re-runs `lane-map --check` at placement. A v1.0 that changes more than the version and status lines needs a new signature.

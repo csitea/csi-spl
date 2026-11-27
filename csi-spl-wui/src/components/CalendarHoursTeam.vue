@@ -5,7 +5,10 @@
      tap, its period state; filters member / kind / topic or issue. A holder
      of hours.approve gets Approve and Return (a required note) per frozen
      member, Approve all and Return all in the header (PUT /v1/hours/periods).
-     Phone (<= 820 px): one card per member. Its own lazy chunk. -->
+     Phone (<= 820 px): one card per member. Its own lazy chunk.
+     v2.12 T085 (E5, Q32 = B): per member, approved against the allocation x
+     the Mon..Fri days, short ones marked; in a frozen period each working day
+     with no approved entry is marked not confirmed (no kind or topic filter). -->
 <template>
   <div class="hours-team" data-test="hours-team" :data-state="state" :data-layout="phone ? 'cards' : 'grid'">
     <p v-if="body" class="hours-team__period muted" data-test="hours-team-period" dir="ltr">{{ body.period?.start }} – {{ body.period?.end }}</p>
@@ -57,6 +60,11 @@
           <span class="hours-team__state muted" :data-state="r.state">{{ stateText(r.state) }}</span>
           <strong class="hours-team__num" dir="ltr">{{ hoursHhmm(r.total) }}</strong>
         </button>
+        <p v-if="r.expected" class="hours-team__marks">
+          <span class="muted" data-test="hours-team-alloc" :data-expected="r.expected" :data-short="r.short">{{ t('hours_cal.team_of_allocation', { done: hoursHhmm(r.total), expected: hoursHhmm(r.expected) }) }}</span>
+          <span v-if="r.short" class="hours-team__short" data-test="hours-team-short">{{ t('hours_cal.team_short', { time: hoursHhmm(r.short) }) }}</span>
+          <span v-if="r.unconfirmed.length" class="hours-team__unconfirmed" data-test="hours-team-unconfirmed" :data-days="r.unconfirmed.join(',')">{{ t('hours_cal.team_not_confirmed', { n: r.unconfirmed.length }, r.unconfirmed.length) }}</span>
+        </p>
         <p v-if="r.state === 'returned' && r.note" class="muted hours-team__note">{{ r.note }}</p>
         <div v-if="canApprove && r.state === 'frozen'" class="hours-team__acts">
           <button type="button" class="btn" data-test="hours-team-approve" :data-member="r.member" :disabled="busy" @click="decide('approve', [r.member])">{{ t('hours_cal.team_approve') }}</button>
@@ -87,10 +95,24 @@
                 <span class="hours-team__name">{{ r.name }}</span>
                 <span class="hours-team__state muted" :data-state="r.state">{{ stateText(r.state) }}</span>
               </button>
+              <p v-if="r.expected" class="hours-team__marks">
+                <span class="muted" data-test="hours-team-alloc" :data-expected="r.expected" :data-short="r.short">{{ t('hours_cal.team_of_allocation', { done: hoursHhmm(r.total), expected: hoursHhmm(r.expected) }) }}</span>
+                <span v-if="r.short" class="hours-team__short" data-test="hours-team-short">{{ t('hours_cal.team_short', { time: hoursHhmm(r.short) }) }}</span>
+                <span v-if="r.unconfirmed.length" class="hours-team__unconfirmed" data-test="hours-team-unconfirmed" :data-days="r.unconfirmed.join(',')">{{ t('hours_cal.team_not_confirmed', { n: r.unconfirmed.length }, r.unconfirmed.length) }}</span>
+              </p>
             </th>
           </tr>
           <tr>
-            <td v-for="c in shownCols" :key="c.day" class="hours-team__cell" data-test="hours-team-cell" :data-day="c.day" dir="ltr">{{ r.cells[c.i] ? hoursHhmm(r.cells[c.i]) : '' }}</td>
+            <td
+              v-for="c in shownCols"
+              :key="c.day"
+              class="hours-team__cell"
+              data-test="hours-team-cell"
+              :data-day="c.day"
+              :data-unconfirmed="r.unconfirmed.includes(c.day) ? 'true' : undefined"
+              :title="r.unconfirmed.includes(c.day) ? t('hours_cal.team_not_confirmed_day') : undefined"
+              dir="ltr"
+            >{{ r.cells[c.i] ? hoursHhmm(r.cells[c.i]) : '' }}</td>
             <td class="hours-team__cell hours-team__num" dir="ltr">{{ hoursHhmm(r.total) }}</td>
           </tr>
           <tr v-if="(canApprove && r.state === 'frozen') || (r.state === 'returned' && r.note)" class="hours-team__sub">
@@ -281,6 +303,10 @@ function sendReturn() {
 .hours-team__name { font-weight: 600; overflow-wrap: anywhere; }
 .hours-team__state { font-size: 0.7rem; }
 .hours-team__note { margin: 0; font-size: 0.75rem; }
+.hours-team__marks { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 0; font-size: 0.7rem; font-weight: 400; }
+.hours-team__short,
+.hours-team__unconfirmed { color: var(--color-danger); font-weight: 600; }
+.hours-team__grid .hours-team__cell[data-unconfirmed] { background: var(--color-selected); box-shadow: inset 0 -2px 0 var(--color-danger); }
 .hours-team__targets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 0.75rem; }
 .hours-team__targets li { display: flex; justify-content: space-between; gap: 8px; }
 .hours-team__targets li span:first-child { overflow-wrap: anywhere; min-inline-size: 0; }

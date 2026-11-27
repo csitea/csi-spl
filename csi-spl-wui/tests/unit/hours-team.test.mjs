@@ -57,6 +57,33 @@ const body = {
   ok('filter topic / issue: only that target', t.total === 300 && t.rows[1].total === 0)
   ok('keeps: all three filters together', hoursTeamKeeps(body.entries[0], { member: 'HUM-1', kind: 't', target: 't:aaa' }) && !hoursTeamKeeps(body.entries[1], { member: 'HUM-1', kind: 't' }))
 }
+// T085 (E5, Q32 = B): approved against allocation x Mon..Fri, and a frozen period's days nobody confirmed
+{
+  const week = (state, norm) => ({
+    period: { start: '2026-10-05', end: '2026-10-11' },
+    members: [{ member_id: 'HUM-1', name: 'Member A', state, norm_day_minutes: norm }],
+    entries: ['2026-10-05', '2026-10-06', '2026-10-08'].map((day) => ({ member_id: 'HUM-1', day, target: 't:aaa', minutes: 480 })),
+  })
+  const r = hoursTeamGrid(week('frozen', 480)).rows[0]
+  ok('allocation: 480 a day x 5 working days is 40:00 expected', r.allocation === 480 && r.expected === 2400, `${r.allocation} ${r.expected}`)
+  ok('allocation: 3 approved days of 5 is short 16:00', r.short === 960, String(r.short))
+  ok('not confirmed: a frozen week\'s 2 working days with no approved entry', r.unconfirmed.join() === '2026-10-07,2026-10-09', r.unconfirmed.join())
+  const zero = hoursTeamGrid(week('frozen', 0)).rows[0]
+  ok('allocation 0: neither short nor not confirmed', zero.expected === 0 && zero.short === 0 && zero.unconfirmed.length === 0)
+  const open = hoursTeamGrid(week('open', 480)).rows[0]
+  ok('an open period: no "not confirmed", the short still shown', open.unconfirmed.length === 0 && open.short === 960)
+  const weekend = week('frozen', 480)
+  weekend.entries.push({ member_id: 'HUM-1', day: '2026-10-10', target: 't:aaa', minutes: 480 })
+  const w = hoursTeamGrid(weekend).rows[0]
+  ok('a weekend entry confirms no working day but counts toward the total', w.unconfirmed.length === 2 && w.short === 480, `${w.unconfirmed} ${w.short}`)
+  const met = week('frozen', 120)
+  ok('a member at or above the allocation is not short', hoursTeamGrid(met).rows[0].short === 0)
+  const k = hoursTeamGrid(week('frozen', 480), { kind: 'cal' }).rows[0]
+  const tg = hoursTeamGrid(week('frozen', 480), { target: 't:aaa' }).rows[0]
+  ok('a kind or target filter hides entries: neither mark', k.short === 0 && k.unconfirmed.length === 0 && tg.short === 0 && tg.unconfirmed.length === 0)
+  const m = hoursTeamGrid(week('frozen', 480), { member: 'HUM-1' }).rows[0]
+  ok('a member filter keeps both marks', m.short === 960 && m.unconfirmed.length === 2)
+}
 ok('topics for the issue filter: each t: target once', hoursTeamTopics(body).join() === 't:aaa')
 ok('empty answer: an empty grid', hoursTeamGrid({}).rows.length === 0 && hoursTeamGrid({}).total === 0)
 

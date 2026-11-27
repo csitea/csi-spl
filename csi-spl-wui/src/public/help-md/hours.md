@@ -126,6 +126,14 @@ the **Team** tab of the Hours panel.
 
 The biz owner never changes your numbers: they approve or return.
 
+Under each member's name the Team tab compares the approved hours with that
+member's **average hours per day** (section 7.3) x the Monday..Friday days of
+the period: "24:00 of 40:00", and **16:00 short** in red when below it. In a
+frozen period each Monday..Friday day with no approved hours is marked
+**not confirmed** ("2 days not confirmed", and the day's cell), so the biz
+owner sees it before Approve or Return. A member with no average hours per
+day shows neither, and neither shows while a kind or topic filter is on.
+
 **When your period is returned**, its lines are marked and the banner shows
 the biz owner's note. Fix your lines, then press **Resubmit**: the period
 freezes again and goes back to the biz owner.

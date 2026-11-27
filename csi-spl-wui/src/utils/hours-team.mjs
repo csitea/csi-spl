@@ -6,7 +6,7 @@
  * topic or issue) narrow it here, so a filter change costs no request.
  * Loaded only by the panel's lazy Team / Download chunks.
  */
-import { hoursAddDays } from './hours-calendar.mjs'
+import { hoursAddDays, hoursIsWorkday } from './hours-calendar.mjs'
 
 /** the target kinds of the filter, in the hub's prefixes (`ws` = other) */
 export const HOURS_TEAM_KINDS = ['t', 'ch', 'dm', 'cal', 'ws']
@@ -48,6 +48,11 @@ export function hoursTeamKeeps(e, f = {}) {
  * per cell, totals per row and per column, each member's per-target
  * breakdown, and its period state. A member filter keeps one row; a kind or
  * target filter keeps every member (a zero row says "nothing of that kind").
+ * Spec 107 v2.12 T085 (E5, Q32 = B): each row also carries its allocation
+ * (`norm_day_minutes`) x the period's Mon..Fri days as `expected`, the
+ * minutes it is `short`, and in a frozen period the Mon..Fri days with no
+ * approved entry as `unconfirmed`; none of the three under a kind or target
+ * filter (it hides entries) or with no allocation.
  * @param {any} body a GET /v1/hours answer
  * @param {{ member?: string, kind?: string, target?: string }} [f]
  */
@@ -65,6 +70,11 @@ export function hoursTeamGrid(body, f = {}) {
       note: String(m.note || ''),
       cells: days.map(() => 0),
       total: 0,
+      allocation: Math.max(0, Math.round(Number(m.norm_day_minutes) || 0)),
+      expected: 0,
+      short: 0,
+      /** @type {string[]} */
+      unconfirmed: [],
       /** @type {{ target: string, minutes: number }[]} */
       targets: [],
     }
@@ -88,7 +98,27 @@ export function hoursTeamGrid(body, f = {}) {
   for (const { row, targets } of byMember.values()) {
     row.targets = [...targets].map(([target, minutes]) => ({ target, minutes })).sort((a, b) => b.minutes - a.minutes || (a.target < b.target ? -1 : 1))
   }
+  if (!f.kind && !f.target) hoursTeamAllocation(rows, days, body?.entries)
   return { days, rows, cols, total, frozen: rows.filter((r) => r.state === 'frozen').length }
+}
+
+/**
+ * T085: approved against allocation x the Mon..Fri days, and a frozen
+ * period's Mon..Fri days with no approved entry (Q32 = B: the freeze
+ * approves nothing, so such a day counts zero). Unfiltered rows only.
+ */
+function hoursTeamAllocation(rows, days, entries) {
+  const work = days.filter(hoursIsWorkday)
+  const seen = new Set()
+  for (const e of Array.isArray(entries) ? entries : []) {
+    if (e) seen.add(`${e.member_id} ${e.day}`)
+  }
+  for (const row of rows) {
+    if (!row.allocation) continue
+    row.expected = row.allocation * work.length
+    row.short = Math.max(0, row.expected - row.total)
+    if (row.state === 'frozen') row.unconfirmed = work.filter((d) => !seen.has(`${row.member} ${d}`))
+  }
 }
 
 /** The topics (`t:` targets, an issue is its topic) the period's entries hold, for the issue filter. */

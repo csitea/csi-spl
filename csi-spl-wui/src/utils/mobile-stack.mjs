@@ -148,6 +148,23 @@ export function mobilePopWaitsRoute(tagged, level, routeLags) {
   return level === 1 && tagged !== null && tagged > 1 && routeLags
 }
 
+/**
+ * SPL-5254 (SPL-5232 R7 W3): a router.afterEach while a popstate off level 1
+ * waits for its route. Only this pop's own route lands the level: a cancelled
+ * navigation (a quicker popstate overtook it), a failed one or another route
+ * finishing first keeps it waiting, and a guard that aborts this pop's
+ * navigation ends the wait without the level (the fallback timer included).
+ * @param {{ target: string, to: string, redirectedFrom?: string|null, failure: 'aborted'|'cancelled'|'duplicated'|'other'|null }} s
+ *   target: the pop's route; to / redirectedFrom: the finished navigation's
+ * @returns {'land'|'cancel'|'wait'}
+ */
+export function mobilePopAfterNav(s) {
+  const mine = s.to === s.target || (Boolean(s.redirectedFrom) && s.redirectedFrom === s.target)
+  if (s.failure === 'aborted') return mine ? 'cancel' : 'wait'
+  if (s.failure === 'cancelled' || s.failure === 'other') return 'wait'
+  return mine ? 'land' : 'wait'
+}
+
 /** history.state with this shell's tags merged in; the router's own keys untouched. */
 export function mobileTagState(state, level, below) {
   const base = state && typeof state === 'object' ? { ...state } : {}

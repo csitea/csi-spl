@@ -13,6 +13,7 @@
 //        (owner, t1 90194aeb): the chevron and a swipe from #lobby's topics
 //        go to the channel list (2 -> 1), not to #alerts; the slow Back is
 //        then the dock's Back from the list, the browser's Back to #alerts
+//        (SPL-5254: it opens #alerts only, never #lobby on the way)
 //   4.   the same Back with no plant (the mock answers at once): the dots
 //        show for ~0.7 s, then go
 //   5.   a Back that needs no load (level 3 -> 2, the feed is there) with
@@ -87,11 +88,16 @@ const go = (p, path) => vue(p, (to) => {
 /* the plant: the next channel open (of `only`, when given) waits `ms` with the
    feed loading, then reads. SPL-5232: named, so no other read can use up the
    plant meant for #alerts (a Back off the channel list once mounted the page
-   on #lobby first: useMobileStack waits for the route now) */
+   on #lobby first: useMobileStack waits for the route now). SPL-5254: every
+   channel it opens until then is recorded (channelCalls), so a stale #lobby
+   read before #alerts is caught, not only absorbed */
 const plantSlow = (p, ms, only = '') => vue(p, ([wait, name]) => {
   const ch = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('channel')
   const orig = ch.selectChannel
+  const calls = []
+  window.__selectChannels = calls
   ch.selectChannel = async (...a) => {
+    calls.push(a[0])
     if (name && a[0] !== name) return orig(...a)
     ch.selectChannel = orig
     ch.loading = true
@@ -99,6 +105,7 @@ const plantSlow = (p, ms, only = '') => vue(p, ([wait, name]) => {
     return orig(...a)
   }
 }, [ms, only])
+const channelCalls = (p) => vue(p, () => window.__selectChannels || [])
 
 /* records every show / hide of the dots, ms after the call */
 const watchDots = (p) => vue(p, () => {
@@ -189,6 +196,8 @@ async function slowBack(browser, base, how) {
     const gone = !(await page.$('[data-testid=back-wait-dots]'))
     const firstOn = log.find(([on]) => on)
     ok(`${how}: Back returns to #alerts and the feed loads`, pressed && back.path === '/channel/alerts' && !back.busy, back)
+    const opened = await channelCalls(page)
+    ok(`${how}: Back off level 1 opens only #alerts, no stale #lobby read (SPL-5254)`, opened.join(',') === 'alerts', opened)
     ok(`${how}: the dots show while the feed loads`, Boolean(mid) && Boolean(firstOn), log)
     ok(`${how}: at once (first shown at ${firstOn ? firstOn[1] : '-'} ms)`, Boolean(firstOn) && firstOn[1] < 140, log)
     ok(`${how}: gone once the feed has loaded (${Date.now() - t0} ms)`, gone && log.length >= 2 && !log[log.length - 1][0], log)

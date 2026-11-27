@@ -17,6 +17,7 @@ import {
   mobileOverlayOf,
   mobileOverlayPop,
   mobileOverlayState,
+  mobilePopAfterNav,
   mobilePopDropsTopic,
   mobilePopWaitsRoute,
   mobilePushPlan,
@@ -378,22 +379,38 @@ function onTouchEnd(e: TouchEvent) {
 let popSeq = 0
 const POP_ROUTE_WAIT_MS = 3000
 
+/* SPL-5254: vue-router's navigation failure, as utils mobilePopAfterNav reads it */
+function popFailureKind(failure: unknown): 'aborted' | 'cancelled' | 'duplicated' | 'other' | null {
+  if (!failure) return null
+  if (isNavigationFailure(failure, NavigationFailureType.aborted)) return 'aborted'
+  if (isNavigationFailure(failure, NavigationFailureType.cancelled)) return 'cancelled'
+  if (isNavigationFailure(failure, NavigationFailureType.duplicated)) return 'duplicated'
+  return 'other'
+}
+
 /** browser Back / Forward, and pop() -> history.back() */
 function listenPopState(router: ReturnType<typeof useRouter>) {
   window.addEventListener('popstate', (e) => {
     moved()
     inPlaceUntil = 0
     if (isMobile.value) backs.value++
+    /* SPL-5254: before the untagged return, so any newer popstate ends a level still waiting */
+    const seq = ++popSeq
     const tagged = mobileTaggedLevel(e.state)
     if (tagged === null) return
     /* SPL-5232 (utils mobilePopWaitsRoute): off level 1, the page mounts on the route it lands on */
-    const lags = router.resolve(router.options.history.location).fullPath !== router.currentRoute.value.fullPath
-    const seq = ++popSeq
+    const target = router.resolve(router.options.history.location).fullPath
+    const lags = target !== router.currentRoute.value.fullPath
     if (!mobilePopWaitsRoute(tagged, level.value, lags)) return applyLevel(tagged)
+    const done = (apply: boolean) => { off(); clearTimeout(late); if (apply && seq === popSeq) applyLevel(tagged) }
+    /* SPL-5254 (utils mobilePopAfterNav): only this pop's own route lands the level */
+    const off = router.afterEach((to, _from, failure) => {
+      if (seq !== popSeq) return done(false)
+      const step = mobilePopAfterNav({ target, to: to.fullPath, redirectedFrom: to.redirectedFrom?.fullPath ?? null, failure: popFailureKind(failure) })
+      if (step !== 'wait') done(step === 'land')
+    })
     /* no navigation ever follows (a guard that hangs): the level still moves */
-    const land = () => { off(); clearTimeout(late); if (seq === popSeq) applyLevel(tagged) }
-    const off = router.afterEach(land)
-    const late = setTimeout(land, POP_ROUTE_WAIT_MS)
+    const late = setTimeout(() => done(true), POP_ROUTE_WAIT_MS)
   })
 }
 

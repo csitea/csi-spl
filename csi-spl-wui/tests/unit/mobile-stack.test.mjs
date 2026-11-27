@@ -1,6 +1,7 @@
 // SPL-989: the phone shell's pure rules (utils/mobile-stack.mjs).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   MOBILE_STACK_MAX_PX,
   MOBILE_STACK_QUERY,
@@ -23,6 +24,7 @@ import {
   mobileOverlayCloseStep,
   mobileRouterPath,
   mobileOverlayOf,
+  mobilePopAfterNav,
   mobilePopDropsTopic,
   mobilePopWaitsRoute,
   mobilePushPlan,
@@ -220,6 +222,37 @@ describe('SPL-5232: Back in a discussion is one level, never another section', (
     assert.equal(mobilePopWaitsRoute(2, 2, true), false, 'the page is mounted already: the route change re-reads it')
     assert.equal(mobilePopWaitsRoute(1, 2, true), false)
     assert.equal(mobilePopWaitsRoute(null, 1, true), false)
+  })
+})
+
+describe('SPL-5254: a popstate off level 1 lands only on its own route', () => {
+  const nav = (o) => mobilePopAfterNav({ target: '/channel/general', to: '/channel/general', redirectedFrom: null, failure: null, ...o })
+  it('a cancelled navigation (a quicker popstate overtook it) keeps the level waiting', () => {
+    assert.equal(nav({ to: '/channel/alerts', failure: 'cancelled' }), 'wait', 'nav 1 to #alerts cancelled while pop 2 waits for #general')
+    assert.equal(nav({ failure: 'cancelled' }), 'wait', 'even its own route, cancelled, has not landed')
+  })
+  it('a guard aborting this pop\'s navigation ends the wait without the level', () => {
+    assert.equal(nav({ failure: 'aborted' }), 'cancel')
+    assert.equal(nav({ to: '/m/1', redirectedFrom: '/channel/general', failure: 'aborted' }), 'cancel', 'aborted after a redirect from the target')
+  })
+  it('another navigation aborted, failed or finished first keeps it waiting', () => {
+    assert.equal(nav({ to: '/channel/other', failure: 'aborted' }), 'wait')
+    assert.equal(nav({ failure: 'other' }), 'wait')
+    assert.equal(nav({ to: '/channel/other' }), 'wait', 'an unrelated route resolved before the pop\'s own')
+  })
+  it('its own route lands the level: exact, redirected from it, or already there (duplicated)', () => {
+    assert.equal(nav({}), 'land')
+    assert.equal(nav({ target: '/m/123', to: '/channel/alerts?topic=t', redirectedFrom: '/m/123' }), 'land')
+    assert.equal(nav({ failure: 'duplicated' }), 'land')
+    assert.equal(nav({ to: '/channel/other', failure: 'duplicated' }), 'wait', 'CONTROL: duplicated elsewhere is not this pop')
+  })
+  it('untagged-popstate-cancels-waiting-level: popSeq moves before the untagged return', () => {
+    const src = readFileSync(new URL('../../src/composables/useMobileStack.ts', import.meta.url), 'utf8')
+    const body = src.slice(src.indexOf('function listenPopState('), src.indexOf('function routeAligner('))
+    const bump = body.indexOf('const seq = ++popSeq')
+    const untagged = body.indexOf('if (tagged === null) return')
+    assert.ok(bump > 0 && untagged > 0, 'listenPopState still bumps popSeq and returns on an untagged entry')
+    assert.ok(bump < untagged, 'an untagged popstate must end a level still waiting for its route')
   })
 })
 

@@ -1,6 +1,6 @@
 # Contract: Universal Search API v1 (`GET /v1/view/search/universal`)
 
-Feature: [Spec 197 — Universal Search Panel (`/us`)](../spec.md) (v1.2).
+Feature: [Spec 197 — Universal Search Panel (`/us`)](../spec.md) (v1.2.2).
 Epic: **SPL-1292**. Issue: **SPL-6662**.
 Normative order: [view-v1](../../003-spool-message-bus/contracts/view-v1.md) (door, tenant, CORS, retention), [error-envelope](../../003-spool-message-bus/contracts/error-envelope.md), [search-v1](../../003-spool-message-bus/contracts/search-v1.md) (query grammar, highlights, rate limit, time budget), then this file.
 
@@ -114,7 +114,7 @@ OPTIONS /v1/view/search/universal
 - `where`: short location label (calendar UTC date, `#channel`, DM peer, issue epic key, box id, or `""`).
 - `actor`: actor/author id (`HUM-n`, agent id, or `null` where the kind has no actor); WUI resolves display names from its shell roster with id fallback.
 - `preview`: lightweight per-kind object enabling instant right-pane Quick Preview with **zero** extra round trips on click / `ArrowUp`-`ArrowDown`:
-  - `calendar` (**Wave 1 `C1`**): `starts_at`, `ends_at`, `all_day`, `location`, `kind`, `audience`, `description_excerpt` (`<= 400` chars). Real entries only: rows matching anchored `btrim(title) ~* '^week\s+\d+(\s+of\s+\d{4})?$'` (imported `'Week N'` / `'Week NN of YYYY'` markers, spec 097 §5.2 `spec.md:808-810`) and `official_days` are NEVER emitted.
+  - `calendar` (**Wave 1 `C1`**): `starts_at`, `ends_at`, `all_day`, `location`, `kind`, `audience`, `description_excerpt` (`<= 400` chars). Real entries only: all-day rows matching anchored `all_day AND btrim(title) ~* '^week\s+\d+(\s+of\s+\d{4})?$'` (imported `'Week N'` / `'Week NN of YYYY'` markers, deliberate search-layer exception per HUM-5 `2c547a4e` `OWN`; spec 097 §5.2 `spec.md:808-810` keeps stored rows intact) and `official_days` are NEVER emitted.
   - `topic` / `card_msg` / `topic_msg` / `file`: `task_id`, `msg_id`, `channel`, `from`, `to`, `msg_kind`, `reply_count`, `file_count`, `edited_at`, and for `file`: `file_name`, `bytes`, `file_id`. Optional rich body expand calls `POST /v1/view/previews` (outside the search rate limit).
   - `issue`: `key`, `status`, `priority`, `assignee`, `epic`, `labels`, `deadline`, `description_excerpt` (`<= 400` chars).
   - `lane`: `agent_id`, `agent_box` (`""` in workspace-scoped view), `vendor`, `state` (`live` | `queued`), `scope`, `topic_id`, `topic_title`, `issues`, `wait`.
@@ -156,7 +156,7 @@ type universalCursor struct {
 - **Calendar nearest-upcoming sort (`sort=upcoming`, Wave 1 `C1`):**
   1. **Bucket `0` (`ends_at >= $now`):** ordered `starts_at ASC, event_id ASC`; keyset boundary `(starts_at, event_id) > ($S, $I)`.
   2. **Bucket `1` (`ends_at < $now`):** ordered `starts_at DESC, event_id DESC`; when crossing from Bucket `0` into Bucket `1` on the same page, remaining slots fill from Bucket `1` with no boundary; subsequent Bucket `1` pages apply `(starts_at, event_id) < ($S, $I)`.
-  3. Rows matching `btrim(title) ~* '^week\s+\d+(\s+of\s+\d{4})?$'` are excluded before `LIMIT`, so `'Week N'` markers never consume page slots or trigger false `has_more`.
+  3. All-day rows matching `all_day AND btrim(title) ~* '^week\s+\d+(\s+of\s+\d{4})?$'` are excluded before `LIMIT`, so `'Week N'` markers never consume page slots or trigger false `has_more`.
 - **Dated cross-kind sorts (`updated_desc`, `updated_asc`, Wave 2):**
   1. Every dated SQL source receives the global watermark `(A, K, I)` and applies a **kind-aware boundary** so equal `updated_at` timestamps across different kinds are never skipped or duplicated:
      - For `updated_desc` (merge order `updated_at DESC NULLS LAST, kind ASC, id DESC`):

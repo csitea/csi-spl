@@ -63,9 +63,14 @@ inh() { bash -c 'do_log(){ :; }; source "$1"; spl_laptop_in_hours "$2" "$3"' _ "
 w5="$(inh 'Fri-Mon 09:00-17:00' '2026-11-28 10:00')$(inh 'Fri-Mon 09:00-17:00' '2026-11-30 10:00')$(inh 'Fri-Mon 09:00-17:00' '2026-11-25 10:00')"
 w5+="$(inh 'Fri-Mon,Wed 09:00-17:00' '2026-12-01 10:00')$(inh 'Fri-Mon,Wed 09:00-17:00' '2026-11-25 10:00')$(inh 'Mon-Fri 09:00-17:00' '2026-11-27 18:00')"
 [[ "$w5" == "001101" ]] && pass "1 W5 hours: Fri-Mon takes Sat and Mon, not Wed; ,Wed after it not Tue" || fail "1 W5 hours: $w5 (want 001101)"
-nl="$(grep -m 1 -iE '^(bg_BG|de_DE|fr_FR)\.utf-?8$' <<<"$(locale -a 2>/dev/null)")"
-if [[ -n "$nl" ]]; then r="$(LC_ALL="$nl" inh 'Mon-Fri 09:00-17:00' '2026-11-27 10:00')"; [[ "$r" == 0 ]] && pass "1 W5 hours under $nl" || fail "1 W5 hours under $nl: $r"
-else echo "SKIP: 1 W5 locale case: no bg/de/fr UTF-8 locale on this box (the C-locale date is in the code)"; fi
+# W5 locale case: an installed bg/de/fr locale, else one built here with
+# localedef (no root; LOCPATH). CI forbids a SKIP, so a box that can build
+# none fails this case instead of skipping it.
+nl="$(grep -m 1 -iE '^(bg_BG|de_DE|fr_FR)\.utf-?8$' <<<"$(locale -a 2>/dev/null)")"; lp=""
+if [[ -z "$nl" ]] && mkdir -p "$T/loc" && localedef -i de_DE -f UTF-8 "$T/loc/de_DE.UTF-8" >/dev/null 2>&1; then nl=de_DE.UTF-8; lp="$T/loc"; fi
+if [[ -n "$nl" ]] && [[ "$(LOCPATH="$lp" LC_ALL="$nl" date -d 2026-11-27 +%A)" != Friday ]]; then
+  r="$(LOCPATH="$lp" LC_ALL="$nl" inh 'Mon-Fri 09:00-17:00' '2026-11-27 10:00')"; [[ "$r" == 0 ]] && pass "1 W5 hours under $nl" || fail "1 W5 hours under $nl: $r"
+else fail "1 W5 locale case: no bg/de/fr UTF-8 locale and localedef could not build de_DE (install the locales package)"; fi
 
 # 2
 for kv in BOX_TAG=Lap_A "HOURS=Mon 18:00-08:00" TENANT_ID=T1 LAPTOP_ENV=stage AGENT_MAX=0 MOVE_BOX=Home "LAPTOP_MEMBER=a b" LAPTOP_ASK=sms LAPTOP_ASK_HUM=bob; do

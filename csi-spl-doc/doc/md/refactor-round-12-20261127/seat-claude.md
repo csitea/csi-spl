@@ -261,7 +261,7 @@ and N1-N7 are answered. No new defect.
 Sha read: `git ls-remote origin refs/heads/review/c002-refactor-round-12-planner` ->
 `05594587af35700dfee2f25a561bef801eb31022`, the sha a-731 named (msg 60bf136b). `git diff
 --stat 85d7115d9..05594587a` -> 1 file, the plan (166 insertions, 81 deletions), in one
-commit, author and committer the repo's canonical address. Run 2026-11-27 19:20Z-19:45Z,
+commit, author and committer the repo's canonical address. Run 2026-11-27 18:20Z-18:34Z,
 n=1, in fresh scratch copies of `3308d118f`, with the same counting as above.
 
 - **Rebuild.** The plan's 9 bash blocks, extracted from v1.0: blocks 1-3 and 5-8 are

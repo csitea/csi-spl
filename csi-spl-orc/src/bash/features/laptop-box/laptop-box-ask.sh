@@ -15,13 +15,13 @@
 #------------------------------------------------------------------------------
 set -uo pipefail
 D="${LAPTOP_STATE_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/laptop-box}"
-ENVF="${SPOOL_ROOT:-/var/spool-hub}/dispatch/laptop-box.env"
+ENVF="${LAPTOP_ENV_FILE:-/etc/spl-laptop-box/laptop-box.env}"
 [[ "$(sed -n 's/^LAPTOP_ASK=//p' "$ENVF" 2>/dev/null | tail -n 1)" == dsk ]] || exit 0
 [[ -s "$D/ask-pending" && ! -e "$D/answer" ]] || exit 0
 a="$(${LAPTOP_NOTIFY:-notify-send} --app-name='Fleet agents' --urgency=critical --wait \
   --action=continue='Continue 1 h' --action=stop='Stop' \
   'Your working hours are over' "$(cat "$D/ask-pending")" 2>/dev/null)"
 case "$a" in
-  continue|stop) printf '%s %s\n' "$a" "${LAPTOP_NOW:-$(date +%s)}" >"$D/answer" ;;
+  continue|stop) [[ -s "$D/ask-pending" ]] && printf '%s %s\n' "$a" "${LAPTOP_NOW:-$(date +%s)}" >"$D/answer" ;;
 esac
 exit 0

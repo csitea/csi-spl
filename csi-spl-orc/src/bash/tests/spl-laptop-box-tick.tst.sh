@@ -30,7 +30,7 @@ source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 export IN_ORC_RUN="spl-laptop-box-tick"
 FB="$PROJ_ROOT/src/bash/features/laptop-box"
-SR="$T/spool"; D="$SR/dispatch/laptop-box"; mkdir -p "$D"
+SR="$T/spool"; D="$SR/dispatch/laptop-box"; mkdir -p "$D"; export LAPTOP_ENV_FILE="$SR/dispatch/laptop-box.env"
 printf '%s\n' "LAPTOP_HOURS=Mon-Fri 09:00-17:00" LAPTOP_AGENT_MAX=4 LAPTOP_BOX_TAG=lap-a LAPTOP_AGENT_USER=agt-u LAPTOP_MOVE_BOX=home LAPTOP_MEMBER=mem LAPTOP_ASK=dsk >"$SR/dispatch/laptop-box.env"
 mkdir -p "$T/stub"
 printf '#!/usr/bin/env bash\ncat "%s/lanes.in" 2>/dev/null\n' "$T" >"$T/stub/lanes"
@@ -87,11 +87,19 @@ grep -q "TICK out" <<<"$o1" && grep -q "takes lanes" "$T/o" && pass "8 off, then
 reset; NOW=$FRI18 ctl continue >/dev/null; lanes c-101; tick $((FRI18 + 60))
 grep -q "she continues" "$T/o" && pass "8 continue from the command line" || fail "8 continue: $(cat "$T/o")"
 s="$(ctl status)"; grep -q "hours:  Mon-Fri 09:00-17:00" <<<"$s" && grep -q "agents: 1 running" <<<"$s" && pass "8 status" || fail "8 status: $s"
+printf '#!/usr/bin/env bash\ncase "$2" in agt-u) echo 1001 ;; mem) echo 1000 ;; sys-u) echo 115 ;; *) exit 1 ;; esac\n' >"$T/stub/id"; chmod +x "$T/stub/id"; export LAPTOP_ID="$T/stub/id"
 LAPTOP_EUID=1000 ctl remove >/dev/null 2>&1; r1=$?
 LAPTOP_EUID=0 ctl remove >/dev/null 2>&1; r2=$?
 : >"$D/lanes"; LAPTOP_EUID=0 LAPTOP_ROOT_SH=echo ctl remove >"$T/rm.out" 2>&1; r3=$?
 [[ $r1 -eq 3 && $r2 -eq 3 && $r3 -eq 0 ]] && grep -q "userdel -r 'agt-u'" "$T/rm.out" && grep -q "systemctl disable --now spl-laptop-box-tick.timer" "$T/rm.out" \
   && pass "8 remove: needs root, refused with lanes, else the plan" || { fail "8 remove r=$r1/$r2/$r3"; cat "$T/rm.out"; }
+# W3: a tampered config naming her own user, or a system user: remove refuses, runs nothing
+cp "$LAPTOP_ENV_FILE" "$T/env.w3"; w3=""
+for who in mem sys-u nosuch; do
+  sed -i "s/^LAPTOP_AGENT_USER=.*/LAPTOP_AGENT_USER=$who/" "$LAPTOP_ENV_FILE"
+  LAPTOP_EUID=0 LAPTOP_ROOT_SH=echo ctl remove >"$T/rm3.out" 2>&1; w3+="$? $(grep -c userdel "$T/rm3.out") "
+done; cp "$T/env.w3" "$LAPTOP_ENV_FILE"
+[[ "$w3" == "3 0 3 0 3 0 " ]] && pass "8 W3 remove: refuses her user, a system user, an unknown user" || fail "8 W3 remove: $w3"
 ctl bogus >/dev/null 2>&1; [[ $? -eq 2 ]] && pass "8 unknown control: exit 2" || fail "8 unknown control"
 # 9
 reset; echo q >"$D/ask-pending"; NOTIFY_PICK="" SPOOL_ROOT="$SR" LAPTOP_NOTIFY="$T/stub/notify" bash "$FB/laptop-box-ask.sh"
@@ -106,7 +114,7 @@ cat >"$T/stub/spool" <<'STUB'
 case "$1" in
   send) shift; while [ $# -gt 0 ]; do case "$1" in --body) printf '%s\n' "$2" >>"$SENTF";; --channel) echo "channel $2" >>"$SENTF";; esac; shift; done
         echo '{"delivery":"hub","msg_id":"m-form-1","task_id":"t-form-1"}' ;;
-  tail) [ "$3" = "/t/t-form-1" ] && cat "$TOPICF" 2>/dev/null ;;
+  hub-tail) [ "$2 $3 $4" = "--task t-form-1 --json" ] && cat "$TOPICF" 2>/dev/null ;;
 esac
 STUB
 chmod +x "$T/stub/spool"; export SENTF="$T/sent.log" TOPICF="$T/topic.ndjson"
@@ -126,6 +134,11 @@ reset; lanes c-101; tick "$FRI18"; reply HUM-24 $'Poll: m-form-1\nAnswer: STP â€
 grep -q "lanes moved to home" "$T/o" && pass "11 wui: her STP -> the lanes move" || fail "11 STP: $(cat "$T/o")"
 sed -i '/^LAPTOP_ASK_CHANNEL=/d' "$EW"; reset; : >"$SENTF"; lanes c-101; tick "$FRI18"; t1="$(cat "$T/o")"; tick $((FRI18 + 900))
 grep -q "asked her (wui NOT posted)" <<<"$t1" && [[ ! -s "$SENTF" ]] && grep -q "lanes moved to home" "$T/o" && pass "11 wui unconfigured: not posted, moved after the wait" || fail "11 unconfigured: $t1 / $(cat "$T/o")"
+# 11b: no test stub: the real desk path; a box.env without the fleet env -> not posted, named
+sed -i 's/^LAPTOP_ASK=dsk$/LAPTOP_ASK=wui/' "$EW"; printf '%s\n' LAPTOP_ASK_CHANNEL=lap-ch >>"$EW"; reset; lanes c-101
+SNIPPET=do_spl_laptop_box_tick in_orc SPOOL_ROOT="$SR" LAPTOP_NOW="$FRI18" LAPTOP_LANES_CMD="$T/stub/lanes" \
+  LAPTOP_JOIN_CMD="$T/stub/join" LAPTOP_HANDOVER_CMD="$T/stub/handover" LAPTOP_SPOOL_CMD= >"$T/o" 2>&1
+grep -q "asked her (wui NOT posted)" "$T/o" && grep -q "no hub desk" "$T/o" && pass "11b wui without the stub: the desk path, its refusal named" || fail "11b desk path: $(cat "$T/o")"
 cp "$T/env.dsk" "$EW"
 
 echo "=== spl-laptop-box-tick: $fails failure(s) ==="

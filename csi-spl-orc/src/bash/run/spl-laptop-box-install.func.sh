@@ -31,7 +31,9 @@
 # @param TENANT_ID (required) - the workspace the box serves
 # @param MOVE_BOX (required) - the fleet box her agents move to at the end of her hours (its tag)
 # @param LAPTOP_ASK (optional) - how she is asked at the end of her hours: wui (default, a poll form in the web UI) or dsk (a desktop pop-up)
-# @param LAPTOP_ASK_CHANNEL / LAPTOP_ASK_FROM / LAPTOP_ASK_HUM (optional) - with wui: the channel, the box's desk agent that posts, her HUM-<n>
+# @param LAPTOP_ASK_CHANNEL (optional) - with wui: the channel the question is posted in
+# @param LAPTOP_ASK_FROM (optional) - with wui: the box's desk agent that posts it
+# @param LAPTOP_ASK_HUM (optional) - with wui: her HUM-<n>, tagged in it
 # @param LAPTOP_MEMBER (optional) - her own OS user (the pop-up's session), default SUDO_USER
 # @param LAPTOP_ENV (optional) - dev or prd, default prd
 # @param AGENT_MAX (optional) - the most agents at once on this box, default 4

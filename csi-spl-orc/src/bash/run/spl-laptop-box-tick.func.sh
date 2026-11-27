@@ -26,6 +26,7 @@
 # @description Writes the live lanes to the state dir's lanes file (her status
 # @description and remove read it). Prints one TICK line.
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
+# @param LAPTOP_ENV_FILE (optional) - her config, default /etc/spl-laptop-box/laptop-box.env (root's)
 # @param LAPTOP_STATE_DIR (optional) - default <spool root>/dispatch/laptop-box
 # @param LAPTOP_ASK_WAIT_MIN (optional) - minutes the question waits for her, default 15
 # @param LAPTOP_NOW / LAPTOP_LANES_CMD / LAPTOP_JOIN_CMD / LAPTOP_HANDOVER_CMD / LAPTOP_SPOOL_CMD (tests) - the clock (epoch), the lane lister, the box join, the lane handover, the spool CLI
@@ -33,7 +34,7 @@
 #------------------------------------------------------------------------------
 do_spl_laptop_box_tick() {
   local sr="${SPOOL_ROOT:-/var/spool-hub}" d envf hours max to now lanes n mark
-  envf="$sr/dispatch/laptop-box.env"; d="${LAPTOP_STATE_DIR:-$sr/dispatch/laptop-box}"; mark="$sr/dispatch/box.leave"
+  envf="${LAPTOP_ENV_FILE:-/etc/spl-laptop-box/laptop-box.env}"; d="${LAPTOP_STATE_DIR:-$sr/dispatch/laptop-box}"; mark="$sr/dispatch/box.leave"
   [[ -r "$envf" ]] || { do_log "FATAL $envf is missing: not a laptop box (run do_spl_laptop_box_install)"; return 3; }
   hours="$(spl_laptop_env_get "$envf" LAPTOP_HOURS)"; max="$(spl_laptop_env_get "$envf" LAPTOP_AGENT_MAX)"
   to="$(spl_laptop_env_get "$envf" LAPTOP_MOVE_BOX)"
@@ -130,6 +131,24 @@ spl_laptop_tick_lanes() {
 # (CON) or Stop (STP); how-to-post.md section 7. Her answer is a reply in
 # that topic, "Poll: <msg id>" + "Answer: CON|STP", read back on each tick.
 
+# spl_laptop_ask_spool <spool args>: `spool` as this box's desk, in hub mode
+# (spl_desk_spool: the desk's keys, box id, tenant and the hub URL of the
+# fleet env in box.env), as every desk-backed action calls it; a bare `spool`
+# under the tick's SPOOL_ROOT has no hub and fails. The binary: the one
+# install.sh put on PATH. LAPTOP_SPOOL_CMD (tests) replaces all of it.
+spl_laptop_ask_spool() {
+  if [[ -n "${LAPTOP_SPOOL_CMD:-}" ]]; then "$LAPTOP_SPOOL_CMD" "$@"; return; fi
+  local be="${SPOOL_ROOT:-/var/spool-hub}/box.env" env ten box d SPL_SPOOL
+  env="$(spl_laptop_env_get "$be" SPOOL_FLEET_ENV)"; ten="$(spl_laptop_env_get "$be" SPOOL_FLEET_TENANT)"
+  box="$(spl_laptop_env_get "$be" SPOOL_DESK_BOX)"
+  [[ -n "$env" && -n "$ten" && -n "$box" ]] || { echo "no SPOOL_FLEET_ENV / SPOOL_FLEET_TENANT / SPOOL_DESK_BOX in $be: no hub desk" >&2; return 1; }
+  ENV="$env" TENANT_ID="$ten" do_spl_desk_cnf >&2 || return 1
+  d="$(ENV="$env" spl_desk_dir "$ten" "$box" "$env")" && [[ -d "$d/spool" ]] || { echo "no desk $box of $ten seated on this box (do_spl_desk_up)" >&2; return 1; }
+  # shellcheck disable=SC2034  # read by spl_desk_spool (bash dynamic scope)
+  SPL_SPOOL="$(command -v spool || echo "$HOME/.local/bin/spool")"
+  spl_desk_spool "$d" "$box" "$ten" "$SPL_HUB_URL" -- "$@"
+}
+
 # spl_laptop_ask_wui_post <state dir> <env file>: post the form, keep its ids.
 spl_laptop_ask_wui_post() {
   local d="$1" envf="$2" ch from hum out mid tid body
@@ -137,7 +156,7 @@ spl_laptop_ask_wui_post() {
   hum="$(spl_laptop_env_get "$envf" LAPTOP_ASK_HUM)"
   [[ -n "$ch" && -n "$from" && "$hum" =~ ^HUM-[0-9]+$ ]] || { do_log "WARN LAPTOP_ASK=wui needs LAPTOP_ASK_CHANNEL, LAPTOP_ASK_FROM and LAPTOP_ASK_HUM in $envf: not asked; the lanes move after the wait"; return 1; }
   body="@$hum $(cat "$d/ask-pending")"$'\n\n```poll\nKeep the fleet agents on your laptop?\n(CON) Continue 1 h\n(STP) Stop\n```'
-  out="$(${LAPTOP_SPOOL_CMD:-spool} send --channel "$ch" --from "$from" --kind question --body "$body" 2>&1)" || { do_log "WARN the WUI question was not posted: $out"; return 1; }
+  out="$(spl_laptop_ask_spool send --channel "$ch" --from "$from" --kind question --body "$body" 2>&1)" || { do_log "WARN the WUI question was not posted: $out"; return 1; }
   mid="$(jq -r '.msg_id // empty' <<<"$out" 2>/dev/null)"; tid="$(jq -r '.task_id // empty' <<<"$out" 2>/dev/null)"
   [[ -n "$mid" && -n "$tid" ]] || { do_log "WARN the WUI question's ids are not in the send answer: $out"; return 1; }
   printf '%s %s %s\n' "$mid" "$tid" "$hum" >"$d/ask-wui"
@@ -149,7 +168,7 @@ spl_laptop_ask_wui_read() {
   local d="$1" now="$2" mid tid hum k
   [[ -s "$d/ask-wui" && ! -e "$d/answer" ]] || return 0
   read -r mid tid hum <"$d/ask-wui"
-  k="$(${LAPTOP_SPOOL_CMD:-spool} tail --url "/t/$tid" --json 2>/dev/null |
+  k="$(spl_laptop_ask_spool hub-tail --task "$tid" --json 2>/dev/null |
     jq -rs --arg m "$mid" --arg h "$hum" '[.[] | select(.from == $h) | .body // ""
       | select(test("(^|\\n)Poll: " + $m)) | capture("(^|\\n)Answer: (?<k>[A-Z]+)").k] | last // empty' 2>/dev/null)"
   case "$k" in

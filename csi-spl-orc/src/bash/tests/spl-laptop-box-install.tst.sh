@@ -19,6 +19,10 @@
 #      under the test root holds it afterwards
 #   6. no token -> exit 2, nothing run as root
 #   7. a failing install.sh -> exit 1, the token file still removed
+#   W3-W7 (R7 a-664 on cf385342c): her config root's under /etc, files 0644,
+#      the tick's UMask; the token prompt only with a tty on stdin (a pty
+#      via script(1)); the hours: wrap-around, lists, C locale; no member,
+#      no user units
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -54,6 +58,14 @@ src() { bash -c 'do_log(){ :; }; source "$1"; shift; spl_laptop_hours_parse "$1"
 [[ "$(src 'Mon,Wed-Fri 08:30-16:00')" == "Mon,Wed..Fri 08:30 16:00" ]] && pass "1 list + range" || fail "1 list + range"
 bad=0; for h in 'Mon-Fri 17:00-09:00' 'Mon 09:00-09:00' 'Mon-Fri 9:00-17:00' 'Xyz 09:00-10:00' ''; do src "$h" >/dev/null; [[ $? -eq 2 ]] || bad=1; done
 (( bad == 0 )) && pass "1 bad windows exit 2" || fail "1 a bad window was taken"
+# W5: a wrap-around range, a list after it, and the weekday in the C locale
+inh() { bash -c 'do_log(){ :; }; source "$1"; spl_laptop_in_hours "$2" "$3"' _ "$PROJ_ROOT/lib/bash/funcs/spl-laptop-box.func.sh" "$1" "$(date -d "$2" +%s)"; echo $?; }
+w5="$(inh 'Fri-Mon 09:00-17:00' '2026-11-28 10:00')$(inh 'Fri-Mon 09:00-17:00' '2026-11-30 10:00')$(inh 'Fri-Mon 09:00-17:00' '2026-11-25 10:00')"
+w5+="$(inh 'Fri-Mon,Wed 09:00-17:00' '2026-12-01 10:00')$(inh 'Fri-Mon,Wed 09:00-17:00' '2026-11-25 10:00')$(inh 'Mon-Fri 09:00-17:00' '2026-11-27 18:00')"
+[[ "$w5" == "001101" ]] && pass "1 W5 hours: Fri-Mon takes Sat and Mon, not Wed; ,Wed after it not Tue" || fail "1 W5 hours: $w5 (want 001101)"
+nl="$(grep -m 1 -iE '^(bg_BG|de_DE|fr_FR)\.utf-?8$' <<<"$(locale -a 2>/dev/null)")"
+if [[ -n "$nl" ]]; then r="$(LC_ALL="$nl" inh 'Mon-Fri 09:00-17:00' '2026-11-27 10:00')"; [[ "$r" == 0 ]] && pass "1 W5 hours under $nl" || fail "1 W5 hours under $nl: $r"
+else echo "SKIP: 1 W5 locale case: no bg/de/fr UTF-8 locale on this box (the C-locale date is in the code)"; fi
 
 # 2
 for kv in BOX_TAG=Lap_A "HOURS=Mon 18:00-08:00" TENANT_ID=T1 LAPTOP_ENV=stage AGENT_MAX=0 MOVE_BOX=Home "LAPTOP_MEMBER=a b" LAPTOP_ASK=sms LAPTOP_ASK_HUM=bob; do
@@ -78,6 +90,9 @@ if [[ $rc -eq 0 && ! -s "$T/root.log" && ! -s "$T/inst.log" ]] \
   && grep -q "'ConditionUser=mem'" <<<"$o" && grep -q "install -o root -g root -m 0755 '$CO/csi-spl-orc/src/bash/features/laptop-box/laptop-box-ctl.sh' /usr/local/bin/spl-laptop-box" <<<"$o" \
   && grep -q "systemctl enable --now spl-laptop-box-tick.timer" <<<"$o" \
   && grep -q "install -d -o 'agt-u' -g 'grp-x' -m 2770 '$T/spool'" <<<"$o" \
+  && grep -qF ">'/etc/spl-laptop-box/laptop-box.env' && chown 'root:root' '/etc/spl-laptop-box/laptop-box.env' && chmod 0644" <<<"$o" \
+  && grep -qF ">'$T/spool/box.env' && chown 'root:grp-x'" <<<"$o" && ! grep -q "chmod 0664" <<<"$o" && grep -q "'UMask=0007'" <<<"$o" \
+  && grep -q "apt-get update" <<<"$o" \
   && grep -q "hub https://hub.example.com" <<<"$o"; then pass "4 dry run: the plan, nothing run"
 else fail "4 dry run: rc=$rc"; echo "$o"; fi
 
@@ -95,9 +110,27 @@ else fail "5 real run: rc=$rc"; cat "$T/o" "$T/inst.log"; fi
 run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN= </dev/null; rc=$?
 [[ $rc -eq 2 && ! -s "$T/root.log" ]] && pass "6 no token: exit 2, nothing as root" || fail "6 no token: rc=$rc"
 
+# W4: a controlling terminal but stdin not one: no read from /dev/tty, no hang
+if command -v script >/dev/null; then
+  w4="$(env -u SPOOL_JOIN_TOKEN timeout 15 script -qec "bash -c 'do_log(){ :; }; source $PROJ_ROOT/lib/bash/funcs/spl-laptop-box.func.sh; t=\$(spl_laptop_read_token </dev/null); echo W4rc=\$? len=\${#t}'" /dev/null 2>&1 < <(sleep 30))"; w4rc=$?
+  [[ $w4rc -eq 0 ]] && grep -q "W4rc=0 len=0" <<<"$w4" && pass "6 W4 token: a tty but stdin /dev/null -> no prompt, no hang" || fail "6 W4 token: rc=$w4rc $w4"
+else echo "SKIP: 6 W4: no script(1) for a pty"; fi
+
 # 7
 run_install "${OK[@]}" DRY_RUN=0 SPOOL_JOIN_TOKEN="$SECRET" INST_RC=5; rc=$?
 [[ $rc -eq 1 && -z "$(grep -rl --exclude=inst.log -- "$SECRET" "$T")" ]] && pass "7 install fails: exit 1, token file gone" || fail "7 install fails: rc=$rc"
+
+# W6: every install flag is a flag (one @param per variable), through ./run
+w6="$(cd "$PROJ_ROOT" && LAPTOP_OS_RELEASE="$T/debian_version" ./run -a do_spl_laptop_box_install --laptop-checkout "$CO" --box-tag lap-a \
+  --hours "Mon-Fri 09:00-17:00" --tenant-id t9 --move-box home --laptop-member mem --laptop-ask wui --laptop-ask-channel lap-ch \
+  --laptop-ask-from c-200 --laptop-ask-hum HUM-24 --agent-max 2 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && grep -q "'LAPTOP_ASK_CHANNEL=lap-ch' 'LAPTOP_ASK_FROM=c-200' 'LAPTOP_ASK_HUM=HUM-24'" <<<"$w6" && grep -q "'LAPTOP_AGENT_MAX=2'" <<<"$w6" \
+  && pass "9 W6 flags: --laptop-ask-from / --laptop-ask-hum reach laptop-box.env" || fail "9 W6 flags: rc=$rc $(grep -m1 FATAL <<<"$w6")"
+
+# W7: no member: no user units, nothing enabled for every user
+run_install BOX_TAG=lap-a "HOURS=Mon-Fri 09:00-17:00" TENANT_ID=t9 MOVE_BOX=home LAPTOP_MEMBER= SUDO_USER=; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q "ConditionUser\|spl-laptop-box-ask" "$T/o" && grep -q "enable --now spl-laptop-box-tick.timer" "$T/o" \
+  && pass "9 W7 no member: no ask units" || fail "9 W7: rc=$rc $(grep -c ConditionUser "$T/o")"
 
 echo "=== spl-laptop-box-install: $fails failure(s) ==="
 (( fails == 0 ))

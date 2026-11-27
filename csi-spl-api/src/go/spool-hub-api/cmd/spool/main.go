@@ -197,6 +197,7 @@ on a box (an agent's machine):
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   fleet-tokens        push the box collector's token burn buckets (push --json <file|->)
   file-streams        send the box file follower's announce or lines (push --json <file|->)
+  agent-models        report a live model list of a vendor CLI to the hub (report --vendor --cli-version, models on stdin)
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
   doc-list            list workspace docs; an optional prefix keeps that folder
@@ -370,7 +371,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdEvlog(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
-	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams", "box-presence", "channel-pins":
+	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams", "box-presence", "channel-pins",
+		"agent-models":
 		return runFleetCmd(cfg, cmd, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
@@ -410,6 +412,8 @@ func runFleetCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdChannelPins(cfg, rest)
 	case "file-streams": // spec 160 3.3, rdb 0237
 		return cmdFileStreams(cfg, rest)
+	case "agent-models": // spec 184 row H2, rdb 0309
+		return cmdAgentModels(cfg, rest)
 	default: // fleet-tokens: spec 140 3.4, rdb 0199
 		return cmdFleetTokens(cfg, rest)
 	}

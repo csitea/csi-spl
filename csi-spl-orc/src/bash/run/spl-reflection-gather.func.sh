@@ -20,9 +20,11 @@
 # @description      fleet lane map, do_spl_lane_map: issue_key, origin_issue,
 # @description      scope, topic, branch), no ask in open, acked, queued,
 # @description      placing or needs_owner (do_spl_asks_open: summary, topic,
-# @description      placement) and no origin/master commit subject in the last
-# @description      72 h; one line each: key, title cut to 80 chars, the last
-# @description      commit naming it or "none" (owner msg 8389d2d8),
+# @description      placement) and no commit message in the last 72 h, on
+# @description      origin/master or on an origin review/* branch (not on
+# @description      origin/master, SPL-6642); one line each: key, title cut to
+# @description      80 chars, the last commit naming it or "none" (owner msg
+# @description      8389d2d8),
 # @description into one file under the spool root (REFLECTION_DIR), and queues
 # @description ONE lane (class refactor, kind specs_and_docs) whose brief,
 # @description rendered from features/dispatch/brief-reflection.tpl.md, carries
@@ -202,7 +204,7 @@ spl_reflection_gather_md() {
   if out="$(spl_reflection_share_line 2>"$err")" && [[ -n "$out" ]]; then echo "$out"; else echo "(not read: do_spl_spawn_share failed: $(spl_reflection_why "$err" "$out"))"; fi
   printf '\n## 6. Zombie sweep (row B6, its last summary)\n\n'
   spl_reflection_zombie
-  printf '\n## 7. Stalled wip issues (no live lane, no live ask, no master commit in 72 h)\n\n'
+  printf '\n## 7. Stalled wip issues (no live lane, no live ask, no master or review branch commit in 72 h)\n\n'
   spl_reflection_stalled "$u" "$err"
   [[ "$err" == /dev/null ]] || rm -f "$err"
 }
@@ -240,6 +242,8 @@ spl_reflection_stalled() {
     why="the ask book (do_spl_asks_open): $(spl_reflection_why "$err" "$out")"
   elif ! printf '%s\n' "$out" >"$w/asks.json" || ! spl_reflection_subjects >"$w/messages.z" 2>"$err"; then
     why="git log ${REFLECTION_REF:-origin/master}: $(spl_reflection_why "$err")"
+  elif ! spl_reflection_review_msgs "$((u - 72 * 3600))" >"$w/review.z" 2>"$err"; then
+    why="git log origin/review/* --not ${REFLECTION_REF:-origin/master}: $(spl_reflection_why "$err")"
   fi
   if [[ -n "$why" ]]; then
     echo "(not read: $why)"
@@ -274,9 +278,20 @@ spl_reflection_subjects() {
   git -c safe.directory='*' -C "${REFLECTION_REPO:-${APP_PATH:-.}}" log -z "${REFLECTION_REF:-origin/master}" --format='%cI%x09%B'
 }
 
+# spl_reflection_review_msgs <cutoff epoch>: the same records for the commits
+# of the origin review/* branches that are not on REFLECTION_REF and were
+# committed since the cutoff (SPL-6642: a lane's work waiting for its R7 sits
+# there, under its own seed issue). One git log over every ref; the refs are
+# the repo's as of its last fetch of them.
+spl_reflection_review_msgs() {
+  git -c safe.directory='*' -C "${REFLECTION_REPO:-${APP_PATH:-.}}" log -z --since="$(spl_reflection_iso "$1")" \
+    --remotes='origin/review/*' --not "${REFLECTION_REF:-origin/master}" --format='%cI%x09%B'
+}
+
 # spl_reflection_stalled_judge <work dir> <commit cutoff epoch>: one line per
 # wip issue that no live lane, no live ask and no commit message (subject or
-# body) since the cutoff names, lowest key first. A key is named as a whole token, SPL-12 or
+# body, on REFLECTION_REF or a review branch) since the cutoff names, lowest
+# key first. A key is named as a whole token, SPL-12 or
 # spl12 (a slug), never as the start of SPL-123.
 spl_reflection_stalled_judge() {
   python3 - "$1" "$2" <<'PY'
@@ -290,12 +305,14 @@ lanes = [l for l in load("lanes").get("lanes") or [] if l.get("state", "live") =
 live = {"open", "acked", "queued", "placing", "needs_owner"}
 asks = [a for a in load("asks").get("asks") or [] if a.get("state") in live]
 subj = []
-for rec in open(f"{w}/messages.z", encoding="utf-8", errors="replace").read().split("\0"):
-    at, _, s = rec.lstrip("\n").partition("\t")
-    try:
-        subj.append((datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp(), at, s))
-    except ValueError:
-        continue
+for f in ("messages", "review"):
+    for rec in open(f"{w}/{f}.z", encoding="utf-8", errors="replace").read().split("\0"):
+        at, _, s = rec.lstrip("\n").partition("\t")
+        try:
+            subj.append((datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp(), at, s))
+        except ValueError:
+            continue
+subj.sort(key=lambda e: -e[0])
 def rx(key):
     p, _, n = key.partition("-")
     return re.compile(r"(?<![A-Za-z0-9])" + re.escape(p) + r"-?" + re.escape(n) + r"(?![0-9])", re.I)

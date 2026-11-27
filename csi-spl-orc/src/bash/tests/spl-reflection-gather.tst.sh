@@ -69,6 +69,12 @@
 #      judge failed: ...)" line, never an empty section. Red control: master
 #      read subjects only and ignored the judge's rc: A listed SPL-7 with
 #      "last commit none", B printed nothing
+#  16c. section 7 reads the origin review/* branches (SPL-6642): a wip key
+#      named only in a review branch commit (not on master) 1 day old is not
+#      stalled; one no commit names, and one whose only review commit is 5
+#      days old, still are. Red control: the review read emptied (master's
+#      judge, REFLECTION_REF only) lists the first. A failed review read is
+#      one "(not read" line and no issue line
 #  17. the brief lists the night's live origin topics (SPL-5829): the
 #      topics of section 4 newest first, once each, without the backlog
 #      (cnf) topic, an archived one, one whose archive state is unread and a
@@ -429,6 +435,33 @@ rc=0" ]] && pass "16b. a key named only in a commit body inside 72 h: (none), no
 got="$(s7b "$T/b14bin:$PATH" "$T/b14err")"
 [[ "$got" == "(not read: the judge failed: a judge error)
 rc=0" ]] && pass "16b. the judge fails: one (not read: the judge failed: <its last stderr line>) line, rc 0" || fail "16b. judge failed: $got"
+
+# --- 16c. section 7 reads the origin review/* branches (SPL-6642) -----------------
+RV="$T/b16c" && git init -q -b master "$RV"
+rv() { GIT_AUTHOR_DATE="$1" GIT_COMMITTER_DATE="$1" git -C "$RV" -c user.name='FirstName LastName' -c user.email=dev@example.com commit -q --allow-empty -m "$2"; }
+rv "$(date -u -d '-10 days' +%Y-%m-%dT%H:%M:%SZ)" 'feat: base' && git -C "$RV" update-ref refs/remotes/origin/master HEAD
+rv "$(date -u -d '-5 days' +%Y-%m-%dT%H:%M:%SZ)" 'feat(wui, SPL-23): waits for its R7 since 5 days' &&
+  git -C "$RV" update-ref refs/remotes/origin/review/old-lane HEAD
+git -C "$RV" checkout -q -b lane origin/master && rv "$(date -u -d '-1 day' +%Y-%m-%dT%H:%M:%SZ)" 'feat(api, SPL-21): built, waits for its R7' &&
+  git -C "$RV" update-ref refs/remotes/origin/review/c002-lane HEAD
+s7c() { REFLECTION_REPO="$RV" bash -c 'do_log() { :; }; source "$0"
+  spl_reflection_wip_read() { echo "{\"issues\":[{\"key\":\"SPL-21\",\"status\":\"wip\",\"title\":\"on a review branch, 1 day\"},{\"key\":\"SPL-22\",\"status\":\"wip\",\"title\":\"no commit anywhere\"},{\"key\":\"SPL-23\",\"status\":\"wip\",\"title\":\"on a review branch, 5 days\"}]}"; }
+  spl_reflection_lanes_read() { echo "{\"hub\":\"ok\",\"lanes\":[]}"; }
+  spl_reflection_asks_read() { echo "{\"hub\":\"ok\",\"asks\":[]}"; }
+  [[ -z "${REFLECTION_NO_REVIEW:-}" ]] || spl_reflection_review_msgs() { :; }
+  [[ -z "${REFLECTION_REVIEW_FAIL:-}" ]] || spl_reflection_review_msgs() { echo "fatal: a bad ref" >&2; return 128; }
+  spl_reflection_stalled "$(date +%s)" "$1"' "$1" "$T/b16cerr"; }
+got="$(s7c "$FUNC")"
+[[ "$got" == "- SPL-22: no commit anywhere (last commit none)
+- SPL-23: on a review branch, 5 days (last commit none)" ]] &&
+  pass "16c. a key only in a review branch commit 1 day old is not stalled; no commit anywhere and a 5-day-old review commit still are" ||
+  fail "16c. review branches: $got"
+got="$(REFLECTION_NO_REVIEW=1 s7c "$FUNC")"
+grep -qxF -- '- SPL-21: on a review branch, 1 day (last commit none)' <<<"$got" &&
+  pass "16c. red control: with the review branch read emptied (master's judge, REFLECTION_REF only) SPL-21 is listed" || fail "16c. red control: $got"
+got="$(REFLECTION_REVIEW_FAIL=1 s7c "$FUNC")"
+[[ "$got" == "(not read: git log origin/review/* --not origin/master: fatal: a bad ref)" ]] &&
+  pass "16c. a failed review branch read: one (not read line, no issue line" || fail "16c. review read failed: $got"
 
 # --- 17. the brief lists the live origin topics, never the backlog alone (SPL-5829)
 LIVE_OLD=44444444-0000-4000-8000-000000000004

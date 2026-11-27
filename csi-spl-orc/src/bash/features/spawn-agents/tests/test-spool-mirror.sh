@@ -46,6 +46,9 @@
 #  19. a Discussion loop prompt (spec 182, body starts "Loop prompt (background; ")
 #      from the human who set the loop is a task trigger, sets no peer and is
 #      never mirrored. CONTROL: a human DM that only mentions the mark stays dm
+#  20. a hub move notice (SPL-6679, body starts "Moved: message <id> from <id> now
+#      lives in topic ") is a task trigger, sets no peer and is never mirrored.
+#      CONTROL: a human DM that starts "Moved: message" stays dm
 #  18. one seat's failure (a dangling or unreadable .mirror) never costs
 #      another seat its DM answer or its prompt record, repeated 20 times to
 #      beat the race; CONTROL: two healthy seats both answer
@@ -298,6 +301,29 @@ printf '{"from":"HUM-3","to":"CLE-7","task_id":"%s","kind":"task","body":"about 
   >"$A/inbox/20260101T000004Z--HUM-3--f-ffffffff.json"
 SPOOL_POKE_LINE="dm naming the mark" spool_notify_mark_peer CLE-7 HUM-3 "$T1" ffffffff-0000-4000-8000-000000000000
 has "19. CONTROL: a human DM that only mentions the mark stays dm" '"kind":"dm","from":"HUM-3"' "$(cat "$A/.mirror/trigger/"* 2>/dev/null)"
+rm -rf "$A/.mirror/trigger"
+
+# --- 20. a hub move notice is no DM (SPL-6679) ---------------------------------------------------
+# The hub tells every seat that holds a moved message where it lives now: kind
+# note FROM the human who moved it, TO the seat, on the new topic's uuid
+# (message_move_notice.go). Measured on prd: 8 seats answered "not mine" in
+# their panes, and the mirror posted all 8 into the owner's new topic.
+rm -f "$A/.mirror/peer"; rm -rf "$A/.mirror/trigger"
+printf '{"from":"HUM-3","to":"CLE-7","task_id":"%s","kind":"note","body":"Moved: message f580ca64-0000-4000-8000-000000000000 from HUM-3 now lives in topic %s (it was in %s). Answer it in %s, not in the old topic.\\n\\n> x"}' "$T2" "$T2" "$T1" "$T2" \
+  >"$A/inbox/20260101T000005Z--HUM-3--g-99999999.json"
+SPOOL_POKE_LINE="move notice typed" spool_notify_mark_peer CLE-7 HUM-3 "$T2" 99999999-0000-4000-8000-000000000000
+has "20. a move notice line: a task trigger, not dm" '"kind":"task","from":"HUM-3"' "$(cat "$A/.mirror/trigger/"* 2>/dev/null)"
+check "20. a move notice does not set the peer" test ! -e "$A/.mirror/peer"
+rm -rf "$A/.mirror/trigger"
+n20=$(nsends)
+SPOOL_POKE_LINE="move notice typed" spool_notify_mark_peer CLE-7 HUM-3 "$T2" 99999999-0000-4000-8000-000000000000
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"M","prompt":"move notice typed"}' | hook
+printf '{"hook_event_name":"Stop","session_id":"M","last_assistant_message":"not mine, not acting on this one"}' | hook
+eq "20. hook: the seat's answer to a move notice posts nothing in the new topic" "$n20" "$(nsends)"
+printf '{"from":"HUM-3","to":"CLE-7","task_id":"%s","kind":"task","body":"Moved: message 1 to the top of the list, please"}' "$T2" \
+  >"$A/inbox/20260101T000006Z--HUM-3--h-88888888.json"
+SPOOL_POKE_LINE="dm starting Moved" spool_notify_mark_peer CLE-7 HUM-3 "$T2" 88888888-0000-4000-8000-000000000000
+has "20. CONTROL: a human DM that starts with 'Moved: message' stays dm" '"kind":"dm","from":"HUM-3"' "$(cat "$A/.mirror/trigger/"* 2>/dev/null)"
 rm -rf "$A/.mirror/trigger"
 
 # --- 11. two hook configs, one session ---------------------------------------------------------

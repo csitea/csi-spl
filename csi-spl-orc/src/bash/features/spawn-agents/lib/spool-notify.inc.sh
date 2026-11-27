@@ -161,16 +161,32 @@ spool_notify_is_loop_prompt() {  # ENVELOPE-JSON
   [[ "${1:-}" =~ $mark ]]
 }
 
+# 0 when ENVELOPE-JSON is the hub's move notice (message_move_notice.go,
+# moveNoticeBody): sent FROM the human who moved a message, TO each seat that
+# holds it, on the new topic. Measured on prd (SPL-6679): 8 seats answered
+# "not mine" in their panes and the mirror posted every answer into that topic.
+spool_notify_is_move_notice() {  # ENVELOPE-JSON
+  local mark='"body": ?"Moved: message [^ "]+ from [^ "]+ now lives in topic '
+  [[ "${1:-}" =~ $mark ]]
+}
+
+# 0 when ENVELOPE-JSON is a prompt the hub wrote in a human's name (a loop
+# prompt, a move notice): the human did not write it to this seat, so it is no
+# DM and its answer is never mirrored.
+spool_notify_is_hub_prompt() {  # ENVELOPE-JSON
+  spool_notify_is_loop_prompt "${1:-}" || spool_notify_is_move_notice "${1:-}"
+}
+
 # 0 = the message in TO's inbox was addressed to TO, 1 = it was not (a channel
 # broadcast to ALL-0 or a mention fan-out), 2 = unknown (no file found).
 # SPOOL_NOTIFY_ENV_TO is set to the envelope's to_id ('' when unknown): a
 # person's post to another person names that person (SPL-3967).
-# SPOOL_NOTIFY_ENV_LOOP is 1 when the message is a Discussion loop prompt
-# (spec 182): the hub stores it FROM the human who set the loop, and only its
-# body's mark tells it from that human's DM (SPL-6309).
+# SPOOL_NOTIFY_ENV_HUB is 1 when the message is a hub prompt in a human's name:
+# a Discussion loop prompt (spec 182, SPL-6309) or a move notice (SPL-6679).
+# Only its body's mark tells it from that human's DM.
 spool_notify_direct_state() {  # TO MSGID
   local to="${1:-}" msgid="${2:-}" f j re any='"to": ?"([^"]*)"'
-  SPOOL_NOTIFY_ENV_TO="" SPOOL_NOTIFY_ENV_LOOP=0
+  SPOOL_NOTIFY_ENV_TO="" SPOOL_NOTIFY_ENV_HUB=0
   [ -n "${SPOOL_ROOT:-}" ] && [ -n "$to" ] && [ -n "$msgid" ] || return 2
   re="\"to\": ?\"${to}\""
   for f in "$SPOOL_ROOT/$to/inbox/"*"-${msgid:0:8}.json" "$SPOOL_ROOT/$to/archive/"*"-${msgid:0:8}.json"; do
@@ -178,7 +194,7 @@ spool_notify_direct_state() {  # TO MSGID
     # A bash match, not grep: this runs on every delivery (CLE-3435 budget).
     j="$(<"$f")"
     [[ "$j" =~ $any ]] && SPOOL_NOTIFY_ENV_TO="${BASH_REMATCH[1]}"
-    spool_notify_is_loop_prompt "$j" && SPOOL_NOTIFY_ENV_LOOP=1
+    spool_notify_is_hub_prompt "$j" && SPOOL_NOTIFY_ENV_HUB=1
     [[ "$j" =~ $re ]] && return 0
     return 1
   done
@@ -766,7 +782,7 @@ spool_notify_mark_peer() {  # TO FROM TASK MSGID
   for f in "$SPOOL_ROOT/$to/inbox/"*"-${msgid:0:8}.json"; do
     [ -r "$f" ] || continue
     grep -qE "\"to\": ?\"${to}\"" "$f" 2>/dev/null || return 0
-    spool_notify_is_loop_prompt "$(<"$f")" && return 0  # the loop's author did not write it (SPL-6309)
+    spool_notify_is_hub_prompt "$(<"$f")" && return 0  # the human did not write it (SPL-6309, SPL-6679)
     d="$SPOOL_ROOT/$to/.mirror"
     mkdir -p "$d" 2>/dev/null &&
       printf '{"to":"%s","task":"%s","ts":"%s"}\n' "$from" "$task" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$d/peer.tmp.$$" 2>/dev/null &&
@@ -779,7 +795,7 @@ spool_notify_mark_peer() {  # TO FROM TASK MSGID
 # Record WHY LINE was typed into TO's prompt (specs/067 L2): `dm` = a human's
 # message addressed to TO, on a DM topic; `channel` = a channel post that fanned
 # out into TO's inbox; `task` = anything else (an agent's message, unknown, a
-# Discussion loop prompt: spec 182, SPL-6309).
+# Discussion loop prompt: spec 182, SPL-6309; a move notice: SPL-6679).
 # The mirror posts a turn's answer only when the turn's prompt line has a `dm`
 # trigger, and only into that DM. One small file per line, like typed/; the
 # mirror consumes and expires them. Pure bash: no fork on the notice's latency
@@ -790,7 +806,7 @@ spool_notify_mark_trigger() {  # TO FROM TASK MSGID LINE
   spool_notify_direct_state "$to" "$msgid"
   case "$?" in
     1) kind=channel ;;
-    0) [ "$SPOOL_NOTIFY_ENV_LOOP" = 1 ] || case "$from" in HUM-*)
+    0) [ "$SPOOL_NOTIFY_ENV_HUB" = 1 ] || case "$from" in HUM-*)
          [[ "$task" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && kind=dm ;;
        esac ;;
   esac

@@ -153,6 +153,12 @@ channel topic, so the answer is cut off from the discussion it is about.
     `dm` one, though the hub stores it `from` the human who set the loop on
     the topic uuid: its body starts `Loop prompt (background; ` and the wire
     carries no loop field (SPL-6309).
+  - the hub's move notice (`message_move_notice.go`) is a `task` trigger
+    too: it is sent `from` the human who moved a message, to each seat that
+    holds it, on the new topic's uuid, and its body starts `Moved: message
+    <id> from <id> now lives in topic `. A seat's "not mine" answer to it is
+    never posted into that topic (SPL-6679; measured on prd: 8 such posts,
+    which then made the desk's second-seat gate refuse the topic's own seat).
 - **Mirror echoes stop.** Kinds A (channel-post echo), B (typed-by poke),
   C (`[terminal]` prompt) and D (task-notification) are not posted to a DM at
   all (they are the agent's own pane traffic, not contact with a person).

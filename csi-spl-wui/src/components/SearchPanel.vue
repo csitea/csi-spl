@@ -4,13 +4,15 @@
      channels, the calendar months, the contacts), which keeps its own width
      and hides while this is open (ChannelSidebar searchShut). Wider than that
      list by default (SEARCH_W_FRAC of the window), resizable by its divider
-     (kept in this browser). On a phone it covers the page, under the bar. -->
+     (kept in this browser). On a phone it covers the page under the bar and
+     the section strip (SPL-6702: the strip stays painted at every level,
+     SPL-3785). -->
 <template>
   <aside
     v-show="!search.asideFrom"
     class="search-panel"
     :class="{ 'search-panel--phone': phone }"
-    :style="phone ? undefined : { width: width + 'px' }"
+    :style="phone ? phoneTop : { width: width + 'px' }"
     data-testid="search-panel"
     :data-q="search.q"
     :aria-label="t('search.title')"
@@ -45,13 +47,44 @@ watch(() => router.currentRoute.value.fullPath, (p) => search.routeAt(p))
 
 const viewportW = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
 const stored = ref<number | null>(null)
-function onResize() { viewportW.value = window.innerWidth }
+function onResize() { viewportW.value = window.innerWidth; placeUnderStrip() }
+
+/* SPL-6702 (SPL-3785, owner HUM-10, t1 c3e53990 msg 1f55e7e1: once in a
+   section the strip "should always be shown"): on a phone the panel starts
+   under the section strip, never over it. The strip moves (the bars slide
+   away on a scroll, the keyboard folds it, the dock goes to the top), so its
+   bottom is read again on each of those, once per frame. No strip painted:
+   the panel starts under the top bar as before. */
+const stripBottom = ref<number | null>(null)
+const phoneTop = computed(() => (stripBottom.value === null ? undefined : { top: stripBottom.value + 'px' }))
+let placeFrame = 0
+function placeUnderStrip() {
+  if (!phone.value || placeFrame) return
+  placeFrame = requestAnimationFrame(() => {
+    placeFrame = 0
+    const r = document.querySelector('[data-testid=sidebar-rail]')?.getBoundingClientRect()
+    stripBottom.value = r && r.width > 0 && r.height > 0 ? Math.max(0, r.bottom) : null
+  })
+}
+let shellObs: MutationObserver | null = null
+watch(phone, placeUnderStrip)
+watch(() => router.currentRoute.value.fullPath, placeUnderStrip)
+
 onMounted(() => {
   const v = storageGetJson(SEARCH_W_KEY, null)
   stored.value = typeof v === 'number' && Number.isFinite(v) ? v : null
   window.addEventListener('resize', onResize, { passive: true })
+  document.addEventListener('transitionend', placeUnderStrip, { capture: true, passive: true })
+  shellObs = new MutationObserver(placeUnderStrip)
+  for (const el of document.querySelectorAll('.app-frame, .spool-shell')) shellObs.observe(el, { attributes: true })
+  placeUnderStrip()
 })
-onBeforeUnmount(() => window.removeEventListener('resize', onResize))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  document.removeEventListener('transitionend', placeUnderStrip, { capture: true })
+  shellObs?.disconnect()
+  if (placeFrame) cancelAnimationFrame(placeFrame)
+})
 
 const bounds = computed(() => searchPanelBounds(viewportW.value))
 const width = computed(() => clampSearchPanel(stored.value ?? searchPanelDefault(viewportW.value), viewportW.value))

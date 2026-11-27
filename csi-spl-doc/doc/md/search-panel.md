@@ -36,7 +36,9 @@ topic ea3ea4a3, msgs 6b9a0898 and 03ddd1e7, poll c3e059ea.
 6. **Close**: the panel's X, `Esc` in the list, or a section picked on the
    rail closes the search the same way and takes its line out of the
    Omnibox.
-7. On a phone the panel covers the page under the top bar; a tap shows the
+7. On a phone the panel covers the page under the top bar and the section
+   strip: the strip stays on top, as at every level of a section (SPL-3785),
+   and a section picked there closes the search (SPL-6702). A tap shows the
    hit over it (there is no room beside the list for a preview) and Back
    brings the list back, its scroll and chosen hit kept.
 

@@ -18,6 +18,9 @@
 #   7. with no SPL_RUST_HOME the rust home is <SPL_VAR_ORG_DIR>/rust
 #      (spl_run_paths), /mnt/data<SPL_VAR_ORG_DIR>/rust when /mnt/data is
 #      mounted, and with no tree at all the build is refused, rc 1
+#   8. _spl_box_users_resolve / _spl_box_user_home / _spl_box_user_exec,
+#      one-copy across spl-cmd-guard-mode and install-force-push-guard, and
+#      standalone lazy-load checks preserving FAIL/continue vs FATAL (r11-01)
 # mountpoint is a stub (SCG_TEST_MNT=1: /mnt/data is mounted, else nothing
 # is), so the cases do not depend on the box's own mounts (SPL-5988).
 #------------------------------------------------------------------------------
@@ -135,6 +138,101 @@ out="$( (unset SPL_RUST_HOME APP_PATH SPL_VAR_ORG_DIR; PATH="$T/stubbin:$PATH" S
   SPL_CMD_GUARD_IMPL=shadow mode) 2>&1)"; rc=$?
 [ "$rc" = 1 ] && [[ "$out" == *"FATAL cannot derive the rust home"* ]] &&
   pass "no tree and no SPL_RUST_HOME: the build is refused, rc 1" || fail "no tree: rc=$rc $out"
+
+# 8. _spl_box_users_resolve / _spl_box_user_home / _spl_box_user_exec and one-copy (r11-01)
+ME="$(id -un)"
+mkdir -p "$T/bin8" "$T/spool8"
+cat >"$T/bin8/getent" <<EOF
+#!/usr/bin/env bash
+case "\$2" in
+  "$ME") printf '%s:x:1001:1001::%s:/bin/bash\n' "$ME" "$T/h1" ;;
+  r11_nohome) printf 'r11_nohome:x:1002:1002::%s:/bin/bash\n' "$T/no-such-home" ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$T/bin8/getent"
+
+out="$(SPOOL_ROOT="$T/spool8" SPOOL_AGENT_USER="$ME" SPOOL_BOX_USER="r11_nohome" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }; PROJ_PATH="$1"
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  users=(); _spl_box_users_resolve || exit $?
+  printf "U=%s\n" "${users[*]}"' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "U=$ME r11_nohome" ]] &&
+  pass "8: _spl_box_users_resolve returns both distinct agent and box users" || fail "8: resolve two ($rc: $out)"
+
+out="$(SPOOL_ROOT="$T/spool8" SPOOL_AGENT_USER="$ME" SPOOL_BOX_USER="$ME" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }; PROJ_PATH="$1"
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  users=(); _spl_box_users_resolve || exit $?
+  printf "N=%d U=%s\n" "${#users[@]}" "${users[*]}"' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "N=1 U=$ME" ]] &&
+  pass "8: _spl_box_users_resolve deduplicates identical agent and box user" || fail "8: resolve one ($rc: $out)"
+
+out="$(PATH="$T/bin8:$PATH" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  h=""; _spl_box_user_home "$2" fatal || exit $?
+  printf "H=%s\n" "$h"' _ "$ORC" "$ME" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "H=$T/h1" ]] &&
+  pass "8: _spl_box_user_home resolves existing user home" || fail "8: home ok ($rc: $out)"
+
+out="$(PATH="$T/bin8:$PATH" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  h=""; _spl_box_user_home "" fail' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no agent / box user: set SPOOL_AGENT_USER and SPOOL_BOX_USER"* ]] &&
+  pass "8: _spl_box_user_home refuses empty user with rc 1" || fail "8: home empty ($rc: $out)"
+
+out="$(PATH="$T/bin8:$PATH" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  h=""; _spl_box_user_home r11_nohome fatal' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no home for r11_nohome"* ]] &&
+  pass "8: _spl_box_user_home fatal mode logs FATAL and returns 1" || fail "8: home fatal ($rc: $out)"
+
+out="$(PATH="$T/bin8:$PATH" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  h=""; _spl_box_user_home r11_nohome fail' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 2 && "$out" == *"FAIL no home for r11_nohome"* ]] &&
+  pass "8: _spl_box_user_home fail mode logs FAIL and returns 2" || fail "8: home fail ($rc: $out)"
+
+out="$(bash -c '
+  set -uo pipefail; . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  _spl_box_user_exec "$2" printf "EXEC=%s\n" ok' _ "$ORC" "$ME" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == "EXEC=ok" ]] &&
+  pass "8: _spl_box_user_exec runs command directly for current user" || fail "8: exec ($rc: $out)"
+
+scg_f="$ORC/src/bash/run/spl-cmd-guard-mode.func.sh"
+fpg_f="$ORC/src/bash/run/install-force-push-guard.func.sh"
+[[ "$(grep -c '^_spl_box_users_resolve()' "$scg_f")" -eq 1 &&
+   "$(grep -c '^_spl_box_user_home()' "$scg_f")" -eq 1 &&
+   "$(grep -c '^_spl_box_user_exec()' "$scg_f")" -eq 1 ]] &&
+  pass "8: one copy: spl-cmd-guard-mode.func.sh hosts _spl_box_user* helpers" || fail "8: host"
+own_fpg="$(grep -nE 'spool_env_resolve|getent passwd|sudo -n -u|no agent / box user' "$fpg_f" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+[[ -z "$own_fpg" ]] && grep -q '_spl_box_users_resolve' "$fpg_f" && grep -q '_spl_box_user_home ' "$fpg_f" && grep -q '_spl_box_user_exec ' "$fpg_f" &&
+  pass "8: one copy: install-force-push-guard.func.sh delegates to _spl_box_user*" || fail "8: fpg own=[$own_fpg]"
+
+out="$(PATH="$T/bin8:$PATH" SPOOL_ROOT="$T/spool8" SPOOL_AGENT_USER="$ME" SPOOL_BOX_USER="$ME" PROJ_PATH="$ORC" DRY_RUN=1 bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/install-force-push-guard.func.sh"
+  do_install_force_push_guard' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"INFO force-push-guard for $ME ($T/h1) - DRY RUN"* && "$out" == *"OK force-push-guard planned (DRY_RUN=0 writes)"* ]] &&
+  pass "8: standalone: install-force-push-guard lazy-loads helpers and plans for current user" || fail "8: fpg ok ($rc: $out)"
+
+out="$(PATH="$T/bin8:$PATH" SPOOL_ROOT="$T/spool8" SPOOL_AGENT_USER="r11_nohome" SPOOL_BOX_USER="$ME" PROJ_PATH="$ORC" DRY_RUN=1 bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/install-force-push-guard.func.sh"
+  do_install_force_push_guard' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FAIL no home for r11_nohome"* && "$out" == *"INFO force-push-guard for $ME ($T/h1) - DRY RUN"* && "$out" == *"FAIL force-push-guard install exited 1"* ]] &&
+  pass "8: standalone: install-force-push-guard preserves FAIL/continue on missing home" || fail "8: fpg missing ($rc: $out)"
+
+out="$(PATH="$T/bin8:$PATH" SPOOL_ROOT="$T/spool8" SPOOL_AGENT_USER="r11_nohome" SPOOL_BOX_USER="$ME" PROJ_PATH="$ORC" bash -c '
+  set -uo pipefail; do_log() { echo "$*"; }
+  . "$1/src/bash/run/spl-cmd-guard-mode.func.sh"
+  _scg_homes' _ "$ORC" 2>&1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL no home for r11_nohome"* && "$out" != *"$ME $T/h1"* ]] &&
+  pass "8: standalone: _scg_homes preserves FATAL/return 1 on missing home" || fail "8: scg missing ($rc: $out)"
 
 echo "spl-cmd-guard-mode: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

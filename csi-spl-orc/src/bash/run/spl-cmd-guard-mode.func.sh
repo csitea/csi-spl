@@ -47,18 +47,43 @@ _scg_build() {
   printf '%s\n' "$rh/target/spl-cmd-guard/x86_64-unknown-linux-musl/release/spl-cmd-guard"
 }
 
-# _scg_homes: "<user> <home>" per line, the agent user and the box user
-_scg_homes() {
-  local u h users=()
+# _spl_box_users_resolve: source spool-env.inc.sh and fill caller-scoped users
+# with SPOOL_AGENT_USER and (when distinct) SPOOL_BOX_USER.
+_spl_box_users_resolve() {
   # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
   source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" || return 1
   SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
   users=("${SPOOL_AGENT_USER:-}")
   [[ "${SPOOL_BOX_USER:-}" != "${SPOOL_AGENT_USER:-}" ]] && users+=("${SPOOL_BOX_USER:-}")
+  return 0
+}
+
+# _spl_box_user_home <user> <missing_mode>: validate user and set caller-scoped
+# h from getent passwd; missing_mode=fatal logs FATAL and returns 1, fail logs
+# FAIL and returns 2. Empty user logs FATAL and returns 1 in both modes.
+_spl_box_user_home() {
+  local u="$1" mode="${2:-fatal}"
+  [[ -n "$u" ]] || { do_log "FATAL no agent / box user: set SPOOL_AGENT_USER and SPOOL_BOX_USER"; return 1; }
+  h="$(getent passwd "$u" | cut -d: -f6)"
+  if [[ ! -d "$h" ]]; then
+    if [[ "$mode" == fail ]]; then do_log "FAIL no home for $u"; return 2; fi
+    do_log "FATAL no home for $u"; return 1
+  fi
+}
+
+# _spl_box_user_exec <user> <cmd...>: run <cmd...> as <user> (no sudo if self).
+_spl_box_user_exec() {
+  local u="$1"; shift
+  if [[ "$(id -un)" == "$u" ]]; then "$@"
+  else sudo -n -u "$u" -H "$@"; fi
+}
+
+# _scg_homes: "<user> <home>" per line, the agent user and the box user
+_scg_homes() {
+  local u h="" users=()
+  _spl_box_users_resolve || return 1
   for u in "${users[@]}"; do
-    [[ -n "$u" ]] || { do_log "FATAL no agent / box user: set SPOOL_AGENT_USER and SPOOL_BOX_USER"; return 1; }
-    h="$(getent passwd "$u" | cut -d: -f6)"
-    [[ -d "$h" ]] || { do_log "FATAL no home for $u"; return 1; }
+    _spl_box_user_home "$u" fatal || return 1
     printf '%s %s\n' "$u" "$h"
   done
 }
@@ -78,9 +103,7 @@ do_spl_cmd_guard_mode() {
     rows="$(_scg_homes)" || return 1
     while read -r u h; do
       do_log "INFO spl-cmd-guard $impl for $u ($h)$([[ $dry == 1 ]] && echo ' - DRY RUN')"
-      if [[ "$(id -un)" == "$u" ]]; then bash "$script" "$h" "$impl" "$bin" "$dry" || rc=$?
-      else sudo -n -u "$u" -H bash "$script" "$h" "$impl" "$bin" "$dry" || rc=$?
-      fi
+      _spl_box_user_exec "$u" bash "$script" "$h" "$impl" "$bin" "$dry" || rc=$?
     done <<<"$rows"
   fi
   (( rc == 0 )) || { do_log "FAIL spl-cmd-guard mode exited $rc"; return "$rc"; }

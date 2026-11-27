@@ -26,19 +26,16 @@ do_install_force_push_guard() {
   if [[ -n "${FORCE_PUSH_GUARD_HOMES:-}" ]]; then
     for h in $FORCE_PUSH_GUARD_HOMES; do bash -c "$fn" _ "$step" "$h" "$dry" || rc=$?; done
   else
-    # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
-    source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" || return 1
-    SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
-    users=("${SPOOL_AGENT_USER:-}")
-    [[ "${SPOOL_BOX_USER:-}" != "${SPOOL_AGENT_USER:-}" ]] && users+=("${SPOOL_BOX_USER:-}")
+    # shellcheck source=spl-cmd-guard-mode.func.sh
+    declare -F _spl_box_users_resolve >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-cmd-guard-mode.func.sh" || return 1
+    _spl_box_users_resolve || return 1
     for u in "${users[@]}"; do
-      [[ -n "$u" ]] || { do_log "FATAL no agent / box user: set SPOOL_AGENT_USER and SPOOL_BOX_USER"; return 1; }
-      h="$(getent passwd "$u" | cut -d: -f6)"
-      [[ -d "$h" ]] || { do_log "FAIL no home for $u"; rc=1; continue; }
+      local hrc=0
+      _spl_box_user_home "$u" fail || hrc=$?
+      (( hrc == 2 )) && { rc=1; continue; }
+      (( hrc == 0 )) || return "$hrc"
       do_log "INFO force-push-guard for $u ($h)$([[ $dry == 1 ]] && echo ' - DRY RUN')"
-      if [[ "$(id -un)" == "$u" ]]; then bash -c "$fn" _ "$step" "$h" "$dry" || rc=$?
-      else sudo -n -u "$u" -H bash -c "$fn" _ "$step" "$h" "$dry" || rc=$?
-      fi
+      _spl_box_user_exec "$u" bash -c "$fn" _ "$step" "$h" "$dry" || rc=$?
     done
   fi
   (( rc == 0 )) || { do_log "FAIL force-push-guard install exited $rc"; return "$rc"; }

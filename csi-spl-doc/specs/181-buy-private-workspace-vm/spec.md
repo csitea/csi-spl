@@ -1,7 +1,7 @@
 # Spec 181: buy a private workspace and a private VM, pick the agents
 
-**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7.2
-(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0; v0.6.1: row B2 implemented; v0.7.1: row B9 implemented; v0.7.2: paid invoices outlive the purge) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
+**Feature ID**: `181-buy-private-workspace-vm` · **Status**: Decided v0.7.3
+(Q-1..Q-20 answered; Q-21, standard VM machine type + monthly list price cnf source and spec 122 RQ-3, open; section 1.0; v0.6.1: row B2 implemented; v0.7.1: row B9 implemented; v0.7.2: paid invoices outlive the purge; v0.7.3: row B14 implemented) · **Epic**: SPL-2398 · **Issue**: SPL-5997 ·
 **Created**: 2026-11-19 · **Lead**: c-625 · **Placement slug**:
 `c002-spec-buy-private-workspace-vm` · **Class**: feature
 **Discussion**: t1 topic `b12055b5-d4dd-45b7-9682-74402d7c5164`
@@ -574,6 +574,41 @@ brackets.
 
 Row status (v0.4.1):
 
+- **B14: Implemented** (SPL-6645): the month-end invoice issuer (G15)
+  [Q-20 A]. Orc action `do_spl_private_ws_invoice_issue`
+  (`csi-spl-orc/src/bash/run/spl-private-ws-invoice-issue.func.sh`): a dry
+  run unless `DRY_RUN=0`, for a closed UTC month (`MONTH=YYYY-MM`; the
+  current or a future month is refused before any call) and every private
+  workspace or one `WORKSPACE`. It lists the private workspaces over
+  `GET /v1/operator/invoices/private-workspaces`, reads each VM's month
+  cost by running B4's `do_spl_vm_cost_per_day` window after window back
+  from the month's last day (B4 unchanged), and sums `total_eur_micros`; a
+  day that is `missing` or `partial`, or not read at all, refuses the
+  whole run before any write (never 0). It prints each quote (workspace,
+  humans, `vm_cost_micros`), and with `DRY_RUN=0` posts each to
+  `POST /v1/operator/invoices/issue {workspace, month, vm_cost_micros}`
+  (`internal/hub/operator_invoices.go`). Both routes are the env service
+  account's only (`operatorAuth`, called with `spl_hub_operator_call`; no
+  DB password or Cloud SQL proxy on the box). The hub counts the human
+  members itself with the new operator-scope read `PrivateWorkspaceMembers`
+  (`internal/store/private_workspaces.go`, CountMembers' rule, in
+  `TestOperatorScopeCallers`) and calls B12's `IssueInvoice`: 201 a new
+  invoice and one `operator_audit` `create` row in its workspace,
+  `{invoice_issued: <YYYY-MM>, humans, vm_cost_micros, total_micros,
+  currency, due_on}` (rdb 0212's action CHECK holds no invoice action, so
+  no migration); 200 a replay that returns the invoice already there and
+  writes nothing; 409 `not_private_workspace` or `month_not_closed`. Done
+  tests: `TestInvoiceIssueTwoPrivateOnePlain` (hub, both drivers),
+  `TestPrivateWorkspaceMembers` (store, both drivers) and
+  `csi-spl-orc/src/bash/tests/spl-private-ws-invoice-issue.tst.sh` (two
+  private workspaces and a closed month: `DRY_RUN` unset or 1 prints both
+  quotes with the exact sums and makes zero POST calls; `DRY_RUN=0` posts
+  two, a second run replays both). Red controls:
+  `TestInvoiceIssueRefusals` (a verified identity that is not an operator
+  403, no token 401, a member session 401, an open month 409, each writing
+  no invoice) and the `.tst.sh` cases 4 and 5 (a `missing` or `partial`
+  day, a day not read, an open or future month: refused, zero POSTs).
+  Running it for real (`DRY_RUN=0` on prd) waits for the owner's go.
 - **B13: Implemented** (SPL-6341): the owner's overdue list (G14).
   `GET /v1/operator/invoices/overdue` (`internal/hub/operator_invoices.go`)
   lists every private workspace's invoice that is unpaid and past its due
@@ -911,5 +946,9 @@ Marketplace stays spec 156.
 - v0.7.2 (2026-11-24, c-678, SPL-6355): B9 follow-up, paid invoices stay
   in the hub after the purge (owner msg `f872a556`), rdb 0322; a purged
   workspace's id is never re-created.
+- v0.7.3 (2026-11-27, c-309, SPL-6645): row B14 implemented (section 6
+  row status): `do_spl_private_ws_invoice_issue` and the operator routes
+  `GET /v1/operator/invoices/private-workspaces`, `POST
+  /v1/operator/invoices/issue`.
 
-<!-- version: 0.7.2 · updated: 2026-11-24 · last-edit: 2026-11-24T12:10:00Z -->
+<!-- version: 0.7.3 · updated: 2026-11-27 · last-edit: 2026-11-27T12:00:00Z -->

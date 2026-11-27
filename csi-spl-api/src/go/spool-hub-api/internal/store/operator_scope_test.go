@@ -193,6 +193,9 @@ var operatorCallers = map[string]string{
 	"EventTasks":    "scheduled task event hooks (spec 187 8.2, row S4): the named workspace's own event tasks plus the instance's that list it (or none), WHERE tenant_id names it or is NULL; no route",
 	"HubSetting":    "instance settings (spec 187 5.1, rdb 0331 hub_settings): no tenant column, an operator-only policy; read by the runner and the instance routes (row S6)",
 	"SetHubSetting": "instance settings (spec 187 5.1): written only through the instance routes (row S6: operatorAuth, or a t1 admin via instanceAdminAuth)",
+
+	// spec 181 row B14 (SPL-6645): the month-end invoice issuer.
+	"PrivateWorkspaceMembers": "GET /v1/operator/invoices/private-workspaces and POST /v1/operator/invoices/issue (spec 181 B14, Q-20 A; operatorAuth, the env SA): every workspace on the private_vm plan (rdb 0302, or the ONE named workspace) with its human-member count (CountMembers' rule); ids and counts only",
 }
 
 // operatorEntries are the only functions that set the operator scope:

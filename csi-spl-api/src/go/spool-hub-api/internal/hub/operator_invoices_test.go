@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -152,5 +153,191 @@ func TestInvoicePaidBadInput(t *testing.T) {
 		if code, body := call(t, g.e, g.op, http.MethodPost, path, g.admin, nil); code != want {
 			t.Fatalf("POST %s = %d %v, want %d", path, code, body, want)
 		}
+	}
+}
+
+// Spec 181 row B14 (gap G15): the month-end invoice issuer's operator
+// routes. Done test: two private workspaces and one that is not; the list
+// holds the two with their human counts; an issue for each private one
+// writes its invoice with the posted VM cost and the hub's count, none for
+// the other; a replay returns the same invoice and writes no new row or
+// audit. RED CONTROLS: a verified identity that is not an operator -> 403,
+// a member session -> 401, both writing nothing; an open month -> 409, no
+// invoice.
+
+const (
+	privateWSPath = "/v1/operator/invoices/private-workspaces"
+	issuePath     = "/v1/operator/invoices/issue"
+)
+
+// issueRig: a and b on the private_vm plan (2 and 1 human members), plain
+// not; the operator token "good" is the env SA, "stranger" is not.
+type issueRig struct {
+	e           *env
+	a, b, plain string
+	member      string
+}
+
+func newIssueRig(t *testing.T) *issueRig {
+	t.Helper()
+	ctx := context.Background()
+	g := &issueRig{a: newTenantID("ia"), b: newTenantID("ib"), plain: newTenantID("in")}
+	g.e = rbacEnv(t, func(o *hub.Options) {
+		o.Now = func() time.Time { return invoiceRigNow }
+		o.OperatorEmails = []string{operatorSA}
+		o.OperatorAudience = "https://api.dev.example"
+		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
+			switch token {
+			case "good":
+				return operatorSA, nil
+			case "stranger":
+				return "someone@example.com", nil
+			}
+			return "", errors.New("token rejected")
+		}
+	})
+	for _, id := range []string{g.a, g.b, g.plain} {
+		pub, _, _ := ed25519.GenerateKey(nil)
+		if err := g.e.st.CreateTenant(ctx, store.Tenant{ID: id, RootPubKey: pub}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{g.a, g.b} {
+		if err := g.e.st.(store.PricePlans).PutPricePlan(ctx, id, store.PrivateVMPlan()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g.member = seat(t, g.e, g.a, rbac.BizOwner)
+	seat(t, g.e, g.a, rbac.Developer)
+	seat(t, g.e, g.b, rbac.BizOwner)
+	seat(t, g.e, g.plain, rbac.BizOwner)
+	return g
+}
+
+// listed reads the private workspaces as the env SA, kept to the rig's.
+func (g *issueRig) listed(t *testing.T, query string) map[string]float64 {
+	t.Helper()
+	code, body := opCall(t, g.e, g.a, http.MethodGet, privateWSPath+query, "good", nil)
+	list, ok := body["workspaces"].([]any)
+	if code != http.StatusOK || !ok {
+		t.Fatalf("private workspaces = %d %v", code, body)
+	}
+	out := map[string]float64{}
+	for _, x := range list {
+		ws := x.(map[string]any)
+		if id := ws["workspace"].(string); id == g.a || id == g.b || id == g.plain {
+			out[id] = ws["humans"].(float64)
+		}
+	}
+	return out
+}
+
+func (g *issueRig) issue(t *testing.T, token, id, month string, cost any) (int, map[string]any) {
+	t.Helper()
+	return opCall(t, g.e, g.a, http.MethodPost, issuePath, token, map[string]any{"workspace": id, "month": month, "vm_cost_micros": cost})
+}
+
+// issuedAudits counts the invoice_issued audit rows of workspace id.
+func (g *issueRig) issuedAudits(t *testing.T, id string) int {
+	t.Helper()
+	rows, err := g.e.st.(store.OperatorWorkspaces).OperatorAuditOf(context.Background(), id, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, a := range rows {
+		if a.Action == store.AuditCreate && a.Detail["invoice_issued"] != nil && a.ActorHum == operatorSA {
+			n++
+		}
+	}
+	return n
+}
+
+// noInvoice fails when id has an invoice for month.
+func (g *issueRig) noInvoice(t *testing.T, id string, month time.Time) {
+	t.Helper()
+	if inv, err := g.e.st.(store.Invoices).Invoice(context.Background(), id, month); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("%s has an invoice for %s: %+v %v", id, month.Format("2006-01"), inv, err)
+	}
+}
+
+func TestInvoiceIssueTwoPrivateOnePlain(t *testing.T) {
+	g := newIssueRig(t)
+	if got := g.listed(t, ""); len(got) != 2 || got[g.a] != 2 || got[g.b] != 1 {
+		t.Fatalf("private workspaces = %v, want %s:2 %s:1, not %s", got, g.a, g.b, g.plain)
+	}
+	if got := g.listed(t, "?workspace="+g.b); len(got) != 1 || got[g.b] != 1 {
+		t.Fatalf("one named = %v, want only %s:1", got, g.b)
+	}
+	if got := g.listed(t, "?workspace="+g.plain); len(got) != 0 {
+		t.Fatalf("the plain workspace named = %v, want none", got)
+	}
+	want := map[string][2]float64{g.a: {2, 1_234_567}, g.b: {1, 9_000_000}}
+	first := map[string]map[string]any{}
+	for id, w := range want {
+		code, body := g.issue(t, "good", id, "2026-10", int64(w[1]))
+		inv, _ := body["invoice"].(map[string]any)
+		if code != http.StatusCreated || body["created"] != true || inv["humans"] != w[0] || inv["vm_cost_micros"] != w[1] ||
+			inv["issued_on"] != "2026-11-20" || inv["due_on"] != "2026-12-04" || inv["month"] != "2026-10" {
+			t.Fatalf("issue %s = %d %v, want 201 with humans %v cost %v", id, code, body, w[0], w[1])
+		}
+		first[id] = inv
+	}
+	if code, body := g.issue(t, "good", g.plain, "2026-10", 5); code != http.StatusConflict || body["error"] != "not_private_workspace" {
+		t.Fatalf("issue for the plain workspace = %d %v, want 409", code, body)
+	}
+	g.noInvoice(t, g.plain, october)
+	for id, w := range want {
+		code, body := g.issue(t, "good", id, "2026-10", int64(w[1])+1)
+		inv, _ := body["invoice"].(map[string]any)
+		if code != http.StatusOK || body["created"] != false || inv["total_micros"] != first[id]["total_micros"] || inv["vm_cost_micros"] != w[1] {
+			t.Fatalf("replay %s = %d %v, want 200 with the first invoice %v", id, code, body, first[id])
+		}
+		if n := g.issuedAudits(t, id); n != 1 {
+			t.Fatalf("%s: %d invoice_issued audit rows after a replay, want 1", id, n)
+		}
+	}
+}
+
+func TestInvoiceIssueRefusals(t *testing.T) {
+	g := newIssueRig(t)
+	for _, c := range []struct {
+		who, token string
+		want       int
+	}{
+		{"a verified identity that is not an operator", "stranger", http.StatusForbidden},
+		{"no token", "", http.StatusUnauthorized},
+		{"a rejected token", "forged", http.StatusUnauthorized},
+	} {
+		if code, _ := opCall(t, g.e, g.a, http.MethodGet, privateWSPath, c.token, nil); code != c.want {
+			t.Fatalf("%s lists: %d, want %d", c.who, code, c.want)
+		}
+		if code, _ := g.issue(t, c.token, g.a, "2026-10", 1); code != c.want {
+			t.Fatalf("%s issues: %d, want %d", c.who, code, c.want)
+		}
+	}
+	if code, _ := call(t, g.e, g.a, http.MethodPost, issuePath, g.member, map[string]any{"workspace": g.a, "month": "2026-10", "vm_cost_micros": 1}); code != http.StatusUnauthorized {
+		t.Fatalf("the workspace's own biz owner issues: %d, want 401", code)
+	}
+	g.noInvoice(t, g.a, october)
+	november := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	if code, body := g.issue(t, "good", g.a, "2026-11", 1); code != http.StatusConflict || body["error"] != "month_not_closed" {
+		t.Fatalf("issue for the open month = %d %v, want 409 month_not_closed", code, body)
+	}
+	g.noInvoice(t, g.a, november)
+	for name, b := range map[string]map[string]any{
+		"bad month":     {"workspace": g.a, "month": "2026-13", "vm_cost_micros": 1},
+		"negative cost": {"workspace": g.a, "month": "2026-10", "vm_cost_micros": -1},
+		"no cost":       {"workspace": g.a, "month": "2026-10"},
+		"bad workspace": {"workspace": "Bad Id", "month": "2026-10", "vm_cost_micros": 1},
+		"unknown field": {"workspace": g.a, "month": "2026-10", "vm_cost_micros": 1, "humans": 9},
+	} {
+		if code, body := opCall(t, g.e, g.a, http.MethodPost, issuePath, "good", b); code != http.StatusBadRequest {
+			t.Fatalf("%s: %d %v, want 400", name, code, body)
+		}
+	}
+	g.noInvoice(t, g.a, october)
+	if n := g.issuedAudits(t, g.a); n != 0 {
+		t.Fatalf("the refused calls wrote %d audit rows, want 0", n)
 	}
 }

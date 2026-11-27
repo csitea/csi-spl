@@ -16720,6 +16720,41 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/invoices/issue": {
+      "post": {
+        "operationId": "postOperatorInvoiceIssue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A replay: the workspace already has its invoice for that month; it is returned unchanged with created false, and nothing is written (one invoice per workspace per month)."
+          },
+          "201": {
+            "description": "Spec 181 row B14 (gap G15, Q-20 A): body {workspace, month (YYYY-MM), vm_cost_micros (the VM's month cost in EUR micros, >= 0)}. The hub counts the workspace's human members and writes its invoice for that closed month with B12's IssueInvoice (seats x 9 EUR + the VM cost x 1.33, issued today, due 14 days later, Q-19 A): {created: true, invoice: {workspace, month, currency, humans, seat_cents, vm_cost_micros, vm_price_micros, total_micros, issued_on, due_on, paid_at}}. Writes one operator_audit create row in that workspace, detail {invoice_issued, humans, vm_cost_micros, total_micros, currency, due_on}. Only the env's operator service account (operatorAuth)."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "not_private_workspace: the workspace is not on the private_vm plan; month_not_closed: the month has not ended (an invoice is issued in arrears)"
+          }
+        },
+        "summary": "Issue a private workspace's monthly invoice (the month-end invoice issuer)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/invoices/overdue": {
       "get": {
         "operationId": "getOperatorInvoicesOverdue",
@@ -16740,6 +16775,43 @@
           }
         },
         "summary": "List the private workspaces' overdue invoices",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/invoices/private-workspaces": {
+      "get": {
+        "operationId": "getOperatorInvoicesPrivateWorkspaces",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spec 181 row B14 (gap G15, Q-20 A): every workspace on the private_vm plan (rdb 0302), by id, or only the one named by ?workspace= (none when it is not on the plan): {workspaces: [{workspace, humans}]}, humans = the human members counted by CountMembers' rule (agents are not seats, Q-6 A). Read-only, ids and counts only; the box action do_spl_private_ws_invoice_issue prints its dry-run quotes from it. Only the env's operator service account (operatorAuth); 501 when the store lists no private workspaces."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the private workspaces and their human-member counts (the month-end invoice issuer)",
         "tags": [
           "operator"
         ],

@@ -6,7 +6,7 @@
 #   1. the hours window: valid forms -> systemd days + start + end; a window
 #      that ends before it starts, a 9:00 hour, a bad day -> exit 2
 #   2. bad values are refused before anything runs (exit 2): tag, hours,
-#      tenant, env, agent cap, move box, member user
+#      tenant, env, agent cap, move box, member user, ask way, ask person
 #   3. not Debian -> exit 3, nothing run
 #   4. DRY_RUN (default): the root plan (packages, the agents' user with a
 #      locked password and no sudo group, box.env, laptop-box.env with the
@@ -56,7 +56,7 @@ bad=0; for h in 'Mon-Fri 17:00-09:00' 'Mon 09:00-09:00' 'Mon-Fri 9:00-17:00' 'Xy
 (( bad == 0 )) && pass "1 bad windows exit 2" || fail "1 a bad window was taken"
 
 # 2
-for kv in BOX_TAG=Lap_A "HOURS=Mon 18:00-08:00" TENANT_ID=T1 LAPTOP_ENV=stage AGENT_MAX=0 MOVE_BOX=Home "LAPTOP_MEMBER=a b"; do
+for kv in BOX_TAG=Lap_A "HOURS=Mon 18:00-08:00" TENANT_ID=T1 LAPTOP_ENV=stage AGENT_MAX=0 MOVE_BOX=Home "LAPTOP_MEMBER=a b" LAPTOP_ASK=sms LAPTOP_ASK_HUM=bob; do
   run_install "${OK[@]}" "$kv"; rc=$?
   [[ $rc -eq 2 && ! -s "$T/root.log" ]] && pass "2 refused: $kv" || fail "2 $kv: rc=$rc $(head -2 "$T/o")"
 done
@@ -73,7 +73,7 @@ if [[ $rc -eq 0 && ! -s "$T/root.log" && ! -s "$T/inst.log" ]] \
   && ! grep -qE 'usermod -aG (sudo|adm)' <<<"$o" \
   && grep -q "SPOOL_BOX_TAG=lap-a" <<<"$o" && grep -q "SPOOL_FLEET_TENANT=t9" <<<"$o" \
   && grep -q "LAPTOP_HOURS=Mon-Fri 09:00-17:00' 'LAPTOP_AGENT_MAX=4'" <<<"$o" \
-  && grep -q "'LAPTOP_MOVE_BOX=home' 'LAPTOP_MEMBER=mem'" <<<"$o" && grep -q "usermod -aG 'grp-x' 'mem'" <<<"$o" \
+  && grep -q "'LAPTOP_MOVE_BOX=home' 'LAPTOP_MEMBER=mem' 'LAPTOP_ASK=wui'" <<<"$o" && grep -q "usermod -aG 'grp-x' 'mem'" <<<"$o" \
   && grep -q "'User=agt-u'" <<<"$o" && grep -q "'ExecStart=$CO/csi-spl-orc/run -a do_spl_laptop_box_tick'" <<<"$o" \
   && grep -q "'ConditionUser=mem'" <<<"$o" && grep -q "install -o root -g root -m 0755 '$CO/csi-spl-orc/src/bash/features/laptop-box/laptop-box-ctl.sh' /usr/local/bin/spl-laptop-box" <<<"$o" \
   && grep -q "systemctl enable --now spl-laptop-box-tick.timer" <<<"$o" \

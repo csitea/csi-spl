@@ -19,6 +19,10 @@
 #      plan (timers off, units gone, the agents' user deleted)
 #   9. a closed pop-up writes no answer
 #  10. not a laptop box (no laptop-box.env) -> exit 3
+#  11. LAPTOP_ASK=wui: the question is posted once as a poll form tagging
+#      her (CON / STP); the pop-up stays silent; a reply from someone else
+#      is ignored; her CON -> 1 more hour; her STP -> the lanes move;
+#      no channel configured -> "wui NOT posted", the lanes move after 15 min
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -27,7 +31,7 @@ fails=0
 export IN_ORC_RUN="spl-laptop-box-tick"
 FB="$PROJ_ROOT/src/bash/features/laptop-box"
 SR="$T/spool"; D="$SR/dispatch/laptop-box"; mkdir -p "$D"
-printf '%s\n' "LAPTOP_HOURS=Mon-Fri 09:00-17:00" LAPTOP_AGENT_MAX=4 LAPTOP_BOX_TAG=lap-a LAPTOP_AGENT_USER=agt-u LAPTOP_MOVE_BOX=home LAPTOP_MEMBER=mem >"$SR/dispatch/laptop-box.env"
+printf '%s\n' "LAPTOP_HOURS=Mon-Fri 09:00-17:00" LAPTOP_AGENT_MAX=4 LAPTOP_BOX_TAG=lap-a LAPTOP_AGENT_USER=agt-u LAPTOP_MOVE_BOX=home LAPTOP_MEMBER=mem LAPTOP_ASK=dsk >"$SR/dispatch/laptop-box.env"
 mkdir -p "$T/stub"
 printf '#!/usr/bin/env bash\ncat "%s/lanes.in" 2>/dev/null\n' "$T" >"$T/stub/lanes"
 printf '#!/usr/bin/env bash\necho join >>"%s/join.log"; rm -f "%s/dispatch/box.leave"\n' "$T" "$SR" >"$T/stub/join"
@@ -36,10 +40,10 @@ chmod +x "$T/stub/"*
 FRI10=$(date -d '2026-11-27 10:00' +%s); FRI18=$(date -d '2026-11-27 18:00' +%s)
 tick() {  # <epoch>
   SNIPPET=do_spl_laptop_box_tick in_orc SPOOL_ROOT="$SR" LAPTOP_NOW="$1" LAPTOP_LANES_CMD="$T/stub/lanes" \
-    LAPTOP_JOIN_CMD="$T/stub/join" LAPTOP_HANDOVER_CMD="$T/stub/handover" >"$T/o" 2>&1
+    LAPTOP_JOIN_CMD="$T/stub/join" LAPTOP_HANDOVER_CMD="$T/stub/handover" LAPTOP_SPOOL_CMD="$T/stub/spool" >"$T/o" 2>&1
 }
 ctl() { SPOOL_ROOT="$SR" LAPTOP_NOW="${NOW:-$FRI18}" bash "$FB/laptop-box-ctl.sh" "$@"; }
-reset() { rm -f "$D"/* "$SR/dispatch/box.leave" "$T"/*.log "$T/lanes.in" "$T/handover.fail"; }
+reset() { rm -f "$D"/* "$SR/dispatch/box.leave" "$T"/*.log "$T/lanes.in" "$T/handover.fail" "$T/topic.ndjson"; }
 lanes() { printf '%s\n' "$@" >"$T/lanes.in"; }
 
 # 1
@@ -95,6 +99,34 @@ reset; echo q >"$D/ask-pending"; NOTIFY_PICK="" SPOOL_ROOT="$SR" LAPTOP_NOTIFY="
 # 10
 mv "$SR/dispatch/laptop-box.env" "$T/env.bak"; tick "$FRI10"; rc=$?; mv "$T/env.bak" "$SR/dispatch/laptop-box.env"
 [[ $rc -eq 3 ]] && pass "10 not a laptop box: exit 3" || fail "10 rc=$rc"
+
+# 11
+cat >"$T/stub/spool" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  send) shift; while [ $# -gt 0 ]; do case "$1" in --body) printf '%s\n' "$2" >>"$SENTF";; --channel) echo "channel $2" >>"$SENTF";; esac; shift; done
+        echo '{"delivery":"hub","msg_id":"m-form-1","task_id":"t-form-1"}' ;;
+  tail) [ "$3" = "/t/t-form-1" ] && cat "$TOPICF" 2>/dev/null ;;
+esac
+STUB
+chmod +x "$T/stub/spool"; export SENTF="$T/sent.log" TOPICF="$T/topic.ndjson"
+EW="$SR/dispatch/laptop-box.env"; cp "$EW" "$T/env.dsk"
+sed -i 's/^LAPTOP_ASK=dsk$/LAPTOP_ASK=wui/' "$EW"; printf '%s\n' LAPTOP_ASK_CHANNEL=lap-ch LAPTOP_ASK_FROM=c-200 LAPTOP_ASK_HUM=HUM-24 >>"$EW"
+reply() { jq -cn --arg f "$1" --arg b "$2" '{from:$f, body:$b}' >>"$TOPICF"; }
+reset; lanes c-101 c-102; tick "$FRI18"; t1="$(cat "$T/o")"
+SPOOL_ROOT="$SR" LAPTOP_NOTIFY="$T/stub/notify" NOTIFY_PICK=stop bash "$FB/laptop-box-ask.sh"
+if grep -q "asked her (wui)" <<<"$t1" && grep -q "^channel lap-ch" "$SENTF" && grep -q "^@HUM-24 2 fleet agent" "$SENTF" && grep -q '^(CON) Continue 1 h' "$SENTF" \
+  && grep -q '^(STP) Stop' "$SENTF" && [[ ! -e "$D/answer" && "$(cat "$D/ask-wui")" == "m-form-1 t-form-1 HUM-24" ]]; then pass "11 wui: the form is posted, no pop-up"
+else fail "11 wui post: $t1"; cat "$SENTF"; fi
+reply HUM-9 $'Poll: m-form-1\nAnswer: STP — Stop'; tick $((FRI18 + 60))
+grep -q "waiting for her answer" "$T/o" && [[ ! -e "$T/handover.log" && "$(grep -c '^channel' "$SENTF")" == 1 ]] && pass "11 wui: someone else's answer is ignored, no second post" || fail "11 other: $(cat "$T/o")"
+reply HUM-24 $'Poll: m-form-1\nAnswer: CON — Continue 1 h'; tick $((FRI18 + 120))
+[[ "$(cat "$D/continue-until" 2>/dev/null)" == $((FRI18 + 120 + 3600)) && ! -e "$T/handover.log" ]] && pass "11 wui: her CON -> 1 more hour" || fail "11 CON: $(cat "$T/o")"
+reset; lanes c-101; tick "$FRI18"; reply HUM-24 $'Poll: m-form-1\nAnswer: STP — Stop'; tick $((FRI18 + 60))
+grep -q "lanes moved to home" "$T/o" && pass "11 wui: her STP -> the lanes move" || fail "11 STP: $(cat "$T/o")"
+sed -i '/^LAPTOP_ASK_CHANNEL=/d' "$EW"; reset; : >"$SENTF"; lanes c-101; tick "$FRI18"; t1="$(cat "$T/o")"; tick $((FRI18 + 900))
+grep -q "asked her (wui NOT posted)" <<<"$t1" && [[ ! -s "$SENTF" ]] && grep -q "lanes moved to home" "$T/o" && pass "11 wui unconfigured: not posted, moved after the wait" || fail "11 unconfigured: $t1 / $(cat "$T/o")"
+cp "$T/env.dsk" "$EW"
 
 echo "=== spl-laptop-box-tick: $fails failure(s) ==="
 (( fails == 0 ))

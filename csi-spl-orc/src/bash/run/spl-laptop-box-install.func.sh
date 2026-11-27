@@ -30,6 +30,8 @@
 # @param HOURS (required) - her working hours, "<days> <HH:MM>-<HH:MM>", e.g. "Mon-Fri 09:00-17:00"
 # @param TENANT_ID (required) - the workspace the box serves
 # @param MOVE_BOX (required) - the fleet box her agents move to at the end of her hours (its tag)
+# @param LAPTOP_ASK (optional) - how she is asked at the end of her hours: wui (default, a poll form in the web UI) or dsk (a desktop pop-up)
+# @param LAPTOP_ASK_CHANNEL / LAPTOP_ASK_FROM / LAPTOP_ASK_HUM (optional) - with wui: the channel, the box's desk agent that posts, her HUM-<n>
 # @param LAPTOP_MEMBER (optional) - her own OS user (the pop-up's session), default SUDO_USER
 # @param LAPTOP_ENV (optional) - dev or prd, default prd
 # @param AGENT_MAX (optional) - the most agents at once on this box, default 4
@@ -45,6 +47,7 @@ do_spl_laptop_box_install() {
   local max="${AGENT_MAX:-4}" u="${LAPTOP_AGENT_USER:-}" to="${MOVE_BOX:-}" me="${LAPTOP_MEMBER:-${SUDO_USER:-}}" co dry=1 sr g hub
   spl_laptop_install_args_ok "$tag" "$hours" "$ten" "$env" "$max" || return 2
   spl_laptop_box_tag_ok "$to" || { do_log "FATAL MOVE_BOX must be a box tag, got '$to'"; return 2; }
+  local ask; ask="$(spl_laptop_install_ask_lines)" || return 2
   [[ -z "$me" || "$me" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL LAPTOP_MEMBER is not a user name: '$me'"; return 2; }
   [[ -r "${LAPTOP_OS_RELEASE:-/etc/debian_version}" ]] || { do_log "FATAL not a Debian box (no /etc/debian_version): the laptop box is Debian only"; return 3; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 2; dry=0; fi
@@ -57,7 +60,7 @@ do_spl_laptop_box_install() {
   [[ -n "$hub" ]] || { do_log "FATAL env.dns.api_fqdn is not set in the $env cnf of $co: no hub URL"; return 1; }
   hub="https://$hub"
   local -a cmds=()
-  mapfile -t cmds < <(spl_laptop_install_root_cmds "$u" "$co" "$sr" "$g" "$tag" "$env" "$ten" "$hours" "$max" "$to" "$me")
+  mapfile -t cmds < <(spl_laptop_install_root_cmds "$u" "$co" "$sr" "$g" "$tag" "$env" "$ten" "$hours" "$max" "$to" "$me" "$ask")
   if (( dry )); then
     do_log "INFO DRY_RUN would run as root:"; printf '    %s\n' "${cmds[@]}"
     do_log "INFO DRY_RUN then as $u: install.sh --cli claude --fleet --env $env --tenant $ten --box $tag (hub $hub, the join token from a 0600 file)"
@@ -70,6 +73,16 @@ do_spl_laptop_box_install() {
   spl_laptop_install_as_user "$u" "$co" "$hub" "$env" "$ten" "$tag" "$sr" "$tok" || return 1
   do_log "OK this laptop is box $tag of $ten ($env): agents run as $u, up to $max at once, in $hours; her controls: spl-laptop-box status|stop|off|start|continue"
   [[ -n "$me" ]] || do_log "WARN no member user (SUDO_USER unset): the end-of-hours pop-up has no session; set LAPTOP_MEMBER and re-run"
+}
+
+# spl_laptop_install_ask_lines: the LAPTOP_ASK* lines of laptop-box.env, one
+# space-separated word each (exit 2 on a bad value).
+spl_laptop_install_ask_lines() {
+  local a="${LAPTOP_ASK:-wui}" ch="${LAPTOP_ASK_CHANNEL:-}" fr="${LAPTOP_ASK_FROM:-}" h="${LAPTOP_ASK_HUM:-}"
+  [[ "$a" =~ ^(wui|dsk)$ ]] || { do_log "FATAL LAPTOP_ASK must be wui or dsk, got '$a'"; return 2; }
+  [[ -z "$ch$fr" || "$ch$fr" =~ ^[A-Za-z0-9._-]+$ ]] || { do_log "FATAL LAPTOP_ASK_CHANNEL / LAPTOP_ASK_FROM must be single words"; return 2; }
+  [[ -z "$h" || "$h" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL LAPTOP_ASK_HUM must be HUM-<n>, got '$h'"; return 2; }
+  echo "LAPTOP_ASK=$a LAPTOP_ASK_CHANNEL=$ch LAPTOP_ASK_FROM=$fr LAPTOP_ASK_HUM=$h"
 }
 
 # spl_laptop_install_args_ok <tag> <hours> <tenant> <env> <max>: the one-liner's

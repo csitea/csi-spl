@@ -20,13 +20,15 @@
 # @description       work pushed to a wip/handover ref, its session resumed
 # @description       there), one line per lane in moves.log;
 # @description     - else the question: ask-pending (the lanes, the two
-# @description       choices) and asked-at; her desktop pop-up shows it.
+# @description       choices) and asked-at; LAPTOP_ASK=wui (default) posts it
+# @description       as a poll form in LAPTOP_ASK_CHANNEL tagging her and reads
+# @description       her answer back each tick; dsk leaves it to her pop-up.
 # @description Writes the live lanes to the state dir's lanes file (her status
 # @description and remove read it). Prints one TICK line.
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param LAPTOP_STATE_DIR (optional) - default <spool root>/dispatch/laptop-box
 # @param LAPTOP_ASK_WAIT_MIN (optional) - minutes the question waits for her, default 15
-# @param LAPTOP_NOW / LAPTOP_LANES_CMD / LAPTOP_JOIN_CMD / LAPTOP_HANDOVER_CMD (tests) - the clock (epoch), the lane lister, the box join, the lane handover
+# @param LAPTOP_NOW / LAPTOP_LANES_CMD / LAPTOP_JOIN_CMD / LAPTOP_HANDOVER_CMD / LAPTOP_SPOOL_CMD (tests) - the clock (epoch), the lane lister, the box join, the lane handover, the spool CLI
 # @example ./run -a do_spl_laptop_box_tick
 #------------------------------------------------------------------------------
 do_spl_laptop_box_tick() {
@@ -38,11 +40,12 @@ do_spl_laptop_box_tick() {
   spl_laptop_hours_parse "$hours" >/dev/null || { do_log "FATAL LAPTOP_HOURS in $envf is not a window: '$hours'"; return 3; }
   mkdir -p "$d" || return 1
   now="${LAPTOP_NOW:-$(date +%s)}"
+  [[ "$(spl_laptop_env_get "$envf" LAPTOP_ASK)" == dsk ]] || spl_laptop_ask_wui_read "$d" "$now"
   spl_laptop_tick_answer "$d" "$now"
   lanes="$(${LAPTOP_LANES_CMD:-spl_laptop_tick_lanes})"; printf '%s' "${lanes:+$lanes$'\n'}" >"$d/lanes"
   n="$(grep -c . "$d/lanes")"
   if spl_laptop_tick_on "$d" "$hours" "$now"; then
-    rm -f "$d/asked-at" "$d/ask-pending" "$d/continue-until" "$d/move-now"
+    rm -f "$d/asked-at" "$d/ask-pending" "$d/ask-wui" "$d/continue-until" "$d/move-now"
     if (( n >= ${max:-4} )); then
       [[ -e "$mark" ]] || echo "laptop box: at its cap of ${max:-4} agents" >"$mark"
       echo "TICK in-hours lanes=$n cap=${max:-4}: full, no new lanes"; return 0
@@ -51,7 +54,7 @@ do_spl_laptop_box_tick() {
     echo "TICK in-hours lanes=$n cap=${max:-4}: takes lanes"; return 0
   fi
   [[ -e "$mark" ]] || echo "laptop box: outside its hours ($hours)" >"$mark"
-  spl_laptop_tick_out "$d" "$now" "$n" "$to"
+  spl_laptop_tick_out "$d" "$now" "$n" "$to" "$envf"
 }
 
 # spl_laptop_tick_on <state dir> <hours> <epoch>: the box works now.
@@ -65,16 +68,17 @@ spl_laptop_tick_on() {
 spl_laptop_tick_answer() {
   local a; a="$(awk '{print $1; exit}' "$1/answer" 2>/dev/null)"
   case "$a" in
-    continue) echo "$(( $2 + 3600 ))" >"$1/continue-until"; rm -f "$1/asked-at" "$1/ask-pending" ;;
+    continue) echo "$(( $2 + 3600 ))" >"$1/continue-until"; rm -f "$1/asked-at" "$1/ask-pending" "$1/ask-wui" ;;
     stop) echo "$2" >"$1/move-now"; rm -f "$1/continue-until" ;;
   esac
   rm -f "$1/answer"
 }
 
-# spl_laptop_tick_out <state dir> <epoch> <lanes> <move box>: outside her hours.
+# spl_laptop_tick_out <state dir> <epoch> <lanes> <move box> <env file>:
+# outside her hours.
 spl_laptop_tick_out() {
-  local d="$1" now="$2" n="$3" to="$4" at cu wait=$(( ${LAPTOP_ASK_WAIT_MIN:-15} * 60 ))
-  if (( n == 0 )); then rm -f "$d/asked-at" "$d/ask-pending" "$d/move-now"; echo "TICK out lanes=0: idle"; return 0; fi
+  local d="$1" now="$2" n="$3" to="$4" envf="$5" at cu wait=$(( ${LAPTOP_ASK_WAIT_MIN:-15} * 60 ))
+  if (( n == 0 )); then rm -f "$d/asked-at" "$d/ask-pending" "$d/ask-wui" "$d/move-now"; echo "TICK out lanes=0: idle"; return 0; fi
   cu="$(cat "$d/continue-until" 2>/dev/null)"; at="$(cat "$d/asked-at" 2>/dev/null)"
   if [[ ! -e "$d/move-now" && "$cu" =~ ^[0-9]+$ ]] && (( cu > now )); then
     echo "TICK out lanes=$n: she continues until $(date -d "@$cu" +%H:%M)"; return 0
@@ -86,8 +90,10 @@ spl_laptop_tick_out() {
     { echo "$n fleet agent(s) still work on this laptop:"; sed 's/^/  /' "$d/lanes"
       echo "Continue 1 h, or Stop: they move to the fleet with their work."
       echo "No answer in ${LAPTOP_ASK_WAIT_MIN:-15} min: they move."; } >"$d/ask-pending"
-    echo "$now" >"$d/asked-at"; rm -f "$d/continue-until"
-    echo "TICK out lanes=$n: asked her"; return 0
+    echo "$now" >"$d/asked-at"; rm -f "$d/continue-until" "$d/ask-wui"
+    local how=desktop
+    if [[ "$(spl_laptop_env_get "$envf" LAPTOP_ASK)" != dsk ]]; then how=wui; spl_laptop_ask_wui_post "$d" "$envf" || how="wui NOT posted"; fi
+    echo "TICK out lanes=$n: asked her ($how)"; return 0
   fi
   echo "TICK out lanes=$n: waiting for her answer"
 }
@@ -104,7 +110,7 @@ spl_laptop_tick_move() {
       echo "$(date -u +%FT%TZ) FAILED $id -> $to" >>"$d/moves.log"; bad=$((bad + 1))
     fi
   done <"$d/lanes"
-  rm -f "$d/asked-at" "$d/ask-pending" "$d/move-now"
+  rm -f "$d/asked-at" "$d/ask-pending" "$d/ask-wui" "$d/move-now"
   (( bad == 0 )) || { echo "TICK out: $bad lane(s) did not move to $to (moves.log); the next tick retries"; date +%s >"$d/move-now"; return 1; }
   echo "TICK out: lanes moved to $to"
 }
@@ -115,4 +121,39 @@ spl_laptop_tick_lanes() {
   _spl_box_leave_deps 2>/dev/null || true
   spl_box_init >/dev/null 2>&1 || true
   spl_box_lanes
+}
+
+# The WUI way to ask her (5a = WUI, form 3d4ecf66; the switch LAPTOP_ASK in
+# laptop-box.env: wui, the default, or dsk for the desktop pop-up). The box
+# posts the question as a new topic in LAPTOP_ASK_CHANNEL, as its desk agent
+# LAPTOP_ASK_FROM, tagging her (LAPTOP_ASK_HUM): a poll form, Continue 1 h
+# (CON) or Stop (STP); how-to-post.md section 7. Her answer is a reply in
+# that topic, "Poll: <msg id>" + "Answer: CON|STP", read back on each tick.
+
+# spl_laptop_ask_wui_post <state dir> <env file>: post the form, keep its ids.
+spl_laptop_ask_wui_post() {
+  local d="$1" envf="$2" ch from hum out mid tid body
+  ch="$(spl_laptop_env_get "$envf" LAPTOP_ASK_CHANNEL)"; from="$(spl_laptop_env_get "$envf" LAPTOP_ASK_FROM)"
+  hum="$(spl_laptop_env_get "$envf" LAPTOP_ASK_HUM)"
+  [[ -n "$ch" && -n "$from" && "$hum" =~ ^HUM-[0-9]+$ ]] || { do_log "WARN LAPTOP_ASK=wui needs LAPTOP_ASK_CHANNEL, LAPTOP_ASK_FROM and LAPTOP_ASK_HUM in $envf: not asked; the lanes move after the wait"; return 1; }
+  body="@$hum $(cat "$d/ask-pending")"$'\n\n```poll\nKeep the fleet agents on your laptop?\n(CON) Continue 1 h\n(STP) Stop\n```'
+  out="$(${LAPTOP_SPOOL_CMD:-spool} send --channel "$ch" --from "$from" --kind question --body "$body" 2>&1)" || { do_log "WARN the WUI question was not posted: $out"; return 1; }
+  mid="$(jq -r '.msg_id // empty' <<<"$out" 2>/dev/null)"; tid="$(jq -r '.task_id // empty' <<<"$out" 2>/dev/null)"
+  [[ -n "$mid" && -n "$tid" ]] || { do_log "WARN the WUI question's ids are not in the send answer: $out"; return 1; }
+  printf '%s %s %s\n' "$mid" "$tid" "$hum" >"$d/ask-wui"
+}
+
+# spl_laptop_ask_wui_read <state dir> <epoch>: her newest answer to the form
+# in its topic (only HER replies count) -> the answer file the tick reads.
+spl_laptop_ask_wui_read() {
+  local d="$1" now="$2" mid tid hum k
+  [[ -s "$d/ask-wui" && ! -e "$d/answer" ]] || return 0
+  read -r mid tid hum <"$d/ask-wui"
+  k="$(${LAPTOP_SPOOL_CMD:-spool} tail --url "/t/$tid" --json 2>/dev/null |
+    jq -rs --arg m "$mid" --arg h "$hum" '[.[] | select(.from == $h) | .body // ""
+      | select(test("(^|\\n)Poll: " + $m)) | capture("(^|\\n)Answer: (?<k>[A-Z]+)").k] | last // empty' 2>/dev/null)"
+  case "$k" in
+    CON) echo "continue $now" >"$d/answer" ;;
+    STP) echo "stop $now" >"$d/answer" ;;
+  esac
 }

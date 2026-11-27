@@ -175,7 +175,15 @@ The markers live in `<spool root>/dispatch/laptop-box/` (group-writable by
 the spool group, which she joins), so the controls need no sudo and run a
 copy the agents' user cannot change.
 
-Still to build, in this order: the WUI form as the other way to ask her
-(5a = WUI, the default until the owner picks), the ssh link to the move box
-(the login pull and the handover share it), the fleet services the box
-needs (depends on question 6), then the help page.
+How she is asked is one switch, `LAPTOP_ASK` in `laptop-box.env` (install
+`--laptop-ask`): `wui` (the default until the owner picks; HUM-24's answer)
+posts the question as a new topic in `LAPTOP_ASK_CHANNEL`, as the box's desk
+agent `LAPTOP_ASK_FROM`, tagging her (`LAPTOP_ASK_HUM`), with a poll form
+(`(CON) Continue 1 h`, `(STP) Stop`), and reads her answer back from that
+topic on each tick (only her reply counts); `dsk` (HUM-10's answer) leaves it
+to the desktop pop-up. A `wui` box with no channel set asks no one and moves
+the lanes after the wait.
+
+Still to build, in this order: the ssh link to the move box (the login pull
+and the handover share it), the fleet services the box needs (depends on
+question 6), then the help page.

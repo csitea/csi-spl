@@ -43,14 +43,15 @@ PY
 }
 
 # spl_laptop_install_root_cmds <user> <checkout> <spool root> <group> <tag>
-#   <env> <tenant> <hours> <max> <move box> <member>: the commands the install
+#   <env> <tenant> <hours> <max> <move box> <member> <ask lines>: the commands the install
 # runs as root, one per line. The member's own account is never used by the
 # agents: they get their own OS user, with no sudo and a locked password. The
 # member joins the spool group only so her controls can write the state dir.
 # Her controls and her pop-up run root-owned copies the agents' user cannot
 # change. No secret is in any line.
 spl_laptop_install_root_cmds() {
-  local u="$1" co="$2" sr="$3" g="$4" tag="$5" env="$6" ten="$7" hours="$8" max="$9" to="${10}" me="${11}"
+  local u="$1" co="$2" sr="$3" g="$4" tag="$5" env="$6" ten="$7" hours="$8" max="$9" to="${10}" me="${11}" ask="${12:-LAPTOP_ASK=wui}"
+  local -a al; read -ra al <<<"$ask"
   local fb="$co/csi-spl-orc/src/bash/features/laptop-box" lib=/usr/local/lib/spl-laptop-box st="$sr/dispatch/laptop-box"
   echo "DEBIAN_FRONTEND=noninteractive apt-get install -y git tmux curl tar zstd python3 perl util-linux jq ca-certificates libnotify-bin"
   echo "getent group '$g' >/dev/null || groupadd '$g'"
@@ -62,14 +63,14 @@ spl_laptop_install_root_cmds() {
   spl_laptop_root_write "$sr/box.env" "$u" "$g" "SPOOL_AGENT_USER=$u" "SPOOL_DESK_USER=$u" "SPOOL_DESK_BOX=$tag" \
     "SPOOL_BOX_TAG=$tag" "SPOOL_FLEET_ENV=$env" "SPOOL_FLEET_TENANT=$ten" "SPOOL_DIR_LAYOUT=qualified"
   spl_laptop_root_write "$sr/dispatch/laptop-box.env" "$u" "$g" "LAPTOP_HOURS=$hours" "LAPTOP_AGENT_MAX=$max" \
-    "LAPTOP_BOX_TAG=$tag" "LAPTOP_AGENT_USER=$u" "LAPTOP_MOVE_BOX=$to" "LAPTOP_MEMBER=$me"
-  echo "install -d -o root -g root -m 0755 '$lib' && install -o root -g root -m 0755 '$fb/laptop-box-ask.sh' '$lib/ask.sh' && install -o root -g root -m 0755 '$fb/laptop-box-ctl.sh' /usr/local/bin/spl-laptop-box"
+    "LAPTOP_BOX_TAG=$tag" "LAPTOP_AGENT_USER=$u" "LAPTOP_MOVE_BOX=$to" "LAPTOP_MEMBER=$me" "${al[@]}"
+  echo "install -d -o root -g root -m 0755 '$lib' && install -o root -g root -m 0755 '$fb/laptop-box-ask.sh' '$lib/laptop-box-ask.sh' && install -o root -g root -m 0755 '$fb/laptop-box-ctl.sh' /usr/local/bin/spl-laptop-box"
   spl_laptop_root_write /etc/systemd/system/spl-laptop-box-tick.service root root "[Unit]" "Description=fleet laptop box: one check (her hours, the cap, the end-of-hours ask)" \
     "[Service]" "Type=oneshot" "User=$u" "WorkingDirectory=$co/csi-spl-orc" "Environment=SPOOL_ROOT=$sr" "ExecStart=$co/csi-spl-orc/run -a do_spl_laptop_box_tick"
   spl_laptop_root_write /etc/systemd/system/spl-laptop-box-tick.timer root root "[Unit]" "Description=fleet laptop box: a check every 5 min" \
     "[Timer]" "OnBootSec=2min" "OnUnitActiveSec=5min" "[Install]" "WantedBy=timers.target"
   spl_laptop_root_write /etc/systemd/user/spl-laptop-box-ask.service root root "[Unit]" "Description=fleet laptop box: the end-of-hours question" \
-    "ConditionUser=$me" "[Service]" "Type=oneshot" "Environment=SPOOL_ROOT=$sr" "ExecStart=$lib/ask.sh"
+    "ConditionUser=$me" "[Service]" "Type=oneshot" "Environment=SPOOL_ROOT=$sr" "ExecStart=$lib/laptop-box-ask.sh"
   spl_laptop_root_write /etc/systemd/user/spl-laptop-box-ask.timer root root "[Unit]" "Description=fleet laptop box: look for the question every minute" \
     "ConditionUser=$me" "[Timer]" "OnActiveSec=1min" "OnUnitActiveSec=1min" "[Install]" "WantedBy=timers.target"
   echo "systemctl daemon-reload && systemctl enable --now spl-laptop-box-tick.timer && systemctl --global enable spl-laptop-box-ask.timer"

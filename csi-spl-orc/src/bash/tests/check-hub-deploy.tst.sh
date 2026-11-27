@@ -24,6 +24,8 @@
 #      current 0, unhealthy 4 (not healthy / no 2xx), lagging 3 (tag), no
 #      hub container or no compose file 1; hub_deploy roll under none is
 #      `docker compose up -d --wait`, under gcp the router's FATAL.
+#   8. _spl_hub_run_describe helper, one-copy across check-hub-deploy and
+#      check-hub-image-regress, and standalone lazy-load checks (r12-01)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -251,5 +253,65 @@ n=$(wc -l <"$T/gcloud-none.log")
 [[ $n -eq 0 ]] && pass "none: zero gcloud calls across every none case" || fail "none: $n gcloud call(s): $(sed -n 1p "$T/gcloud-none.log")"
 GCLOUD_LOG="$T/gcloud-ctl.log" "$T/nstub/gcloud" run services describe x >/dev/null 2>&1
 [[ -s "$T/gcloud-ctl.log" ]] && pass "control: the none gcloud stub records a call when one is made" || fail "control: none gcloud stub records nothing"
+
+# --- 8. _spl_hub_run_describe helper and one-copy delegation (r12-01) --------
+: >"$T/calls8.log"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls8.log" \
+  PATH="$T/stub:$PATH" GCP_ACCOUNT=op@example.com FIXTURE="$T/current.json" bash -c '
+  set -uo pipefail; do_log() { echo "$*" >&2; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+  source "$PROJ_PATH/src/bash/run/check-hub-deploy.func.sh"
+  svc="" json=""; _spl_hub_run_describe || exit $?
+  printf "SVC=%s HAS_IMG=%s\n" "$svc" "$(yq -p json -r ".spec.template.spec.containers[0].image // \"\"" <<<"$json")"' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"SVC="* && "$out" == *"HAS_IMG=$ref"* ]] &&
+  pass "8: _spl_hub_run_describe resolves svc and returns describe JSON" || fail "8: describe ok (rc=$rc out=$out)"
+grep -qE '^gcloud run services describe [^ ]+ --project=[^ ]+ --region=[^ ]+ --account=op@example\.com --format=json$' "$T/calls8.log" &&
+  pass "8: _spl_hub_run_describe passes --project, --region, --account and --format=json" || fail "8: describe argv ($(cat "$T/calls8.log"))"
+
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls8.log" \
+  PATH="$T/stub:$PATH" GCP_ACCOUNT=op@example.com FIXTURE="" bash -c '
+  set -uo pipefail; do_log() { echo "$*" >&2; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+  source "$PROJ_PATH/src/bash/run/check-hub-deploy.func.sh"
+  svc="" json=""; _spl_hub_run_describe' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL cannot describe "* && "$out" == *"NOT_FOUND"* ]] &&
+  pass "8: _spl_hub_run_describe logs FATAL and returns 1 on describe error" || fail "8: describe fail (rc=$rc out=$out)"
+
+printf 'env:\n  hub:\n    service_name: ""\n' >"$T/empty-svc.yaml"
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls8.log" \
+  PATH="$T/stub:$PATH" GCP_ACCOUNT=op@example.com FIXTURE="$T/current.json" EMPTY_CNF="$T/empty-svc.yaml" bash -c '
+  set -uo pipefail; do_log() { echo "$*" >&2; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+  source "$PROJ_PATH/src/bash/run/check-hub-deploy.func.sh"
+  do_spl_cloud_cnf() { SPL_CNF="$EMPTY_CNF"; SPL_PROJECT=p; SPL_REGION=r; }
+  svc="" json=""; _spl_hub_run_describe' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL cnf env.hub.service_name is empty for dev"* ]] &&
+  pass "8: _spl_hub_run_describe refuses empty env.hub.service_name with rc 1" || fail "8: empty svc (rc=$rc out=$out)"
+
+chd_f="$PROJ_ROOT/src/bash/run/check-hub-deploy.func.sh"
+chir_f="$PROJ_ROOT/src/bash/run/check-hub-image-regress.func.sh"
+[[ "$(grep -c '^_spl_hub_run_describe()' "$chd_f")" -eq 1 ]] && grep -q '_spl_hub_run_describe ' "$chd_f" &&
+  pass "8: one copy: check-hub-deploy.func.sh hosts _spl_hub_run_describe" || fail "8: host check"
+own_chir="$(grep -nE 'gcloud run services describe|env\.hub\.service_name|do_gcp_pin_account|cannot describe \$svc' "$chir_f" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+[[ -z "$own_chir" ]] && grep -q '_spl_hub_run_describe ' "$chir_f" &&
+  pass "8: one copy: check-hub-image-regress.func.sh delegates to _spl_hub_run_describe" || fail "8: chir own=[$own_chir]"
+
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls8-reg.log" \
+  PATH="$T/stub:$PATH" GCP_ACCOUNT=op@example.com FIXTURE="$T/current.json" bash -c '
+  set -uo pipefail; do_log() { echo "$*" >&2; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+  source "$PROJ_PATH/src/bash/run/check-hub-image-regress.func.sh"
+  do_check_hub_image_regress' 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"dev current service="* && "$out" == *"image=$ref"* ]] &&
+  pass "8: standalone: check-hub-image-regress lazy-loads _spl_hub_run_describe (current)" || fail "8: standalone chir ok (rc=$rc out=$out)"
+
+out=$(env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls8-reg.log" \
+  PATH="$T/stub:$PATH" GCP_ACCOUNT=op@example.com FIXTURE="" bash -c '
+  set -uo pipefail; do_log() { echo "$*" >&2; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+  source "$PROJ_PATH/src/bash/run/check-hub-image-regress.func.sh"
+  do_check_hub_image_regress' 2>&1); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL cannot describe "* && "$out" == *"NOT_FOUND"* ]] &&
+  pass "8: standalone: check-hub-image-regress preserves FATAL on describe failure" || fail "8: standalone chir fail (rc=$rc out=$out)"
 
 [[ $fails -eq 0 ]] && echo "PASS: all check-hub-deploy assertions" || { echo "FAILED: $fails"; exit 1; }

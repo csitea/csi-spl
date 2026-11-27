@@ -37,22 +37,10 @@
 # @example ENV=dev ./run -a do_check_hub_image_regress
 #------------------------------------------------------------------------------
 do_check_hub_image_regress() {
-  do_require_bin yq || return 1
-  do_spl_cloud_cnf || return 1
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  command -v gcloud >/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
-  if declare -f do_gcp_require_live_account >/dev/null; then
-    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  fi
-
-  local svc json live cnf_tag live_tag newest
-  svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
-  [[ -n "$svc" && "$svc" != null ]] || { do_log "FATAL cnf env.hub.service_name is empty for $ENV"; return 1; }
-
-  json="$(gcloud run services describe "$svc" --project="$SPL_PROJECT" --region="$SPL_REGION" \
-            --account="$GCP_ACCOUNT" --format=json 2>&1)" || {
-    do_log "FATAL cannot describe $svc in $SPL_PROJECT/$SPL_REGION as $GCP_ACCOUNT: $(tail -1 <<<"$json")"
-    return 1; }
+  local svc="" json="" live cnf_tag live_tag newest
+  # shellcheck source=check-hub-deploy.func.sh
+  declare -F _spl_hub_run_describe >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/check-hub-deploy.func.sh" || return 1
+  _spl_hub_run_describe || return 1
 
   live="$(yq -p json -r '.spec.template.spec.containers[0].image // ""' <<<"$json")"
   [[ -n "$live" ]] || { do_log "FATAL $svc reports no container image"; return 1; }

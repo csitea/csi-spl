@@ -38,8 +38,10 @@ do_check_hub_deploy() {
   do_spl_cloud_dispatch hub_deploy verify "$@"
 }
 
-# do_hub_deploy_verify_gcp - the Cloud Run check (today's body, unchanged)
-do_hub_deploy_verify_gcp() {
+# _spl_hub_run_describe: validate yq/cnf/gcloud/account, read env.hub.service_name,
+# and run read-only `gcloud run services describe --format=json`; sets caller-scoped
+# svc and json. Returns 1 with FATAL on any missing prerequisite or describe error.
+_spl_hub_run_describe() {
   do_require_bin yq || return 1
   do_spl_cloud_cnf || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -47,15 +49,18 @@ do_hub_deploy_verify_gcp() {
   if declare -f do_gcp_require_live_account >/dev/null; then
     do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   fi
-
-  local svc json image ready created latest
   svc="$(yq -r '.env.hub.service_name // ""' "$SPL_CNF")"
   [[ -n "$svc" && "$svc" != null ]] || { do_log "FATAL cnf env.hub.service_name is empty for $ENV"; return 1; }
-
   json="$(gcloud run services describe "$svc" --project="$SPL_PROJECT" --region="$SPL_REGION" \
             --account="$GCP_ACCOUNT" --format=json 2>&1)" || {
     do_log "FATAL cannot describe $svc in $SPL_PROJECT/$SPL_REGION as $GCP_ACCOUNT: $(tail -1 <<<"$json")"
     return 1; }
+}
+
+# do_hub_deploy_verify_gcp - the Cloud Run check (today's body, unchanged)
+do_hub_deploy_verify_gcp() {
+  local svc="" json="" image ready created latest
+  _spl_hub_run_describe || return 1
 
   # One yq over the describe JSON, not four: image, the Ready condition by type
   # (not position), and the two revision names, tab-joined. ~33 ms of four

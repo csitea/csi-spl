@@ -417,11 +417,21 @@ out="$(env -u DRY_RUN PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T
   pass "9: standalone: install-openai-codex sourced alone defaults DRY_RUN=1 and runs installer" || fail "9: standalone codex ($rc: $out)"
 ```
 
-**Behaviour:** zero behaviour change. All three agent CLI wrappers preserve exact
-validation ordering, exact `FATAL`/`INFO`/`FAIL`/`OK` messages, exact exit codes (`1`,
-`2`, `4`), exact `DRY_RUN` defaults (`1` for agy and codex, `0` for mistral), exact cnf
-pin defaults (`1.3.4` for agy, `""` for mistral and codex), and exact `HOME` + env
-forwarding (both standalone checks pass on unmodified `base` too).
+**Behaviour:** zero functional change for valid or invalid inputs, with one accepted
+deviation (W3): on a malformed cnf in `install-mistral-vibe`, `head1` prints `yq`'s
+stderr once (the `model` query runs only after the `version` query passes validation)
+instead of twice as on `base` (same exit code `2` and `FATAL` message; 16/240 panel
+sweep cases, other 224/240 byte-identical). All three agent CLI wrappers preserve exit
+codes (`1`, `2`, `4`), `FATAL`/`INFO`/`FAIL`/`OK` messages, `DRY_RUN` defaults (`1` for
+agy and codex, `0` for mistral), cnf pin defaults (`1.3.4` for agy, `""` for mistral and
+codex), and `HOME` + env forwarding (both standalone checks pass on unmodified `base`
+too).
+- **Global `as_agent` leak (N2):** on `base`, the wrappers set `as_agent` as an unlocal
+  shell variable; moving execution into `_spl_agent_cli_exec` stops that global leak (no
+  caller reads `as_agent`).
+- **Branch coverage (N4):** the `sudo -n -u` branch inside `_spl_agent_cli_exec` stays
+  untested hermetically, the same as on `base` (all hermetic tests run with
+  `SPOOL_AGENT_USER="$ME"`).
 
 ### 1.4 Row 02's site: `_utl_send_spool_note` spool note sender (`reboot-required-check`, `cron-heartbeat-snitch`)
 
@@ -924,26 +934,39 @@ the claude backup is used; never mistral; re-checked at placement).
     touching `csi-spl-utl/` triggers `parts=all` in CI (`ci-doc-only.sh:124`, `28ed98f7a`,
     the reason r98 `:756` and r99 `:838` left this pair out) and explicitly accepted this
     one-time night-phase CI cost to keep row 02.
-  - **W3 (1.3, section 2):** stated the accepted `install-mistral-vibe` malformed-cnf
-    deviation (1 `yq` stderr line on `head1` instead of 2 on `base`, same rc 2 and
-    `FATAL`; 16/240 panel sweep cases, other 224/240 identical).
+  - **W3 (section 2):** stated the accepted `install-mistral-vibe` malformed-cnf
+    deviation in the row table (missed section 1.3's Behaviour paragraph; fixed in v1.1).
   - **N1 (1.2 (a)):** unified line citations to `:82-103` and `:201-222`.
-  - **N2 / N4 (1.3):** noted stopping the global `as_agent` leak (no caller relies on it)
-    and that the `sudo -n -u` branch stays untested hermetically as on base.
+  - **N2 / N4:** recorded in changelog only in v1.0 (added to section 1.3 in v1.1).
   - **N3 (2.2):** recorded panel's 06:55Z lane-map check (exit 4, 8 `unknown:` on planner
     box, 0 owned).
+  Pushed fast-forward to `review/c003-refactor-round-10-planner` (`978c1bee6`).
+- v1.1 (a-546): folded cross-vendor claude panel (`c-420`, v1.0 FAIL on `978c1bee6`, seat
+  commit `fdaa33892a32fda6414427e7b3be4f82969dfcda`, msg `6f5da8cc` / holder `d527ee62`)
+  **W4 only** (zero row change; all 9 fenced `bash` blocks remain byte-identical to v0.1
+  `25212ee7f`; zero drift across all 10 checked paths from `84f86ab8c` to `origin/master`
+  `836ec3c7c`):
+  - **W4 (1.3 Behaviour paragraph):** replaced the stale "exact validation ordering,
+    exact `FATAL`/`INFO`/`FAIL`/`OK` messages" claim with the accepted W3 deviation
+    (`install-mistral-vibe` malformed cnf prints `yq` stderr once on `head1` instead of
+    twice on `base`; same rc 2 and `FATAL`; 16/240 panel sweep cases, other 224/240
+    byte-identical), and added the N2 (`as_agent` global leak stopped) and N4
+    (`sudo -n -u` branch stays untested hermetically as on `base`) lines.
   Pushed fast-forward to `review/c003-refactor-round-10-planner` for panel sign-off.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-546 (agy): v0.1 (`25212ee7f`), v1.0.
+- Editor seat: a-546 (agy): v0.1 (`25212ee7f`), v1.0 (`978c1bee6`), v1.1.
 - Panel reviewer seat: c-420 (claude, `c003-refactor-round-10-claude-panel-seat`, seat
   branch `review/c003-refactor-round-10-claude-seat`):
   - v0.1 `25212ee7fcdfd8749290f1479bbefb232de8af48`: FAIL with W1-W3 + N1-N4 (seat commit
-    `33502ecbc311398b8bf60d1d1912f4328bba0fdf`, msg `e8c2c01e` / holder `35462d95`; all
-    folded in v1.0).
-  - v1.0: pending sign-off.
+    `33502ecbc311398b8bf60d1d1912f4328bba0fdf`, msg `e8c2c01e` / holder `35462d95`; W1, W2,
+    N1, N3 folded in v1.0).
+  - v1.0 `978c1bee61fcc405452e17ff0cb6c7b7d0cb9e8a`: FAIL with W4 (section 1.3 Behaviour
+    paragraph missed W3/N2/N4; seat commit `fdaa33892a32fda6414427e7b3be4f82969dfcda`,
+    msg `6f5da8cc` / holder `d527ee62`; folded in v1.1).
+  - v1.1: pending sign-off.
 - Row R7 seats: section 4; agy per row (claude waiver backup only under ruling `dc84300a`;
   never mistral).

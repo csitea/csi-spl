@@ -90,4 +90,45 @@ The plan's section 3.5 against `bug-round-52-plan.md` section 7 (`git show origi
 - N5: write `csi-spl-wui/src/components/reporting/ReleasesDailyList.vue:79` with its directory (plan `:100`).
 - N6: the plan's `Panel` line says this seat was "placed `07:43:20Z`". This review does not depend on it; I did not verify it.
 
-Docs: none (review seat file only).
+
+---
+
+## Re-review: v0.2 at `0fb8a0f9cab6db1c7a62f9f4fdb233fb6178b546` - verdict **FAIL**
+
+Read at 17:1xZ: `git ls-remote origin refs/heads/review/c001-bug-round-53-planner` printed `0fb8a0f9cab6db1c7a62f9f4fdb233fb6178b546`. `git log --oneline 3308d118f..0fb8a0f9c` shows v0.1 then v0.2 (a fast-forward). `origin/master` is `3308d118f`.
+
+### Red controls re-run (n=1 each way)
+
+I extracted each script from v0.2 section 4. Their hashes: `rc01-b53.sh e974bf054e59 9712 B` (new), `rc02-b53.sh 38e1b5d20e6e 10399 B` and `rc03-b53.sh 4aea04a9e42c 10659 B` (unchanged). On `3308d118f`, rc01, rc02 and rc03 exit 1 on the base and 0 with fix-shape. In rc01 on the base, the 7 red probes are off their want and all 8 controls hold. With fix-shape, all 15 lines are at want, including the new `ctrl_hunk_later_sentence_live_prd_holds`, `ctrl_hunk_eg_live_prd_holds`, `ctrl_hunk_positive_live_tmux_holds` and `ctrl_not_yours_to_skip_holds`.
+
+### Folded findings
+
+- W1 (sentence split): removed. My v0.1 probes p1 and p2 now hold (`rc=1`) under the v0.2 fix-shape. Fixed.
+- W2: `grep -c 3748a973` gives 8 and `grep -c 13a65603` gives 5; each is named and has a verdict (plan `:63`, `:65`). Fixed.
+- W3: the history line names `c-002@sat` at send time. Fixed.
+- N1: the `NEVER` heading is anchored; p6 (`## Not yours to skip: do these`) holds. See N7 for the colon form.
+- N2 to N6: folded (`:152-211` appears 5 times, the full `ReleasesDailyList.vue:79` path once, `MANDATORY` twice, and `07:43` no longer appears).
+
+### W4 (blocking): `NEG_LIVE_TMUX` swallows a real target between an unrelated negator and `live tmux`
+
+`NEG_LIVE_TMUX = (?i)\b(?:never|not|no)\b[^.;:\n]{0,40}\blive[^\S\n]+tmux\b` (plan `:217`, used at `:221`) deletes up to 40 characters after any `not`/`no`/`never`. Those characters may include a target word, which is then never seen by `TGT`. I applied the v0.2 fix-shape unchanged to a scratch copy and ran `_spl_review_go_owner_go`:
+
+| probe (a `## Do` step) | base | v0.2 fix-shape |
+|---|---|---|
+| p8 `Apply the verbatim hunks, do not wait, then run on prd in the live tmux pane.` | `rc=1` keyword `Apply` | **`rc=0 [ok]`** |
+| p9 `Apply the plan's verbatim hunks with no delay to the prod db via the live tmux.` | `rc=1` keyword `Apply` | **`rc=0 [ok]`** |
+| p10 the r08 shape (`... never the box's live tmux server.`) | `rc=1` | `rc=0` (the intended clear) |
+
+This is the same false-go class as W1, against `spl-review-go.func.sh:718-719`. Fix: let no target word stand between the negator and `live tmux`. I checked this regex in python3 against the same `TGT`:
+
+`NEG_LIVE_TMUX = re.compile(r"(?i)\b(?:never|not|no)\b(?:[^\S\n]+(?!(?:prd|prod|production|dev|live|database|db|schema|sql|migrations?|steps?|terraform|tf|tfvars|gcp|cloud|iam|billing|infra|provision)\b)[\w'’-]+){0,4}?[^\S\n]+live[^\S\n]+tmux\b")`
+
+-> r08 and `never touch the box's live tmux server` are cleared (`TGT` gives False after the sub), while p8, p9, the positive `live tmux` case and p1 still block (`TGT` gives True). Add p8 and p9 to rc01 and case 37 as must-hold controls.
+
+### N7
+
+The anchor `not\s+your(?:s|\s+files)\s*(?:\(|:|$)` still skips a `## Not yours: do these` section: a `DRY_RUN=0 ./run -a do_spl_desk_up` step under it goes from `rc=1` to `rc=0` under the v0.2 fix-shape. A heading like that contradicts itself, so this is a note, not a defect. Dropping `:` from the anchor costs nothing.
+
+### Unchanged from v0.1 review
+
+Rows b53-02 and b53-03, R1, R3 (`lane-map --check` exit 4, re-run at placement) and hygiene: as above.

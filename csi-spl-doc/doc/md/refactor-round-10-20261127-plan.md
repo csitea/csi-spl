@@ -64,11 +64,16 @@ behaviour change:
 The two rows touch different sub-projects (`csi-spl-orc/` vs `csi-spl-utl/`) and share no
 file: both are **Batch 1**.
 
-**Status: v1.0 for panel sign-off.** Editor: **a-546** (agy). Panel seat: cross-vendor
-claude panel seat **c-420** (`c003-refactor-round-10-claude-panel-seat`, v0.1 FAIL
-`33502ecbc` msg `e8c2c01e` / holder `35462d95`; W1-W3 and N1-N4 folded in v1.0; all 9
-fenced `bash` blocks byte-identical to v0.1 `25212ee7f`; zero drift on all 10 checked
-paths from `84f86ab8c` to `origin/master`).
+**Status: closed.** Both rows landed on `origin/master` with cross-vendor agy R7 PASS
+(`r10-01` `35467af49` SPL-6660, `r10-02` `054294929` SPL-6672; section 8). Editor:
+**a-546** (agy). Plan v1.1 (`6f9fef225`) was signed by cross-vendor claude panel seat
+**c-420** (`1549aaf35839f3515386c8692de529539f0685e9`, seat commit `9a7cb213a`, msg
+`193268f3` / holder `da9584ee`; `do_spl_review_line_check` rc 0 on panel box,
+`REVIEW_LINE_SYNTAX=1` rc 0 on planner box; dispatch holder `c-003` GO `2f74523a`; all 9
+fenced `bash` blocks byte-identical to v0.1 `25212ee7f`). Zero drift on all 10 checked
+paths from `84f86ab8c` to `origin/master` `836ec3c7c` at plan v1.1, and zero drift on all
+7 edited files from their landed shas (`35467af49`, `054294929`) to `origin/master`
+`987dce1ce` at close.
 
 **One sha:** every count is measured on **`84f86ab8c`**
 (`84f86ab8c2f6daf774bef27ea34bbfb1aa1172fc`, `origin/master` at 2026-11-27T06:11:06Z),
@@ -809,7 +814,14 @@ at 2026-11-27T06:30:04Z):
 - Editor: **a-546** (agy). The panel seat signs the plan sha (rulebook 3.2).
 - **Panel seat:** one **cross-vendor** doc seat (rulebook 3.2; brief step 5; mistral sits
   on no review since 2026-11-25): claude panel seat **c-420**
-  (`c003-refactor-round-10-claude-panel-seat`, live per `do_spl_lane_map` at 06:11:14Z).
+  (`c003-refactor-round-10-claude-panel-seat`, seat branch
+  `review/c003-refactor-round-10-claude-seat`). Reviewed v0.1
+  (`25212ee7fcdfd8749290f1479bbefb232de8af48`, FAIL `33502ecbc`, W1-W3 + N1-N4 folded in
+  v1.0) and v1.0 (`978c1bee61fcc405452e17ff0cb6c7b7d0cb9e8a`, FAIL `fdaa33892`, W4 folded
+  in v1.1), and signed v1.1 (`1549aaf35839f3515386c8692de529539f0685e9`, seat commit
+  `9a7cb213a8e8642f0682c227e13f7cdf2520ba00`, msg `193268f3` / holder `da9584ee`,
+  `do_spl_review_line_check` rc 0 on panel box, `REVIEW_LINE_SYNTAX=1` rc 0 on planner
+  box, holder `c-003` GO `2f74523a`). The seat reviewed this plan only.
 - **Row reviewers (code R7):** cross-vendor first (2.7.2).
   - Checked `BOX_PICK_KIND=grok ./run -a do_spl_box_pick` at 2026-11-27T06:12:54Z ->
     `pick=hold` (`grok weekly >= 95% or unknown on both boxes`; `do_spl_lane_mix` also
@@ -831,8 +843,8 @@ at 2026-11-27T06:30:04Z):
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `a-546` | agy | editor | `25212ee7f` (v0.1) -> v1.0 | v1.0 | W1-W3 and N1-N4 folded; all 9 fenced `bash` blocks byte-identical to v0.1 `25212ee7f` |
-| `c-420` | claude | panel | `25212ee7f` (v0.1) -> v1.0 pending | FAIL (v0.1) / pending (v1.0) | v0.1 FAIL `33502ecbc` (msg `e8c2c01e` / holder `35462d95`, W1-W3 + N1-N4); re-review of v1.0 requested |
+| `a-546` | agy | editor | `25212ee7f` (v0.1) -> `978c1bee6` (v1.0) -> `1549aaf35` (v1.1, landed `6f9fef225`) -> closed | closed | W1-W4 and N1-N4 folded; all 9 fenced `bash` blocks byte-identical to v0.1 `25212ee7f`; both rows landed, close record written |
+| `c-420` | claude | panel | `25212ee7f` (v0.1) -> `978c1bee6` (v1.0) -> `1549aaf35` (v1.1) | PASS | v0.1 FAIL `33502ecbc` (W1-W3 + N1-N4); v1.0 FAIL `fdaa33892` (W4); v1.1 **PASS** `9a7cb213a` (msg `193268f3` / holder `da9584ee`, `REVIEW_LINE_SYNTAX=1` rc 0, holder `c-003` GO `2f74523a`) |
 
 ## 5. Proposed row briefs
 
@@ -952,21 +964,117 @@ the claude backup is used; never mistral; re-checked at placement).
     twice on `base`; same rc 2 and `FATAL`; 16/240 panel sweep cases, other 224/240
     byte-identical), and added the N2 (`as_agent` global leak stopped) and N4
     (`sudo -n -u` branch stays untested hermetically as on `base`) lines.
-  Pushed fast-forward to `review/c003-refactor-round-10-planner` for panel sign-off.
+  Pushed fast-forward to `review/c003-refactor-round-10-planner` (`1549aaf35`), signed by
+  `c-420` (seat commit `9a7cb213a`, msg `193268f3` / holder `da9584ee`,
+  `do_spl_review_line_check` rc 0 on panel box, `REVIEW_LINE_SYNTAX=1` rc 0 on planner
+  box, holder `c-003` GO `2f74523a`), and landed on `origin/master` at `6f9fef225`.
+- closed (a-546): both rows landed on `origin/master`, cross-vendor agy R7 PASS, push
+  scanners/ingest green (measured on `origin/master` `987dce1ce` at `2026-11-27T11:36Z`,
+  n=1):
+  - r10-01 `35467af49` (`35467af493e2ae2dbc69e4b3fe3bb8005587ee0a`, SPL-6660, author
+    `c-753` claude, committed `2026-11-27T09:52:47+01:00`): R7 `a-589` agy **PASS** on
+    `a2b86e645` (`a2b86e64547268ce01507bf50df9682c399921fb`; `do_spl_review_line_check`
+    rc 0, `OK 12 of 12`, 13 commands read); `git patch-id --stable`
+    `8d94a2b3764a623eac89d22419a65d1b4e0731d0` equal on both, `git diff a2b86e645
+    35467af49 -- <4 files>` empty (C7), zero drift to `987dce1ce`. CI on `35467af49`: push
+    workflows 16 (`45969507316`) and 67 (`45969507248`) **success** (plus schedule 00
+    `45972752120`, 21 `45972219587` & `45973818662`, 40 `45972468961`, and workflow_run 12
+    `45972028749` **success**; 1 skipped workflow 12 `45969614321`). Workflow 10
+    (`45969507231`) failed only on unrelated `dispatch-rotate.tst.sh` case 32 (`orc` shard
+    `3/4`; all other shards/jobs green); covering R11 workflow 10 run `45973875922` on
+    `d5d72985a` (`git merge-base --is-ancestor 35467af49 d5d72985a` rc 0) is **success**
+    across all 4 `orc` shards, `orc: feature tests`, `iac`, `distribution-hygiene`, and
+    `release-note` (followed by green master runs `45974572296`, `45977665600`,
+    `45986307221`). Diff (`git show --numstat`, exact 4 files):
+    `orc:src/bash/run/install-agy-cli.func.sh` `+38 -22` (sha256 `c4be5c07a861`),
+    `orc:src/bash/run/install-mistral-vibe.func.sh` `+7 -22` (sha256 `9a20298cf130`),
+    `orc:src/bash/run/install-openai-codex.func.sh` `+6 -22` (sha256 `31a4d618289f`),
+    `orc:src/bash/tests/install-agy-cli.tst.sh` `+66 -0` (sha256 `63e7a2d81d1d`), matching
+    plan 1.3 head1 / section 6 verbatim. R7 notes (`a-589`, 0 W): N1 scope/sha256/C1-C6
+    exact; N2 single helper home (`_spl_agent_cli_prep` 21L, `_spl_agent_cli_exec` 8L, all
+    <= 75L); N3 plan-accepted W3 (`yq` model query after pin validation), global
+    `as_agent` leak removed, `sudo -n -u` branch untested hermetically as on base; N4
+    independent throwaway-clone `rc1` (14 pass / 8 red) plus 2 reviewer mutations (pin
+    `return 1` caught across all 3 suites; dropping `HOME="$home"` caught by
+    `install-agy-cli.tst.sh`, 8 red).
+  - r10-02 `054294929` (`0542949298bee98ae9cd01d0743332e57880d9e9`, SPL-6672, author
+    `c-799` claude, committed `2026-11-27T12:22:35+01:00`): R7 `a-628` agy **PASS** on
+    `28a8dfa24` (`28a8dfa2466561f8e1ca15b4e375331611846f54`; `do_spl_review_line_check`
+    rc 0, `OK 13 of 13`, 17 commands read); `git patch-id --stable`
+    `7908b51ffafe48c6491146744138dfa081812ce8` equal on both, `git diff 28a8dfa24
+    054294929 -- <3 files>` empty (C7), zero drift to `987dce1ce`. CI on `054294929`: push
+    workflows 16 (`45990298841`) and 67 (`45990298675`) **success** (1 skipped workflow 12
+    `45990432185`); workflow 10 (`45990298659`) was cancelled by subsequent master push
+    (`987dce1ce`, whose covering R11 workflow 10 run `45991105685` with
+    `git merge-base --is-ancestor 054294929 987dce1ce` rc 0 is `pending` at close). Diff
+    (`git show --numstat`, exact 3 files):
+    `utl:src/bash/run/reboot-required-check.func.sh` `+11 -5` (sha256 `31c561a9057a`),
+    `utl:src/bash/run/cron-heartbeat-snitch.func.sh` `+3 -19` (sha256 `ede6e55e8558`),
+    `utl:src/bash/tests/reboot-required-check.tst.sh` `+65 -0` (sha256 `42c0579ceea6`),
+    matching plan 1.4 head2 / section 6 verbatim. R7 notes (`a-628`, 0 W): N1
+    scope/sha256/C1/C3/C6 exact (`do_check_pre_push` 12/12 PASS uncached); N2
+    `_utl_send_spool_note` (20L) single home, `_rrc_send` (3L) and `_chs_send` (5L)
+    delegate with exact override vars and missing-sender labels, lazy-source works
+    standalone; N3 all 13 column suites re-run matched counts, `shellcheck 0.10.0` rc 0,
+    reviewer mutation skipping `cron-heartbeat-snitch.func.sh:204` caught (`rc 1`, 18 pass
+    / 2 red: `14. standalone chs send`, `14. standalone chs missing`).
+  - **R5, R6, 2.7.5, and post-land verification on `987dce1ce`:** `git merge-base
+    --is-ancestor <row> origin/master` rc 0 and box checkout (`987dce1ce`) ancestry rc 0
+    for both (`csi-spl-orc` and `csi-spl-utl` Bash only, no hub or WUI deploy required).
+    R6 (`git log origin/master --since="2026-11-27T03:05:11+02:00" --format='%H %cI %s' -E
+    --grep='\(r10-'`) returns both rows (`054294929`, `35467af49`) and the 3 plan commits
+    (`6f9fef225`, `49b7723ad`, `794b83c28`). Review count (2.7.5): 2 of 2 row reviews
+    (`review: a-589 agy PASS`, `review: a-628 agy PASS`; 3 total `^review: ` lines under
+    `\(r10-` including plan signature `review: c-420 claude PASS`), both row reviews
+    cross-vendor to their claude authors (`c-753`, `c-799`); no claude waiver seat was
+    needed. Post-land `git grep` on `987dce1ce`:
+    - `git grep -nE 'spool_env_resolve|getent passwd|sudo -n -u|cannot read <org>-<app>' origin/master -- csi-spl-orc/src/bash/run/install-{agy-cli,mistral-vibe,openai-codex}.func.sh`
+      hits **1 file only** (`install-agy-cli.func.sh`:47,58,60,72); `_spl_agent_cli_prep`
+      (`:42`) and `_spl_agent_cli_exec` (`:66`) live once there, called by all **3/3**
+      `install.sh --cli` wrappers (`install-agy-cli.func.sh:25,29,33,34`,
+      `install-mistral-vibe.func.sh:29,34`, `install-openai-codex.func.sh:32,36`).
+    - `git grep -nE 'spool-send\.sh|failed to send spool note' origin/master -- csi-spl-utl/src/bash/run/{reboot-required-check,cron-heartbeat-snitch}.func.sh`
+      has executable hits in **1 file only** (`reboot-required-check.func.sh`:87,91,92,96,101;
+      only header comment `:58` in `cron-heartbeat-snitch.func.sh`); `_utl_send_spool_note`
+      (`:85`) lives once there, called by `_rrc_send` (`reboot-required-check.func.sh:108`)
+      and `_chs_send` (`cron-heartbeat-snitch.func.sh:205`).
+  - **Round close, ruling `e79facef` condition (ii) DRY check, and teardown:** dispatch
+    holder (`c-002`, msg `1306503e`) confirmed `r10-02` landed as `054294929` and requested
+    the close record with `Closes: SPL-6649`. `do_spl_lane_map --all` at `11:38Z` shows
+    only editor `a-546` live for r10 (`c-420`, `c-753`, `a-589`, `c-799`, `a-628` already
+    gone/closing). Pre-prune DRY check (`cd csi-spl-orc && ROUND=10
+    PRUNE_SINCE="2026-11-27T03:05:11+02:00" DRY_RUN=1 ./run -a do_git_prune_round_branches`,
+    at `11:36Z`, n=1) printed: `WINDOW r10 W=2026-11-27T03:05:11+02:00`,
+    `REF review/r10-02 28a8dfa2466561f8e1ca15b4e375331611846f54 2026-11-27T10:57:43+01:00`,
+    `KEEP wip/fix/r10-05-helper-path before-window 2026-11-27T03:05:11+02:00`,
+    `KEEP wip/m-524-r10-mistral-review-seat before-window 2026-11-27T03:05:11+02:00`, and
+    `OK DRY_RUN round r10: 1 branch(es) listed, 0 kept unlanded, 2 before the window on
+    origin, nothing deleted` (`review/c002-wui-con-r10-session-check-signed-out` `30fa039da`
+    unmatched and untouched; all 3 before-window old-cycle heads satisfy ruling `e79facef`
+    condition (ii)). Remote branches remaining on `origin` for R8 prune: `review/r10-02`
+    (`28a8dfa24`) and `review/c003-refactor-round-10-claude-seat` (`9a7cb213a`);
+    `review/c003-refactor-round-10-planner` and `review/r10-01` are already absent from
+    `origin`.
 
 ## 9. Consensus
 
 The panel seat signs this plan (rulebook 3.2).
 
-- Editor seat: a-546 (agy): v0.1 (`25212ee7f`), v1.0 (`978c1bee6`), v1.1.
+- Editor seat: a-546 (agy): v0.1 (`25212ee7f`), v1.0 (`978c1bee6`), v1.1 (`1549aaf35`,
+  landed `6f9fef225`), close record.
 - Panel reviewer seat: c-420 (claude, `c003-refactor-round-10-claude-panel-seat`, seat
-  branch `review/c003-refactor-round-10-claude-seat`):
+  `9a7cb213a8e8642f0682c227e13f7cdf2520ba00` on
+  `review/c003-refactor-round-10-claude-seat`):
   - v0.1 `25212ee7fcdfd8749290f1479bbefb232de8af48`: FAIL with W1-W3 + N1-N4 (seat commit
     `33502ecbc311398b8bf60d1d1912f4328bba0fdf`, msg `e8c2c01e` / holder `35462d95`; W1, W2,
     N1, N3 folded in v1.0).
   - v1.0 `978c1bee61fcc405452e17ff0cb6c7b7d0cb9e8a`: FAIL with W4 (section 1.3 Behaviour
     paragraph missed W3/N2/N4; seat commit `fdaa33892a32fda6414427e7b3be4f82969dfcda`,
     msg `6f5da8cc` / holder `d527ee62`; folded in v1.1).
-  - v1.1: pending sign-off.
-- Row R7 seats: section 4; agy per row (claude waiver backup only under ruling `dc84300a`;
-  never mistral).
+  - v1.1 `1549aaf35839f3515386c8692de529539f0685e9`: **PASS** (seat commit
+    `9a7cb213a8e8642f0682c227e13f7cdf2520ba00`, msg `193268f3` / holder `da9584ee`;
+    `do_spl_review_line_check` rc 0 on panel box, `REVIEW_LINE_SYNTAX=1` rc 0 on planner
+    box; holder `c-003` GO `2f74523a`; all 9 fenced `bash` blocks byte-identical to v0.1,
+    zero open W).
+- Row R7 seats: section 4; both agy: a-589 (r10-01), a-628 (r10-02) (section 8, round
+  closed).

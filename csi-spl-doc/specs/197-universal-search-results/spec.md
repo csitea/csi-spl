@@ -466,3 +466,4 @@ Each seat signs a version with its own commit on `review/c002-bcfd15e1-search-re
 | `a-580` (Editor) | agy | WHAT v1.0 | `140c72b6b` | WHAT v1.0 published (5/5 v0.2 consensus + N7/N8/FR-US-11 polish); ready for v1.0 signatures & Phase 2 HOW |
 | `c-582` (User View) | claude | WHAT v1.0 | `c798a36c9` | PASS: diff over signed v0.2 holds only the 3 agreed notes; FR-US-11 row-menu wording as sent. Nit: FR-US-04 item 2 leaves its "(agreed by" parenthesis unclosed |
 | `c-584` (Reviewer) | claude | WHAT v1.0 | `c798a36c9` | PASS: diff from v0.2 read line by line (FR-US-04 `:31` cite, FR-US-11 row menu, Q4/Q5 posted-form parity); `d5d7113d` checked in the `dispatch-bcfd15e1` spool log |
+| `a-583` (Search Engine Expert) | agy | WHAT v1.0 | `c798a36c9` | Signed WHAT v1.0; moving to Phase 2 HOW |

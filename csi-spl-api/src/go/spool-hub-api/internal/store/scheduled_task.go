@@ -208,6 +208,15 @@ const taskListDefault = 100
 // taskRunErrorMax is the run error's length (rdb 0331 CHECK).
 const taskRunErrorMax = 500
 
+// capRunError is e cut to taskRunErrorMax runes: rdb 0331 counts characters,
+// and every run write (StartRun, FinishRun) cuts, never refuses.
+func capRunError(e string) string {
+	if utf8.RuneCountInString(e) <= taskRunErrorMax {
+		return e
+	}
+	return string([]rune(e)[:taskRunErrorMax])
+}
+
 // taskChainRefused are the run errors that count towards no cap (5.3 item 4).
 var taskChainRefused = []string{"chain_self", "chain_depth"}
 
@@ -436,7 +445,7 @@ func normRun(r TaskRun) (TaskRun, error) {
 	if r.Level == "" {
 		r.Level = TaskLevelWorkspace
 	}
-	r.StartedAt = followAt(r.StartedAt)
+	r.StartedAt, r.Error = followAt(r.StartedAt), capRunError(r.Error)
 	chain := make([]string, len(r.Chain))
 	for i, c := range r.Chain {
 		chain[i] = strings.ToLower(c)
@@ -476,9 +485,7 @@ func finishedRun(r TaskRun) (TaskRun, error) {
 	}
 	r.RunID, r.ResultMsgID = strings.ToLower(r.RunID), strings.ToLower(r.ResultMsgID)
 	r.EndedAt = followAt(r.EndedAt)
-	if utf8.RuneCountInString(r.Error) > taskRunErrorMax {
-		r.Error = string([]rune(r.Error)[:taskRunErrorMax])
-	}
+	r.Error = capRunError(r.Error)
 	if r.Failures == nil {
 		r.Failures = []TaskRunFailure{}
 	}

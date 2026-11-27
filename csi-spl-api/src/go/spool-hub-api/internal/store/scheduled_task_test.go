@@ -346,6 +346,31 @@ func TestScheduledTaskRuns(t *testing.T) {
 
 // TestHubSettings: a set value reads back, a second set replaces it, and a
 // bad key or value is refused.
+// TestScheduledTaskRunErrorCap (SPL-6659, R7 N1): StartRun cuts a run error
+// to 500 characters, as FinishRun does, so Postgres's CHECK (length(error) <=
+// 500) never answers 23514 and both stores keep the same 500 runes. The error
+// is multibyte: a cut by bytes would keep 250 runes.
+func TestScheduledTaskRunErrorCap(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newTaskFix(t, s)
+			task := f.create(f.task())
+			long := strings.Repeat("ä", taskRunErrorMax+1)
+			r := TaskRun{TenantID: f.tn, TaskID: task.TaskID, Cause: "cap", Outcome: "failed", Error: long, StartedAt: f.t0}
+			if ok, err := f.ts.StartRun(f.ctx, r); !ok || err != nil {
+				t.Fatalf("start with a %d-rune error: %v %v", taskRunErrorMax+1, ok, err)
+			}
+			runs, err := f.ts.ListRuns(f.ctx, f.tn, task.TaskID, 1)
+			if err != nil || len(runs) != 1 {
+				t.Fatalf("runs %+v %v", runs, err)
+			}
+			if got := runs[0].Error; got != long[:2*taskRunErrorMax] {
+				t.Fatalf("stored error is %d runes, want the first %d", len([]rune(got)), taskRunErrorMax)
+			}
+		})
+	}
+}
+
 func TestHubSettings(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {

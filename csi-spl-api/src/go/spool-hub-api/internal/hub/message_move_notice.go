@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -107,13 +108,22 @@ func (s *Server) moveNotice(ctx context.Context, tenant string, m store.Editable
 
 // moveHolders is every (box, agent) that holds m: the fallback record's
 // agent, then, per box m was sent to, the agents that box got it for (a DM's
-// to, or the channel's members there, recvAgents' rule). Each pair once.
+// to, or the channel's members there, recvAgents' rule). Each pair once, and
+// only an agent its box announces now (SPL-6700): a channel's invite row
+// outlives a retired id, and a notice to_box=<box> to=<id> made that box mint
+// a desk seat for it (22 csitea seats on one box at one move, 2026-11-27). A
+// roster that cannot be read sends none.
 func (s *Server) moveHolders(ctx context.Context, tenant string, m store.EditableMessage) [][2]string {
+	roster, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", tenant).Str("msg_id", m.MsgID).Msg("move notice: roster not read; none sent")
+		return nil
+	}
 	var out [][2]string
 	seen := map[[2]string]bool{}
 	add := func(box, agent string) {
 		k := [2]string{box, agent}
-		if box != "" && box != WUIBox && agentid.IsAgent(agent) && !seen[k] {
+		if box != "" && box != WUIBox && agentid.IsAgent(agent) && !seen[k] && slices.Contains(roster[box], agent) {
 			seen[k] = true
 			out = append(out, k)
 		}

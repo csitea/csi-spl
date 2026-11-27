@@ -136,4 +136,21 @@ It also prints the count of each poke exit code. With `ENV=<dev|prd> TENANT_ID=<
 
 Checks: `csi-spl-orc/src/bash/features/spawn-agents/tests/test-poke-ledger.sh` covers a same-box send and a relayed (sidecar) delivery, each leaving one row with monotonic stamps, a refused poke leaving rc 6, the hook's rows, and the rotation. `csi-spl-orc/src/bash/tests/latency-hops.tst.sh` checks the exact table from a fixture tree, the window, and the hub SQL.
 
-<!-- version: 0.4.0 · updated: 2026-11-25 · last-edit: 2026-11-25T19:45:00Z -->
+## 9. A fan-out never makes a mailbox for an unseated id (SPL-6700)
+
+On 2026-11-27 at 10:11:28Z, one HUM-10 move notice made 22 csitea desk seat dirs on one box. One of them was the retired c-873. The csi-spl lane that took the id next then got the owner's posts in a channel. Measured cause:
+
+- A channel's `channel_subscriptions` invite row outlives a retired id. 36 of that channel's 50 invite rows on the box named ids the box no longer announced.
+- The move notice (`moveHolders`, `internal/hub/message_move_notice.go`) addressed every channel member it read, with `to_box=<box>` and `to=<id>`.
+- On its own leg, the box sidecar (`receive`, `internal/hubclient/hubclient.go`) wrote `m.To` even when `m.To` was not hosted there. That write created `<root>/<id>/{inbox,outbox,archive}`. From then on, `hosted()` counted the new dir, so the next channel posts reached it too.
+
+Both halves now refuse:
+
+- **Hub:** a move notice goes only to a (box, agent) pair that the box announces now (`Store.Roster`). If the roster cannot be read, no notice is sent.
+- **Box:** a channel frame that lists `m.To` among its agents, where `m.To` is not hosted here, writes no copy for it. A DM still makes the mailbox it is addressed to.
+
+Out of scope, split off: removing a retired id's invite rows on every workspace when the id is retired. That is its own lane (ask 2f880751). The stale prd rows were pruned once by the orchestrator.
+
+Checks: `TestMoveHoldersKeepsOnlyAnnouncedAgents` (`internal/hub/move_holders_internal_test.go`) and `TestChannelFrameToUnhostedAgentMakesNoMailbox` (`internal/hubclient/recv_unseated_test.go`). Both are red on the code before the fix.
+
+<!-- version: 0.5.0 · updated: 2026-11-27 · last-edit: 2026-11-27T18:30:00Z -->

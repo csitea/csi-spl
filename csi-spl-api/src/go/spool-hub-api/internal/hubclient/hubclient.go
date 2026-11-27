@@ -1075,7 +1075,10 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 	// §4), bound to the box whose pin signed the envelope.
 	m = spool.WithFromAgent(m, e.FromBox)
 	s.fetchBlobs(ctx, m)
-	if own && !slices.Contains(targets, m.To) {
+	// SPL-6700: a channel frame that names m.To among its agents and found it
+	// not hosted here writes no copy for it either; the own leg used to mint
+	// <root>/<m.To>/ for a retired id the hub still listed (a move notice).
+	if own && !slices.Contains(targets, m.To) && (e.Channel == "" || !slices.Contains(agents, m.To)) {
 		targets = append(targets, m.To)
 	}
 	for _, id := range targets {

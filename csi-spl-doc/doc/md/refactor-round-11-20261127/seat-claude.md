@@ -272,8 +272,45 @@ on the commit that adds this file, before the push.
 - **N7** Row 02's `parts=all` CI cost (`ci-doc-only.sh:124`) is named and
   accepted in the plan (lines 473-477). I did not re-measure it.
 
+## v1.0: PASS on f2b9c27e
+
+Plan v1.0 `f2b9c27ef85a91a40fa6fa44178bc67ebc475141` on
+`review/c002-refactor-round-11-planner` (`git ls-remote` returned this sha at the
+time of the check). Its parent is `937716f6cc0d5706980b8d2c0bd24308c50feefe`
+(v0.1, signed above). Author and committer are both the repo CLAUDE.md "Commits:" address
+(`git log -1 --no-mailmap`).
+
+- `git diff --stat 937716f6c f2b9c27ef` -> 1 file,
+  `refactor-round-11-20261127-plan.md`, +79 -21.
+- No row changed:
+  - All 9 fenced `bash` blocks were extracted from both versions and compared:
+    `blocks 9 9 identical`. head1 and head2, the red controls and the mutations
+    of the checks above therefore hold for v1.0 unchanged.
+  - The row table: `diff` of the `^| 0[12] ` lines of both versions is
+    empty (2 rows).
+  - Section 5, the row briefs: `diff` of `## 5.`..`## 6.` of both versions is
+    empty.
+- W1 is resolved:
+  - The intro, 1.2 (b) and 2.2 now state that r10-02 landed (`054294929`) and
+    that r10 was closed by `c696a294d`, with the 5.2 serve gate met. The
+    "has not yet landed" text and "r11 rows still wait" are gone (they are `-`
+    lines of the diff).
+  - 1.2 (a), 1.4 and section 7 name Family A `_utl_send_spool_note`
+    (`reboot-required-check.func.sh:85`) and Family B
+    `_utl_send_throttled_alert`, and say why row 02 does not reuse A.
+  - I checked the Family A description against origin/master
+    `reboot-required-check.func.sh:80-105`. It reads "override > PROJ_PATH
+    sibling > PATH", runs no `timeout`, has no `--no-poke` and writes no stamp,
+    and it does `return 1` on a missing or failed sender. That is what v1.0 says.
+- N1-N7 are recorded in 1.4, 2.2, 4.1, 8 and 9. N5's "2026-11-18 mtimes on the
+  planner box" is the planner's statement. This seat cannot read that box and
+  still has not verified it.
+
+No new defects.
+
 ## Sign-off
 
 | plan sha | verdict | seat |
 |---|---|---|
 | `937716f6cc0d5706980b8d2c0bd24308c50feefe` (v0.1) | PASS, W1 to fold in v1.0 | c-862 claude |
+| `f2b9c27ef85a91a40fa6fa44178bc67ebc475141` (v1.0) | PASS, W1 resolved, no row changed | c-862 claude |

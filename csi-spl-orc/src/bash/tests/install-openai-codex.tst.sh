@@ -8,10 +8,13 @@
 #      pin and --cli codex --cli-only, plus --dry-run unless DRY_RUN=0
 #   3. DRY_RUN=0: one npm install of @openai/codex@<pin> into the agent's
 #      prefix, the flag contract checked, ~/.codex/config.toml gets
-#      cli_auth_credentials_store = "file" and [analytics] enabled = false
+#      cli_auth_credentials_store = "file", check_for_update_on_startup =
+#      false (top level, before any table) and [analytics] enabled = false
 #      (600 in 700), "no login yet" named
 #   4. a re-run at the pin installs nothing and rewrites nothing; a login
-#      (~/.codex/auth.json) is named by mode and owner, never read
+#      (~/.codex/auth.json) is named by mode and owner, never read; a
+#      check_for_update_on_startup = true set by hand is kept and named
+#      (CONTROL: a config without the line reads as self-update on)
 #   5. CONTROLS: a cnf pin of latest, empty or absent is refused (exit 2)
 #      before anything runs; install.sh itself refuses
 #      SPOOL_INSTALL_CODEX_VERSION=latest; a codex without
@@ -33,7 +36,7 @@ fails=0
 command -v yq >/dev/null || { echo "SKIP: no yq"; exit 0; }
 
 ME="$(id -un)"
-PIN=0.166.0
+PIN=0.172.0
 ENVKEY="canaryEnvK3y${RANDOM}${RANDOM}Z"
 AUTH="canaryAuthT0k${RANDOM}${RANDOM}Z"
 B="$T/bin"; mkdir -p "$B" "$T/spool"
@@ -114,6 +117,10 @@ grep -q 'flag contract ok' "$T/o" && grep -q "codex: $H/.local/bin/codex (codex 
 [[ "$(sed -n 1p "$cfg")" == 'cli_auth_credentials_store = "file"' ]] && grep -qx '\[analytics\]' "$cfg" &&
   grep -qx 'enabled = false' "$cfg" && [[ "$(stat -c %a "$cfg") $(stat -c %a "$H/.codex")" == "600 700" ]] &&
   pass "3: config.toml: the login in a file, analytics off (600 in 700)" || fail "3: config: $(cat "$cfg" 2>&1)"
+# the self-update off: a top-level key, so above the first [table] header
+upd_off() { awk '/^[[:space:]]*\[/ { exit } /^check_for_update_on_startup = false$/ { f = 1 } END { exit !f }' "$1"; }
+upd_off "$cfg" && grep -q "check_for_update_on_startup = false written to $cfg" "$T/o" &&
+  pass "3: config.toml: check_for_update_on_startup = false at the top level (no npm -g self-update)" || fail "3: update check: $(cat "$cfg" 2>&1)"
 grep -q "no login yet ($H/.codex/auth.json)" "$T/o" && pass "3: no login yet: named, nothing written" || fail "3: login line: $(grep login "$T/o")"
 
 # --- 4. re-run at the pin; a login is named, never read -------------------------------------------
@@ -128,6 +135,15 @@ printf 'cli_auth_credentials_store = "keyring"\n' >"$cfg"; oc DRY_RUN=0
 grep -q 'WARN codex: .* keeps cli_auth_credentials_store = "keyring", set by hand' "$T/o" && grep -q '^cli_auth_credentials_store = "keyring"$' "$cfg" &&
   grep -qx 'enabled = false' "$cfg" && pass "4: a store set by hand is kept and named; analytics still turned off" ||
   fail "4: hand store: $(cat "$cfg")"
+printf 'check_for_update_on_startup = true\n' >"$cfg"; oc DRY_RUN=0
+grep -q 'WARN codex: .* keeps check_for_update_on_startup = true, set by hand' "$T/o" && grep -qx 'check_for_update_on_startup = true' "$cfg" &&
+  [[ "$(grep -c '^check_for_update_on_startup' "$cfg")" == 1 ]] && pass "4: an update check set by hand is kept and named, never duplicated" ||
+  fail "4: hand update check: $(cat "$cfg")"
+upd_off "$cfg" && fail "4: CONTROL: a config with check_for_update_on_startup = true reads as off" ||
+  pass "4: CONTROL: the same check reads check_for_update_on_startup = true as on"
+printf '[analytics]\ncheck_for_update_on_startup = false\n' >"$T/nested.toml"
+upd_off "$T/nested.toml" && fail "4: CONTROL: the key inside a [table] reads as top level" ||
+  pass "4: CONTROL: the key inside a [table] is not taken for the top-level one"
 
 # --- 5. controls ------------------------------------------------------------------------------------
 n0="$(installs)"

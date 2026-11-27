@@ -9,7 +9,8 @@
 # @description pin is not reinstalled. Then the flag contract (codex --help
 # @description names exec, resume, --ask-for-approval and
 # @description --dangerously-bypass-approvals-and-sandbox, else the pin is
-# @description refused), telemetry off ([analytics] enabled = false) and
+# @description refused), telemetry off ([analytics] enabled = false), no
+# @description self-update (check_for_update_on_startup = false) and
 # @description cli_auth_credentials_store = "file" in ~/.codex/config.toml,
 # @description and the subscription login ~/.codex/auth.json by mode and
 # @description owner only (the cnf auth marker; the owner logs in with

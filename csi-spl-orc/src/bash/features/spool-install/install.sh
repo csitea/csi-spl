@@ -25,7 +25,8 @@
 #      env.box.openai_codex.version of the npm package @openai/codex, into
 #      <prefix> (npm, like qwen); then the flag contract (codex --help names
 #      exec, resume, --ask-for-approval and
-#      --dangerously-bypass-approvals-and-sandbox), analytics off and
+#      --dangerously-bypass-approvals-and-sandbox), analytics off,
+#      check_for_update_on_startup = false (no npm -g self-update) and
 #      cli_auth_credentials_store = "file" in ~/.codex/config.toml, and the
 #      subscription login ~/.codex/auth.json by mode and owner (never read)
 #   2. the toolchain the harness runs on: yq (v4) into <data>/tools, and the
@@ -498,13 +499,24 @@ mistral_install() {
 # nothing here needs a key.
 codex_run() { env -u OPENAI_API_KEY -u CODEX_API_KEY "$@"; }
 codex_version() { codex_run "$1" --version 2>/dev/null | sed -n '1s/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'; }
-# codex_config <cfg>: analytics off (the Statsig exporter) and the login in
+# codex_config <cfg>: analytics off (the Statsig exporter), the login in
 # a file (cli_auth_credentials_store = "file": auth.json is the lane-mix
-# auth marker, a keyring would hide it). A value set by hand is kept and named.
+# auth marker, a keyring would hide it) and no update check at startup
+# (check_for_update_on_startup = false, a top-level key of codex's
+# ConfigToml in 0.172.0: its startup update runs `npm install -g
+# @openai/codex` into npm's global prefix, EACCES where that is root's, and
+# a seat would wait on the prompt; the pin is the update path). A value set
+# by hand is kept and named.
 codex_config() {
   local cfg="$1" tmp v
   tmp="$(mktemp "$(dirname "$cfg")/.config.toml.XXXXXX")" || { cli_fail codex "no temp file for $cfg"; return 1; }
   [ -f "$cfg" ] && cat "$cfg" >"$tmp"
+  v="$(sed -n 's/^check_for_update_on_startup[[:space:]]*=[[:space:]]*\([a-z]*\).*$/\1/p' "$tmp" | sed -n 1p)"
+  if [ -z "$v" ]; then
+    { printf 'check_for_update_on_startup = false\n'; cat "$tmp"; } >"$tmp.n" && mv -f "$tmp.n" "$tmp"
+    say "codex: check_for_update_on_startup = false written to $cfg (no self-update; the cnf pin updates it)"
+  elif [ "$v" != false ]; then say "WARN codex: $cfg keeps check_for_update_on_startup = $v, set by hand: codex may try to update itself with npm install -g"
+  fi
   v="$(sed -n 's/^cli_auth_credentials_store[[:space:]]*=[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' "$tmp" | sed -n 1p)"
   if [ -z "$v" ]; then
     { printf 'cli_auth_credentials_store = "file"\n'; cat "$tmp"; } >"$tmp.n" && mv -f "$tmp.n" "$tmp"
@@ -532,7 +544,7 @@ codex_install() {
   [ -n "${OPENAI_API_KEY+x}${CODEX_API_KEY+x}" ] && say "WARN codex: an OpenAI key is set in this environment; every codex call here runs without it"
   d="$HOME/.codex"
   if [ "$DRY" = 1 ]; then
-    plan "check codex --version = $CODEX_PIN and the flag contract (exec resume --ask-for-approval --dangerously-bypass-approvals-and-sandbox), write cli_auth_credentials_store = \"file\" and [analytics] enabled = false in $d/config.toml when absent"
+    plan "check codex --version = $CODEX_PIN and the flag contract (exec resume --ask-for-approval --dangerously-bypass-approvals-and-sandbox), write cli_auth_credentials_store = \"file\", check_for_update_on_startup = false and [analytics] enabled = false in $d/config.toml when absent"
     return 0
   fi
   have="$(cli_path codex)"; [ -n "$have" ] || { cli_fail codex "no codex binary on PATH or in $BIN after the install"; return 0; }

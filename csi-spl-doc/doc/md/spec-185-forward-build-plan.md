@@ -16,7 +16,7 @@ Owner HUM-10 directives, by pointer:
 
 **What this round is.** Spec 185 v0.3 section 6 defines seven build rows (**F1–F7**) implementing message forwarding across RDB, Go hub/store, WUI, i18n, e2e, and docs/help. Seven rows sit within rulebook 1.1's hard cap of 10 rows. This plan re-measures every target site on one `origin/master` sha, orders F1–F7 into **3 batches of strictly disjoint files (R1)** (max 3 rows live per batch), enforces the CI migration roll gate (`20_hub-build-deploy.yml`) between F1 and F2, folds the fleet Google Cloud Translation language rule (owner msg `36b3ff7f`, SPL-6174 — marked as the fleet rule, not a spec change), maps live and queued R3 overlaps, states every row's R2 test column and C2 red control, and proposes one brief per row. This planner writes no code and edits no spec 185 file.
 
-**Status: v1.0, revised after cross-vendor panel review (`c-715`, `claude`, FAIL W1–W5, N1–N6 on v0.1 `c2633a2c8`, seat file `review/c002-s185-fwd-build-claude-seat` `281a1bf4a`) and dispatch holder rulings (`c-002`, msg `cc456e7e`: H1 Option A accepted; N4 plan additions kept).** Editor: **a-548** (`agy`, main for `specs_and_docs`). Cross-vendor panel seat: **c-715** (`claude`; `mistral` sits on no review seat and `grok` is off fleet-wide). Nothing lands on `master` until `c-715`'s PASS line passes `do_spl_review_line_check` (rc 0) and the dispatch holder gives GO.
+**Status: v1.0, signed and landed (`e33858700`, exact tree of `9663806033`).** Cross-vendor panel seat **c-715** (`claude`; `mistral` sits on no review seat and `grok` is off fleet-wide) signed **PASS** (msg `7e4fa1ea` / `58f4d519`, seat file `review/c002-s185-fwd-build-claude-seat` `9aee7a022`, `do_spl_review_line_check` rc 0 DOCS-ONLY, msg `f3041fa2` / `99f6a2a9`, non-blocking note N7 folded below); dispatch holder **c-002** gave **GO** (msg `652cfb1b`). Editor: **a-548** (`agy`, main for `specs_and_docs`).
 
 **One sha.** Every code/doc count and `file:line` below was measured on **`84f86ab8c`** (`84f86ab8c2f6daf774bef27ea34bbfb1aa1172fc`, `origin/master` fetched 2026-11-27T06:19Z, n = 1 per command; verified unchanged across all cited files on `31a526346` at 06:46Z). Spec 185 v0.3's own line numbers were measured on `62daca7aa` (2026-11-20); where a site moved or changed, section 1.2 gives both. Live state (`lane-map.sh`, `do_spl_spawn_queue`, `do_spl_lane_mix`, `do_spl_hub_agent_kinds`) carries its own UTC timestamp.
 
@@ -188,8 +188,8 @@ Row count: **7** (within rulebook 1.1's hard cap of 10). Max rows live in any ba
   - `doc:specs/003-spool-message-bus/contracts/wui-live-ws.md` (§4 `:119-178` right after `mc_id` `:153-177`: document `forward_of` and every refusal of spec 185 §7.1.1; §8 `:291+` if error tokens are tabulated there).
   - `doc:doc/help/message-actions-and-formatting.md` (edit Qto doc `bf244c37-39b0-40c1-9567-b8ec5fd94913` section 2 menu table `:52-69`, then export with `cd csi-spl-orc && ./run -a do_spl_doctree_export_md`) and **`wui:public/help-md/message-actions-and-formatting.md`** (regenerated via `cd csi-spl-wui && node src/node/help/sync-help.mjs`). Because it touches `csi-spl-wui/`, F7 **never goes to `mistral`** (developer guide 5.1).
 - **R2 test column:** **`csi-spl-wui/tests/unit/help-sync.test.mjs`** (`:20-22` drift check, `:36-48` automated drift control), `node src/node/help/sync-help.mjs --check`, `QTO_DRIFT_LIVE=1 ... do_check_qto_doc_drift` (if live Qto reachable), `cd csi-spl-iac && ./run -a do_check_dist_hygiene`.
-- **Done test:** `grep -oE 'forward_of|forward_not_found|forward_no_topic|bad_json|is_parent' csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md | sort -u | wc -l` -> **5** (every required token of §7.1.1 present; plus `grep -c 'FR-021' csi-spl-doc/specs/005-spool-wui/spec.md` -> **>= 1**); `node src/node/help/sync-help.mjs --check` rc 0; `node tests/unit/help-sync.test.mjs` rc 0.
-- **Red control (C2):** (1) `tests/unit/help-sync.test.mjs:36-48` runs its own built-in control proving a drifted `public/help-md/` copy fails RED; (2) no automated test parses `wui-live-ws.md` (same as spec 186 M9), so the R7 reviewer re-runs the `grep -oE ... | sort -u | wc -l` command with one required §7.1.1 token removed and confirms the count drops from 5 to 4.
+- **Done test:** `grep -oE 'forward_of|forward_not_found|forward_no_topic|bad_json|is_parent' csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md | sort -u | wc -l` -> **5** (baseline on `84f86ab8c` is **2**, since `bad_json` x4 and `is_parent` x4 already exist in `wui-live-ws.md`, panel note N7; F7 adds the three new tokens `forward_of`, `forward_not_found`, `forward_no_topic`; plus `grep -c 'FR-021' csi-spl-doc/specs/005-spool-wui/spec.md` -> **>= 1**); `node src/node/help/sync-help.mjs --check` rc 0; `node tests/unit/help-sync.test.mjs` rc 0.
+- **Red control (C2):** (1) `tests/unit/help-sync.test.mjs:36-48` runs its own built-in control proving a drifted `public/help-md/` copy fails RED; (2) no automated test parses `wui-live-ws.md` (same as spec 186 M9), so the R7 reviewer re-runs the `grep -oE ... | sort -u | wc -l` command with one of the three new §7.1.1 tokens (`forward_of`, `forward_not_found`, or `forward_no_topic` — panel note N7, since `bad_json` and `is_parent` already appear 4x each on base) removed and confirms the count drops from 5 to 4.
 
 ---
 
@@ -318,7 +318,7 @@ Every row brief carries the common header and standing rules:
 - **Spec refs:** spec 185 v0.3 §6 F7, §7.1; plan Note N6.
 - **Files (only these):** `doc:specs/005-spool-wui/spec.md` (FR-021), `doc:specs/003-spool-message-bus/contracts/wui-live-ws.md` (§4 and §8), `doc:doc/help/message-actions-and-formatting.md` (edited in Qto `bf244c37-39b0-40c1-9567-b8ec5fd94913` -> `do_spl_doctree_export_md`), `wui:public/help-md/message-actions-and-formatting.md` (via `node src/node/help/sync-help.mjs`).
 - **Must not touch:** any Go, RDB, locale, or WUI app file.
-- **Done & red control:** FR-021 added cleanly (`grep -c 'FR-021' csi-spl-doc/specs/005-spool-wui/spec.md` >= 1); `grep -oE 'forward_of|forward_not_found|forward_no_topic|bad_json|is_parent' csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md | sort -u | wc -l` -> 5; `node src/node/help/sync-help.mjs --check`, `node tests/unit/help-sync.test.mjs` (`:20-22`, control `:36-48`), and `do_check_dist_hygiene` green. Red controls: `help-sync.test.mjs:36-48` proves stale `public/help-md/` fails RED; reviewer re-runs the `grep -oE` count with one §7.1.1 token removed and confirms 5 -> 4.
+- **Done & red control:** FR-021 added cleanly (`grep -c 'FR-021' csi-spl-doc/specs/005-spool-wui/spec.md` >= 1); `grep -oE 'forward_of|forward_not_found|forward_no_topic|bad_json|is_parent' csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md | sort -u | wc -l` -> 5 (base on `84f86ab8c` is 2: `bad_json` x4, `is_parent` x4; panel note N7); `node src/node/help/sync-help.mjs --check`, `node tests/unit/help-sync.test.mjs` (`:20-22`, control `:36-48`), and `do_check_dist_hygiene` green. Red controls: `help-sync.test.mjs:36-48` proves stale `public/help-md/` fails RED; reviewer re-runs the `grep -oE` count with one of the three new tokens (`forward_of`, `forward_not_found`, or `forward_no_topic`, panel note N7) removed and confirms 5 -> 4.
 
 ---
 
@@ -329,10 +329,14 @@ Every row brief carries the common header and standing rules:
 | 2026-11-27 06:34Z | a-548 (agy) | v0.1 on `review/c002-s185-fwd-build-planner`, `c2633a2c8`, measured on `84f86ab8c` |
 | 2026-11-27 06:46Z | c-715 (claude) | **FAIL** on v0.1 `c2633a2c8` (msg `538ecc0b`, seat file `review/c002-s185-fwd-build-claude-seat` `281a1bf4a`): W1–W5, N1–N6 |
 | 2026-11-27 06:46Z | c-002 (holder) | Rulings (msg `cc456e7e`): H1 Option A accepted; N4 plan additions (H2 `mc_id`+`forward_of`, H3 `isNoteToSelf` skip) kept; fold W1–W5 into v1.0 |
-| 2026-11-27 | a-548 (agy) | v1.0 folds W1–W5, N1–N6, and holder rulings H1–H3; ready for `c-715` PASS and holder GO |
+| 2026-11-27 06:48Z | a-548 (agy) | v1.0 on `review/c002-s185-fwd-build-planner`, `9663806033`, folding W1–W5, N1–N6, and H1–H3 |
+| 2026-11-27 06:53Z | c-715 (claude) | **PASS** on v1.0 `9663806033` (msg `7e4fa1ea` / `58f4d519`, seat file `review/c002-s185-fwd-build-claude-seat` `9aee7a022`), non-blocking note N7 (`wui-live-ws.md` base has `bad_json` x4, `is_parent` x4) |
+| 2026-11-27 06:55Z | c-715 (claude) | `do_spl_review_line_check` rc 0 on v1.0 PASS line (DOCS-ONLY, 128 commands read, msg `f3041fa2` / `99f6a2a9`) |
+| 2026-11-27 06:57Z | c-002 (holder) | **GO** `9663806033` (msg `652cfb1b`): land v1.0 with review line and fold N7 into F7 brief |
+| 2026-11-27 07:00Z | a-548 (agy) | Landed v1.0 on `master` as `e33858700` (exact tree of `9663806033`) + this follow-up recording PASS, GO, and N7 |
 
 | seat | on | verdict |
 |---|---|---|
-| editor a-548 (agy) | v0.1, v1.0 | plan commits |
-| cross-vendor panel seat c-715 (claude) | v0.1 `c2633a2c8` | **FAIL** W1–W5, N1–N6 (msg `538ecc0b`); awaiting v1.0 re-review |
-| dispatch holder c-002 | H1–H3 (`cc456e7e`) | H1 A + H2/H3 kept; awaiting v1.0 PASS + GO |
+| editor a-548 (agy) | v0.1, v1.0, landing | `e33858700` on `master` + PASS/GO/N7 follow-up |
+| cross-vendor panel seat c-715 (claude) | v1.0 `9663806033` | **PASS** (msg `7e4fa1ea` / `58f4d519`, line check rc 0 `f3041fa2` / `99f6a2a9`, seat file `9aee7a022`, note N7 folded) |
+| dispatch holder c-002 | v1.0 `9663806033` | **GO** (msg `652cfb1b`) |

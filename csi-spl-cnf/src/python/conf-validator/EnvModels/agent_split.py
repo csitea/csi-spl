@@ -6,6 +6,7 @@ from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Extra, conint, root_validator, validator
 
 from .agent_model import AgentModel
+from .agy_fallback import AgyFallback
 
 # codex: spec 161, SPL-5454 (never secret-class: SECRET_VENDORS below)
 VENDORS = ("agy", "mistral", "claude", "grok", "qwen", "codex")
@@ -83,6 +84,14 @@ class Box(BaseModel, extra=Extra.allow):
                     f"{kind}: mistral writes no code, docs and reviews only"
                     " (weight 0, never the backup; owner msg 91bf8278)"
                 )
+        return values
+
+    @root_validator(skip_on_failure=True)
+    def agy_fallback_rules(cls, values):
+        # spec 184 section 10 (SPL-6661): env.box.agent_split.agy_fallback
+        split = values.get("agent_split")
+        if isinstance(split, dict) and split.get("agy_fallback") is not None:
+            AgyFallback.parse_obj(split["agy_fallback"])
         return values
 
     @validator("agent_split_by_kind")

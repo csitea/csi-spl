@@ -1,14 +1,15 @@
 # Spec 184: Default Model per Agent Kind
 
-Status: **Draft v0.5** (2026-11-21). Lane `c-358` (`claude`, the backup for
+Status: **Draft v0.6** (2026-11-27). Lane `c-358` (`claude`, the backup for
 `specs_and_docs`: no agy CLI on this box, agy at quota on the other).
 v0.1 `3c8f2f7fd`; v0.2 folds the owner's answers to the form (poll
 `ccb3a406`, HUM-10 msg `0d33aa83`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`,
 Q5 `fb`; v0.3 folds the R7 review notes N1 and N2 (a-069, agy PASS on
 `9ff267a3b`); v0.4 fills the agy, qwen and codex rows of 3.2 and 7.1.3
 (row M0, lane `c-888`); v0.5 records the reading route's auth and the
-built shapes of 7.1.5 and proposes row H2 (row H1, lane `c-894`). Every
-change is in section 9.
+built shapes of 7.1.5 and proposes row H2 (row H1, lane `c-894`); v0.6
+adds section 10, the agy alternative-model fallback (lane `c-738`,
+SPL-6661). Every change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6036**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:815215f5-2d1b-47df-b465-b4ea0ee5d991` (`t1`).
 Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md)
@@ -346,7 +347,7 @@ empty model:
 | grok | `--model '<m>'` (the long form, so the identity map reads it) | after the perm flags | measured (1.0.89 `--help`) |
 | mistral | `VIBE_ACTIVE_MODEL='<m>'` | appended to `SPAWN_EXEC_PREFIX` (the `env ...` prefix, `scripts/spawn-mistral.sh:63`) | measured (vibe 2.26.0 `--help`: `VIBE_*` overrides any config field); `<m>` must be a `[[models]]` name or alias |
 | codex | `--model '<m>'` (the long form of `-m`, so the identity map reads it) | after the perm and extra flags | measured (codex-cli 0.166.0 `--help`: `-m, --model <MODEL>`); `-c model="<m>"`, the help's own example, needs TOML quoting, so `--model` is used |
-| agy | `--model '<m>'` | after the perm flags | flag measured (1.5.14 `--help`); the value form is open: agy's own settings store a display name (`Gemini 3.8 Flash (High)`), which the syntax of 7.1.2 refuses. Until that is decided, agy stays `""` (UNVERIFIED for the validator, 7.1.1) |
+| agy | `--model '<m>'` | after the perm flags | flag measured (1.5.14 `--help`); the value form is the id column of `agy models` (`claude-sonnet-5-5-high`), measured on 1.5.18 (10.1 item 2); an unknown id is not refused. The validator still holds agy at `""` (7.1.1) until row C1 lifts it |
 | qwen | `--model '<m>'` (the long form of `-m`) | after the perm flags | measured (0.25.1 `--help`: `-m, --model`) |
 
 #### 7.1.4 Lifetime record (row L2)
@@ -479,3 +480,129 @@ token's box), its body and answer codes, the tenant settings shapes of
 `agent_models`, and the readings GET's permission. Section 6 gains the
 proposed row H2 (the `spool` verb that sends the PUT), which closes the
 contract gap A1 raised (c-884 msg `0b5a2bc7`).
+
+### 9.4 Changes from v0.5
+
+Section 10 is new (lane `c-738`, issue SPL-6661): the agy quota and model
+measurements, the alternative-model fallback's design and its build. 7.1.3:
+the agy value form is now measured (10.1, item 2).
+
+## 10. agy alternative-model fallback (SPL-6661)
+
+The owner's words (HUM-10, t1 #spool-hub-ops, topic `6a27166d`): "agy
+external models must be utlized better ..." (msg `41509d39`), and "we need
+to setup a system that once agy reaches some threshhold for it's weekly or
+5hours limit we should switch to it's alternative models , by the means
+similar t othe one described in this post" (msg `72c52eaa`; the post is msg
+`6e0e1d52`: a wrapper outside agy reads the quota and relaunches agy with
+`--model claude-...`).
+
+### 10.1 Measured (agy 1.5.18, one box, 2026-11-27 17:2x-17:4xZ)
+
+No prompt was sent and no model was called in any of these.
+
+1. **Model ids.** `agy models` (n=1, rc 0) prints 27 lines
+   `<id> TAB <display name>`; stderr says "Fetching available models..."
+   (it asks the vendor, `fetchAvailableModels`, not a generate call). The
+   non-Gemini ids: `claude-opus-5-5-{low,medium,high}`,
+   `claude-sonnet-5-5-{low,medium,high}`, `gpt-oss-120b-medium`. The
+   Gemini ids: `gemini-4-{neon,carbon,argon,hydrogen}-<effort>`,
+   `gemini-pro-orchestrator`, `gemini-pro-orchestrator-{neon,argon}`,
+   `gemini-3.8-flash-{low,medium,high}`.
+2. **`--model` value form**: the id of column 1. `agy --model
+   claude-sonnet-5-5-high`, started with no prompt, shows "Claude Sonnet 5.5
+   · high" in its status line (n=1). **An unknown id is not refused**:
+   `agy --model bogus-model-x` started silently on "Gemini 4 Neon · high"
+   (n=1). So the refused-model path of 4 step 6 never fires for agy; a model
+   is passed only when `agy models` lists it.
+3. **A separate quota pool.** The language server's
+   `RetrieveUserQuotaSummary` answers two groups: "Gemini Models" (buckets
+   `gemini-weekly`, `gemini-5h`) and "Claude and GPT models" (Claude Opus
+   5.5, Claude Sonnet 5.5, GPT-OSS 120B; buckets `3p-weekly`, `3p-5h`),
+   with "Within each group, models share a weekly limit and a 5-hour
+   limit." First reading (17:31Z): gemini-weekly 0.0899 (reset
+   2026-12-03T07:01:52Z), gemini-5h 0.466; 3p-weekly 1.0, 3p-5h 1.0. n=4
+   readings that afternoon, the Gemini weekly falling (0.0899 -> 0.0830)
+   while the 3p pool stayed at 1.0.
+4. **Read without a model call.** agy has no CLI verb for its quota
+   (`agy --help`: no usage subcommand). Its in-process language server
+   answers once a session exists: start an own `agy acp` with env
+   `ANTIGRAVITY_SERVER_CSRF_TOKEN=<own token>`, send ACP `initialize` and
+   `session/new` (no prompt), then `POST
+   http://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`
+   with headers `Connect-Protocol-Version: 1` and `x-codeium-csrf-token:
+   <own token>`, body `{}`; then `session/close`. The server listens on two
+   loopback ports; the plain-HTTP one answers (the other is HTTPS). The
+   token is enforced: a wrong or missing one is 401. Its own
+   `acp-server-*.log` files (n=3 probes) hold no `streamGenerateContent`
+   call, only `loadCodeAssist` and `fetchAvailableModels`. Time: 1.5 s
+   (n=1). This reads no other seat's process.
+5. **What agy prints when a pool is out.** Gemini, from the watchdog's
+   capture (fixture `csi-spl-orc/src/bash/tests/fixtures/wd-situations/s2-agy-quota.pane`):
+   "⚠ Individual quota reached. Please upgrade your subscription to
+   increase your limits. Resets in 13h53m38s." The Claude and GPT pool's
+   text: **UNVERIFIED** (it was at 1.0, not provoked). Whether `agy
+   --conversation <id> --model <m>` moves a resumed conversation to `<m>`:
+   **UNVERIFIED** (not run: it would resume a real seat's conversation).
+
+### 10.2 Design
+
+- **Switch**: cnf `env.box.agent_split.agy_fallback` (`all.env.yaml`),
+  validated by `csi-spl-cnf/src/python/conf-validator/EnvModels/agy_fallback.py`.
+  `enabled` ships `false`; only an owner go flips it.
+
+  | key | shipped | meaning |
+  |---|---|---|
+  | `enabled` | `false` | off: nothing read, written or added; every agy launch line as before |
+  | `weekly_min` | `0.05` | gemini-weekly below it switches |
+  | `five_hour_min` | `0.05` | gemini-5h below it switches |
+  | `alt_min` | `0.10` | an alternative is taken only while its pool's weekly and 5h both hold this much |
+  | `models` | `claude-sonnet-5-5-high`, `claude-opus-5-5-high`, `gpt-oss-120b-medium` | tried in order; each must be listed by `agy models` (10.1 item 2); no Gemini id (the validator refuses one) |
+  | `kinds` | `specs_and_docs`, `tests`, `simple_coding`, `complex_coding` | the brief's `Kind:`; the validator refuses any other (i18n, secret, orchestration, review) |
+  | `cache_s` | `300` | a quota or model reading is reused this long |
+
+- **Where it switches**: only where a seat starts, never inside a session:
+  `spawn-agy.sh` and `restore-agy.sh` set `SPAWN_EXTRA_FLAGS` /
+  `RESTORE_EXTRA_FLAGS` to `--model '<id>'` from
+  `spool_agy_fallback_flags` (`csi-spl-orc/src/bash/features/spawn-agents/lib/agy-fallback.inc.sh`).
+  A restore decides again from the quota at that moment and the seat's own
+  brief (the path its `lifetime/prompt.txt` names), so a seat restored
+  after the Gemini reset goes back to Gemini. A rotation restarts through
+  the same launchers. The launch core (`spawn-core.inc.sh`,
+  `restore-core.inc.sh`, rows L2 and L3) is not touched.
+- **The reading**: `scripts/agy-quota-read.py` (10.1 item 4), run as the
+  agent user, cached in `<spool root>/dispatch/vendor-probe/agy-quota.tsv`;
+  `agy models` cached in `agy-models.tsv` beside it. A read that fails
+  keeps agy's default: a failed read never stops a start.
+- **The rule** (c-001 `847c41a2`, rounds rulebook 2.7.3, cross-vendor
+  only): an agy seat running a `claude-*` model is a claude review for R7.
+  Until the owner rules, the fallback is for doc and coding lanes only: a
+  review seat (its `Kind:` is review, or its file name or first heading
+  says review, as `spl_spawn_place_review`) never falls back; a review seat
+  whose `Author:` is a claude lane says so in its reason. It waits, as
+  today.
+- **The record**: each decision with the switch on writes
+  `<spool root>/<seat>/lifetime/agy-fallback.json`
+  `{"at", "model", "effective_vendor", "why"}` (`model` empty = agy's
+  default; `effective_vendor` `claude` for a `claude-*` model, else `agy`)
+  and one `agy fallback: <model|default>: <why>` line on the launcher's
+  stderr. The identity map already records `--model` from the process's
+  argv (3.5), so `<spool root>/agents/<seat>.json` names the model too.
+  A later review-seat fallback (an owner ruling) reads
+  `effective_vendor` for the cross-vendor check; nothing reads it yet.
+- **Not here**: the placer still holds an agy row while agy is out on
+  every box (`spl_spawn_place_agy_hold`); with the switch on, a row placed
+  while Gemini is low but not out falls back at its start. Letting the
+  placer launch a doc or coding agy row on the alternative pool while
+  Gemini is OUT is row F3.
+
+### 10.3 Build rows
+
+| row | what | files | state |
+|---|---|---|---|
+| F0 | measure (10.1) | this spec | done |
+| F1 | cnf block + validator, shipped off | `csi-spl-cnf/csi-spl/all.env.yaml`, `EnvModels/agy_fallback.py`, `EnvModels/agent_split.py`, `tests/test_agy_fallback.py`; the `{dev,prd}.env.json` render | done; red control: the shipped block set `enabled: true` -> case 1 fails |
+| F2 | reader, decision, adapters | `scripts/agy-quota-read.py`, `lib/agy-fallback.inc.sh`, `scripts/spawn-agy.sh`, `scripts/restore-agy.sh`, `tests/test-agy-fallback.sh` (stubbed agy, no quota spent) | done; red control `AGY_FB_RED=1` (the review branch dropped) -> case 7 fails |
+| F3 | the placer launches a doc or coding row placed as agy while Gemini is out, when F2 would pick an alternative | `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` and its test | proposed |
+| F4 | the owner's ruling on review seats (a form to the holder); if yes, the R7 line check reads `effective_vendor` | rounds rulebook, review-line check | open |
+| F5 | switch it on | cnf `enabled: true` | the owner's go only |

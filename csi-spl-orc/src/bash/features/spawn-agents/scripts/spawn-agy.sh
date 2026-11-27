@@ -28,4 +28,8 @@ spawn_rename_how() {
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh
 . "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; }
+# spec 184 section 10 (SPL-6661): agy's own alternative model when its Gemini
+# quota is low; nothing at all while cnf agy_fallback.enabled is not true.
+# shellcheck source=../lib/agy-fallback.inc.sh disable=SC2034 # SPAWN_EXTRA_FLAGS is read by the core
+. "$(dirname "$_sp_core")/../lib/agy-fallback.inc.sh" && SPAWN_EXTRA_FLAGS="$(spool_agy_fallback_flags "${1:-}" "${3:-}")"
 spawn_main "$@"

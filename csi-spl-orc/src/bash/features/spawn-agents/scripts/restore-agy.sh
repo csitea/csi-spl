@@ -15,4 +15,8 @@ RESTORE_ARGS=restore_args
 _rs_core="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh
 . "$_rs_core" || { echo "ERROR: cannot load $_rs_core" >&2; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; }
+# spec 184 section 10 (SPL-6661): a restore decides again, from the quota now
+# and the seat's own brief; nothing at all while agy_fallback.enabled is not true.
+# shellcheck source=../lib/agy-fallback.inc.sh disable=SC2034 # RESTORE_EXTRA_FLAGS is read by the core
+. "$_RS_DIR/../lib/agy-fallback.inc.sh" && RESTORE_EXTRA_FLAGS="$(spool_agy_fallback_flags "${1:-}" "$(spool_agy_fallback_seat_brief "${1:-}")")"
 restore_main "$@"

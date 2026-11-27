@@ -59,6 +59,13 @@
 #      HELD "never placed before it lands"; GREEN: a RELEASED line with the
 #      land time, no HELD line. CONTROL a queued row whose key has not
 #      landed still prints HELD with the placer's reason
+#  14. R7 a-768 W1 W2 of SPL-6701: the queue view is read-only. A row after a
+#      far slug whose .place.slugs key is empty (the hub lane map answers its
+#      key): the view prints HELD with that key, and writes none of
+#      .git/FETCH_HEAD, .place.lanes, .place.slugs; a key landed since the
+#      last tick's fetch is not seen (no fetch). RED before the fix: the
+#      view fetched (FETCH_HEAD moved, the key seen) and wrote both files.
+#      One lane map read for two rows on the same prerequisite (N1)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -527,6 +534,46 @@ if ! grep -q '^HELD e1e1e1e1' <<<"$out" &&
 else fail "13. released row: $out"; fi
 grep -q '^HELD e2e2e2e2 row-q-held after SPL-9013: waiting on SPL-9013: not landed on origin/master$' <<<"$out" &&
   pass "13. CONTROL a queued row whose After: key has not landed: still HELD, with the placer's reason" || fail "13. held row: $out"
+
+# 14. the queue view is read-only (R7 a-768 W1 W2) -----------------------------------
+export HUB_ISSUES="$HUB_ISSUES SPL-9402=wip"
+V1=c1c1c1c1-0000-4000-8000-000000009301; V2=c2c2c2c2-0000-4000-8000-000000009302; V3=c3c3c3c3-0000-4000-8000-000000009303
+printf '# Lane brief: slug-v\n%s\n' "$ES" >"$T/briefs/slug-v.md"
+put "$V1" row-after-v; put "$V2" row-after-v2; put "$V3" row-after-late
+on do_spl_spawn_enqueue ASK_ID="$V1" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-v SPAWN_AFTER=slug-v >/dev/null 2>&1
+on do_spl_spawn_enqueue ASK_ID="$V2" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-v2 SPAWN_AFTER=slug-v >/dev/null 2>&1
+on do_spl_spawn_enqueue ASK_ID="$V3" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-late SPAWN_AFTER=SPL-9402 >/dev/null 2>&1
+printf 'slug-v\tc-930@box-far\t\t%s\n' "$(date +%s)" >>"$T/spool/asks/.place.slugs"
+cat >"$T/bin/v-lanes" <<'STUB'
+#!/usr/bin/env bash
+echo x >>"$V_LOG"
+echo '{"hub": "ok", "lanes": [{"agent_id": "c-930", "agent_box": "box-far", "branch": "c-930-slug-v", "issue_key": "SPL-9401", "state": "live"}]}'
+STUB
+chmod +x "$T/bin/v-lanes"
+export V_LOG="$T/v.log"; : >"$V_LOG"
+land "feat(orc, SPL-9402): lands after the last tick's fetch"
+rm -f "$T/spool/asks/.place.lanes"; touch -d '2026-01-01 00:00' "$T/app/.git/FETCH_HEAD"
+v_sum() { md5sum "$T/spool/asks/.place.slugs" | cut -d' ' -f1; }
+fh0="$(stat -c %Y "$T/app/.git/FETCH_HEAD")"; ps0="$(v_sum)"
+out="$(on do_spl_spawn_queue SPAWN_AFTER_LANES_CMD="$T/bin/v-lanes" 2>&1)"
+grep -q '^HELD c1c1c1c1 row-after-v after slug-v: waiting on slug-v (SPL-9401): not landed on origin/master$' <<<"$out" &&
+  grep -q '^HELD c2c2c2c2 row-after-v2 after slug-v: waiting on slug-v (SPL-9401): not landed on origin/master$' <<<"$out" &&
+  pass "14. a far slug with no key in .place.slugs: HELD with the key the hub lane map answered" || fail "14. view: $out"
+[[ "$(stat -c %Y "$T/app/.git/FETCH_HEAD")" == "$fh0" ]] &&
+  grep -q '^HELD c3c3c3c3 row-after-late after SPL-9402: waiting on SPL-9402: not landed on origin/master$' <<<"$out" &&
+  pass "14. W1 no fetch: FETCH_HEAD untouched, a key landed after the last tick's fetch not seen yet" ||
+  fail "14. W1: FETCH_HEAD $fh0 -> $(stat -c %Y "$T/app/.git/FETCH_HEAD") | $out"
+[[ ! -e "$T/spool/asks/.place.lanes" && "$(v_sum)" == "$ps0" ]] &&
+  grep -q $'^slug-v\tc-930@box-far\t\t' "$T/spool/asks/.place.slugs" &&
+  pass "14. W2 no write: no .place.lanes kept, .place.slugs unchanged (no key write-back)" ||
+  fail "14. W2: .place.lanes $(ls "$T/spool/asks/.place.lanes" 2>&1) | $(grep slug-v "$T/spool/asks/.place.slugs")"
+[[ "$(wc -l <"$V_LOG")" == 1 ]] && pass "14. N1: two rows on slug-v, the lane map read once" ||
+  fail "14. N1: the lane map read $(wc -l <"$V_LOG") times"
+out="$(tick SPAWN_AFTER_LANES_CMD="$T/bin/v-lanes" SPAWN_PLACE_LAUNCH_CMD=true)"
+grep -q $'^slug-v\tc-930@box-far\tSPL-9401\t' "$T/spool/asks/.place.slugs" && [[ -s "$T/spool/asks/.place.lanes" ]] &&
+  pass "14. CONTROL the placer's tick still writes the key back and keeps the lane map" ||
+  fail "14. CONTROL tick: $(grep slug-v "$T/spool/asks/.place.slugs") | $out"
+done_ask "$V1" 2>/dev/null; done_ask "$V2" 2>/dev/null; done_ask "$V3" 2>/dev/null
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

@@ -42,7 +42,8 @@
 # the lines), do_spl_spawn_place (spl_spawn_place_after_hold, the alarm
 # spl_spawn_after_alarm, spl_spawn_after_held for the review-seat alarm and
 # spl_spawn_after_unheld for the supply check) and do_spl_spawn_queue
-# (spl_spawn_q_afters).
+# (spl_spawn_q_afters, read-only: SPAWN_AFTER_READONLY=1, no fetch, no write
+# under <asks dir>; R7 a-768 W1 W2 of SPL-6701).
 #------------------------------------------------------------------------------
 
 # 0 = ARG is an issue key (SPL-123), resp. a row slug (the SPAWN_PLACE slug form).
@@ -81,7 +82,7 @@ spl_spawn_after_key() {  # AFTER
       k="$(li_key_of_agent "$SPOOL_ROOT" "${agent%@*}" 2>/dev/null)"
     if [[ -z "$k" && -n "$agent" ]]; then
       k="$(spl_spawn_after_hub_key "$1" "$agent")" || rc=$?
-      [[ -z "$k" ]] || spl_spawn_after_slug_key "$1" "$agent" "$k"
+      [[ -z "$k" || "${SPAWN_AFTER_READONLY:-0}" == 1 ]] || spl_spawn_after_slug_key "$1" "$agent" "$k"
     fi
   fi
   [[ -z "$k" ]] || printf '%s\n' "$k"
@@ -119,8 +120,9 @@ spl_spawn_after_hub_key() {  # SLUG AGENT
 # kept in <asks dir>/.place.lanes for SPAWN_AFTER_LANES_MIN (default 15)
 # minutes: every held row of a tick and the ticks after it read it once, a
 # miss too (R7 c-044 W2: 2..5 lane-map runs of ~8 s per held row per tick).
-# A hub that did not answer is not kept. Seam: SPAWN_AFTER_LANES_CMD prints
-# the lane map JSON (tests).
+# A hub that did not answer is not kept; SPAWN_AFTER_READONLY=1 (the queue
+# view) keeps nothing either. Seam: SPAWN_AFTER_LANES_CMD prints the lane map
+# JSON (tests).
 spl_spawn_after_lanes() {
   local f out
   f="$(spool_asks_dir)/.place.lanes"
@@ -134,7 +136,7 @@ spl_spawn_after_lanes() {
     out="$(LANE_FORMAT=json LANE_ALL=1 timeout "${SPAWN_AFTER_LANES_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
   fi
   jq -e '.hub == "ok" and (.lanes | type == "array")' >/dev/null 2>&1 <<<"$out" || return 1
-  printf '%s\n' "$out" >"$f.$$" && mv -f "$f.$$" "$f"
+  [[ "${SPAWN_AFTER_READONLY:-0}" == 1 ]] || { printf '%s\n' "$out" >"$f.$$" && mv -f "$f.$$" "$f"; }
   printf '%s\n' "$out"
 }
 
@@ -425,19 +427,21 @@ spl_spawn_after_write() {  # BRIEF AFTER DELAY
 # One "HELD <ask8> <slug> after <x>[ +Nm]: <why>" line per queued row of
 # ROWS whose brief is here and whose prerequisite spl_spawn_after_state finds
 # held, resp. "RELEASED ...: <why>" when it is free (landed and past its
-# delay: the placer takes it when the line has room, SPL-6701). Fetches
-# origin once, as the placer does; the placer's .place.wait line (a WAIT
-# line) says how far it is.
+# delay: the placer takes it when the line has room, SPL-6701). Read-only
+# (R7 a-768 W1 W2): judged on the last fetched trunk (the placer's tick
+# fetches it), no write under <asks dir>; each prerequisite is judged once.
+# The placer's .place.wait line (a WAIT line) says how far it is.
 spl_spawn_q_afters() {  # ROWS
-  local id slug spec brief st word fetched=0
+  local id slug spec brief st word SPAWN_AFTER_READONLY=1
+  local -A seen=()
   declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
   while IFS=$'\t' read -r id slug; do
     brief="$(spl_spawn_place_brief "$slug")"
     spec="$(spl_spawn_after_of "$brief")"
     [[ -n "$spec" ]] || continue
-    (( fetched )) || { spl_spawn_after_fetch; fetched=1; }
-    st="$(spl_spawn_after_state "$brief")"
-    word=HELD; [[ "$st" == free$'\t'* ]] && word=RELEASED
+    [[ -n "${seen[$spec]+x}" ]] || seen["$spec"]="$(spl_spawn_after_state "$brief")"
+    st="${seen[$spec]}"
+    word=RELEASED; [[ "$st" == held$'\t'* ]] && word=HELD
     echo "$word ${id:0:8} $slug after ${spec%%$'\t'*}$( [[ "${spec#*$'\t'}" == 0 ]] || echo " +${spec#*$'\t'}m"): ${st#*$'\t'}"
   done < <(jq -r '.[] | select(.state == "queued" and (.placement // "") != "") | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   return 0

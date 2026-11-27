@@ -460,10 +460,27 @@ spl_desk_signin_relay_cmd() {
       do_log "WARN the sign-in relay stays off: no fleet agent user for this box (box.env SPOOL_AGENT_USER)" >&2; return 0
     fi
     envv+=("SPOOL_AGENT_USER=$au")
-    [[ "$(id -un)" == "$au" ]] ||
+    if [[ "$(id -un)" != "$au" ]]; then
       pre="sudo -n --preserve-env=SIGNIN_RELAY_OP,SIGNIN_RELAY_KIND,SIGNIN_RELAY_ID,DRY_RUN -u $au "
+      # sudo resets PATH to secure_path, which misses the user's own
+      # ~/.local/bin: the CLI goes in by its absolute path (SPL-6656 R7 W1).
+      local cb; cb="$(spl_desk_user_claude_bin "$au")"
+      if [[ -z "$cb" ]]; then
+        do_log "WARN the sign-in relay stays off: no claude CLI on $au's login PATH" >&2; return 0
+      fi
+      envv+=("SPL_CLAUDE_BIN=$cb")
+    fi
   fi
   printf '%s%s %s -a do_spl_ws_signin_relay\n' "$pre" "${envv[*]}" "$run"
+}
+
+# spl_desk_user_claude_bin <user>: <user>'s claude CLI as an absolute path
+# without spaces, resolved once by that user's login shell; nothing if none.
+spl_desk_user_claude_bin() {
+  local b
+  b="$(sudo -n -u "$1" bash -lc 'command -v claude' 2>/dev/null </dev/null | tail -n 1)"
+  [[ "$b" =~ ^/[^[:space:]]+$ ]] && printf '%s' "$b"
+  return 0
 }
 
 # spl_desk_sidecar_recycle <pid file> <box> <box poke> <new seat 0|1>: stop the

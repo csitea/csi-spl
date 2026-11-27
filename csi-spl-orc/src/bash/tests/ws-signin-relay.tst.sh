@@ -19,7 +19,8 @@
 #      is called with the bound user; end runs with the switch off
 #   5. (n=3) out: the CLI's logout under W's config dir, the dir gone,
 #      signed_out; the after-switch seam (2) runs; a dry run touches nothing
-#   6. (n=2) renew: same account -> signed_in; another -> other_account
+#   6. (n=3) renew: same account -> signed_in; another -> other_account,
+#      also when it meets a start's open session (reopened, R7 N1)
 #   7. (n=2) status: signed in, label, plan, expiry, weekly % and reset; an
 #      expired login reads expired. R1: no token, email or input in it
 #   8. (n=2) copy (seam 3): no_copy, else do_spl_ws_login_copy for W's user
@@ -31,10 +32,11 @@
 #  10. (n=2) R10: two workspaces on one box: W1 start, input, out leaves W2's
 #      login file byte-identical; W1's desk aimed at W2 is refused
 #  11. (n=1) R1: the input, token and email are in no output, log or argv
-#  12. (n=4) do_spl_desk_up's relay command: none while cnf
+#  12. (n=5) do_spl_desk_up's relay command: none while cnf
 #      env.box.signin_relay_kinds is empty; W's own user on a claimed box;
 #      the agent user on an operator box, through sudo -n when the desk is
-#      another user
+#      another user, with SPL_CLAUDE_BIN = that user's own CLI (sudo resets
+#      PATH, R7 W1); no CLI there -> the relay stays off
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -197,6 +199,17 @@ for acct in u-one u-two; do
     pass "6 renew, another account -> failed other_account"
   else fail "6 renew $acct: rc=$rc $(cat "$T/o") opts: $(cat "$T"/opt-* 2>&1)"; fi
 done
+# N1: a renew that meets a start's session (no @spl_prior) reopens it, so the
+# other_account check still holds.
+login "$D" "$D/.claude.json" u-one 1000
+echo 0 >"$T/has"; rm -f "$T"/opt-*
+wsr "${ON[@]}" SIGNIN_RELAY_OP=renew DRY_RUN=0 >/dev/null
+reopened=0; grep -q ' kill-session ' "$T/calls.log" && grep -q ' new-session ' "$T/calls.log" && reopened=1
+on_enter u-two
+wsr "${ON[@]}" SIGNIN_RELAY_OP=input DRY_RUN=0; rc=$?
+if (( rc == 1 && reopened )) && [[ "$(report)" == "SIGNIN_RELAY state=failed reason=other_account account=$(label u-two)" ]]; then
+  pass "6 renew over a start's open session reopens it: another account -> failed other_account"
+else fail "6 renew over an open session: rc=$rc $(cat "$T/o")"; fi
 rm -f "$T/on-enter"
 
 # ---- 7. status ---------------------------------------------------------------
@@ -281,10 +294,22 @@ else fail "12 claimed: '$got'"; fi
 got="$(cmd claude SPL_WS_BASE="$T/none" SPOOL_AGENT_USER="$ME")"
 if [[ "$got" == "env ENV=dev TENANT_ID=wsa SPOOL_TENANT=wsa SPOOL_AGENT_USER=$ME $RUN" ]]; then pass "12 an operator box, desk = agent user: no sudo"
 else fail "12 operator same user: '$got'"; fi
+# sudo: the agent user's login shell finds its CLI (fleetusr); nocli has none.
+cat >"$T/stub/sudo" <<'EOF2'
+#!/bin/sh
+echo "sudo $*" >>"$STUB_LOG"
+[ "$*" = "-n -u fleetusr bash -lc command -v claude" ] && echo /opt/fleet-cli/bin/claude
+exit 0
+EOF2
+chmod +x "$T/stub/sudo"
 got="$(cmd claude SPL_WS_BASE="$T/none" SPOOL_AGENT_USER=fleetusr)"
-if [[ "$got" == "sudo -n --preserve-env=SIGNIN_RELAY_OP,SIGNIN_RELAY_KIND,SIGNIN_RELAY_ID,DRY_RUN -u fleetusr env ENV=dev TENANT_ID=wsa SPOOL_TENANT=wsa SPOOL_AGENT_USER=fleetusr $RUN" ]]; then
-  pass "12 an operator box, desk = another user: sudo -n to the agent user"
+if [[ "$got" == "sudo -n --preserve-env=SIGNIN_RELAY_OP,SIGNIN_RELAY_KIND,SIGNIN_RELAY_ID,DRY_RUN -u fleetusr env ENV=dev TENANT_ID=wsa SPOOL_TENANT=wsa SPOOL_AGENT_USER=fleetusr SPL_CLAUDE_BIN=/opt/fleet-cli/bin/claude $RUN" ]]; then
+  pass "12 an operator box, desk = another user: sudo -n to the agent user, its CLI by absolute path (sudo drops ~/.local/bin)"
 else fail "12 operator sudo: '$got'"; fi
+got="$(cmd claude SPL_WS_BASE="$T/none" SPOOL_AGENT_USER=nocli)"
+if [[ -z "$got" ]]; then pass "12 an operator box, the agent user has no claude CLI: the relay stays off"
+else fail "12 operator no CLI: '$got'"; fi
+rm -f "$T/stub/sudo"
 
 echo "-- ws-signin-relay.tst.sh: $fails failed"
 (( fails == 0 ))

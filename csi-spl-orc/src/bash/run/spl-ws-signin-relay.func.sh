@@ -118,7 +118,7 @@ spl_wsr_bind_operator() {
     do_log "FATAL this desk serves workspace '${SPOOL_TENANT:-<none>}': a sign-in for '$t' is refused (spec 192 R7)"
     spl_wsr_report failed other_workspace; return 1
   fi
-  if [[ -n "${SPL_FLEET_WS_BASE+x}" ]]; then fb="$SPL_FLEET_WS_BASE"
+  if [[ "${SPOOL_TEST:-}" == 1 && -n "${SPL_FLEET_WS_BASE+x}" ]]; then fb="$SPL_FLEET_WS_BASE"
   elif [[ "${SPOOL_TEST:-}" != 1 ]]; then fb="$(spl_box_ws_cnf fleet_workspace_base)"
   fi
   if [[ -n "$fb" && -e "$fb/$t" ]] || getent passwd "$(spl_box_ws_prefix)$t" >/dev/null 2>&1; then
@@ -236,6 +236,11 @@ spl_wsr_start() {
     do_log "OK DRY_RUN would start the CLI's own login as $WSR_USER in tmux -L $SPL_WCS_SOCKET session $s ($op)"
     spl_wsr_report failed dry_run; return 0
   fi
+  # A renew never reuses a start's session: that one carries no @spl_prior,
+  # so its input would skip the other_account check (R7 N1).
+  if [[ "$op" == renew && -z "$(spl_wsr_opt "$s" @spl_prior)" ]]; then
+    tmux -L "$SPL_WCS_SOCKET" kill-session -t "=$s" >/dev/null 2>&1
+  fi
   if ! tmux -L "$SPL_WCS_SOCKET" has-session -t "=$s" 2>/dev/null; then
     if [[ "$op" == start && -e "$WSR_DIR/.credentials.json" ]]; then
       do_log "FATAL '$t' is already signed in here: renew or sign out first"; spl_wsr_report failed signed_in_already; return 1
@@ -328,7 +333,7 @@ spl_wsr_status() {
   fi
   acct="$(spl_wsr_label)"
   if [[ "$in" != no ]] && b="$(spl_wcs_bin 2>/dev/null)"; then
-    c="$(env ${WSR_CFG:+"$WSR_CFG"} "$b" auth status --json 2>/dev/null | jq -r '.subscriptionType // empty | strings' 2>/dev/null)"
+    c="$(env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDE_CODE_OAUTH_TOKEN ${WSR_CFG:+"$WSR_CFG"} "$b" auth status --json 2>/dev/null | jq -r '.subscriptionType // empty | strings' 2>/dev/null)"
     [[ "$c" =~ ^[a-z0-9_-]{1,20}$ ]] && plan="$c"
   fi
   [[ -r "$WSR_JSON" ]] && q="$(BOX_QUOTA_RESET=1 spl_box_quota_cache_read 2>/dev/null <"$WSR_JSON")"

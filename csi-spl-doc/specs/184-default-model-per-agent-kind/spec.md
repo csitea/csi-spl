@@ -566,21 +566,38 @@ No prompt was sent and no model was called in any of these.
   `RESTORE_EXTRA_FLAGS` to `--model '<id>'` from
   `spool_agy_fallback_flags` (`csi-spl-orc/src/bash/features/spawn-agents/lib/agy-fallback.inc.sh`).
   A restore decides again from the quota at that moment and the seat's own
-  brief (the path its `lifetime/prompt.txt` names), so a seat restored
-  after the Gemini reset goes back to Gemini. A rotation restarts through
-  the same launchers. The launch core (`spawn-core.inc.sh`,
+  briefs, read after the box env is resolved (a preset `SPOOL_AGENT_USER`
+  never skips it): the brief passed in, the seat's task brief
+  `<spool root>/<seat>/lifetime/brief.md` (kept across rotations and
+  restarts), and the brief its `lifetime/prompt.txt` names (a `briefs/`
+  file or a `lifetime/brief.md`). The kind is the first `Kind:` line of
+  those, in that order, so a rotation or watchdog-restart seed with no
+  `Kind:` of its own decides by the task's brief. A seat restored after
+  the Gemini reset goes back to Gemini. A rotation restarts through the
+  same launchers. The launch core (`spawn-core.inc.sh`,
   `restore-core.inc.sh`, rows L2 and L3) is not touched.
 - **The reading**: `scripts/agy-quota-read.py` (10.1 item 4), run as the
   agent user, cached in `<spool root>/dispatch/vendor-probe/agy-quota.tsv`;
   `agy models` cached in `agy-models.tsv` beside it. A read that fails
-  keeps agy's default: a failed read never stops a start.
+  keeps agy's default: a failed read never stops a start. Each read is
+  bounded: `agy-quota-read.py` waits on agy's output with `select` up to
+  its `--timeout`, and both reads run under `timeout`
+  (`SPOOL_AGY_READ_TIMEOUT_S`, default 60 s), so a stalled `agy acp` or
+  `agy models` ends as an unread reading. `SPAWN_DRY_RUN=1` starts no agy
+  and writes nothing: only a fresh cached reading decides, else the
+  reading counts as unread.
 - **The rule** (c-001 `847c41a2`, rounds rulebook 2.7.3, cross-vendor
   only): an agy seat running a `claude-*` model is a claude review for R7.
   Until the owner rules, the fallback is for doc and coding lanes only: a
-  review seat (its `Kind:` is review, or its file name or first heading
-  says review, as `spl_spawn_place_review`) never falls back; a review seat
-  whose `Author:` is a claude lane says so in its reason. It waits, as
-  today.
+  review seat never falls back. Any one of these, in any of the seat's
+  briefs (above), marks one: `Kind: review`; `review`, `reviewer`, `R7`
+  or `panel` in a file name or in ANY heading (a watchdog-restart seed
+  nests the task brief, with its own heading, under its section A); any
+  `Author:` line (a seat that names an author reviews that author's
+  work). It errs toward review: a doc lane barred by mistake only waits,
+  as today. A review seat whose `Author:` is a claude lane says so in its
+  reason. (R7 a-766 W1: the first-heading-only test let a restart seed of
+  a claude author's review seat start on `claude-sonnet-5-5-high`.)
 - **The record**: each decision with the switch on writes
   `<spool root>/<seat>/lifetime/agy-fallback.json`
   `{"at", "model", "effective_vendor", "why"}` (`model` empty = agy's
@@ -602,7 +619,7 @@ No prompt was sent and no model was called in any of these.
 |---|---|---|---|
 | F0 | measure (10.1) | this spec | done |
 | F1 | cnf block + validator, shipped off | `csi-spl-cnf/csi-spl/all.env.yaml`, `EnvModels/agy_fallback.py`, `EnvModels/agent_split.py`, `tests/test_agy_fallback.py`; the `{dev,prd}.env.json` render | done; red control: the shipped block set `enabled: true` -> case 1 fails |
-| F2 | reader, decision, adapters | `scripts/agy-quota-read.py`, `lib/agy-fallback.inc.sh`, `scripts/spawn-agy.sh`, `scripts/restore-agy.sh`, `tests/test-agy-fallback.sh` (stubbed agy, no quota spent) | done; red control `AGY_FB_RED=1` (the review branch dropped) -> case 7 fails |
+| F2 | reader, decision, adapters | `scripts/agy-quota-read.py`, `lib/agy-fallback.inc.sh`, `scripts/spawn-agy.sh`, `scripts/restore-agy.sh`, `tests/test-agy-fallback.sh` (stubbed agy, no quota spent) | done; red control `AGY_FB_RED=1` (the review test dropped) -> cases 7 and 12 fail; R7 a-766 W1-W3 fixed: cases 12-15 |
 | F3 | the placer launches a doc or coding row placed as agy while Gemini is out, when F2 would pick an alternative | `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` and its test | proposed |
 | F4 | the owner's ruling on review seats (a form to the holder); if yes, the R7 line check reads `effective_vendor` | rounds rulebook, review-line check | open |
 | F5 | switch it on | cnf `enabled: true` | the owner's go only |

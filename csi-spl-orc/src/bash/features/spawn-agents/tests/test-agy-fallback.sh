@@ -15,6 +15,12 @@
 #   8  quota unread -> stays; 9 a reading is reused for cache_s
 #   10 spawn-agy.sh plan line carries the flag; off -> byte-identical extra
 #   11 restore-agy.sh decides again from the seat's own brief
+#   12 HARD RULE on a watchdog-restart seed (the review brief nested under
+#      section A, a doc Kind:) and on an Author:-only brief (R7 a-766 W1)
+#   13 a rotation seed with no Kind: decides by lifetime/brief.md; a seed
+#      naming lifetime/brief.md resolves it (W3)
+#   14 a stalled `agy acp` ends at --timeout, rc 4; an absent agy leaves no
+#      temp dir (W2, N1); 15 SPAWN_DRY_RUN=1 starts no agy, writes nothing (N2)
 # Red control: drop the review branch of spool_agy_fallback_barred (a copy)
 # -> case 7 fails (run with AGY_FB_RED=1).
 set -uo pipefail
@@ -22,7 +28,7 @@ set -uo pipefail
 t_sandbox
 LIB="$T_SCRIPTS/../lib/agy-fallback.inc.sh"
 if [ "${AGY_FB_RED:-0}" = 1 ]; then
-  sed 's/^  if \[ "\$kind" = review \] ||.*; then$/  if false; then/' "$LIB" >"$T_TMP/red.inc.sh"
+  sed 's/^  if _spool_agy_fb_is_review "\$@"; then$/  if false; then/' "$LIB" >"$T_TMP/red.inc.sh"
   grep -q '^  if false; then$' "$T_TMP/red.inc.sh" || { echo "red control: the review branch was not found" >&2; exit 2; }
   LIB="$T_TMP/red.inc.sh"
 fi
@@ -96,12 +102,13 @@ eq "9. a reading is reused within cache_s" 1 "$(calls qcalls)"
 cnf true 0; reset
 fb a-501 "$T_TMP/briefs/doc.md" >/dev/null; fb a-501 "$T_TMP/briefs/doc.md" >/dev/null
 eq "9. ... and read again with cache_s 0" 2 "$(calls qcalls)"
-# 10
+# 10 (a dry run reads only a fresh cached reading: one live read fills it)
 WD="$T_TMP/plain"; mkdir -p "$WD" "$T_TMP/plan"
-quota 0.01 0.9 1 1; reset
+cnf true 300; quota 0.01 0.9 1 1; reset; fb a-501 "$T_TMP/briefs/doc.md" >/dev/null
 out="$(SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool SPAWN_PLAN_DIR="$T_TMP/plan" bash "$T_SCRIPTS/spawn-agy.sh" a-502 "$WD" "$T_TMP/briefs/doc.md" "write the doc" 2>&1)"
 has "10. spawn-agy plans the alternative model" "extra=--model 'claude-sonnet-5-5-high'" "$out"
 has "10. ... and the launch carries it" "--model 'claude-sonnet-5-5-high'" "$(cat "$T_TMP/plan/launch.cmd")"
+eq "10. ... from the cached reading (no new read)" 1 "$(calls qcalls)"
 cnf false; reset; rm -rf "$T_TMP/plan"; mkdir -p "$T_TMP/plan"
 out="$(SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool SPAWN_PLAN_DIR="$T_TMP/plan" bash "$T_SCRIPTS/spawn-agy.sh" a-502 "$WD" "$T_TMP/briefs/doc.md" "write the doc" 2>&1)"
 hasnt "10. off: no extra flags in the plan" "extra=" "$out"
@@ -113,5 +120,43 @@ printf 'Then read your full task brief at %s and do it.\n' "$T_TMP/briefs/doc.md
 has "11. restore-agy decides again from the seat's brief" "--model 'claude-sonnet-5-5-high' --conversation c-9" "$(RESTORE_PRINT=1 AGY_BIN=agy bash "$T_SCRIPTS/restore-agy.sh" a-503 "$WD" c-9 hi 2>&1)"
 quota 0.5 0.5 1 1; reset
 hasnt "11. ... and resumes on Gemini once the quota is back" "--model" "$(RESTORE_PRINT=1 AGY_BIN=agy bash "$T_SCRIPTS/restore-agy.sh" a-503 "$WD" c-9 hi 2>&1)"
+
+# 12
+cnf true; quota 0.0 0.0 1 1; reset
+{ printf '# Brief: you are a-504@box, restarted by the watchdog (r-1)\n\nSame id.\n\n## A. Your brief (/x/briefs/hand-x.md)\n\n'
+  printf '# Lane brief: the cross-vendor R7 reader of a claude lane\n\nKind: specs_and_docs\nAuthor: c-738@box (claude)\n\n## B. The handoff\n'; } >"$T_TMP/restart.seed.md"
+eq "12. HARD RULE: a restart seed of a claude author's review seat stays" "" "$(fb a-501 "$T_TMP/restart.seed.md")"
+has "12. ... names the claude author" "claude author (c-738)" "$(cat "$T_TMP/fb.err")"
+check "12. ... and its quota was not read" test ! -e "$T_TMP/qcalls"
+printf '# Lane brief: check the change\n\nKind: complex_coding\nAuthor: a-321\n' >"$T_TMP/briefs/check.md"
+eq "12b. an Author: line alone marks a review seat" "" "$(fb a-501 "$T_TMP/briefs/check.md")"
+has "12b. ... says so" "a review seat" "$(cat "$T_TMP/fb.err")"
+mkdir -p "$SPOOL_ROOT/a-505/lifetime"
+printf '# Lane brief: the R7 code review\n\nKind: complex_coding\nAuthor: c-123\n' >"$SPOOL_ROOT/a-505/lifetime/brief.md"
+printf '# Brief: you are a-505 again (hourly rotation)\n\nYour task brief, unchanged.\n' >"$T_TMP/rot.seed.md"
+eq "12c. a rotation seed of a review seat stays (by lifetime/brief.md)" "" "$(fb a-505 "$T_TMP/rot.seed.md")"
+# 13
+quota 0.01 0.9 1 1; reset
+mkdir -p "$SPOOL_ROOT/a-506/lifetime"; cp "$T_TMP/briefs/doc.md" "$SPOOL_ROOT/a-506/lifetime/brief.md"
+eq "13. a rotation seed with no Kind: decides by lifetime/brief.md" "--model 'claude-sonnet-5-5-high'" "$(fb a-506 "$T_TMP/rot.seed.md")"
+mkdir -p "$SPOOL_ROOT/a-507/lifetime"; cp "$T_TMP/briefs/doc.md" "$T_TMP/a507-brief.md"
+printf 'Then read your full task brief at %s and do it.\n' "$SPOOL_ROOT/a-506/lifetime/brief.md" >"$SPOOL_ROOT/a-507/lifetime/prompt.txt"
+# shellcheck source=/dev/null
+eq "13b. a seed naming a lifetime/brief.md resolves it" "$SPOOL_ROOT/a-506/lifetime/brief.md" "$( . "$LIB"; spool_agy_fallback_seat_brief a-507)"
+has "13c. restore-agy finds the brief by lifetime/brief.md alone" "--model 'claude-sonnet-5-5-high' --conversation c-9" "$(RESTORE_PRINT=1 AGY_BIN=agy bash "$T_SCRIPTS/restore-agy.sh" a-506 "$WD" c-9 hi 2>&1)"
+# 14
+printf '#!/usr/bin/env bash\nexec sleep 30\n' >"$T_TMP/agy-stall"; chmod +x "$T_TMP/agy-stall"
+mkdir -p "$T_TMP/tq"; s0=$(date +%s)
+TMPDIR="$T_TMP/tq" timeout 20 python3 -I "$T_SCRIPTS/agy-quota-read.py" --agy "$T_TMP/agy-stall" --timeout 1 >/dev/null 2>&1; rc=$?
+eq "14. a stalled agy acp: the reader ends itself, rc 4" 4 "$rc"
+check "14. ... within the timeout (not the outer 20 s)" test $(( $(date +%s) - s0 )) -lt 15
+TMPDIR="$T_TMP/tq" python3 -I "$T_SCRIPTS/agy-quota-read.py" --agy "$T_TMP/no-such-agy" --timeout 1 >/dev/null 2>&1; rc=$?
+eq "14b. an absent agy: rc 4" 4 "$rc"
+eq "14b. ... and no temp dir left" "" "$(ls -A "$T_TMP/tq")"
+# 15
+cnf true 0; quota 0.01 0.9 1 1; reset; rm -f "$SPOOL_ROOT/a-501/lifetime/agy-fallback.json"
+eq "15. dry run, no cached reading: no words" "" "$(SPAWN_DRY_RUN=1 fb a-501 "$T_TMP/briefs/doc.md")"
+check "15. ... no agy read" test ! -e "$T_TMP/qcalls"
+check "15. ... no record written" test ! -e "$SPOOL_ROOT/a-501/lifetime/agy-fallback.json"
 
 t_done

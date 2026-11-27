@@ -23,6 +23,11 @@
 #                           as the agent user); "<bucket> TAB <fraction> TAB <reset>"
 #   SPOOL_AGY_MODELS_CMD    prints `agy models` (default the agent user's agy)
 #   SPOOL_AGY_PROBE_DIR     the reading cache (default $SPOOL_ROOT/dispatch/vendor-probe)
+#   SPOOL_AGY_READ_TIMEOUT_S  the bound on each agy read (default 60): a
+#                           stalled `agy acp` / `agy models` never holds a start
+#
+# SPAWN_DRY_RUN=1 writes nothing and starts no agy: a fresh cached reading
+# decides, else the reading counts as unread (spawn-core.inc.sh "DRY RUN").
 #
 # Out: spool_agy_fallback_decide sets AGY_FB_MODEL (empty = agy's own default)
 # and AGY_FB_WHY (one line), always rc 0: a failed read never stops a start.
@@ -45,6 +50,7 @@ _spool_agy_fb_cached() {  # NAME CMD
   if [ -s "$f" ] && (( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) < ttl )); then
     cat "$f"; return 0
   fi
+  [ "${SPAWN_DRY_RUN:-0}" != 1 ] || return 4
   # shellcheck disable=SC2086 # a command line, split on purpose
   out="$(eval "$2" 2>/dev/null)" || return 4
   [ -n "$out" ] || return 4
@@ -52,13 +58,21 @@ _spool_agy_fb_cached() {  # NAME CMD
   printf '%s\n' "$out"
 }
 
+# The bound in seconds on one agy read (at least 10).
+_spool_agy_fb_tmo() {
+  local t="${SPOOL_AGY_READ_TIMEOUT_S:-60}"
+  [[ "$t" =~ ^[0-9]+$ ]] && (( t >= 10 )) || t=60
+  echo "$t"
+}
+
 # agy's quota lines (agy-quota-read.py), cached; rc 4 when unread.
 spool_agy_quota() {
   local cmd="${SPOOL_AGY_QUOTA_CMD:-}"
   if [ -z "$cmd" ]; then
     declare -F spool_agent_exec >/dev/null || return 4
-    cmd="spool_agent_exec \"python3 -I '$_AGY_FB_LIB_DIR/../scripts/agy-quota-read.py'"
+    cmd="spool_agent_exec \"timeout -k 5 $(_spool_agy_fb_tmo) python3 -I '$_AGY_FB_LIB_DIR/../scripts/agy-quota-read.py'"
     [ -z "${AGY_BIN:-}" ] || cmd+=" --agy '$AGY_BIN'"
+    cmd+=" --timeout $(( $(_spool_agy_fb_tmo) - 5 ))"
     cmd+='"'
   fi
   _spool_agy_fb_cached agy-quota.tsv "$cmd"
@@ -69,7 +83,7 @@ spool_agy_model_ids() {
   local cmd="${SPOOL_AGY_MODELS_CMD:-}"
   if [ -z "$cmd" ]; then
     declare -F spool_agent_exec >/dev/null || return 4
-    cmd="spool_agent_exec \"'${AGY_BIN:-agy}' models </dev/null\""
+    cmd="spool_agent_exec \"timeout -k 5 $(_spool_agy_fb_tmo) '${AGY_BIN:-agy}' models </dev/null\""
   fi
   _spool_agy_fb_cached agy-models.tsv "$cmd" | awk -F'\t' 'NF >= 1 && $1 ~ /^[A-Za-z0-9._:\/-]+$/ { print $1 }'
 }
@@ -82,20 +96,42 @@ _spool_agy_fb_frac() {  # QUOTA BUCKET
 # 0 when A < B (decimal fractions).
 _spool_agy_fb_lt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 < b + 0) }'; }
 
-# Why a seat of BRIEF may not leave agy's default, else nothing: not on,
-# a review seat (with its claude author named), or a kind not in the list.
-spool_agy_fallback_barred() {  # BRIEF
-  local brief="$1" kind au="" id kinds
+# 0 when the BRIEF files mark a review seat, wherever the brief sits (a
+# watchdog restart or rotation seed nests the task brief under its own
+# heading, so every heading is read, not the first): Kind: review; "review",
+# "reviewer", "R7" or "panel" in a file name or any heading; or any Author:
+# line (a seat that names an author reviews that author's work). Errs toward
+# review: a doc lane barred by mistake only keeps waiting, as before.
+_spool_agy_fb_is_review() {  # BRIEF...
+  local f
+  for f in "$@"; do
+    [ -n "$f" ] || continue
+    grep -qiE '\b(review(er|s)?|R7|panel)\b' <<<"$(basename "$f")" && return 0
+    [ -r "$f" ] || continue
+    grep -qiE '^[*_ ]*Kind:[*_ ]*review\b' "$f" && return 0
+    grep -qiE '^[*_ ]*Author:' "$f" && return 0
+    grep -E '^#+ ' "$f" | grep -qiE '\b(review(er|s|ing)?|R7|panel)\b' && return 0
+  done
+  return 1
+}
+
+# Why a seat of the BRIEF files may not leave agy's default, else nothing:
+# not on, a review seat (with its claude author named), or a kind not in the
+# list. The kind is the first Kind: line of the files, in order.
+spool_agy_fallback_barred() {  # BRIEF...
+  local kind="" au="" id kinds f
   [ "$(spool_agy_fallback_cnf enabled)" = true ] || { echo "the switch is off (cnf env.box.agent_split.agy_fallback.enabled)"; return 0; }
-  kind="$(grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$brief" 2>/dev/null | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]')"
-  if [ "$kind" = review ] || grep -qi 'review' <<<"$(basename "${brief:-x}") $(grep -m1 '^# ' "$brief" 2>/dev/null)"; then
+  if _spool_agy_fb_is_review "$@"; then
     while read -r id; do
       [ -n "$id" ] && [ "$(spl_kind_of_agent_id "$id" 2>/dev/null)" = claude ] && au+=" $id"
-    done < <(grep -m1 -iE '^Author:' "$brief" 2>/dev/null | grep -oE '\b[acgmoq]-[0-9]{3}\b|\bCLE-[0-9]+\b')
+    done < <(for f in "$@"; do [ -r "$f" ] && grep -iE '^[*_ ]*Author:' "$f"; done 2>/dev/null | grep -oE '\b[acgmoq]-[0-9]{3}\b|\bCLE-[0-9]+\b' | sort -u)
     if [ -n "$au" ]; then echo "a review seat of a claude author (${au# }) stays on Gemini: a claude-* model would make it a claude review (rounds rulebook 2.7.3)"
     else echo "a review seat: no fallback until the owner rules (c-001 847c41a2)"; fi
     return 0
   fi
+  for f in "$@"; do
+    [ -n "$kind" ] || kind="$(grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$f" 2>/dev/null | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]')"
+  done
   kinds=" $(spool_agy_fallback_cnf kinds | tr '\n' ' ')"
   [ -n "$kind" ] && [[ "$kinds" == *" $kind "* ]] || echo "kind '${kind:-none}' is not in agy_fallback.kinds"
 }
@@ -105,9 +141,9 @@ spool_agy_fallback_barred() {  # BRIEF
 # least their mark (weekly_min, five_hour_min). Below either, the first
 # `models` entry that `agy models` lists and whose pool holds alt_min of both
 # windows wins (claude-* and gpt-* read the 3p pool); none: Gemini stays.
-spool_agy_fallback_decide() {  # BRIEF
+spool_agy_fallback_decide() {  # BRIEF...
   local q ids m wk fh wmin fmin amin aw a5
-  AGY_FB_MODEL="" AGY_FB_WHY="$(spool_agy_fallback_barred "$1")"
+  AGY_FB_MODEL="" AGY_FB_WHY="$(spool_agy_fallback_barred "$@")"
   [ -z "$AGY_FB_WHY" ] || return 0
   q="$(spool_agy_quota)" || { AGY_FB_WHY="agy quota unread: stays on its default"; return 0; }
   wk="$(_spool_agy_fb_frac "$q" gemini-weekly)" fh="$(_spool_agy_fb_frac "$q" gemini-5h)"
@@ -145,27 +181,36 @@ spool_agy_fallback_record() {  # SEAT
   local d="${SPOOL_ROOT:-/nonexistent}/$1/lifetime" v
   v="$(spool_agy_effective_vendor "$AGY_FB_MODEL")"
   echo "agy fallback: ${AGY_FB_MODEL:-default}: $AGY_FB_WHY" >&2
-  [ -d "$d" ] || return 0
+  [ "${SPAWN_DRY_RUN:-0}" != 1 ] || return 0
+  mkdir -p "$d" 2>/dev/null || return 0
   jq -nc --arg at "$(date -u +%FT%TZ)" --arg m "$AGY_FB_MODEL" --arg v "$v" --arg w "$AGY_FB_WHY" \
     '{at: $at, model: $m, effective_vendor: $v, why: $w}' >"$d/agy-fallback.json" 2>/dev/null || true
 }
 
 # The words to add to an agy launch line for SEAT of BRIEF: "--model '<id>'"
 # or nothing. Decides, records, prints. With the switch off nothing is read,
-# written or printed: the launch stays as it was.
-spool_agy_fallback_flags() {  # SEAT BRIEF
+# written or printed: the launch stays as it was. The seat's own task brief
+# (<spool>/<seat>/lifetime/brief.md, kept across rotations and restarts) and
+# the brief its seed names are read too, so a restart or rotation seed with
+# no Kind: of its own decides by the task's brief.
+spool_agy_fallback_flags() {  # SEAT [BRIEF]
   [ "$(spool_agy_fallback_cnf enabled)" = true ] || return 0
   # an adapter calls this before spawn_main / restore_main resolve the box
-  # env: resolve it here (the caller's $(...) keeps it from leaking)
+  # env: resolve it here (the caller's $(...) keeps it from leaking); a preset
+  # SPOOL_AGENT_USER is kept by spool_env_resolve, so it never skips it
   declare -F spool_env_resolve >/dev/null || . "$_AGY_FB_LIB_DIR/spool-env.inc.sh" || return 0
-  [ -n "${SPOOL_AGENT_USER:-}" ] || spool_env_resolve
-  spool_agy_fallback_decide "$2"
+  spool_env_resolve
+  local own="" seed=""
+  [ -z "${1:-}" ] || own="$SPOOL_ROOT/$1/lifetime/brief.md"
+  seed="$(spool_agy_fallback_seat_brief "${1:-}")"
+  spool_agy_fallback_decide "${2:-}" "$own" "$seed"
   spool_agy_fallback_record "$1"
   [ -z "$AGY_FB_MODEL" ] || printf -- "--model '%s'" "$AGY_FB_MODEL"
 }
 
-# The brief of a seat being restored: the path its seed names
-# (<spool>/<seat>/lifetime/prompt.txt, "... task brief at <path>.md"), else nothing.
+# The brief a seat's seed names (<spool>/<seat>/lifetime/prompt.txt: "...
+# task brief at <path>.md", a briefs/ file or a lifetime/brief.md), else nothing.
 spool_agy_fallback_seat_brief() {  # SEAT
-  grep -m1 -oE '/[^ ]*/briefs/[^ ]*\.md' "${SPOOL_ROOT:-/nonexistent}/$1/lifetime/prompt.txt" 2>/dev/null | sed -n 1p
+  [ -n "${1:-}" ] || return 0
+  grep -m1 -oE '/[^ ]*/(briefs/[^ ]*|lifetime/brief)\.md' "${SPOOL_ROOT:-/nonexistent}/$1/lifetime/prompt.txt" 2>/dev/null | sed -n 1p
 }

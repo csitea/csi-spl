@@ -24,6 +24,8 @@ import argparse
 import json
 import os
 import secrets
+import select
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -33,27 +35,53 @@ import urllib.request
 RPC = "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary"
 
 
-def _jsonrpc(proc, msg_id, method, params, deadline):
-    proc.stdin.write(
-        (
-            json.dumps(
-                {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params}
-            )
-            + "\n"
-        ).encode()
-    )
-    proc.stdin.flush()
-    while time.time() < deadline:
-        line = proc.stdout.readline()
-        if not line:
+def _readline(proc, buf, deadline):
+    """One line of proc's stdout, or None at EOF or at the deadline.
+
+    select() bounds every wait, so a stalled `agy acp` that writes nothing
+    can never hold the read past the deadline (a blocking readline() did).
+    """
+    fd = proc.stdout.fileno()
+    while b"\n" not in buf:
+        left = deadline - time.time()
+        if left <= 0:
+            return None
+        ready, _, _ = select.select([fd], [], [], left)
+        if not ready:
+            return None
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            return None
+        buf.extend(chunk)
+    i = buf.index(b"\n")
+    line = bytes(buf[: i + 1])
+    del buf[: i + 1]
+    return line
+
+
+def _jsonrpc(proc, buf, msg_id, method, params, deadline):
+    try:
+        proc.stdin.write(
+            (
+                json.dumps(
+                    {"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params}
+                )
+                + "\n"
+            ).encode()
+        )
+        proc.stdin.flush()
+    except OSError:  # BrokenPipeError: agy acp already ended
+        return None
+    while True:
+        line = _readline(proc, buf, deadline)
+        if line is None:
             return None
         try:
             obj = json.loads(line)
         except ValueError:
             continue
-        if obj.get("id") == msg_id:
+        if isinstance(obj, dict) and obj.get("id") == msg_id:
             return obj
-    return None
 
 
 def _ports(pid):
@@ -105,8 +133,8 @@ def buckets(summary):
 def read(agy, timeout):
     token = secrets.token_hex(16)
     env = dict(os.environ, ANTIGRAVITY_SERVER_CSRF_TOKEN=token)
-    cwd = tempfile.mkdtemp(prefix="agy-quota-")
     deadline = time.time() + timeout
+    cwd = tempfile.mkdtemp(prefix="agy-quota-")
     try:
         proc = subprocess.Popen(
             [agy, "acp"],
@@ -117,10 +145,13 @@ def read(agy, timeout):
             cwd=cwd,
         )
     except OSError:
+        shutil.rmtree(cwd, ignore_errors=True)
         return None
+    buf = bytearray()
     try:
         if not _jsonrpc(
             proc,
+            buf,
             1,
             "initialize",
             {"protocolVersion": 1, "clientCapabilities": {}},
@@ -128,7 +159,9 @@ def read(agy, timeout):
         ):
             return None
         new = (
-            _jsonrpc(proc, 2, "session/new", {"cwd": cwd, "mcpServers": []}, deadline)
+            _jsonrpc(
+                proc, buf, 2, "session/new", {"cwd": cwd, "mcpServers": []}, deadline
+            )
             or {}
         )
         sid = (new.get("result") or {}).get("sessionId")
@@ -143,7 +176,12 @@ def read(agy, timeout):
             else:
                 time.sleep(0.5)
         _jsonrpc(
-            proc, 3, "session/close", {"sessionId": sid}, min(deadline, time.time() + 5)
+            proc,
+            buf,
+            3,
+            "session/close",
+            {"sessionId": sid},
+            min(deadline, time.time() + 5),
         )
         return answer
     finally:
@@ -152,10 +190,7 @@ def read(agy, timeout):
             proc.wait(10)
         except subprocess.TimeoutExpired:
             proc.kill()
-        try:
-            os.rmdir(cwd)
-        except OSError:
-            pass
+        shutil.rmtree(cwd, ignore_errors=True)
 
 
 def main():

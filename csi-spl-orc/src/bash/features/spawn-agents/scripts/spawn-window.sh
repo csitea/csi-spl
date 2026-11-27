@@ -593,14 +593,23 @@ sw_owner_orders "$@" || { rc=$?; sw_release_claim; exit "$rc"; }
 # the same on the hub's request (do_spl_spawn_place). A brief with neither
 # writes nothing; a failed write is one WARN line, never a failed spawn.
 sw_category() {  # WORKDIR BRIEF
-  local brief="${2:-}" kind cat f
-  [ -n "$brief" ] && [ -r "$brief" ] || return 0
-  kind="$(grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$brief" | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]')"
-  cat="$(grep -m1 -oE '^Category:[*_ ]*[a-z0-9_]+(/[a-z0-9_]+)*' "$brief" | sed -E 's/^Category:[*_ ]*//')"
+  local brief="${2:-}" kind="" cat="" f="${SPOOL_ROOT}/${TITLE}/lifetime/category.json"
+  if [ -n "$brief" ] && [ -r "$brief" ]; then
+    kind="$(grep -m1 -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$brief" | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]')"
+    cat="$(grep -m1 -oE '^Category:[*_ ]*[a-z0-9_]+(/[a-z0-9_]+)*' "$brief" | sed -E 's/^Category:[*_ ]*//')"
+  fi
+  # A respawn (a rotation) starts from a seed with no "Kind:": the lane's kind
+  # is the one its first spawn recorded. Read it, never rewrite the record.
+  if [ -z "$kind" ] && [ "${SPAWN_REUSE_ID:-0}" = 1 ] && [ -z "${SPAWN_TASK_KIND:-}" ]; then
+    kind="$(sed -nE 's/.*"work_kind":"([a-z0-9_]+)".*/\1/p' "$f" 2>/dev/null | head -n1)"
+    [ -n "$kind" ] || return 0
+    export SPAWN_TASK_KIND="$kind"
+    [ "$DRY" != 1 ] || printf 'PLAN %-10s %s\n' category "work_kind ${kind} <- $f (respawn, record kept)"
+    return 0
+  fi
   [ -n "$kind$cat" ] || return 0
   # spec 184 7.1.2: the launcher's spool_agent_model reads the task kind here.
   [ -z "$kind" ] || export SPAWN_TASK_KIND="$kind"
-  f="${SPOOL_ROOT}/${TITLE}/lifetime/category.json"
   if [ "$DRY" = 1 ]; then
     printf 'PLAN %-10s %s\n' category "work_kind ${kind:-none}, category_path ${cat:-none} -> $f"
     return 0

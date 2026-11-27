@@ -63,6 +63,19 @@ out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/
 has "L2: the brief's Kind: tests picks the by_kind model" "--model 'sonnet'" "$(grep '^PLAN launch' <<<"$out")"
 out="$(SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4443 "$T_TMP/repo" "$T_TMP/brief.md" x 2>&1)"
 has "L2 control: a brief with no Kind: gets the vendor default" "--model 'opus'" "$(grep '^PLAN launch' <<<"$out")"
+# R7 W1: a rotation (SPAWN_REUSE_ID=1) starts from a seed with no Kind:; the
+# kind the first spawn recorded in lifetime/category.json picks the model,
+# and the record is not rewritten.
+mkdir -p "$SPOOL_ROOT/CLE-4444/lifetime"
+printf '{"work_kind":"tests","category_path":""}\n' > "$SPOOL_ROOT/CLE-4444/lifetime/category.json"
+rec="$(cat "$SPOOL_ROOT/CLE-4444/lifetime/category.json")"
+out="$(SPAWN_REUSE_ID=1 SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4444 "$T_TMP/repo" "$T_TMP/brief.md" rotate 2>&1)"
+has "W1: a respawn's recorded work_kind tests picks the by_kind model" "--model 'sonnet'" "$(grep '^PLAN launch' <<<"$out")"
+eq "W1: the respawn leaves lifetime/category.json as it was" "$rec" "$(cat "$SPOOL_ROOT/CLE-4444/lifetime/category.json")"
+eq "W1: the respawn's launch carries --model once" 1 "$(grep '^PLAN launch' <<<"$out" | grep -o -- "--model" | wc -l)"
+mkdir -p "$SPOOL_ROOT/CLE-4445/lifetime"
+out="$(SPAWN_REUSE_ID=1 SPOOL_AGENT_MODEL_CNF="$T_TMP/model.yaml" SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool bash "$SW" claude CLE-4445 "$T_TMP/repo" "$T_TMP/brief.md" rotate 2>&1)"
+has "W1 control: a respawn with no recorded kind gets the vendor default" "--model 'opus'" "$(grep '^PLAN launch' <<<"$out")"
 has "L2: the live pane's env carries SPAWN_TASK_KIND, SPAWN_MODEL and SPAWN_MODEL_MAP" "SPAWN_TASK_KIND SPAWN_MODEL SPAWN_MODEL_MAP" "$(cat "$SW")"
 
 t_done

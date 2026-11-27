@@ -57,7 +57,9 @@ export function meterFont(cs: CSSStyleDeclaration): MeterFont {
 /* the span (white-space: pre) added the letter spacing after every
    character and the word spacing at every space; the canvas adds neither */
 export function meterWidth(ctx: CanvasRenderingContext2D, f: MeterFont, value: string): number {
-  if (ctx.font !== f.font) ctx.font = f.font
+  /* the canvas keeps the font in its own form ("normal 400" dropped): keep
+     that form, so the next key does not parse the same font again */
+  if (ctx.font !== f.font) { ctx.font = f.font; f.font = ctx.font }
   let w = ctx.measureText(value).width
   if (f.letter) w += f.letter * Array.from(value).length
   if (f.word) w += f.word * (value.match(/[ \u00a0]/g)?.length ?? 0)
@@ -68,8 +70,9 @@ export function meterWidth(ctx: CanvasRenderingContext2D, f: MeterFont, value: s
    The hidden span it replaces was styled and read with getBoundingClientRect
    on every key: one forced layout per key (plan perf-round-19 row 02). The
    font is read once per focus and again on a re-judge (chip, glyph, dock,
-   viewport width: where the field's font size can change). */
-function useDraftMeter() {
+   viewport width, the field's class, the font-size setting: where the
+   field's font can change). */
+function useDraftMeter(props: ComposerProps) {
   let ctx: CanvasRenderingContext2D | null = null
   let font: MeterFont | null = null
   const forget = () => { font = null }
@@ -81,12 +84,40 @@ function useDraftMeter() {
     return meterWidth(ctx, font, value)
   }
   /* capture: before the field's own focus handler judges the wrap */
-  onMounted(() => window.addEventListener('focus', forget, true))
+  onMounted(() => {
+    if (props.global) window.addEventListener('focus', forget, true)
+  })
   onBeforeUnmount(() => {
     window.removeEventListener('focus', forget, true)
     ctx = null
   })
   return { draftWidth, forget }
+}
+
+/* a font change with no focus, chip or viewport change: `.in-code` (a code
+   fence typed in the focused field: monospace, smaller) and the font-size
+   setting (html data-font-size; the phone dock has no chip to re-judge on).
+   Attribute observers: no layout read until one of them changes. */
+function onFontChange(props: ComposerProps, inputEl: Ref<HTMLTextAreaElement | null>, rejudge: () => void) {
+  let fieldObs: MutationObserver | null = null
+  let rootObs: MutationObserver | null = null
+  const observable = () => props.global && typeof MutationObserver === 'function'
+  watch(inputEl, (el) => {
+    fieldObs?.disconnect()
+    fieldObs = null
+    if (!el || !observable()) return
+    fieldObs = new MutationObserver(rejudge)
+    fieldObs.observe(el, { attributes: true, attributeFilter: ['class'] })
+  }, { immediate: true })
+  onMounted(() => {
+    if (!observable()) return
+    rootObs = new MutationObserver(rejudge)
+    rootObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font-size'] })
+  })
+  onBeforeUnmount(() => {
+    fieldObs?.disconnect()
+    rootObs?.disconnect()
+  })
 }
 
 /* SPL-1851: a text set by code (setText: a poll's "Chat about this") is
@@ -138,7 +169,7 @@ export function useComposerWrap(o: WrapOpts) {
   const multilineLayout = computed(() =>
     Boolean(props.global) && multiline.value && !o.parked.value && (Boolean(o.modeGlyph.value) || o.chip.value))
   const chipW = useChipWidth(o.chipEl, () => multilineLayout.value)
-  const meter = useDraftMeter()
+  const meter = useDraftMeter(props)
   function oneLineContentWidth(el: HTMLTextAreaElement): number {
     const end = parseFloat(getComputedStyle(el).paddingInlineEnd) || 0
     const pad = omniboxOneLinePad({ glyph: Boolean(o.modeGlyph.value), chip: o.chip.value, chipWidth: chipW.value, phone: o.docked.value })
@@ -164,5 +195,6 @@ export function useComposerWrap(o: WrapOpts) {
   watch(chipW, rejudge)
   watch([o.modeGlyph, o.chip, o.docked], rejudge)
   onViewportWidth(props, rejudge)
+  onFontChange(props, o.inputEl, rejudge)
   return { chipW, multilineLayout, syncMultiline }
 }

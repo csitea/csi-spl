@@ -49,6 +49,8 @@
 # mock bundle (n=1, 2026-11-26), until a refresh measures CI.
 # topic-title-filter (SPL-6613) is new: 11 s, its one runner line on a generated
 # mock bundle (n=1, 2026-11-26), until a refresh measures CI.
+# composer-wrap-font-change (SPL-6654) is new: 32 s, its one local run (the mock
+# serve's start included) on a generated mock bundle (n=1, 2026-11-27), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -120,6 +122,7 @@ tests/e2e/composer-long-msg.test.mjs 50
 tests/e2e/composer-mode-cue.test.mjs 20
 tests/e2e/composer-multi-file-drop.test.mjs 28
 tests/e2e/composer-target-chip.test.mjs 7
+tests/e2e/composer-wrap-font-change.test.mjs 32
 tests/e2e/connect-agent.test.mjs 5
 tests/e2e/console-errors.test.mjs 24
 tests/e2e/contact-form-size.test.mjs 11

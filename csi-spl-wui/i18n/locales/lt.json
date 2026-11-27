@@ -3370,6 +3370,8 @@
     "approve_day": "Patvirtinti dieną",
     "approve_today": "Patvirtinti iki šiol",
     "approve_week": "Patvirtinti savaitę · {n} atvirų",
+    "strip_open": "{n} diena laukia patvirtinimo | Dienos laukia patvirtinimo: {n}",
+    "strip_approve": "Patvirtinti",
     "resubmit": "Pateikti iš naujo",
     "rejected": "Atmesta: {name}",
     "undo": "Atšaukti",

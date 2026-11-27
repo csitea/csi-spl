@@ -3370,6 +3370,8 @@
     "approve_day": "Günü onayla",
     "approve_today": "Şimdiye kadarını onayla",
     "approve_week": "Haftayı onayla · {n} açık",
+    "strip_open": "Onay bekleyen {n} gün | Onay bekleyen {n} gün",
+    "strip_approve": "Onayla",
     "resubmit": "Yeniden gönder",
     "rejected": "Reddedildi: {name}",
     "undo": "Geri al",

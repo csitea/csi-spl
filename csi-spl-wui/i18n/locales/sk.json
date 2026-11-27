@@ -3370,6 +3370,8 @@
     "approve_day": "Schváliť deň",
     "approve_today": "Schváliť doteraz",
     "approve_week": "Schváliť týždeň · otvorené: {n}",
+    "strip_open": "{n} deň na schválenie | Dni na schválenie: {n}",
+    "strip_approve": "Schváliť",
     "resubmit": "Odoslať znova",
     "rejected": "Zamietnuté: {name}",
     "undo": "Späť",

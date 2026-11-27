@@ -3370,6 +3370,8 @@
     "approve_day": "Godkänn dag",
     "approve_today": "Godkänn hittills",
     "approve_week": "Godkänn vecka · {n} öppna",
+    "strip_open": "{n} dag att godkänna | {n} dagar att godkänna",
+    "strip_approve": "Godkänn",
     "resubmit": "Skicka in igen",
     "rejected": "Avvisad: {name}",
     "undo": "Ångra",

@@ -3370,6 +3370,8 @@
     "approve_day": "Approve day",
     "approve_today": "Approve so far",
     "approve_week": "Approve week · {n} open",
+    "strip_open": "{n} day to approve | {n} days to approve",
+    "strip_approve": "Approve",
     "resubmit": "Resubmit",
     "rejected": "Rejected: {name}",
     "undo": "Undo",

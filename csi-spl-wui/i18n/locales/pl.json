@@ -3370,6 +3370,8 @@
     "approve_day": "Zatwierdź dzień",
     "approve_today": "Zatwierdź dotychczasowe",
     "approve_week": "Zatwierdź tydzień · otwarte: {n}",
+    "strip_open": "{n} dzień do zatwierdzenia | Dni do zatwierdzenia: {n}",
+    "strip_approve": "Zatwierdź",
     "resubmit": "Prześlij ponownie",
     "rejected": "Odrzucono: {name}",
     "undo": "Cofnij",

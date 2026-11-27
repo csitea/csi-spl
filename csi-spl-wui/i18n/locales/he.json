@@ -3370,6 +3370,8 @@
     "approve_day": "אישור היום",
     "approve_today": "אישור עד עכשיו",
     "approve_week": "אישור השבוע · {n} פתוחים",
+    "strip_open": "יום {n} לאישור | {n} ימים לאישור",
+    "strip_approve": "אישור",
     "resubmit": "שליחה מחדש",
     "rejected": "נדחה: {name}",
     "undo": "ביטול",

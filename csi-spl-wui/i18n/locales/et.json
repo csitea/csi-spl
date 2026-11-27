@@ -3370,6 +3370,8 @@
     "approve_day": "Kinnita päev",
     "approve_today": "Kinnita seni",
     "approve_week": "Kinnita nädal · {n} avatud",
+    "strip_open": "{n} päev kinnitada | {n} päeva kinnitada",
+    "strip_approve": "Kinnita",
     "resubmit": "Esita uuesti",
     "rejected": "Tagasi lükatud: {name}",
     "undo": "Võta tagasi",

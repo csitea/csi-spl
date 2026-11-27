@@ -3370,6 +3370,8 @@
     "approve_day": "Aprobă ziua",
     "approve_today": "Aprobă până acum",
     "approve_week": "Aprobă săptămâna · {n} deschise",
+    "strip_open": "{n} zi de aprobat | {n} zile de aprobat",
+    "strip_approve": "Aprobă",
     "resubmit": "Retrimite",
     "rejected": "Respins: {name}",
     "undo": "Anulează",

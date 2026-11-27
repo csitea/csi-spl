@@ -3370,6 +3370,8 @@
     "approve_day": "Hyväksy päivä",
     "approve_today": "Hyväksy tähänastinen",
     "approve_week": "Hyväksy viikko · {n} avoinna",
+    "strip_open": "{n} päivä hyväksyttävänä | {n} päivää hyväksyttävänä",
+    "strip_approve": "Hyväksy",
     "resubmit": "Lähetä uudelleen",
     "rejected": "Hylätty: {name}",
     "undo": "Kumoa",

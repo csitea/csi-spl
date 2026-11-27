@@ -108,6 +108,12 @@
           <!-- T005 / T006 / T007 replace these slots with CalendarPhoneMonth,
                CalendarPhoneWeek and CalendarPhoneDay (each async on first show) -->
           <div class="calphone__scroll">
+            <!-- spec 107 E3, T083: "N days to approve · [Approve]" on top of the
+                 current page while the period holding today has open closed
+                 days; one tap approves them (T013). Inside the scroll, so the
+                 view keeps its height (spec 106 H8) and nothing is covered:
+                 a row above the view broke H8, an overlay over it took taps -->
+            <LazyCalendarHoursWeekStrip v-if="pg.dir === 0" :today="today" class="calphone__strip" />
             <template v-if="kind === 'todo'">
               <CalendarTodoView v-if="pg.dir === 0" :focus="pg.day" :today="today" :view="view" />
             </template>
@@ -697,6 +703,8 @@ const { turning, moving, pages, isRtl, onTouchStart, onTouchMove, onTouchEnd, on
   padding: 12px 16px 72px;
 }
 .calphone__icon[aria-pressed='true'] { background: var(--color-selected); color: var(--color-heading); }
+/* spec 107 T083: the week strip, first in the page's scroll */
+.calphone__strip { margin-bottom: 12px; }
 /* spec 170 B3: the To-do view takes the phone page's own padding */
 .calphone__scroll :deep(.cal-todo) { max-width: none; padding: 0; }
 .calphone__slot { min-width: 0; }

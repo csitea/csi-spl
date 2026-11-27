@@ -3370,6 +3370,8 @@
     "approve_day": "Dag goedkeuren",
     "approve_today": "Tot nu toe goedkeuren",
     "approve_week": "Week goedkeuren · {n} open",
+    "strip_open": "{n} dag goed te keuren | {n} dagen goed te keuren",
+    "strip_approve": "Goedkeuren",
     "resubmit": "Opnieuw indienen",
     "rejected": "Afgewezen: {name}",
     "undo": "Ongedaan maken",

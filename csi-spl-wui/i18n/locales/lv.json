@@ -3370,6 +3370,8 @@
     "approve_day": "Apstiprināt dienu",
     "approve_today": "Apstiprināt līdz šim",
     "approve_week": "Apstiprināt nedēļu · {n} atvērtas",
+    "strip_open": "{n} diena jāapstiprina | Jāapstiprina dienas: {n}",
+    "strip_approve": "Apstiprināt",
     "resubmit": "Iesniegt atkārtoti",
     "rejected": "Noraidīts: {name}",
     "undo": "Atsaukt",

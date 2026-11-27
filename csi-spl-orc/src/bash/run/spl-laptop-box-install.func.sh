@@ -12,7 +12,13 @@
 # @description   3. gives that user this checkout and the spool root (cnf
 # @description      env.box.spool_root, group env.box.spool_root_group);
 # @description   4. writes box.env (box tag, agent user, fleet env + tenant)
-# @description      and dispatch/laptop-box.env (her hours, the agent cap).
+# @description      and dispatch/laptop-box.env (her hours, the agent cap, the
+# @description      fleet box her agents move to at the end of her hours);
+# @description   5. installs her controls, root-owned (spl-laptop-box: status,
+# @description      stop, off, start, continue, remove), the 5-min check
+# @description      (spl-laptop-box-tick.timer, do_spl_laptop_box_tick, as the
+# @description      agents' user) and the end-of-hours pop-up in her own session
+# @description      (a global user timer with ConditionUser=<her>).
 # @description Then, as the agent user, spool-install (install.sh --cli claude
 # @description --fleet): a current Claude Code from the vendor, the spool CLI,
 # @description the fleet hooks, and the box seated with the join token. The
@@ -23,19 +29,23 @@
 # @param BOX_TAG (required) - the laptop's box tag, e.g. lap-a
 # @param HOURS (required) - her working hours, "<days> <HH:MM>-<HH:MM>", e.g. "Mon-Fri 09:00-17:00"
 # @param TENANT_ID (required) - the workspace the box serves
+# @param MOVE_BOX (required) - the fleet box her agents move to at the end of her hours (its tag)
+# @param LAPTOP_MEMBER (optional) - her own OS user (the pop-up's session), default SUDO_USER
 # @param LAPTOP_ENV (optional) - dev or prd, default prd
 # @param AGENT_MAX (optional) - the most agents at once on this box, default 4
 # @param LAPTOP_AGENT_USER (optional) - the agents' OS user, default the satellite's (cnf env.steps.060-gcp-vm-satellite.box_agent_user): the fleet's agent user
 # @param SPOOL_JOIN_TOKEN (optional) - the join token; asked on the terminal when unset
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param LAPTOP_CHECKOUT / LAPTOP_OS_RELEASE / LAPTOP_ROOT_RUN / LAPTOP_AS_USER / LAPTOP_INSTALL_SH (tests) - the checkout root, the Debian marker file, the root runner, the run-as-user prefix, install.sh
-# @example ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id t1
-# @example sudo ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id t1 --dry-run 0
+# @example ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id t1 --move-box home
+# @example sudo ./run -a do_spl_laptop_box_install --box-tag lap-a --hours "Mon-Fri 09:00-17:00" --tenant-id t1 --move-box home --dry-run 0
 #------------------------------------------------------------------------------
 do_spl_laptop_box_install() {
   local tag="${BOX_TAG:-}" hours="${HOURS:-}" ten="${TENANT_ID:-}" env="${LAPTOP_ENV:-prd}"
-  local max="${AGENT_MAX:-4}" u="${LAPTOP_AGENT_USER:-}" co dry=1 sr g hub
+  local max="${AGENT_MAX:-4}" u="${LAPTOP_AGENT_USER:-}" to="${MOVE_BOX:-}" me="${LAPTOP_MEMBER:-${SUDO_USER:-}}" co dry=1 sr g hub
   spl_laptop_install_args_ok "$tag" "$hours" "$ten" "$env" "$max" || return 2
+  spl_laptop_box_tag_ok "$to" || { do_log "FATAL MOVE_BOX must be a box tag, got '$to'"; return 2; }
+  [[ -z "$me" || "$me" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL LAPTOP_MEMBER is not a user name: '$me'"; return 2; }
   [[ -r "${LAPTOP_OS_RELEASE:-/etc/debian_version}" ]] || { do_log "FATAL not a Debian box (no /etc/debian_version): the laptop box is Debian only"; return 3; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 2; dry=0; fi
   co="${LAPTOP_CHECKOUT:-$(cd "$PROJ_PATH/.." && pwd)}"
@@ -47,7 +57,7 @@ do_spl_laptop_box_install() {
   [[ -n "$hub" ]] || { do_log "FATAL env.dns.api_fqdn is not set in the $env cnf of $co: no hub URL"; return 1; }
   hub="https://$hub"
   local -a cmds=()
-  mapfile -t cmds < <(spl_laptop_install_root_cmds "$u" "$co" "$sr" "$g" "$tag" "$env" "$ten" "$hours" "$max")
+  mapfile -t cmds < <(spl_laptop_install_root_cmds "$u" "$co" "$sr" "$g" "$tag" "$env" "$ten" "$hours" "$max" "$to" "$me")
   if (( dry )); then
     do_log "INFO DRY_RUN would run as root:"; printf '    %s\n' "${cmds[@]}"
     do_log "INFO DRY_RUN then as $u: install.sh --cli claude --fleet --env $env --tenant $ten --box $tag (hub $hub, the join token from a 0600 file)"
@@ -58,7 +68,8 @@ do_spl_laptop_box_install() {
   [[ -n "$tok" ]] || { do_log "FATAL no join token: set SPOOL_JOIN_TOKEN or type it when asked (the workspace admin mints it)"; return 2; }
   "${LAPTOP_ROOT_RUN:-_spool_root_run_as_root}" "${cmds[@]}" || return 1
   spl_laptop_install_as_user "$u" "$co" "$hub" "$env" "$ten" "$tag" "$sr" "$tok" || return 1
-  do_log "OK this laptop is box $tag of $ten ($env): agents run as $u, up to $max at once, in $hours"
+  do_log "OK this laptop is box $tag of $ten ($env): agents run as $u, up to $max at once, in $hours; her controls: spl-laptop-box status|stop|off|start|continue"
+  [[ -n "$me" ]] || do_log "WARN no member user (SUDO_USER unset): the end-of-hours pop-up has no session; set LAPTOP_MEMBER and re-run"
 }
 
 # spl_laptop_install_args_ok <tag> <hours> <tenant> <env> <max>: the one-liner's

@@ -166,7 +166,16 @@ Rules:
 | `csi-spl-orc/src/bash/run/spl-laptop-box-install.func.sh` | `do_spl_laptop_box_install`: packages, the agents' user, the spool root, box.env + `dispatch/laptop-box.env` (hours, cap), then `install.sh --cli claude --fleet` as that user |
 | `csi-spl-orc/lib/bash/funcs/spl-laptop-box.func.sh` | the hours window, the tag check, the cnf read (python3: no yq yet), the root plan, the token prompt |
 | `csi-spl-orc/src/bash/tests/spl-laptop-box-install.tst.sh` | its suite (stubs only: no apt, user, sudo or hub) |
+| `csi-spl-orc/src/bash/run/spl-laptop-box-tick.func.sh` | `do_spl_laptop_box_tick`, every 5 min as the agents' user (`spl-laptop-box-tick.timer`): in her hours the box takes lanes up to the cap; outside them (or off / stopped) no new lanes, and with lanes still running it asks her, waits for Continue (1 h) or moves every lane to `MOVE_BOX` (`do_spl_lane_handover`) on Stop or after 15 min unanswered |
+| `csi-spl-orc/src/bash/features/laptop-box/laptop-box-ctl.sh` | her controls, installed root-owned as `/usr/local/bin/spl-laptop-box`: `status`, `stop` (today), `off`, `start`, `continue`, `sudo ... remove` (refused while agents still run) |
+| `csi-spl-orc/src/bash/features/laptop-box/laptop-box-ask.sh` | the desktop pop-up (5a = DSK), root-owned, in her own session every minute (a global user timer, `ConditionUser=<her>`): Continue 1 h / Stop |
+| `csi-spl-orc/src/bash/tests/spl-laptop-box-tick.tst.sh` | the working day: hours, cap, the question, Continue, Stop, 15 min, a failed move, her controls, remove |
 
-Still to build, in this order: the working-hours timer (start / stop /
-pause / remove), the agent cap, the end-of-hours ask and the move to sat,
-the login pull from sat, then the help page.
+The markers live in `<spool root>/dispatch/laptop-box/` (group-writable by
+the spool group, which she joins), so the controls need no sudo and run a
+copy the agents' user cannot change.
+
+Still to build, in this order: the WUI form as the other way to ask her
+(5a = WUI, the default until the owner picks), the ssh link to the move box
+(the login pull and the handover share it), the fleet services the box
+needs (depends on question 6), then the help page.

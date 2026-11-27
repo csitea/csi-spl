@@ -1,6 +1,6 @@
 # Spec 197: Universal Search Results Page (`/us`)
 
-Status: **Phase 1 — WHAT v1.0** (2026-11-27; unanimous 5/5 panel consensus on v0.2 `a8e89dbfb`; owner polls Q1–Q8 posted as `a3d8e5fc` and `d5d7113d`, answers pending).
+Status: **Phase 1 — WHAT v1.0 (signed 5/5 seats: `c798a36c9` -> `e24ce3478`) · Phase 2 — HOW Draft v0.1** (2026-11-27; cleared by dispatch holder `c-003` msg `c3f9ac27` to draft HOW on Recommended Q1–Q8 defaults while owner polls `a3d8e5fc` and `d5d7113d` await answers).
 Editor seat: `a-580` (`agy`, doc only).
 v0.1 `edfb2ffee`; v0.2 `a8e89dbfb` folded all round-1 reviews (`c-582` R1–R8, `a-583` S1–S7, `c-584` W1–W3/N1–N6, `m-585` D1–D12) and was signed by all five seats (`993ceb8c1`, `9c4eb9b56`, `04145b860`, `140c72b6b`); v1.0 folds the three non-blocking v0.2 signature notes (`c-582` FR-US-11 row-menu link wording, `c-584` N7 posted-form parity and N8 `useSidebarRailOnly.ts:31` line cite).
 Epic: **SPL-1292**. Issue: **SPL-6662**. Class: `feature`. Kind: `specs_and_docs`.
@@ -213,7 +213,7 @@ Audited via `git ls-tree -r --name-only origin/master csi-spl-wui/src/pages`. To
   - Plain click, tap, or `Enter` opens the hit in the current tab at its canonical full link (reusing `openMessage()` / `searchTarget()`).
   - While viewing an item opened from `/us`, a slim **Results navigation strip** at the top of the view shows `k of N` (or `k of N+` when `has_more` is true), **Previous**, **Next**, and **Back to results**.
   - `[` and `]` (or `Alt+ArrowUp` / `Alt+ArrowDown`) step directly to the previous/next hit in the result list without returning to `/us` first (stepping past the last loaded hit fetches the next page when `has_more` is true). Single-key shortcuts (`[`, `]`, `x`, `/`, `Space`, `Esc`) act ONLY while focus is not in a text field, a `contenteditable`, or an open dialog; in the composer they type as usual.
-  - Clicking **Back to results**, pressing `Esc` (outside inputs/dialogs), or pressing browser **Back** returns to `/us?...` with the exact query, sort, kind filters, loaded pages, selection state, and scroll position restored, with the last-viewed row visibly marked active.
+  - Clicking **Back to results**, pressing `Esc` (outside inputs/dialogs), or pressing browser **Back** returns to `/us?...` with the exact query, sort, kind filters, loaded pages, selection state, and scroll position restored, with the last-viewed row visibly marked active (stepping with Previous/Next replaces the history entry, so browser Back from the 5th hit cycled returns directly to the `/us` list, not to the 4th hit).
   - A hit that was deleted, or the reader lost access to it, after the list loaded opens the item page's usual not-found or no-access state (`OpenMessageToast` "This message is gone or not yours to see" or the route's not-found view). The strip stays, so Previous, Next, and Back to results still work.
   - The list is the answer to the query as it ran. It never re-sorts or inserts rows under the reader while they cycle. A **Refresh** button in the header re-runs the query, and reloading the page does too.
 - **FR-US-12 (Quick Preview without leaving `/us`).**
@@ -260,7 +260,7 @@ Audited via `git ls-tree -r --name-only origin/master csi-spl-wui/src/pages`. To
     - A `topic` hit in a non-`issues` channel -> its `task_id`.
     - A `card_msg`, `topic_msg`, or `file` hit in a non-`issues` channel -> its carrying topic's `task_id` (added once even if multiple messages from the same topic were ticked).
     - DMs, `issues`-channel discussions, issues, calendar entries, lanes, events, docs, contacts, notes, channels, users, agents, and boxes are **not** multicast targets (per spec 186 Q2 `EX`, Q8 `CHN`, R1) and are reported as skipped.
-  - Eligible targets populate `stores/topicSelect.ts` (`TopicPick[]`, de-duplicated via `uniquePicks`) and open the existing `MulticastDialog.vue` (spec 186 M11), where the author sees the exact target topics grouped by channel, confirms/edits the list, writes one prompt (with optional files), and sends.
+  - Eligible targets, de-duplicated with `uniquePicks` (`stores/topicSelect.ts:56`) and filtered with `selectableCard` (`:49`, excluding `issues`-channel cards), are passed straight to `useMulticastSend().start(picks)` (`composables/useMulticastSend.ts:185`), which opens `MulticastDialog.vue` (spec 186 M11). `/us` keeps its own ticks (`stores/universalSearch.ts`); channel pages' `stores/topicSelect.ts` selection is neither read nor modified. A finished multicast clears the `/us` ticks.
   - Additional bulk actions (Copy links, Open in tabs, Export CSV, Bulk issue status, Add to note) are deferred past v1 unless selected by owner poll (`Q2`).
 
 ### 3.8 Shareable Links and Rights (`FR-US-18`)
@@ -421,15 +421,129 @@ Other linkable pages (Goals /goals/<id>, Releases /releases/<ref>, Help, etc., S
 
 ---
 
-## 8. Phase 2 — HOW (Blocked Until WHAT v1.0 Is Signed)
+## 8. Phase 2 — HOW (Draft v0.1)
 
-Phase 2 begins ONLY once all panel seats sign WHAT v1.0. It will specify:
-- Hub API contract change (`GET /v1/view/search/universal` so `GET /v1/view/search` stays untouched), unified hit envelope, `updated_at`, stable kind enum, sort, opaque composite cross-kind cursor, and partial-error reporting.
-- Index & query strategy inside Postgres 16 / Cloud SQL `db-f1-micro` (reusing S1r `spool_search_candidates`, replacing full `ListIssues` dump, SQL `updated_at` queries for calendar/contacts/lanes/notes, batched reads targeting `<= 6–8` DB round trips), and prd latency/buffer budget.
-- Quick Preview metadata contract (`preview` in hit payload + on-demand `POST /v1/view/previews` without consuming search quota).
-- WUI architecture (`pages/us.vue`, `useSidebarRailOnly`, Omnibox `/us` mode, flat list, quick preview pane/sheet, results navigation strip, selection bar -> `topicSelect` -> `MulticastDialog`, i18n keys across 19 locales, spec 027 bundle budget).
-- Full access-control matrix and red-control test plan.
-- Dependency-ordered build rows (`kind`, `vendor`, `files`, `after`, verification tests).
+Phase 2 assumes the Recommended defaults for owner polls Q1–Q8 (`LIV`, `MCF`, `KND`, `SEP` + dedup, `MIN`, `INC`, `UPD`, `W2`), cleared by dispatch holder `c-003` (msg `c3f9ac27`). Section 8.7 specifies the exact row swaps if any owner answer differs. Every file and line reference below was verified on `origin/master` `4ab7b731b`.
+
+### 8.1 API Contract and Coexistence
+
+- **Normative contract:** [contracts/universal-search-v1.md](./contracts/universal-search-v1.md).
+- **HC1/HC2 byte-identical guarantee:** `GET /v1/view/search` and `csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md` remain **byte-identical** across every build row (`git diff origin/master -- csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md` MUST be empty; `roundtrips_perf_test.go:126` keeps `/v1/view/search?q=seed` pinned at `9`).
+- **Route & OpenAPI:** `GET` / `OPTIONS /v1/view/search/universal` registered in `internal/hub/search.go:48-53` (`routeSearch`) and documented in `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` beside `/v1/view/search` (`:24322`) and `/v1/view/search/operators` (`:24434`).
+- **Rate limit & time budget:** Shares the per-`(tenant, reader)` **30 searches/min** bucket with `/v1/view/search` (`search-v1.md:445`, `429` + `Retry-After`) and the **7 s** `statement_timeout` / **8 s** context (`internal/hub/search.go:31-32,162`). Preview cycling never calls this endpoint.
+- **Grammar v1.9 (`internal/search/grammar.go:24`):** Adds `TypeCardMsg` (`card_msg`), `TypeTopicMsg` (`topic_msg`), `TypeLane` (`lane`), `TypeNote` (`note`), `search.UniversalDefaultTypes` (15 default kinds; `file_line` and `tenant` stay opt-in), and `search.ParseUniversal(raw, now)` (`type:message` expands to `{card_msg, topic_msg}`). Existing `search.DefaultTypes` (9 types) is untouched; `GET /v1/view/search/operators` marks the 4 new kinds with `"universal_only": true`.
+- **Canonical links & multicast metadata in hit JSON:** Every item in `items[]` carries hub-resolved `href` (canonical full link per Section 3.3), lightweight per-kind `preview` metadata (zero extra round trips on `Space`/`ArrowDown`), and `multicast: { eligible, task_id, channel, title }` (directly constructing `TopicPick` without a lookup).
+
+### 8.2 Clean-Code Source Architecture and Opaque Cross-Kind Cursor
+
+- **Clean-code compliance (developer guide §2.2.1–2.2.4, enforced by `cleancode_test.go` and `cleancode.test.mjs`):**
+  - Every function in Go, TS/Vue, and Bash is `<= 75` lines, nesting `<= 4`, parameters `<= 7` (Go) / `<= 5` (TS/Vue).
+  - No `SELECT *`. JSON responses use `wire.WriteJSON` / `wire.WriteError`; any new UUIDs use `internal/uid`.
+- **Source interface + K-way merge:** Instead of a monolithic `switch` across 17 kinds, each kind implements a small `universalSource` interface (`Kind() search.Type`, `Fetch(ctx, req) ([]UniversalHit, bool, error)`), registered in a slice. A dedicated `mergeUniversalHits` helper performs an exact k-way merge on `(updated_at DESC NULLS LAST, kind ASC, id DESC)` (or `ASC` for `updated_asc`), applies `mod.keepResults`, `lockKeepResults`, and server-side `topic`/`card_msg` deduplication, and slices the top `limit` rows.
+- **Opaque cursor (`universalCursor`):** Base64url JSON `{ v: 1, h: queryHash(q, sort, kinds), a, k, i, nt, o, ro }` (full schema in [universal-search-v1.md](./contracts/universal-search-v1.md) §4). Every dated source fetches `limit + 1` ordered rows strictly past `(a, k, i)`, guaranteeing zero duplicates and zero skips across pages.
+
+### 8.3 Postgres Index Migration, RLS, Batching, and Performance Budget
+
+- **Forward-only migration:** ONE additive file `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_universal_search_indexes.sql` (current head on `origin/master` `4ab7b731b` is `0331_scheduled_tasks.sql`; claim `<next>` at build time via `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`).
+- **Transaction constraint (verified):** `csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go:157` executes every migration inside `pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error ...)`, which **rules out** `CREATE INDEX CONCURRENTLY`. Therefore B1 uses `SET LOCAL lock_timeout = '5s';` with standard `CREATE INDEX IF NOT EXISTS` (precedent: `0143_messages_search_index.sql:18-20` measured 2 732 ms for 13 057 dev rows, ~4.8 s scaled to prd's 22 934 rows, no `CONCURRENTLY` needed). Build time is measured on dev first before prd apply:
+  1. `messages_tenant_updated ON messages (tenant_id, COALESCE(edited_at, received_at) DESC, msg_id)` — prd baseline ~22.4k rows across 7 tenants (spec 100 §2.1); enables `updated_at` DESC/ASC index scans without sorting 22k–188k rows while text queries still narrow via S1r `spool_search_candidates`.
+  2. `issues_tenant_updated ON issues (tenant_id, updated_at DESC, number DESC) WHERE deleted_at IS NULL AND archived_at IS NULL` — replaces full-table `ListIssues` Go dump (`issues_postgres.go:404`, up to ~0.9 MB detoast) with SQL-filtered `SearchIssues`.
+  3. `calendar_events_tenant_updated ON calendar_events (tenant_id, updated_at DESC, event_id) WHERE deleted_at IS NULL` — serves unclipped `SearchCalendarUniversal` ordered by `updated_at DESC`.
+  4. `workspace_doc_item_tenant_updated ON workspace_doc_item (tenant_id, updated_at DESC, id)` — prd baseline 3 444 rows / 4.2 MB (spec 100 §2.1); backs `SearchDocs` keyset paging.
+  5. `contacts_person_updated ON personal.contacts (person_id, updated_at DESC, contact_id) WHERE deleted_at IS NULL` — backs `SearchContactsByUpdated` inside `inPerson` RLS.
+  6. `notes_person_updated ON personal.notes (person_id, updated_at DESC, note_id) WHERE archived_at IS NULL` — backs `SearchNotesByUpdated` inside `inPerson` RLS (Q6 `INC`).
+- **RLS & search index invariants:**
+  - **No new policy `TO public` on `messages`.** Reuse existing `SECURITY DEFINER` `spool_search_candidates` (`0143_messages_search_index.sql:21`, granted via `spool-hub-roles/runtime-grants.sql:26`). Note that RESTRICTIVE `channel_scope` (`0169_embed_channel_scope.sql`) already interacts with non-leakproof `@@` inside `spool_search_candidates` (measured ~68.7k buffers on prd, 2026-10-12, n=5); therefore **buffer measurements MUST use `auto_explain` inside the function under the runtime role** — never superuser `EXPLAIN` (which bypasses RLS and hides the real plan).
+  - **Personal realm door:** `contacts` and `notes` are read exclusively through the `inPerson` personal-realm door (`0168_personal_realm.sql`, `app.person_id` set with `app.tenant_id` unset), never through a widened grant.
+- **4-Batch `pgx.Batch` plan (arithmetic 4–6 DB round trips vs. 9 today on `/v1/view/search`):**
+  1. **Batch 1 (1 RT, `inTenant`):** ONE shared `spool_search_candidates($q, 500)` probe (reused by `card_msg`, `topic_msg`, and `topic`, saving 1 RT vs `search-v1`), plus `ViewBoxes`, `TenantHumans`, `ViewChannelStats`, moderation state, and `lockViewFor`.
+  2. **Batch 2 (1 RT, `inTenant` + `humanScope`):** `SearchMessagesUniversal` (`is_parent`, `edited_at`), `SearchTopicsUniversal` (`max(GREATEST(received_at, COALESCE(edited_at, received_at)))`), `SearchFiles`, `SearchIssues`, `SearchCalendarUniversal`, and `SearchDocs` (when `docs.read`). If Batch 2 hits Postgres `57014` (`statement_timeout`), fall back to per-source bounded reads within remaining request budget and emit `partial_errors` only for the timed-out source(s).
+  3. **Batch 3 (1 RT, `inPerson`, signed-in non-clone person only):** `SearchContactsByUpdated` (when contacts kill-switch is on) + `SearchNotesByUpdated` (when `NotesEnabled`).
+  4. **Batch 4 (1–2 RT):** `HumanEventsPage` (`human_events`, hub-wide outside tenant RLS) + conditional `SearchLanes` (owner/admin or operator admin/PO only — 0 RT for plain members; active `fleet_lanes` + `queuedLanes` + `canReadTopic`, skipping heavy `fleetLaneBurn`) + optional isolated `SearchFileLines` (only when explicitly opted in + staff, so 500k-line scans never abort Batch 2).
+- **Measured budget pin (`B5`):** `roundtrips_perf_test.go` keeps `/v1/view/search?q=seed` at `9` and adds a new row for `/v1/view/search/universal?q=seed` pinning the **exact measured integer** (not a range). Target before measurement (unmeasured today): `<= 6–8` RT, p95 `< 1 s` warm / `< 2 s` cold on prd `db-f1-micro` shape, `<= 2 000` buffers on rare/prefix message queries (outside the known `0169` probe caveat, verified with `auto_explain`), `$0/mo` extra infra (inside Postgres 16 only).
+
+### 8.4 Access-Control Matrix and Red Controls (Layer H — Real Postgres, `PRE_PUSH_TIER=full`)
+
+Every store/hub build row runs `PRE_PUSH_TIER=full ./run -a do_check_pre_push` (`hub-pg.tst.sh`). Every gate below requires a dedicated Postgres test PLUS a planted **red control** (removing the gate MUST cause the test to fail, developer guide §2.12.1 & §2.12.4):
+
+| # | Kind(s) | Enforced Door | Planted Red Control |
+|---|---|---|---|
+| AC1 | All tenant kinds | FORCE RLS + explicit `tenant_id` pin | Drop `tenant_id` pin on `workspace_doc` -> system repo doc leaks |
+| AC2 | `topic`, `card_msg`, `topic_msg`, `file` | Channel read ACL (`PublicChannels` / `ViewerChannels`, rdb `0028`) | Omit `ViewerChannels` -> non-member private channel hit leaks |
+| AC3 | `topic`, `card_msg`, `topic_msg`, `file` | DM-party privacy (`from_id = viewer OR to_id = viewer`) | Drop party check -> third-party DM hit leaks |
+| AC4 | `topic`, `card_msg`, `topic_msg`, `file` | Retention (`expires_at > now`, `loop_id IS NULL`), archive (`archivedHideSQL`), relay (`HideRelay`), `mod.keepResults`, `lockKeepResults` | Drop `archivedHideSQL` or `lockKeepResults` -> hidden hit leaks |
+| AC5 | `issue` | `topics.read` + `deleted_at IS NULL AND archived_at IS NULL` | Drop `archived_at IS NULL` -> archived issue leaks |
+| AC6 | `doc` | `rbac.DocsRead` + `store.WithHuman` restricted doc lock | Drop `DocsRead` -> unauthorized member sees doc hit |
+| AC7 | `calendar` | `calendarPrivateSQL` + `deleted_at IS NULL` + `demoAudiences` | Bypass `calendarPrivateSQL` -> private calendar entry leaks |
+| AC8 | `lane` | `TenantOwner || Has(rbac.Admin)` / `operatorReadCaller` + `canReadTopic` + strip operator `agent_box` & `issue_key` in workspace view; plain member gets `0` rows and zero `partial_errors` | Drop staff check -> plain member sees lane hit |
+| AC9 | `event` | `human_events` pinned to `sq.Viewer` only | Drop viewer pin -> another user's event leaks |
+| AC10 | `contact`, `note` | `inPerson` RLS (`0168`) + `realmRefuses` (no act-as clone, box token, or agent seat) + kill switches (`contacts.workspaces`, `NotesEnabled`) | Bypass `realmRefuses` -> act-as clone sees contacts/notes |
+| AC11 | `user`, `file_line` | `user`: email never searched/returned, disabled/technical/`ChannelGuest` excluded; `file_line`: `fileStreamsStaffRefusal` -> 0 rows + `file_streams_staff_only` notice | Search by email -> must return 0; non-staff `in:file-streams` -> must return 0 + notice |
+
+### 8.5 WUI Architecture, Wiring, Navigation, Keys, Multicast, i18n, and Bundle Budget
+
+- **Omnibox `/us` wiring (4 verified places, keeping `/s` intact):**
+  1. `csi-spl-wui/src/utils/search.mjs`: add `US_CMD_RE = /^\/us(?::|\s|$)/i`, `usQueryOf(text)`, and `usPath({ q, sort, type })`. Check `US_CMD_RE` **first** in `omniboxMode()` (`:145`, returning `'usearch'`), in `channelLookupOf()`'s exclusion guard (`:211`, protecting both `openAsk.beforeSend()` and `searchInstead()` from treating bare `/us` as a channel lookup), in `omniboxTextLeavingSearch()` (`:250`, clearing both `'search'` and `'usearch'`), and in `operatorTokenAt()` (`:285`, enabling operator autocomplete after `/us `).
+  2. `csi-spl-wui/src/utils/feed.mjs:21`: `parseOmnibox()` matches `US_CMD_RE` first and returns `{ usearch: q }`; `/search:`, `/search `, `/s ` stay unchanged; `/use`, `/user`, `/usa` do NOT match `US_CMD_RE`.
+  3. `csi-spl-wui/src/components/MessageComposer.vue:419` & `csi-spl-wui/src/composables/useComposerSend.ts:48-54,96-101`: `searchMode` is true for both `'search'` and `'usearch'` (different mode chip label); `searchInstead()` (`:48`, the global TopBar path) emits `'usearch'` for `'usearch'` mode before checking `'search'` or `channelLookupOf`; non-global `parseOmnibox` path (`:97`) also emits `'usearch'`.
+  4. `csi-spl-wui/src/components/TopBar.vue`: `onUsearch(q)` calls `router.push(localePath(usPath({ q })))`; mirror `onSearchPage` / `showQuery` (`:349-365`) for `/us` so `/us?q=...` populates `/us <q>` in the Omnibox and leaving `/us` clears it.
+- **Signed-out redirect (verified gap):** `csi-spl-wui/src/utils/signed-out-redirect.mjs:72` explicitly lists `p === '/' || p === '/lobby' || p === '/search'`. Add `p === '/us'` to `isProductScreen` and unit-test that `/us?q=a%20b&sort=updated_asc&type=issue` round-trips cleanly through `safeRedirect`.
+- **Rail-only layout:** Add `usRailOnly` (`!isMobile.value && isUsPath(route.path)`) in `csi-spl-wui/src/composables/useSidebarRailOnly.ts:38` and bind it in `ChannelSidebar.vue:2` (`.sidebar--rail`).
+- **Isolated store & components (HC1 by construction):**
+  - New Pinia store `csi-spl-wui/src/stores/universalSearch.ts` holding `{ q, sort, types, rows, next, hasMore, loading, loadingMore, error, warnings, notices, partialErrors, activeKey, scrollTop, ticks, cycling }`.
+  - **HC1 zero-touch gate:** `stores/universalSearch.ts` NEVER imports or writes `stores/search.ts`. None of `stores/search.ts`, `components/SearchSidePanel.vue`, `components/SideHitList.vue`, or `pages/search.vue` appears in ANY Spec 197 build row's file list (a diff touching them is an automatic review FAIL).
+  - Lazy route `csi-spl-wui/src/pages/us.vue` + lazy components: `UsResultsHeader.vue`, `UsKindChips.vue`, `UsResultList.vue` (roving `tabindex`, `SideHitList`-style keyboard walk without touching `SideHitList.vue`), `UsResultRow.vue`, `UsPreviewPane.vue` (desktop right-pane slot with `PaneDivider`), `UsPreviewSheet.vue` (phone bottom sheet), `UsSelectionBar.vue`, `UsResultsStrip.vue`.
+- **Results navigation strip (`cycling`, no URL leak):**
+  - Opening a hit from `/us` stores `cycling = { key, href, returnUrl }` in `stores/universalSearch.ts` (never appending `?from=us` to the target URL).
+  - `layouts/default.vue` mounts `<LazyUsResultsStrip v-if="usCyclingMatch" />` only when `cycling` is set and normalised `route.fullPath` equals `cycling.href`. Any unrelated navigation clears `cycling = null`; a new tab has an empty store so shows no strip.
+  - Previous/Next navigate with `router.replace()` so browser Back from any cycled item returns directly to `/us?...` rather than stepping back through every hit. Returning restores loaded pages, `activeKey`, `ticks`, and `scrollTop` after render.
+- **Keyboard integration:**
+  - List handles its own keys on the list element (`ArrowUp`/`ArrowDown`, `j`/`k`, `Home`/`End`, `Enter`, `Space`, `x`, `Shift+Arrow`, `Ctrl/Cmd+A`, `Esc`, `ContextMenu`/`Shift+F10`) calling `preventDefault()` so `vim-nav` (`utils/vim-nav.mjs:35-47`) never intercepts `Esc` as Back over the list.
+  - Window listener for strip `[` / `]` mounts ONLY while `UsResultsStrip` is mounted and checks `inTypingOrOverlay(document.activeElement)` (`utils/msg-shortcuts.mjs:91`, covering `input`, `textarea`, `select`, `contenteditable`, `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`).
+  - Honours `keyboard_shortcuts` preference: when off, native listbox keys (`Arrow`, `Home`/`End`, `Enter`, `Space`, `Tab`) keep working while letter/punctuation shortcuts (`x`, `[`, `]`, `j`, `k`, `/`) do nothing; every action stays a visible button. Add a `/us` section to `MsgShortcutsHelp`.
+- **Multicast handoff:** Passes `uniquePicks` built from ticked hits' `item.multicast` fields (`selectableCard`-eligible) directly to `useMulticastSend().start(picks)` (`composables/useMulticastSend.ts:185`), never mutating channel pages' `stores/topicSelect.ts`.
+- **Spec 027 initial-JS gzip budget (`perf-budgets.json:4,27`):**
+  - Ceiling is **155.0 KB** gzip (`ci_initial_gzip_kb` last estimated at `151.9 KB`, ~3.1 KB headroom).
+  - `/us` adds ONLY the lazy route record and `US_CMD_RE` (~0.1–0.2 KB) to first paint; `pages/us.vue` and all `Us*` components are lazy chunks, `UsResultsStrip` is `Lazy` in `layouts/default.vue`, zero new dependencies.
+  - Row **W1** measures `ci_initial_gzip_kb` before and after (`n=2` each side, recorded in commit body) and fails if delta exceeds `+0.3 KB`.
+- **i18n & WUI gates (developer guide §2.7, §3.4):**
+  - Every string lives under `us.*` in `en.json` + all 18 other locales (reusing existing `search.type.*` keys where present); `i18n-parity`, `i18n-untranslated`, and `i18n-no-raw-text` stay green.
+  - Every row adding locale strings runs `ENV=dev ./run -a do_spl_lang_review_gct` (`csi-spl-orc`) and carries `Lang-review: gct <run id>` in its commit message.
+  - Every WUI row runs `pnpm run typecheck` and `BASE_URL=<generated bundle> pnpm run test:e2e`.
+
+### 8.6 Dependency-Ordered Build Rows
+
+Routing follows `csi-spl-cnf/csi-spl/all.env.yaml:1555-1615` (`mistral_ui_allowed: false`, `mistral_coding_allowed: false`, `mistral_review_allowed: false`): coding and test rows go to `claude` (backup `agy`), R7 cross-vendor review goes to `agy` (never `mistral`), and every row carries an `Issue:` under Epic **SPL-1292**, `Spec: csi-spl-doc/specs/197-universal-search-results`, and either its `csi-spl-doc/` update or `Docs: none (<why>)`.
+
+| Row | Kind | Vendor (Backup) | R7 Review | Scope & Exact Files | After | Verification & Gates |
+|---|---|---|---|---|---|---|
+| **R0** HC1/HC2 matcher red-control unit gate | `tests` | `claude` (`agy`) | `agy` | `csi-spl-wui/tests/unit/us-omnibox-guard.test.mjs` — pins `/s x`, `/search x`, `/search:x` -> `search`, `/us x` -> `usearch` (never `send`), bare `/us` -> `usearch` (never `channelLookupOf`), `/use`/`/user`/`/usa` unchanged | WHAT v1.0 | Seen **RED** on `origin/master` before W1 (planted control), then **GREEN** with W1 (G7) |
+| **B1** Universal search indexes migration | `simple_coding` | `claude` (`agy`) | `agy` | `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_universal_search_indexes.sql` (`do_rdb_migration_next`), `csi-spl-api/src/go/spool-hub-api/internal/store/search_universal_migrate_test.go` | none | `PRE_PUSH_TIER=full` (pg16 parse, idempotent apply, `lock_timeout`, index presence; measure dev build time before prd) |
+| **B2** Grammar v1.9 + universal types & operators | `simple_coding` | `claude` (`agy`) | `agy` | `csi-spl-api/src/go/spool-hub-api/internal/search/{grammar.go,values.go,universal.go,universal_test.go}`, `internal/hub/search.go` (operators metadata only; `DefaultTypes` untouched) | none | `go test -race ./internal/search ./internal/hub` (`internal/search >= 98.1%`; existing `search-v1` goldens unchanged) |
+| **B3** Store universal queries + 4-batch Postgres path | `complex_coding` | `claude` (`agy`) | `agy` | `csi-spl-api/src/go/spool-hub-api/internal/store/{search_universal.go,search_universal_postgres.go,search_universal_memory.go,search_universal_test.go}` | B1, B2 | `PRE_PUSH_TIER=full` (`hub-pg.tst.sh`: `COALESCE(edited_at, received_at)`, SQL issues/calendar/contacts/notes/messages/topics/docs, `inPerson` RLS, `internal/store >= 80.4%`) |
+| **B4** Hub `GET /v1/view/search/universal`, k-way merge, cursor, dedup, preview & rights | `complex_coding` | `claude` (`agy`) | `agy` | `csi-spl-api/src/go/spool-hub-api/internal/hub/{search_universal.go,search_universal_sources.go,search_universal_cursor.go,search_universal_preview.go,search_universal_lanes.go,search_universal_test.go}`, `internal/hub/search.go` (route hook), `internal/hub/openapi.json` | B2, B3 | `PRE_PUSH_TIER=full` (`hub-pg.tst.sh`: AC1–AC11 red controls, cross-kind cursor zero-dup/monotonicity, topic/`card_msg` dedup, `partial_errors` vs role gating, `search-v1.md` git diff empty, `internal/hub >= 82.2%`) |
+| **B5** Round-trip pin & prd-shape perf proof | `tests` | `claude` (`agy`) | `agy` | `csi-spl-api/src/go/spool-hub-api/internal/hub/roundtrips_perf_test.go` (keep `/v1/view/search?q=seed` at `9`; add `/v1/view/search/universal?q=seed` with measured integer pin), `internal/store/search_universal_perf_test.go` | B4 | `PRE_PUSH_TIER=full` (`TestRoundTripsPerRequest`, `TestUniversalSearchP95`, `auto_explain` inside `spool_search_candidates`) |
+| **W1** `/us` Omnibox wiring, signed-out redirect, rail-only empty `/us` shell, help disambiguation | `simple_coding` | `claude` (`agy`) | `agy` | `csi-spl-wui/src/utils/{search.mjs,feed.mjs,signed-out-redirect.mjs}`, `composables/{useComposerSend.ts,useSidebarRailOnly.ts}`, `components/{MessageComposer.vue,TopBar.vue,ChannelSidebar.vue}`, `pages/us.vue`, `i18n/locales/*.json`, `csi-spl-doc/doc/help/index.md`, `csi-spl-wui/src/public/help-md/index.md` | R0 | R0 flips GREEN; `do_spl_lang_review_gct`; `ci_initial_gzip_kb` delta `<= +0.3 KB` (`n=2`); `pnpm run typecheck`; e2e scenarios 1 & 3; HC1 zero-touch check |
+| **W2** `universalSearch` store, flat list, rows, header, kind chips, sort, paging & mock corpus | `complex_coding` | `claude` (`agy`) | `agy` | `csi-spl-wui/src/stores/universalSearch.ts`, `components/{UsResultsHeader.vue,UsKindChips.vue,UsResultList.vue,UsResultRow.vue}`, `pages/us.vue`, `utils/mock-data.mjs`, `i18n/locales/*.json`, `tests/e2e/universal-search-acceptance.test.mjs` | W1 | `pnpm run typecheck`; `do_spl_lang_review_gct`; mock e2e scenarios 1, 2, 3, 6, 11 (desktop + phone); HC1 zero-touch check |
+| **W3** Quick Preview right pane (desktop) & bottom sheet (phone) | `simple_coding` | `claude` (`agy`) | `agy` | `csi-spl-wui/src/components/{UsPreviewPane.vue,UsPreviewSheet.vue}`, `pages/us.vue`, `i18n/locales/*.json`, `tests/e2e/universal-search-acceptance.test.mjs` | W2 | `pnpm run typecheck`; `do_spl_lang_review_gct`; mock e2e scenarios 4 & 10 (preview, 0 search requests while cycling) |
+| **W4** Results navigation strip (`[`, `]`, `router.replace`) & return-with-state | `simple_coding` | `claude` (`agy`) | `agy` | `csi-spl-wui/src/components/UsResultsStrip.vue`, `layouts/default.vue` (1 `LazyUsResultsStrip` line), `components/MsgShortcutsHelp.vue`, `i18n/locales/*.json`, `tests/e2e/universal-search-acceptance.test.mjs` | W2 | `pnpm run typecheck`; `do_spl_lang_review_gct`; mock e2e scenarios 5 & 10 (44 px strip at 390 px, Back skips cycled hits, scroll restored) |
+| **W5** Universal Selection Bar & Multicast handoff (`useMulticastSend().start`) | `simple_coding` | `claude` (`agy`) | `agy` | `csi-spl-wui/src/components/UsSelectionBar.vue`, `components/UsResultList.vue`, `i18n/locales/*.json`, `tests/unit/us-multicast-picks.test.mjs`, `tests/e2e/universal-search-acceptance.test.mjs` | W2 | `pnpm run typecheck`; `do_spl_lang_review_gct`; unit picks test; mock e2e scenarios 7 (M) & 10 (long-press at 390 px); channel `topicSelect` untouched |
+| **W6** Live hub wiring & dev live proof | `complex_coding` | `claude` (`agy`) | `agy` | `csi-spl-wui/src/utils/spool-client.mjs` (1 `universalSearch` method), `stores/universalSearch.ts`, `tests/e2e/universal-search-live.proof.mjs` | W2, W3, W4, W5, **B4 & B5 deployed on dev + prd** (`do_check_deploy_lag` clean, G8) | `pnpm run typecheck`; Layer L dev live proof (scenarios 1, 7 real send, 8 two-member zero-leak + plain-member no-lane, 9 signed-out redirect); all existing `*search*` suites green |
+
+*Parallelism:* After **W2**, rows **W3**, **W4**, and **W5** can run in parallel (W2 exposes the list's `tick`, `preview`, and `open` hooks so W3–W5 stay disjoint; W4 touches only one line in `layouts/default.vue`). **B1** and **B2** run in parallel; **W1–W5** (on mock) can run in parallel with **B1–B5**, converging at **W6** only after **B4** is live on dev and prd (G8).
+
+### 8.7 Owner Poll (Q1–Q8) Alternate-Answer Row Swaps
+
+| Poll | Alternate Answer | Exact Build-Row Swap |
+|---|---|---|
+| **Q1** | `FRZ` (frozen snapshot) instead of `LIV` | Add migration `<next>_universal_search_snapshots.sql` (tenant FORCE RLS + TTL, G2/G3) + hub row **B4s** (`POST/GET /v1/view/search/snapshots`, still re-filtering every row through B4's access doors); W2 Copy Link calls snapshot POST and copies `/us/s/<id>`. |
+| **Q2** | `ALL` (extra bulk actions) instead of `MCF` | Add row **W7** after W5 (Copy links, Open in tabs, Export CSV in `UsSelectionBar.vue`). |
+| **Q3** | `NO` (no kind chips) instead of `KND` | Drop `UsKindChips.vue` from W2 (keep `&type=` URL/Omnibox sync for shared links). |
+| **Q4** | `ONE` or `TOP` instead of `SEP` | B2/B4 map `card_msg` + `topic_msg` to `message` (`ONE`, `preview.message_role: "card"|"reply"`) or fold `is_parent=1` into `topic` (`TOP`); W2 row badge follows; zero DB/index change. |
+| **Q5** | `ALL` (Workspace + System logs) instead of `MIN` | B3/B4 add `workspace_events` (owner/admin) and `system_events` (operator admin) to Batch 2/4; add WUI row **W6e** adding Workspace/System event views & deep links to `/monitoring/events` (since none exists today: `git grep "v1/view/events\|v1/operator/events" origin/master -- csi-spl-wui/src | wc -l` -> `0`) or render preview-only rows (`href: ""`). |
+| **Q6** | `W2` (defer Notes) instead of `INC` | Drop `notes_person_updated` from B1, `SearchNotesByUpdated` from B3/B4, and `note` from W2 mock & chips. |
+| **Q7** | `STR` (sort calendar by `starts_at`) instead of `UPD` | Drop `calendar_events_tenant_updated` from B1; B3 `SearchCalendarUniversal` orders by `starts_at DESC` using existing `calendar_events_tenant_range`. |
+| **Q8** | `V1` (Goals & Releases in v1) instead of `W2` | Add narrow row **B4b** after B4 for `goal` (`/goals/<id>`) and `release` (`release_notes`, `/releases/<ref>`) in Batch 2; W2 adds their kind icon/label. |
 
 ---
 
@@ -450,7 +564,10 @@ Phase 2 begins ONLY once all panel seats sign WHAT v1.0. It will specify:
 | 2026-11-27 | `a-580` (Editor) | Published WHAT Draft v0.2 (`a8e89dbfb`) on `review/c002-bcfd15e1-search-results-spec`; sent Q8 form + Q5 factual correction (`ALL` -> `MIN`) to holder |
 | 2026-11-27 | `c-002` (Holder) | Verified `a8e89dbfb` and events-page grep; posted Q5 correction (`MIN` recommended) + Q8 poll (`W2`/`V1`) to HUM-10 as `msg:d5d7113d` (msg `113380e0`) |
 | 2026-11-27 | `c-582`, `c-584`, `m-585`, `a-583` | All four sibling panel seats signed WHAT v0.2 (`a8e89dbfb`) via commits `993ceb8c1`, `9c4eb9b56`, `04145b860`, and `140c72b6b` (5/5 consensus) |
-| 2026-11-27 | `a-580` (Editor) | Published WHAT v1.0 folding the three non-blocking v0.2 signature notes (`c-582` FR-US-11, `c-584` N7/N8) |
+| 2026-11-27 | `a-580` (Editor) | Published WHAT v1.0 (`c798a36c9`) folding the three non-blocking v0.2 signature notes (`c-582` FR-US-11, `c-584` N7/N8) |
+| 2026-11-27 | `c-003` (Holder) | Cleared panel to proceed into Phase 2 HOW v0.1 on Recommended Q1–Q8 defaults while owner polls `a3d8e5fc` / `d5d7113d` await answers (msg `c3f9ac27`) |
+| 2026-11-27 | `c-582`, `c-584`, `a-583`, `m-585` | All four sibling seats signed WHAT v1.0 (`c798a36c9`) via commits `ad219908b`, `c05b5a308`, `0b4ae49c6`, and `e24ce3478` (5/5 consensus); `c-582`, `c-584`, and `a-583` sent Phase 2 HOW inputs (`4e94101c`, `126efc55`, `ea34bdb9`) |
+| 2026-11-27 | `a-580` (Editor) | Published Phase 2 HOW Draft v0.1 (`spec.md` Section 8 + `contracts/universal-search-v1.md`) on `review/c002-bcfd15e1-search-results-spec` |
 
 ### 9.2 Signatures
 
@@ -468,3 +585,4 @@ Each seat signs a version with its own commit on `review/c002-bcfd15e1-search-re
 | `c-584` (Reviewer) | claude | WHAT v1.0 | `c798a36c9` | PASS: diff from v0.2 read line by line (FR-US-04 `:31` cite, FR-US-11 row menu, Q4/Q5 posted-form parity); `d5d7113d` checked in the `dispatch-bcfd15e1` spool log |
 | `a-583` (Search Engine Expert) | agy | WHAT v1.0 | `c798a36c9` | Signed WHAT v1.0; moving to Phase 2 HOW |
 | `m-585` (UI Design) | mistral | WHAT v1.0 | `c798a36c9` | contributor (UI design): signed — D1–D12 carried through v0.2→v1.0 unchanged (rail-only shell, wireframe, row anatomy, preview pane/sheet, selection bar + Multicast first, states, 390 px, keyboard, shared link); no open blockers; HOW v0.1 WUI input sent on dispatch-bcfd15e1 |
+| `a-580` (Editor) | agy | HOW v0.1 | `e24ce3478` | Published Phase 2 HOW v0.1 (`spec.md` §8 + `contracts/universal-search-v1.md`) folding `c-582` H1–H10, `a-583` §8.1–8.6, and `c-584` G1–G9 |

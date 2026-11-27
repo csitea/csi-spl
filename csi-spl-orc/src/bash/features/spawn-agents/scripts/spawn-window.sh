@@ -619,6 +619,64 @@ sw_category() {  # WORKDIR BRIEF
 }
 sw_category "$@"
 
+# spec 184 row L4 (owner Q5 "fb", 4 steps 3 and 6): a model the CLI refuses
+# starts once more on the CLI's own default. Two ways it is refused:
+#   - the CLI's live list (spool_agent_models, 7.1.6) does not hold it: the
+#     launch goes without it at once (a vendor with no list, exit 4, skips
+#     this; a full claude-* name passes on syntax alone, G8);
+#   - the start check sees the CLI quit with the model on its line (the
+#     "session ended" banner, rc 3, or the pane ended, rc 5): the pane is
+#     respawned ONCE with no model; a second quit is an ordinary failed start.
+# "No model" is no setting in force: SPAWN_MODEL and SPAWN_MODEL_MAP unset,
+# SPOOL_AGENT_MODEL_CNF=/dev/null, so spool_agent_model prints nothing and
+# the launcher records cli-default in lifetime/model.txt. Each fallback is one
+# WARN on stderr (the spawn log) and one line in the lane journal,
+# <spool root>/<id>/lifetime/journal.log (a dry run writes no file).
+# Test: tests/test-spawn-window-model-fallback.sh
+SW_MODEL_OFF=0
+sw_model_warn() {  # MODEL WHY
+  local l="WARN model $1 refused by ${KIND}, started on the CLI default ($2)" j="${SPOOL_ROOT}/${TITLE}/lifetime/journal.log"
+  echo "spawn-window: ${TITLE}: ${l}" >&2
+  [ "$DRY" != 1 ] || return 0
+  { mkdir -p "${j%/*}" && printf '%s spawn-window %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$l" >>"$j"; } 2>/dev/null ||
+    echo "spawn-window: WARN ${TITLE}: ${j} not written" >&2
+}
+sw_model_off() {
+  SW_MODEL_OFF=1
+  unset SPAWN_MODEL SPAWN_MODEL_MAP
+  export SPOOL_AGENT_MODEL_CNF=/dev/null
+}
+sw_model_live() {
+  local m list
+  m="$(spool_agent_model "$KIND" 2>/dev/null)" && [ -n "$m" ] || return 0
+  # shellcheck source=../lib/agent-models.inc.sh
+  . "$HERE/../lib/agent-models.inc.sh" 2>/dev/null || return 0
+  list="$(spool_agent_models "$KIND" 2>/dev/null)" || return 0
+  grep -qxF -- "$m" <<<"$list" && return 0
+  { [ "$KIND" = claude ] && [[ "$m" == claude-* ]]; } && return 0
+  sw_model_warn "$m" "not in its live list"
+  sw_model_off
+}
+sw_model_live
+
+# sw_model_quit RC WHY ARGS...: 0 when the start check saw the CLI quit with a
+# model this start recorded (lifetime/model.txt, written by the launcher at
+# or after SW_START), and the pane was respawned on the CLI default (once:
+# SW_MODEL_OFF). 1 otherwise: nothing done.
+sw_model_quit() {
+  local rc="$1" why="$2" f="${SPOOL_ROOT}/${TITLE}/lifetime/model.txt" m t
+  shift 2
+  [ "$SW_MODEL_OFF" = 0 ] || return 1
+  { [ "$rc" -eq 5 ] || { [ "$rc" -eq 3 ] && [ "$why" = "session ended" ]; }; } || return 1
+  m="$(head -n1 "$f" 2>/dev/null)"; t="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+  [ -n "$m" ] && [ "$m" != cli-default ] && [ "$t" -ge "$SW_START" ] || return 1
+  sw_model_warn "$m" "the CLI quit at start"
+  sw_model_off
+  SPAWN_REUSE_ID=1 sw_pane_cmd "$@"
+  "${SPOOL_TM[@]}" respawn-pane -k -t "$pane" "$cmd" 2>/dev/null || {
+    echo "spawn-window: WARN ${TITLE} ${pane}: respawn-pane on the CLI default failed" >&2; return 1; }
+}
+
 if [ "$DRY" = 1 ]; then
   printf 'PLAN %-10s %s\n' claim "${TITLE} -> ${SPOOL_ROOT}/${TITLE}" \
     window "new-window -d -t ${sess}: -n $(spool_decorate "$TITLE") (socket ${SPOOL_TMUX_SOCKET})"
@@ -635,13 +693,17 @@ fi
 # tmux server does not inherit this process's environment. SPAWN_REUSE_ID
 # too: the launcher re-checks the kind/id pair and keeps a respawn's brief
 # (a role seat under ROTATE_ROLE_VENDOR failed live without it, SPL-1605).
-envs=()
+# The allowlist's for line stays at column 0: lane-rotate.tst.sh case 15 reads it.
+sw_pane_cmd() {  # ARGS... -> cmd
+  local v envs=()
 for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_DESK_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
          SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN SPAWN_CLAUDE_CONFIG_DIR GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN CODEX_BIN SPOOL_MISTRAL_MAX_PRICE SPAWN_GIT_IDENTITY \
-         SPAWN_TASK_KIND SPAWN_MODEL SPAWN_MODEL_MAP SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
-  [ -n "${!v:-}" ] && envs+=("$v=${!v}")
+         SPAWN_TASK_KIND SPAWN_MODEL SPAWN_MODEL_MAP SPOOL_AGENT_MODEL_CNF SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
+    [ -n "${!v:-}" ] && envs+=("$v=${!v}")
 done
-printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"
+  printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"
+}
+sw_pane_cmd "$@"
 
 # The pane id is the first line that IS one: an after-new-window hook that
 # prints shares new-window -P's output.
@@ -709,6 +771,10 @@ if { [ "$KIND" = claude ] || [ "$KIND" = codex ]; } && [ "${SPAWN_START_CHECK:-1
   sw_capture() { "${SPOOL_TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null; }
   sw_gone() { [ "$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{pane_dead}' 2>/dev/null || echo 1)" = 1 ]; }
   why="$(spool_start_check "$pane" "${SPAWN_START_CHECK_WAIT:-45}" sw_capture sw_gone)"; rc=$?
+  # spec 184 row L4: the CLI quit with a model on its line -> once more without.
+  if sw_model_quit "$rc" "$why" "$@"; then
+    why="$(spool_start_check "$pane" "${SPAWN_START_CHECK_WAIT:-45}" sw_capture sw_gone)"; rc=$?
+  fi
   # The pane ended or tmux went away: no session will ever ack, a failed
   # spawn like the pane gone before its seed. Its dead window goes with the
   # claim; a server that is gone took it already.

@@ -243,6 +243,27 @@ the same four models as above.
    default) and logs `WARN model <m> refused by <vendor>, started on the
    CLI default` in the spawn log and the lane journal; `lifetime/model.txt`
    then reads `cli-default`. A second failure is an ordinary failed start.
+
+   As built by row L4 (`scripts/spawn-window.sh`, test
+   `tests/test-spawn-window-model-fallback.sh`):
+   - A CLI that quits does not end its pane: the launcher prints the
+     "session ... ended. Pane kept open" banner and runs a shell, so the
+     start check reads it as the `session ended` dialog (rc 3), not rc 5.
+     Both count as the CLI quitting, and only when this start recorded a
+     model in `lifetime/model.txt`.
+   - The relaunch is a `respawn-pane -k` of the same pane, running the
+     launcher again with `SPAWN_REUSE_ID=1` and no setting in force
+     (`SPAWN_MODEL` and `SPAWN_MODEL_MAP` unset,
+     `SPOOL_AGENT_MODEL_CNF=/dev/null`). It happens once, and a second quit
+     is the ordinary failed start (exit 11, or exit 4 for a dead pane).
+   - The step 3 live check runs in `spawn-window.sh` before the window opens,
+     for every vendor. The relaunch is limited to claude and codex, the only
+     kinds the start check reads.
+   - The lane journal is `<spool root>/<id>/lifetime/journal.log`, one
+     `<UTC> spawn-window WARN model <m> refused by <vendor>, started on the
+     CLI default (<why>)` line per fallback, where `<why>` is `not in its live
+     list` or `the CLI quit at start`. The same WARN goes to stderr, which is
+     the spawn log.
 7. **Visible.** The plan line `adapter` gains `model=<m|cli-default>`; the
    identity record reads `--model`, `-m` and `VIBE_ACTIVE_MODEL` (row I1);
    the WUI Agents page may show the identity's model (row W1, optional).

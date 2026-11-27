@@ -70,7 +70,7 @@ spl_laptop_install_root_cmds() {
     "LAPTOP_BOX_TAG=$tag" "LAPTOP_AGENT_USER=$u" "LAPTOP_MOVE_BOX=$to" "LAPTOP_MEMBER=$me" "${al[@]}"
   echo "install -d -o root -g root -m 0755 '$lib' && install -o root -g root -m 0755 '$fb/laptop-box-ask.sh' '$lib/laptop-box-ask.sh' && install -o root -g root -m 0755 '$fb/laptop-box-ctl.sh' /usr/local/bin/spl-laptop-box"
   spl_laptop_root_write /etc/systemd/system/spl-laptop-box-tick.service root root "[Unit]" "Description=fleet laptop box: one check (her hours, the cap, the end-of-hours ask)" \
-    "[Service]" "Type=oneshot" "User=$u" "UMask=0007" "WorkingDirectory=$co/csi-spl-orc" "Environment=SPOOL_ROOT=$sr" "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin" "ExecStart=$co/csi-spl-orc/run -a do_spl_laptop_box_tick"
+    "[Service]" "Type=oneshot" "User=$u" "UMask=0007" "WorkingDirectory=$co/csi-spl-orc" "Environment=SPOOL_ROOT=$sr" "Environment=PATH=%h/.local/bin:%h/.local/share/spool-agent/tools/bin:/usr/local/bin:/usr/bin:/bin" "ExecStart=$co/csi-spl-orc/run -a do_spl_laptop_box_tick"
   spl_laptop_root_write /etc/systemd/system/spl-laptop-box-tick.timer root root "[Unit]" "Description=fleet laptop box: a check every 5 min" \
     "[Timer]" "OnBootSec=2min" "OnUnitActiveSec=5min" "[Install]" "WantedBy=timers.target"
   # W7: no member, no user units (an empty ConditionUser= would match every user)

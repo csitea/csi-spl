@@ -12,7 +12,7 @@
 # @description   3. gives that user this checkout and the spool root (cnf
 # @description      env.box.spool_root, group env.box.spool_root_group);
 # @description   4. writes box.env (box tag, agent user, fleet env + tenant)
-# @description      and dispatch/laptop-box.env (her hours, the agent cap, the
+# @description      and /etc/spl-laptop-box/laptop-box.env (her hours, the agent cap, the
 # @description      fleet box her agents move to at the end of her hours);
 # @description   5. installs her controls, root-owned (spl-laptop-box: status,
 # @description      stop, off, start, continue, remove), the 5-min check

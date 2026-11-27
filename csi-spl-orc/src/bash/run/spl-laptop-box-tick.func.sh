@@ -3,7 +3,7 @@
 # @description One check of the laptop box (SPL-6680, spec 037 "Laptop box"),
 # @description run every 5 min as the agents' user by the system timer
 # @description spl-laptop-box-tick.timer that do_spl_laptop_box_install sets.
-# @description It reads her hours and the cap (dispatch/laptop-box.env) and
+# @description It reads her hours and the cap (/etc/spl-laptop-box/laptop-box.env) and
 # @description the markers her controls write (spl-laptop-box, the state dir
 # @description dispatch/laptop-box), then does ONE of:
 # @description   in her hours, not off, not stopped today: the box takes agents
@@ -134,31 +134,39 @@ spl_laptop_tick_lanes() {
 # spl_laptop_ask_spool <spool args>: `spool` as this box's desk, in hub mode
 # (spl_desk_spool: the desk's keys, box id, tenant and the hub URL of the
 # fleet env in box.env), as every desk-backed action calls it; a bare `spool`
-# under the tick's SPOOL_ROOT has no hub and fails. The binary: the one
-# install.sh put on PATH. LAPTOP_SPOOL_CMD (tests) replaces all of it.
+# under the tick's SPOOL_ROOT has no hub and fails. The hub is read from the
+# rendered cnf with python3 (spl_laptop_cnf_get), not do_spl_desk_cnf: that
+# needs yq and warns on the private overlay a laptop never has (W2a/W2b, R7
+# a-664 on 95e719e0f). The binary: the one install.sh put on PATH or in its
+# tools/bin. LAPTOP_SPOOL_CMD (tests) replaces all of it.
 spl_laptop_ask_spool() {
   if [[ -n "${LAPTOP_SPOOL_CMD:-}" ]]; then "$LAPTOP_SPOOL_CMD" "$@"; return; fi
-  local be="${SPOOL_ROOT:-/var/spool-hub}/box.env" env ten box d SPL_SPOOL
+  local be="${SPOOL_ROOT:-/var/spool-hub}/box.env" env ten box d fq SPL_SPOOL
   env="$(spl_laptop_env_get "$be" SPOOL_FLEET_ENV)"; ten="$(spl_laptop_env_get "$be" SPOOL_FLEET_TENANT)"
   box="$(spl_laptop_env_get "$be" SPOOL_DESK_BOX)"
   [[ -n "$env" && -n "$ten" && -n "$box" ]] || { echo "no SPOOL_FLEET_ENV / SPOOL_FLEET_TENANT / SPOOL_DESK_BOX in $be: no hub desk" >&2; return 1; }
-  ENV="$env" TENANT_ID="$ten" do_spl_desk_cnf >&2 || return 1
+  fq="$(spl_laptop_cnf_get "${PROJ_PATH:?PROJ_PATH unset}/.." "$env" env.dns.api_fqdn)"
+  [[ -n "$fq" ]] || { echo "no env.dns.api_fqdn in the rendered cnf of $env: no hub" >&2; return 1; }
   d="$(ENV="$env" spl_desk_dir "$ten" "$box" "$env")" && [[ -d "$d/spool" ]] || { echo "no desk $box of $ten seated on this box (do_spl_desk_up)" >&2; return 1; }
   # shellcheck disable=SC2034  # read by spl_desk_spool (bash dynamic scope)
-  SPL_SPOOL="$(command -v spool || echo "$HOME/.local/bin/spool")"
-  spl_desk_spool "$d" "$box" "$ten" "$SPL_HUB_URL" -- "$@"
+  SPL_SPOOL="$(command -v spool || echo "$HOME/.local/share/spool-agent/tools/bin/spool")"
+  spl_desk_spool "$d" "$box" "$ten" "https://$fq" -- "$@"
 }
 
 # spl_laptop_ask_wui_post <state dir> <env file>: post the form, keep its ids.
 spl_laptop_ask_wui_post() {
-  local d="$1" envf="$2" ch from hum out mid tid body
+  local d="$1" envf="$2" ch from hum out err mid tid body
   ch="$(spl_laptop_env_get "$envf" LAPTOP_ASK_CHANNEL)"; from="$(spl_laptop_env_get "$envf" LAPTOP_ASK_FROM)"
   hum="$(spl_laptop_env_get "$envf" LAPTOP_ASK_HUM)"
   [[ -n "$ch" && -n "$from" && "$hum" =~ ^HUM-[0-9]+$ ]] || { do_log "WARN LAPTOP_ASK=wui needs LAPTOP_ASK_CHANNEL, LAPTOP_ASK_FROM and LAPTOP_ASK_HUM in $envf: not asked; the lanes move after the wait"; return 1; }
   body="@$hum $(cat "$d/ask-pending")"$'\n\n```poll\nKeep the fleet agents on your laptop?\n(CON) Continue 1 h\n(STP) Stop\n```'
-  out="$(spl_laptop_ask_spool send --channel "$ch" --from "$from" --kind question --body "$body" 2>&1)" || { do_log "WARN the WUI question was not posted: $out"; return 1; }
+  # stdout is the JSON parsed below; stderr (warnings) is kept apart (W2b)
+  err="$(mktemp)" || return 1
+  out="$(spl_laptop_ask_spool send --channel "$ch" --from "$from" --kind question --body "$body" 2>"$err")" ||
+    { do_log "WARN the WUI question was not posted: $(cat "$err") $out"; rm -f "$err"; return 1; }
   mid="$(jq -r '.msg_id // empty' <<<"$out" 2>/dev/null)"; tid="$(jq -r '.task_id // empty' <<<"$out" 2>/dev/null)"
-  [[ -n "$mid" && -n "$tid" ]] || { do_log "WARN the WUI question's ids are not in the send answer: $out"; return 1; }
+  [[ -n "$mid" && -n "$tid" ]] || { do_log "WARN the WUI question's ids are not in the send answer: $out $(cat "$err")"; rm -f "$err"; return 1; }
+  rm -f "$err"
   printf '%s %s %s\n' "$mid" "$tid" "$hum" >"$d/ask-wui"
 }
 

@@ -87,7 +87,7 @@ grep -q "TICK out" <<<"$o1" && grep -q "takes lanes" "$T/o" && pass "8 off, then
 reset; NOW=$FRI18 ctl continue >/dev/null; lanes c-101; tick $((FRI18 + 60))
 grep -q "she continues" "$T/o" && pass "8 continue from the command line" || fail "8 continue: $(cat "$T/o")"
 s="$(ctl status)"; grep -q "hours:  Mon-Fri 09:00-17:00" <<<"$s" && grep -q "agents: 1 running" <<<"$s" && pass "8 status" || fail "8 status: $s"
-printf '#!/usr/bin/env bash\ncase "$2" in agt-u) echo 1001 ;; mem) echo 1000 ;; sys-u) echo 115 ;; *) exit 1 ;; esac\n' >"$T/stub/id"; chmod +x "$T/stub/id"; export LAPTOP_ID="$T/stub/id"
+printf '#!/usr/bin/env bash\ncase "$2" in agt-u) echo 1001 ;; mem) echo 1000 ;; sys-u) echo 115 ;; *) exit 1 ;; esac\n' >"$T/id-stub"; chmod +x "$T/id-stub"; export LAPTOP_ID="$T/id-stub"
 LAPTOP_EUID=1000 ctl remove >/dev/null 2>&1; r1=$?
 LAPTOP_EUID=0 ctl remove >/dev/null 2>&1; r2=$?
 : >"$D/lanes"; LAPTOP_EUID=0 LAPTOP_ROOT_SH=echo ctl remove >"$T/rm.out" 2>&1; r3=$?
@@ -139,6 +139,24 @@ sed -i 's/^LAPTOP_ASK=dsk$/LAPTOP_ASK=wui/' "$EW"; printf '%s\n' LAPTOP_ASK_CHAN
 SNIPPET=do_spl_laptop_box_tick in_orc SPOOL_ROOT="$SR" LAPTOP_NOW="$FRI18" LAPTOP_LANES_CMD="$T/stub/lanes" \
   LAPTOP_JOIN_CMD="$T/stub/join" LAPTOP_HANDOVER_CMD="$T/stub/handover" LAPTOP_SPOOL_CMD= >"$T/o" 2>&1
 grep -q "asked her (wui NOT posted)" "$T/o" && grep -q "no hub desk" "$T/o" && pass "11b wui without the stub: the desk path, its refusal named" || fail "11b desk path: $(cat "$T/o")"
+# 11c (N7, W2a/W2b of R7 a-664 on 95e719e0f): the real desk path to the end,
+# no LAPTOP_SPOOL_CMD: box.env with the fleet env, a seated desk dir, `spool`
+# on PATH that warns on stderr before its JSON (as do_spl_desk_cnf warned of
+# the private overlay a laptop never has), and a yq that is not there
+printf '%s\n' SPOOL_FLEET_ENV=dev SPOOL_FLEET_TENANT=tws SPOOL_DESK_BOX=lap-a >"$SR/box.env"
+mkdir -p "$T/state/dev/desk/tws/lap-a/spool"
+printf '#!/usr/bin/env bash\necho "yq: command not found" >&2; exit 127\n' >"$T/stub/yq"
+printf '#!/usr/bin/env bash\necho "$SPOOL_HUB_URL $SPOOL_ROOT $SPOOL_TENANT $SPOOL_BOX_ID $1" >>"%s/real-spool.log"\necho "WARN no private overlay" >&2\n[ "$1" = send ] && echo %s\nexit 0\n' \
+  "$T" "'{\"delivery\":\"hub\",\"msg_id\":\"m-r1\",\"task_id\":\"t-r1\"}'" >"$T/stub/spool"
+chmod +x "$T/stub/yq" "$T/stub/spool"
+fq="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["env"]["dns"]["api_fqdn"])' "$PROJ_ROOT/../csi-spl-cnf/csi-spl/dev.env.json")"
+sed -i 's/^LAPTOP_ASK=dsk$/LAPTOP_ASK=wui/' "$EW"; printf '%s\n' LAPTOP_ASK_CHANNEL=lap-ch LAPTOP_ASK_FROM=c-200 LAPTOP_ASK_HUM=HUM-24 >>"$EW"; reset; lanes c-101
+SNIPPET=do_spl_laptop_box_tick in_orc IN_ORC_RUN="spl-laptop-box-tick spl-desk-up" SPOOL_ROOT="$SR" SPOOL_BOX_ENV="$SR/box.env" LAPTOP_NOW="$FRI18" LAPTOP_LANES_CMD="$T/stub/lanes" \
+  LAPTOP_JOIN_CMD="$T/stub/join" LAPTOP_HANDOVER_CMD="$T/stub/handover" LAPTOP_SPOOL_CMD= >"$T/o" 2>&1
+if grep -q "asked her (wui)" "$T/o" && [[ "$(cat "$D/ask-wui" 2>/dev/null)" == "m-r1 t-r1 HUM-24" ]] \
+  && grep -qx "https://$fq $T/state/dev/desk/tws/lap-a/spool tws lap-a send" "$T/real-spool.log"; then
+  pass "11c real desk path: no yq, a stderr warning -> posted, ids kept, the cnf's hub"
+else fail "11c real desk path: $(cat "$T/o") / $(cat "$T/real-spool.log" 2>/dev/null)"; fi
 cp "$T/env.dsk" "$EW"
 
 echo "=== spl-laptop-box-tick: $fails failure(s) ==="

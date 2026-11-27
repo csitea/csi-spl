@@ -142,11 +142,11 @@ Decided on the plan's form (cc2a02da, answers f0757e6f, 878ec53f, 85225ba1,
 
 | # | question | answer |
 |---|---|---|
-| 1 | agent logins on the laptop | the laptop pulls sat's Claude login over ssh, read-only (it is behind her home network: sat cannot push) |
+| 1 | agent logins on the laptop | the laptop pulls the move box's Claude login over ssh, read-only (it is behind her home network: the move box cannot push) |
 | 2 | working hours | she sets them in the install one-liner (`--hours "Mon-Fri 09:00-17:00"`) |
 | 3 | agents at once | 4, until measured |
 | 4 | which lanes | any lane the placer picks, inside her hours |
-| 5 | end of her hours | she is asked whether to continue; no answer in 15 min, or Stop: the lanes move to sat (`do_spl_lane_handover`). How she is asked is one switch: a desktop pop-up or a WUI form (the two readers answered differently) |
+| 5 | end of her hours | she is asked whether to continue; no answer in 15 min, or Stop: the lanes move to the move box, `LAPTOP_MOVE_BOX` (`do_spl_lane_handover`). How she is asked is one switch: a desktop pop-up or a WUI form (the two readers answered differently) |
 | 6 | secrets on the laptop | open |
 | 7 | she has root, so she can read the fleet login stored there | accepted (GO) |
 
@@ -163,7 +163,7 @@ Rules:
 
 | path | role |
 |---|---|
-| `csi-spl-orc/src/bash/run/spl-laptop-box-install.func.sh` | `do_spl_laptop_box_install`: packages, the agents' user, the spool root, box.env + `dispatch/laptop-box.env` (hours, cap), then `install.sh --cli claude --fleet` as that user |
+| `csi-spl-orc/src/bash/run/spl-laptop-box-install.func.sh` | `do_spl_laptop_box_install`: packages, the agents' user, the spool root, box.env + `/etc/spl-laptop-box/laptop-box.env` (root's: hours, cap), then `install.sh --cli claude --fleet` as that user |
 | `csi-spl-orc/lib/bash/funcs/spl-laptop-box.func.sh` | the hours window, the tag check, the cnf read (python3: no yq yet), the root plan, the token prompt |
 | `csi-spl-orc/src/bash/tests/spl-laptop-box-install.tst.sh` | its suite (stubs only: no apt, user, sudo or hub) |
 | `csi-spl-orc/src/bash/run/spl-laptop-box-tick.func.sh` | `do_spl_laptop_box_tick`, every 5 min as the agents' user (`spl-laptop-box-tick.timer`): in her hours the box takes lanes up to the cap; outside them (or off / stopped) no new lanes, and with lanes still running it asks her, waits for Continue (1 h) or moves every lane to `MOVE_BOX` (`do_spl_lane_handover`) on Stop or after 15 min unanswered |

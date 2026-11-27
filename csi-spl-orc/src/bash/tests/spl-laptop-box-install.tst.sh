@@ -91,7 +91,7 @@ if [[ $rc -eq 0 && ! -s "$T/root.log" && ! -s "$T/inst.log" ]] \
   && grep -q "systemctl enable --now spl-laptop-box-tick.timer" <<<"$o" \
   && grep -q "install -d -o 'agt-u' -g 'grp-x' -m 2770 '$T/spool'" <<<"$o" \
   && grep -qF ">'/etc/spl-laptop-box/laptop-box.env' && chown 'root:root' '/etc/spl-laptop-box/laptop-box.env' && chmod 0644" <<<"$o" \
-  && grep -qF ">'$T/spool/box.env' && chown 'root:grp-x'" <<<"$o" && ! grep -q "chmod 0664" <<<"$o" && grep -q "'UMask=0007'" <<<"$o" \
+  && grep -qF ">'$T/spool/box.env' && chown 'root:grp-x'" <<<"$o" && ! grep -q "chmod 0664" <<<"$o" && grep -q "'UMask=0007'" <<<"$o" && grep -qF '%h/.local/share/spool-agent/tools/bin:' <<<"$o" \
   && grep -q "apt-get update" <<<"$o" \
   && grep -q "hub https://hub.example.com" <<<"$o"; then pass "4 dry run: the plan, nothing run"
 else fail "4 dry run: rc=$rc"; echo "$o"; fi

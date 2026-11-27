@@ -589,6 +589,7 @@
       "hide": "Remove from list",
       "remove": "Remove",
       "properties": "Properties",
+      "move_to_workspace": "Move to workspace",
       "delete_channel": "Delete channel",
       "move_up": "Move up",
       "move_down": "Move down",

@@ -5,9 +5,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, rowMenuItems, saveHiddenPeers } from '../../src/utils/sidebar-row-menu.mjs'
+import { WORKSPACE_MOVE_BUILT, dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, rowMenuItems, saveHiddenPeers, workspaceMoveMenu } from '../../src/utils/sidebar-row-menu.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
+import { lazySpoolMethods } from '../../src/utils/spool-client-lazy.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -221,3 +222,56 @@ describe('channel rows', () => {
   })
 })
 
+
+/* spec 169 8.5.1, 8.5.2 (row T18, SPL-6684): Move to workspace sits in the
+   channel branch after Properties and before Archive channel, and shows only
+   once the hub's probe (GET /v1/channels/{channel}/workspace-move, T14)
+   answered allowed. Until T19's dialog lands, WORKSPACE_MOVE_BUILT keeps it
+   (and its probe) off. */
+describe('Move to workspace (spec 169 T18)', () => {
+  const ids = (opts) => rowMenuItems(false, { channel: true, properties: true, archivable: true, deletable: true, ...opts }).map((i) => i.id)
+
+  it('sits after Properties and before Archive channel, only when offered', () => {
+    assert.deepEqual(ids({ workspaceMove: true }), ['open', 'copy', 'mute', 'properties', 'move-workspace', 'archive-channel', 'delete'])
+    assert.equal(ids({}).includes('move-workspace'), false)
+    assert.equal(rowMenuItems(false, { person: true, workspaceMove: true }).some((i) => i.id === 'move-workspace'), false)
+    const item = rowMenuItems(false, { channel: true, workspaceMove: true }).find((i) => i.id === 'move-workspace')
+    assert.deepEqual(item, { id: 'move-workspace', icon: 'move', labelKey: 'sidebar.row_menu.move_to_workspace' })
+  })
+
+  it('the probe offers it only on allowed: true; any other answer hides it', () => {
+    const ok = { allowed: true, targets: [{ slug: 'beta', name: 'Beta' }, { slug: '', name: 'x' }, null, { slug: 'gamma' }] }
+    assert.deepEqual(workspaceMoveMenu(ok, true), { allowed: true, targets: [{ slug: 'beta', name: 'Beta' }, { slug: 'gamma', name: 'gamma' }] })
+    for (const answer of [null, undefined, 'x', {}, { allowed: false, targets: [{ slug: 'beta', name: 'Beta' }] }, { allowed: 'true' }, { allowed: 1 }]) {
+      assert.deepEqual(workspaceMoveMenu(answer, true), { allowed: false, targets: [] })
+    }
+    assert.deepEqual(workspaceMoveMenu({ allowed: true }, true), { allowed: true, targets: [] })
+  })
+
+  it('stays off, probe included, until T19 builds the dialog', () => {
+    assert.equal(WORKSPACE_MOVE_BUILT, false)
+    assert.deepEqual(workspaceMoveMenu({ allowed: true, targets: [{ slug: 'beta', name: 'Beta' }] }), { allowed: false, targets: [] })
+    const menu = src('src/components/SidebarRowMenu.vue')
+    assert.match(menu, /if \(!WORKSPACE_MOVE_BUILT \|\| !channelId\.value \|\| isPublicChannel\(channelId\.value\)\) return/)
+    assert.match(menu, /workspaceMove: move\.value\.allowed/)
+    assert.match(menu, /emit\('moveWorkspace', move\.value\.targets\)/)
+  })
+
+  it('the probe is a lazy client GET on T14\'s route; the mock offers no move', async () => {
+    const calls = []
+    const ctx = { mock: false, live: async (path, opts) => { calls.push({ path, opts }); return { allowed: true, targets: [] } } }
+    assert.deepEqual(await lazySpoolMethods.channelWorkspaceMoveProbe(ctx, 'team a'), { allowed: true, targets: [] })
+    assert.deepEqual(calls, [{ path: '/v1/channels/team%20a/workspace-move', opts: undefined }])
+    assert.deepEqual(await lazySpoolMethods.channelWorkspaceMoveProbe({ mock: true }, 'design'), { allowed: false, targets: [] })
+    assert.ok(src('src/utils/spool-client.mjs').includes("'channelWorkspaceMoveProbe',"))
+  })
+
+  it('the probe runs when the channel menu opens, never at page load, and ChannelSidebar handles the item', () => {
+    const menu = src('src/components/SidebarRowMenu.vue')
+    assert.match(menu, /watch\(\(\) => props\.open, \(v\) => \{ if \(v\) probeMove\(\) \}\)/)
+    assert.match(menu, /channelWorkspaceMoveProbe\(channelId\.value\)/)
+    assert.equal(/onMounted\([^)]*probeMove/.test(menu), false)
+    const vue = channelSidebarSrc()
+    assert.match(vue, /@move-workspace="askMoveChannel\(c\.channel_id, \$event\)"/)
+  })
+})

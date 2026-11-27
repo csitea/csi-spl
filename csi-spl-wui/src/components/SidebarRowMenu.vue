@@ -12,7 +12,12 @@
      before it places and focuses, so the panel is there by then.
      Spec 155 B8 (SPL-4578): a channel row adds Add to note right after Copy
      link while the person's notes are on; it opens the note picker with that
-     channel (its route id, labelled by its name). -->
+     channel (its route id, labelled by its name).
+     Spec 169 8.5.1, 8.5.2 (row T18, SPL-6684): a channel row adds Move to
+     workspace after Properties, only once the hub's probe, sent when the menu
+     opens, answered allowed (the operator workspace's biz owner); it emits
+     moveWorkspace with the probe's targets for T19's dialog. Off until that
+     dialog lands (WORKSPACE_MOVE_BUILT). -->
 <template>
   <div
     ref="root"
@@ -70,7 +75,9 @@
 
 <script setup lang="ts">
 import { writeClipboard } from '~/utils/clipboard.mjs'
-import { rowMenuItems } from '~/utils/sidebar-row-menu.mjs'
+import { WORKSPACE_MOVE_BUILT, rowMenuItems, workspaceMoveMenu } from '~/utils/sidebar-row-menu.mjs'
+import { isPublicChannel } from '~/utils/spool-client.mjs'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { nextMenuIndex } from '~/utils/user-menu'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
@@ -112,6 +119,7 @@ const emit = defineEmits<{
   properties: []
   delete: []
   archiveChannel: []
+  moveWorkspace: [targets: { slug: string, name: string }[]]
   moveUp: []
   moveDown: []
 }>()
@@ -127,6 +135,9 @@ useMobileStack().overlay(() => props.open, () => emit('close'))
 
 const panelId = computed(() => 'sidebar-row-menu-' + props.menuId.replace(/[^A-Za-z0-9_-]/g, '-'))
 const buttonLabel = computed(() => (props.open ? t('common.close') : t('sidebar.row_menu.label', { name: props.name })))
+/* spec 169 8.5.2: the probe's answer; hidden until it said allowed */
+const move = ref(workspaceMoveMenu(null))
+let moveSeq = 0
 const baseItems = computed(() => rowMenuItems(!!props.unread, {
   person: props.person,
   admin: props.admin,
@@ -139,6 +150,7 @@ const baseItems = computed(() => rowMenuItems(!!props.unread, {
   archivable: props.archivable,
   moveUp: props.moveUp,
   moveDown: props.moveDown,
+  workspaceMove: move.value.allowed,
 }))
 type RowItem = { id: string, icon: UiIconName, labelKey: string, groupKey?: string }
 /* spec 155 B8: the row's channel id is its menu id after 'ch:' (ChannelSidebar) */
@@ -152,6 +164,20 @@ const items = computed<RowItem[]>(() => {
   return list
 })
 watch(() => props.open, (v) => { if (v && channelId.value) note.probe() })
+/* spec 169 8.5.2: asked when the menu opens, never at page load; a default
+   channel never moves (the hub answers 400), so it is not asked */
+async function probeMove() {
+  if (!WORKSPACE_MOVE_BUILT || !channelId.value || isPublicChannel(channelId.value)) return
+  const seq = ++moveSeq
+  let answer: unknown = null
+  try {
+    answer = await useSpoolApi().channelWorkspaceMoveProbe(channelId.value)
+  } catch {
+    answer = null
+  }
+  if (seq === moveSeq) move.value = workspaceMoveMenu(answer)
+}
+watch(() => props.open, (v) => { if (v) probeMove() })
 
 function itemEls(): HTMLElement[] {
   const host = panel.value || root.value
@@ -263,6 +289,8 @@ function choose(id: string) {
     emit('delete')
   } else if (id === 'archive-channel') {
     emit('archiveChannel')
+  } else if (id === 'move-workspace') {
+    emit('moveWorkspace', move.value.targets)
   } else if (id === 'move-up') {
     emit('moveUp')
   } else if (id === 'move-down') {

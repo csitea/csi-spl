@@ -2699,6 +2699,7 @@ export const lazySpoolMethods = {
   listPins,
   getChannelBoxPins,
   setChannelBoxPins,
+  channelWorkspaceMoveProbe,
 }
 
 /* spec 164 row B6 (SPL-5560): a channel's box pins (hub routes of row B2).
@@ -2745,4 +2746,17 @@ async function setChannelBoxPins(ctx, channel, boxes) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+/**
+ * Spec 169 8.5.2 (row T18): GET /v1/channels/{ch}/workspace-move, the probe of
+ * the channel row's Move to workspace item (hub route of row T14). 200
+ * { allowed: true, targets: [{ slug, name }] } to the operator workspace's biz
+ * owner; 403 / 400 to anyone else and on a default channel. The mock offers
+ * no move.
+ */
+async function channelWorkspaceMoveProbe(ctx, channel) {
+  const { live, mock } = ctx
+  if (mock) return { allowed: false, targets: [] }
+  return live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/workspace-move`)
 }

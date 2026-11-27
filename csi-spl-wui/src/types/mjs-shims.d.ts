@@ -146,6 +146,8 @@ declare module '~/utils/spool-client.mjs' {
     listPins(uploadToken?: string): Promise<{ pins?: Array<{ box_id: string, pubkey?: string }> }>
     getChannelBoxPins(channel: string): Promise<{ channel?: string, box_pins?: string[], is_pinned?: boolean }>
     setChannelBoxPins(channel: string, boxes: string[]): Promise<{ channel?: string, box_pins?: string[], is_pinned?: boolean }>
+    /* spec 169 T18: the Move to workspace probe (hub route of T14) */
+    channelWorkspaceMoveProbe(channel: string): Promise<{ allowed?: boolean, targets?: Array<{ slug?: string, name?: string }> }>
     getPerfSummary(opts?: { days?: number, build?: string, buildB?: string }): Promise<unknown>
     /** HUM-10: GET /v1/tenant/box-stats (rdb 0117); mock: no history. */
     boxStats(opts?: { box?: string, since?: string }): Promise<unknown>

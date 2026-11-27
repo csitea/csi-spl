@@ -589,6 +589,7 @@
       "hide": "Eemalda loendist",
       "remove": "Eemalda",
       "properties": "Omadused",
+      "move_to_workspace": "Teisalda tööruumi",
       "delete_channel": "Kustuta kanal",
       "move_up": "Liiguta üles",
       "move_down": "Liiguta alla",

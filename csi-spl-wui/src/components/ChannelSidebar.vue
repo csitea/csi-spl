@@ -370,6 +370,7 @@
       @properties="openProperties(c.channel_id)"
       @delete="askDeleteChannel(c.channel_id)"
       @archive-channel="askArchiveChannel(c.channel_id)"
+      @move-workspace="askMoveChannel(c.channel_id, $event)"
       @move-up="stepChannel(c.channel_id, -1)"
       @move-down="stepChannel(c.channel_id, 1)"
     />
@@ -1039,6 +1040,15 @@ const { buildWatch, newerLive, versionText, versionLabel, buildCommit, vsOpen, r
 
 /* a channel row's mute, Properties, Delete and Archive (useSidebarChannelAdmin) */
 const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, showProperties, openProperties, deleteOpen, deleteTarget, deletableChannel, askDeleteChannel, archiveOpen, archiveTarget, askArchiveChannel, onChannelArchived, onChannelDeleted } = useSidebarChannelAdmin(api, live, shownChannels, channelOrder)
+
+/* spec 169 8.5.1 (row T18): Move to workspace, with the targets its probe
+   answered. T19 mounts its lazy dialog on workspaceMoveTarget; until then the item is
+   off (WORKSPACE_MOVE_BUILT), so this is never reached. */
+const workspaceMoveTarget = ref({ channel_id: '', name: '', targets: [] as { slug: string, name: string }[] })
+function askMoveChannel(id: string, targets: { slug: string, name: string }[]) {
+  const row = shownChannels.value.find((c) => c.channel_id === id)
+  workspaceMoveTarget.value = { channel_id: id, name: String(row?.name || id), targets: [...targets] }
+}
 
 </script>
 

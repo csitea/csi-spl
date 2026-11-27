@@ -11,9 +11,12 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
  * A Channels row (SPL-1034) offers Move up / Move down, each only when there
  * is a neighbour that way (not on the first / last row).
  *
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, archivable?: boolean, moveUp?: boolean, moveDown?: boolean }} [opts]
+ * A Channels row offers Move to workspace (spec 169 8.5.1) only when its
+ * probe said so (workspaceMoveMenu).
+ *
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, archivable?: boolean, moveUp?: boolean, moveDown?: boolean, workspaceMove?: boolean }} [opts]
  */
-/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'chevron-up' | 'chevron-down', labelKey: string }[]} */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'chevron-up' | 'chevron-down' | 'move', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -30,6 +33,8 @@ export function rowMenuItems(unread, opts = {}) {
     if (o.moveUp) items.push({ id: 'move-up', icon: 'chevron-up', labelKey: 'sidebar.row_menu.move_up' })
     if (o.moveDown) items.push({ id: 'move-down', icon: 'chevron-down', labelKey: 'sidebar.row_menu.move_down' })
     if (o.properties) items.push({ id: 'properties', icon: 'settings', labelKey: 'sidebar.row_menu.properties' })
+    /* spec 169 8.5.1: the operator workspace's biz owner only, as the hub's probe answered */
+    if (o.workspaceMove) items.push({ id: 'move-workspace', icon: 'move', labelKey: 'sidebar.row_menu.move_to_workspace' })
     /* rdb 0092: its creator only (canDeleteChannel); a confirm, then hide + reserve */
     if (o.archivable) items.push({ id: 'archive-channel', icon: 'archive', labelKey: 'sidebar.row_menu.archive_channel' })
     /* SPL-72: its creator only (canDeleteChannel); opens a confirm, never deletes at once */
@@ -55,6 +60,35 @@ export function rowMenuItems(unread, opts = {}) {
     if (o.admin) items.push({ id: 'remove', icon: 'trash', labelKey: 'sidebar.row_menu.remove' })
   }
   return items
+}
+
+/**
+ * Spec 169 8.5.1 (row T18): Move to workspace opens T19's dialog. Until that
+ * dialog lands the item, and its probe, stay off, so nothing half-built
+ * reaches a person; T19 turns this on.
+ */
+export const WORKSPACE_MOVE_BUILT = false
+
+/**
+ * Spec 169 8.5.2: the WUI cannot read the operator workspace's role, so the
+ * item shows only after the hub's probe (GET /v1/channels/{channel}/workspace-move,
+ * T14) answered `{ allowed: true, targets }`. Anything else - a refusal, a
+ * failed call, a malformed answer - hides it; the hub checks again on every
+ * route, so a hidden item is a convenience, not the gate.
+ *
+ * @param {unknown} answer the probe's body, or null when it failed
+ * @param {boolean} [built] WORKSPACE_MOVE_BUILT
+ * @returns {{ allowed: boolean, targets: { slug: string, name: string }[] }}
+ */
+export function workspaceMoveMenu(answer, built = WORKSPACE_MOVE_BUILT) {
+  const a = /** @type {{ allowed?: unknown, targets?: unknown }} */ (answer && typeof answer === 'object' ? answer : {})
+  if (!built || a.allowed !== true) return { allowed: false, targets: [] }
+  const targets = []
+  for (const t of Array.isArray(a.targets) ? a.targets : []) {
+    const slug = t && typeof t === 'object' ? String(t.slug || '') : ''
+    if (slug) targets.push({ slug, name: String(t.name || slug) })
+  }
+  return { allowed: true, targets }
 }
 
 /**

@@ -110,6 +110,9 @@ try {
   ok('6 412: every control in the header stack stays >= 44 px', m.small.length === 0, m.small)
   const x = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ok('7 412: no horizontal page scroll', x <= 0, x)
+  /* the bulk bar is a lazy component: its chunk can land after the card
+     boxes, so wait for its Clear before the tap (CI run 45997733391) */
+  await p.waitForSelector('[data-test=issues-bulk-clear]', { visible: true, timeout: 10000 })
   await p.click('[data-test=issues-bulk-clear]')
   await p.waitForFunction(() => !document.querySelector('[data-test=issues-bulk-bar]'), { timeout: 5000 })
 

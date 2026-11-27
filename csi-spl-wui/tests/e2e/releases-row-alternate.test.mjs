@@ -7,7 +7,9 @@
 //      than row 1, and it is the house --color-row-alt veil;
 //   S2 row 3 paints like row 1 (the shading alternates, it does not run on);
 //   S3 desktop: a hovered shaded row shows --color-surface-hover over the
-//      shading, and so does an opened one.
+//      shading, and so does an opened one (the first shaded row with notes:
+//      the mock leaves every 5th commit bare, so a fixed row 2 had no toggle at
+//      UTC hours 4, 9, 14 and 19, SPL-6703).
 // CONTROL: origin/master fea2cc504 (no alternate-row rule) fails S1 at every size
 // and theme (row 1 and row 2 paint the same background).
 //
@@ -66,12 +68,16 @@ async function page(browser, base, { width, height, touch }, theme) {
 
 /** The first three rows of the day with the most commits (the mock days
  *  count back from now, so just after 00:00 UTC the first day holds one),
- *  their painted backgrounds and the tokens, resolved the same way. */
+ *  their painted backgrounds and the tokens, resolved the same way. The
+ *  first shaded (even) row that has notes to open is tagged
+ *  data-alt-probe-open for S3. */
 function measure() {
   const days = [...document.querySelectorAll('[data-test=releases-day]')]
   const rowsOf = (d) => [...d.querySelectorAll('[data-test=releases-commit]')]
   const rows = days.map(rowsOf).sort((a, b) => b.length - a.length)[0] || []
   rows.slice(0, 3).forEach((r, i) => r.setAttribute('data-alt-probe', String(i + 1)))
+  const openIdx = rows.findIndex((r, i) => i % 2 === 1 && r.querySelector('[data-test=releases-commit-toggle]'))
+  if (openIdx >= 0) rows[openIdx].setAttribute('data-alt-probe-open', String(openIdx + 1))
   const resolve = (token) => {
     const probe = document.createElement('div')
     probe.style.background = `var(${token})`
@@ -86,17 +92,18 @@ function measure() {
     bgs: rows.slice(0, 3).map((r) => getComputedStyle(r).backgroundColor),
     rowAlt: resolve('--color-row-alt'),
     hover: resolve('--color-surface-hover'),
+    openRow: openIdx + 1,
   }
 }
 
-const bgOf = (p, i) => p.$eval(`[data-alt-probe="${i}"]`, (r) => getComputedStyle(r).backgroundColor)
-/** Row i's background once it reads `want`, or what it reads after 3 s: the
- *  row fades its background (transition 0.12s), so a read right after the
- *  hover or the click lands mid-fade. */
-const settledBg = async (p, i, want) => {
-  await p.waitForFunction((sel, w) => getComputedStyle(document.querySelector(sel)).backgroundColor === w,
-    { timeout: 3000 }, `[data-alt-probe="${i}"]`, want).catch(() => {})
-  return bgOf(p, i)
+const bgOf = (p, sel) => p.$eval(sel, (r) => getComputedStyle(r).backgroundColor)
+/** The row's background once it reads `want`, or what it reads after 3 s:
+ *  the row fades its background (transition 0.12s), so a read right after
+ *  the hover or the click lands mid-fade. */
+const settledBg = async (p, sel, want) => {
+  await p.waitForFunction((s, w) => getComputedStyle(document.querySelector(s)).backgroundColor === w,
+    { timeout: 3000 }, sel, want).catch(() => {})
+  return bgOf(p, sel)
 }
 
 const server = await startServer()
@@ -116,16 +123,17 @@ try {
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/releases-alternate-${size.width}-${theme}.png` })
       if (size.desktop && m.n >= 2) {
         await p.hover('[data-alt-probe="2"] [data-test=releases-commit-subject]')
-        const hovered = await settledBg(p, 2, m.hover)
+        const hovered = await settledBg(p, '[data-alt-probe="2"]', m.hover)
         ok(`S3 ${tag}: a hovered shaded row shows the hover fill`, hovered === m.hover && hovered !== m.rowAlt, [hovered, m.hover])
-        const toggle = await p.$('[data-alt-probe="2"] [data-test=releases-commit-toggle]')
+        const openSel = `[data-alt-probe-open="${m.openRow}"]`
+        const toggle = m.openRow ? await p.$(`${openSel} [data-test=releases-commit-toggle]`) : null
         if (toggle) {
           await toggle.click()
           await p.mouse.move(0, 0)
-          await p.waitForSelector('[data-alt-probe="2"] [data-test=releases-commit-notes]', { visible: true, timeout: 5000 })
-          const opened = await settledBg(p, 2, m.hover)
-          ok(`S3 ${tag}: an opened shaded row shows the open fill`, opened === m.hover, [opened, m.hover])
-        } else ok(`S3 ${tag}: shaded row 2 has notes to open`, false)
+          await p.waitForSelector(`${openSel} [data-test=releases-commit-notes]`, { visible: true, timeout: 5000 })
+          const opened = await settledBg(p, openSel, m.hover)
+          ok(`S3 ${tag}: an opened shaded row (row ${m.openRow}) shows the open fill`, opened === m.hover, [opened, m.hover])
+        } else ok(`S3 ${tag}: a shaded row has notes to open`, false)
       }
       await ctx.close()
     }

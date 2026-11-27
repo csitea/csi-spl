@@ -1480,10 +1480,12 @@ if (( n == $2 )); then echo "c-903@box-desk \$(date +%s)" >"\$d/lease"; fi
 cp "\$T/at-sleep.ran" "\$T/at-sleep.1"
 HOOK
 }
-# the pass stamped at poll 2, the CAS on poll 6, past ROTATE_PROMOTE_WAIT=4
-# (origin/master before the fix: FAIL FAIL HOLD + a PROMOTE ask at poll 4)
+# the pass stamped at poll 2, the CAS on poll 6, past ROTATE_PROMOTE_WAIT=5
+# (origin/master before the fix: FAIL FAIL HOLD + a PROMOTE ask at poll 5).
+# The 2 x 5 = 10 s cap leaves 4 s of margin over the CAS poll: on a loaded
+# runner each 1 s poll overruns (SPL-6691), and an 8 s cap left only 2 s.
 fleet_world; hold_fleet_at 2 6 0
-act DRY_RUN=0 ROTATE_PROMOTE_WAIT=4 ROTATE_RELEASE_WAIT=20 >"$T/o" 2>&1; rc=$?
+act DRY_RUN=0 ROTATE_PROMOTE_WAIT=5 ROTATE_RELEASE_WAIT=20 >"$T/o" 2>&1; rc=$?
 rm -f "$T/at-sleep.1"
 grep -q ' HOLD OK rotate.hold = c-902; the lease is c-903@box-desk' "$T/o" && ! grep -q 'FAIL FAIL HOLD' "$T/o" &&
   grep -q ' HOLD WAIT fleet pass slow ([0-9]*s)' "$T/o" && ! grep -q 'PROMOTE' "$T/run.log" 2>/dev/null && [[ ! -e "$T/hook-fail.log" ]] &&
@@ -1499,14 +1501,18 @@ rm -f "$T/at-sleep.1"
   pass "32. CONTROL: a full pass after the hold leaves the lease on the master: FAIL HOLD + ask before the cap" ||
   fail "32. control pass-over rc=$rc polls=$(cat "$T/hold.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
 # CONTROL: passes stamped BEFORE the hold do not count: the wait runs to the
-# 2 x ROTATE_PROMOTE_WAIT cap, then FAIL HOLD + ask
+# 2 x ROTATE_PROMOTE_WAIT cap, then FAIL HOLD + ask. "Ran to the cap" is read
+# from the FAIL line's "in <n>s" (ROTATE_HOLD_WAITED, HOLD's own $SECONDS),
+# never from the poll count: on a loaded runner each 1 s poll overruns, so
+# the 8 s cap ends after 7 polls (SPL-6691: CI run 46028960915, polls=7, "in 8s").
 fleet_world; hold_fleet_at 1 0 3 -9
 act DRY_RUN=0 ROTATE_PROMOTE_WAIT=4 >"$T/o" 2>&1; rc=$?
 rm -f "$T/at-sleep.1"
-[[ $rc -ne 0 && "$(cat "$T/hold.n")" -ge 8 ]] && grep -q ' FAIL FAIL HOLD: the lease did not move to c-903 in [0-9]*s' "$T/o" &&
+waited=$(sed -n 's/.* FAIL FAIL HOLD: the lease did not move to c-903 in \([0-9][0-9]*\)s .*/\1/p' "$T/o"); waited="${waited%%$'\n'*}"
+[[ $rc -ne 0 && "${waited:-0}" -ge 8 ]] &&
   grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master PROMOTE' "$T/run.log" &&
   pass "32. CONTROL: pass stamps older than the hold: the wait runs to the 2x cap, FAIL HOLD + ask" ||
-  fail "32. control stale stamps rc=$rc polls=$(cat "$T/hold.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+  fail "32. control stale stamps rc=$rc waited=${waited:-none}s (cap 8s) polls=$(cat "$T/hold.n" 2>/dev/null) $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
 # item 2: the CAS lands the moment the hold is removed (a pass in flight, as
 # at 08:49:45): the lease is read again, the FAIL line and the alert do not
 # say "c-902 keeps acting". The fixture rm (BASH_ENV) moves the lease to F

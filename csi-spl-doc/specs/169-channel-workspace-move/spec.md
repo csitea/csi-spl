@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.36 (2026-11-27). Status: **Draft** (part built: section 8.4's hub
+Version: v0.37 (2026-11-28). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -152,6 +152,10 @@ v0.35 ticks row T13 (SPL-5845): the second dev run, after T13b and T13c, passed.
 P4 4.46 s, P7 8.53 s ([dev-rehearsal.md](dev-rehearsal.md) section 8). Row R3 adds it.
 v0.36 builds row T17 (SPL-6682): the stored refusal, `GET /v1/channel-moves/{move_id}`, the
 status line and the `#alerts` line (8.5.6, "Built (T17)").
+v0.37 builds row T16 (SPL-6729): the box's pick-up `do_spl_channel_move_pickup`, the
+operator op `open`, and the shell's detail (`MOVE_DETAIL`, sent at plan, P1, P2 and P4).
+A P1 with no `detail.inputs` is not picked up (8.5.5 items 2 and 3, "Built (T16)"). No
+cron installs it yet.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -657,7 +661,9 @@ sends what it can read, T8c). An unknown field or a malformed value answers
 400 `bad_detail`. An absent value is the safe side: nobody kept, every invite
 deleted, every hours stop stands. P2 records the detail in its step, and P4
 refuses a detail that is not the one P2 checked. A mark's `detail` stays its own
-(the probes). The shell does not send this detail yet.
+(the probes). The shell sends it as `MOVE_DETAIL` at plan, P1, P2 and P4, with
+`MOVE_CALLER` as its `caller` when it names none (T16); P7 sends its own
+`retention_days`.
 
 ### 8.5 The "Move to workspace" menu entry
 
@@ -796,11 +802,28 @@ the click only records the GO and starts the journal, and a box does the rest:
    `detail = {}`: an operator re-run of P1 writes its own detail and the move goes on, but
    the pick-up finds no `inputs` for P2 and P4. T16 either writes the detail in
    `OpenChannelMove`'s transaction or re-runs P1 when `inputs` is missing.
+   Built (T16), neither: the dialog's detail lives only in that row, so a re-run of P1
+   has nothing to send but `{}`, which would apply none of the person's decisions. Op
+   `open` answers `inputs: null` for such a P1, and the pick-up does not run that move:
+   it logs a `WARN` that names the fix (the operator runs P1 again with
+   `MOVE_FROM=P1 MOVE_DETAIL=<json>`), and the move reads as waiting (8.5.6).
 3. A box action, `do_spl_channel_move_pickup`, from cron every 5 minutes on the box holding
    the orch lease (T16), reads the open journals through a new operator op, `open`, and runs
    `do_spl_channel_workspace_move` for each with the journal's GO, its detail and
    `MOVE_CALLER` = `<DST>`'s orchestrator seat. It sends the `detail` the shell does not send
    yet (8.4; the operator page's section 2.4 lists what waits on this).
+   Built (T16): `orc/run/spl-channel-move-pickup.func.sh`. It runs only when the orch
+   holder of `<spool root>/dispatch/lease.orch` is on this box, one pick-up at a time
+   (`pickup.lock` in the box journal dir). Op `open` (`api/hub/channel_move.go`, the
+   operator route; `store.OpenChannelMoves`) answers every journal whose `done_at` is
+   NULL, oldest first, at most 200, or one `dst`'s: `{dst, src, channel, move_id,
+   go_msg_id, steps, inputs, orchestrators}`, where `orchestrators` are the orch seats on
+   `<DST>`'s roster as `<agent>@<box>`. For each move with P1 done and its `inputs`, the
+   pick-up runs `MOVE_CMD=run` with the journal's GO, `MOVE_DETAIL` = the inputs, and
+   `MOVE_CALLER` = the inputs' `caller`, else the seat on this box, else the first listed;
+   `AGENT_ID` is the holder's id. A refused step is stored by the hub (T17) and the next
+   pick-up resumes at it. `DRY_RUN=1` (the default) prints the steps and changes
+   nothing. Not built: the cron line; until a row installs it the pick-up runs by hand.
 
 A named limit: P2b probes only the desks of the machine that runs the move, so a seat whose
 `<DST>` desk is on another box stops that move before P3, and it shows as stuck. Spec 167
@@ -937,7 +960,7 @@ Each row is one small task; files named are where it lands.
 | T13c | `KEPT_UNTIL` printed `not read: no date for hub logs` (T13), so Q3's last date never printed | built (SPL-5010): cnf `hub.log_bucket`; `_spl_cwm_retention_log_days` sends that bucket's days only after it reads a line of the hub's service back from it (dev read 2026-11-07: two sinks, `_Default` 30 days, the hub's `requests` and `stderr` lines there; prd not read), else `not read: <why>`; case 13 of `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T14 | Hub: the probe and the plan for a member session (8.5.2, 8.5.3, 8.5.4): owner test, the person's targets, the plan with the orchestrator seat and the quota added as `.blocked`. Reads only. Tests C29, C30, C31 | built (SPL-5371): `api/hub/channel_move_browser.go` (`GET /v1/channels/{channel}/workspace-move` answers `{allowed, targets: [{slug, name}]}`, `POST .../workspace-move/plan` `{dst, keep, keep_emails, leave_hours}` answers the operator plan plus `.blocked`: `.refuse` then P2's two checks, `[]` when nothing stops it; a `dst` the person is not in answers 404 `unknown_tenant`, as an unknown one; under a quota a store that cannot count the files, Memory, puts the uncounted total in `.blocked`), registered by `routeChannelMembers`; `openapi.json`; tests `api/hub/channel_move_browser_test.go` (C31's file total on Postgres) |
 | T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | built (SPL-5846): `api/hub/channel_move_confirm.go` (`POST /v1/channels/{channel}/workspace-move`, the door and the body of T14's plan; 409 `move_blocked` / `move_open` and 501 write nothing; the form and the person's `Answer: GO` in a new `#lobby` topic of the operator workspace, then `channelMoveGo`, then P1 with that answer as the journal's GO; answers `{move_id, topic}`), `api/hub/channel_move_browser.go` (`channelMoveBrowserBlocked`, the plan route's `.blocked` shared with the confirm), `api/hub/channel_move_steps.go` (`p1` keeps `detail.inputs`), `openapi.json`; tests `api/hub/channel_move_confirm_test.go` (C32 on Postgres: the GO, the journal, P1's detail, the GO on the operator route and its replay for another dst refused, a second click; a blocked confirm writes nothing. C33: `step`, `mark` and `go_msg_id` in the body, the operator workspace's admin, the service account's token, the member session on the operator route, Memory's 501; W1: 24 clicks at once, W2: a P1 refusal deletes its GO, W3: a P1 failing after its journal row keeps its GO), `api/store/channel_move_journal_postgres.go` (`LockChannelMove`; `OpenChannelMove` reads and writes under the channel's transaction lock), `api/store/channel_move_journal_test.go` (16 P1s at once, ten rounds) |
-| T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2; a P1 done with no `detail.inputs` (8.5.5 item 2, R7 c-250 N4) is handled, not sent as `{}`. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
+| T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2; a P1 done with no `detail.inputs` (8.5.5 item 2, R7 c-250 N4) is handled, not sent as `{}`. Test C34 | built (SPL-6729): `orc/run/spl-channel-move-pickup.func.sh` (the lease check, the lock, one `MOVE_CMD=run` per open journal with its GO, `MOVE_DETAIL` and `MOVE_CALLER`; a P1 with no `inputs` is not run), `orc/run/spl-channel-workspace-move.func.sh` (`MOVE_DETAIL` at plan, P1, P2 and P4, also P4: it refuses a detail P2 did not check), the op `open` in `api/hub/channel_move.go` over `api/store/channel_move_open_postgres.go`; tests `orc/tests/spl-channel-move-pickup.tst.sh` (C34's shell half), `api/hub/channel_move_open_test.go` (C34's hub half on Postgres: the GO, P1's inputs, the orchestrator seats, `inputs: null`, a done journal not listed). No cron line yet |
 | T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | built (SPL-6682): `api/hub/channel_move_status.go` (the route, the state, the line and the alert; `SweepChannelMoves` on the retention sweep), `api/hub/channel_move_steps.go` (`channelMoveRecord` before every operator answer; P7 keeps `.kept`), `api/store/channel_move_journal*.go` (`ChannelMoveStatuses`), `openapi.json`; tests `api/hub/channel_move_status_test.go` (C35 hub half on Postgres: who reads, the wait's line and alert once, a refused P2 stored and posted once; each later row of the table from a seeded journal), `api/store/channel_move_journal_status_test.go` (C35 store half) |
 | T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | built (SPL-6684), off until T19: `src/utils/sidebar-row-menu.mjs` (`rowMenuItems` puts `move-workspace` after `properties` and before `archive-channel` when `workspaceMove`; `workspaceMoveMenu` offers it only on the probe's `allowed: true`, any other answer or a failed call hides it; `WORKSPACE_MOVE_BUILT = false` keeps the item and its probe off, T19 turns it on with its dialog), `src/components/SidebarRowMenu.vue` (the probe when a channel's menu opens, never at page load, not on a default channel; emits `moveWorkspace` with the targets), `ChannelSidebar.vue` (`askMoveChannel` sets `workspaceMoveTarget` for T19's lazy dialog), `src/utils/spool-client-lazy.mjs` (`channelWorkspaceMoveProbe`, `GET /v1/channels/{channel}/workspace-move`; the mock offers no move), key `sidebar.row_menu.move_to_workspace` in every locale (`do_spl_lang_review_gct`); test `tests/unit/sidebar-row-menu.test.mjs` |
 | T19 | WUI: the dialog's three screens and the stuck table (8.5.4, 8.5.6), lazy, proven in Chrome on phone and desktop. Test C35's browser half | `src/components/ChannelWorkspaceMoveDialog.vue`, `tests/e2e/channel-workspace-move.test.mjs`, `i18n/locales/*`, a help page |

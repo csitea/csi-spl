@@ -21,8 +21,9 @@ whole channel from one workspace into another.
 >
 > - **The menu entry:** there is none yet; this action is the only door (spec section 8.5).
 > - **Copy:** every `op` of a copy answers 501 `not_built` (T11).
-> - **The owner's exceptions:** the hub reads them from a step's `detail` (T7d), but this action does
->   not send them (section 2.4).
+> - **The owner's exceptions:** the hub reads them from a step's `detail` (T7d); this action
+>   sends them as `MOVE_DETAIL` (T16, section 2.4), and the pick-up sends what the person's
+>   confirm stored (section 3.8).
 > - **The last date:** `KEPT_UNTIL` always prints `not read: no date for hub logs` (row T13c).
 >
 Every part below that waits says **[pending <row>]**, or says no row owns it.
@@ -201,19 +202,19 @@ the members, the mentions and the kept list.
 
 - **Hours rows:** adding the member to `<DST>` clears the Q5 line and the rows
   move. Reopening the time sheet clears the Q8 line. Each line clears on its own.
-- **Leaving hours rows in `<SRC>`:** the hub reads the owner's "leave them" from
-  the `leave_hours` of a plan's or a step's `detail` (spec row T7d): the rows
-  become a kept item and the stop clears. The shell does not send that detail
-  yet, so from this action the stop stands **[pending: no row owns the shell
-  half yet]**.
-- **Channel invites:** the hub moves the invites named in `keep_emails` (T7d)
-  and P4 deletes the others. The shell sends none yet, so P4 deletes every invite
-  of the channel; invite the people to `<DST>` afterwards **[pending: no row owns
-  the shell half yet]**.
+- **The detail:** the owner's decisions below ride as `MOVE_DETAIL`, one JSON
+  object `{keep, keep_emails, leave_hours, rule_doc, caller}` (spec row T7d),
+  sent with the plan, P1, P2 and P4 (T16). P4 refuses a detail that is not the
+  one P2 checked, so a re-run carries the same `MOVE_DETAIL`. Without it the
+  detail is the safe side: nobody kept, every invite deleted, every stop stands.
+- **Leaving hours rows in `<SRC>`:** `leave_hours` (HUM ids) in `MOVE_DETAIL`:
+  their rows become a kept item and their hours stops clear.
+- **Channel invites:** the hub moves the invites named in `keep_emails` and P4
+  deletes the others; without it P4 deletes every invite of the channel.
 - **The doc of the box rule row:** the hub's plan puts the `rule_doc` of the
-  detail in the set (T7d). The shell does not send column 3 of the rule row yet,
-  so a Qto doc reached only through it stays in `<SRC>` **[pending: no row owns
-  the shell half yet]**.
+  detail in the set. The action does not read column 3 of the rule row into it
+  by itself: name it in `MOVE_DETAIL`, or a Qto doc reached only through it stays
+  in `<SRC>`.
 - **The name:** a channel named `<CHANNEL>` that already exists in `<DST>`,
   archived or not, blocks the run. `TO_NAME=<new id>` makes the plan check that
   name instead, but a step carrying it is refused with 501 `not_built`, so a move
@@ -251,11 +252,10 @@ Run it on the machine that holds the desks of the channel's seats: P2b
 probes only the desks on the machine that runs the move, and a seat whose
 `<DST>` desk is elsewhere fails its probe, which stops the move before P3.
 
-P2 checks `MOVE_CALLER`'s seat on `<DST>`'s roster when the step's `detail`
-carries it as `caller` (spec row T7d), but the shell does not send it yet: P2
-then only checks that `<DST>`'s roster has an agent with the orchestrator
-number, so naming the right seat is yours **[pending: no row owns the shell
-half yet]**.
+P2 checks `MOVE_CALLER`'s seat on `<DST>`'s roster: the action sends it as the
+detail's `caller` (T16) when `MOVE_DETAIL` names none. A `MOVE_DETAIL` whose
+`caller` is not `MOVE_CALLER` is refused before any call, because P2 would check
+one seat and P2b probe to the other.
 
 ### 3.3 The owner's run of a copy
 
@@ -353,6 +353,33 @@ the redirect has expired, the refusal names no destination, or `<DST>` refuses w
 `reject` naming the msg id and the reason. An answer is never queued, so its caller
 gets the error instead. To recover one, send it again through the `<DST>` desk (same
 `--task`: the topic id did not change).
+
+### 3.8 The pick-up of a confirmed move
+
+A move confirmed in the web UI (spec 8.5.5) has its GO and P1 on the hub, and
+waits for a box: P2b and P5 run only on one. `do_spl_channel_move_pickup` (T16)
+reads every open journal through the operator op `open` and runs
+`MOVE_CMD=run` for each, as above, with the journal's GO, P1's stored detail as
+`MOVE_DETAIL` and `MOVE_CALLER` = the detail's `caller`, else the `<DST>`
+orchestrator seat on this box, else the first one the hub lists:
+
+```bash
+cd csi-spl-orc && ENV=<ENV> ./run -a do_spl_channel_move_pickup
+```
+
+That is a dry run: each move prints `would run P2 P2b ...` and nothing changes.
+`DRY_RUN=0` runs the moves. It does something only on the box of the orch lease
+(`<spool root>/dispatch/lease.orch`); elsewhere it prints who holds it and
+reads nothing. One pick-up runs at a time on a box.
+
+| line | what it means |
+|---|---|
+| `OK channel move pick-up: move <id> (<SRC>/<CHANNEL> -> <DST>), MOVE_CALLER <seat>, DRY_RUN=<n>` | the move runs now |
+| `WARN ... P1 kept no detail.inputs ...` | P1's second write failed (spec 8.5.5 item 2); the person's decisions are unknown, so the move is not run. Run P1 again with the detail: `MOVE_CMD=run MOVE_FROM=P1 MOVE_DETAIL=<json> MOVE_GO_MSG=<GO>` |
+| `WARN ... stopped (above) ...` | a step refused; the hub stores the reason (spec 8.5.6) and the next pick-up resumes at that step |
+| `OK ... P1 is not done ...` | the confirm has not finished P1: not this action's |
+
+No cron line runs it yet: until one is installed, run it by hand.
 
 ## 4. Read the kept list
 
@@ -544,6 +571,9 @@ kind `probe` (agent, msg id), `rule-row` (`<SRC>/<CHANNEL>`,
   [spec 169](../../specs/169-channel-workspace-move/spec.md).
 - The action (T9): `csi-spl-orc/src/bash/run/spl-channel-workspace-move.func.sh`,
   its test `csi-spl-orc/src/bash/tests/spl-channel-workspace-move.tst.sh`.
+- The pick-up (T16): `csi-spl-orc/src/bash/run/spl-channel-move-pickup.func.sh`,
+  its test `csi-spl-orc/src/bash/tests/spl-channel-move-pickup.tst.sh`; the hub's op
+  `open` in `channel_move.go` below.
 - The box steps (T10):
   `csi-spl-orc/src/bash/features/spawn-agents/scripts/channel-workspace-move-box.sh`,
   its test `csi-spl-orc/src/bash/features/spawn-agents/tests/test-channel-workspace-move-box.sh`.

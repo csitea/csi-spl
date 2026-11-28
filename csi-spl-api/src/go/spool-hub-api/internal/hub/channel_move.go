@@ -8,8 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/channelmove"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -22,7 +24,8 @@ import (
 //	POST /v1/operator/channel-moves {op, env, src, channel, dst, mode, to_name, move_id, go_msg_id, step, detail}
 //
 // The body is the seam of do_spl_channel_workspace_move, one request for each
-// op: plan (reads, changes nothing, C1), journal, step and mark (channel_move_steps.go).
+// op: plan (reads, changes nothing, C1), journal, step and mark (channel_move_steps.go),
+// and open (T16): every workspace's open journals, for the box's pick-up.
 //
 //   - Who: the env service account's Google ID token on the operator
 //     allow-list (operatorAuth), as handleOperatorChannelCreate.
@@ -129,6 +132,10 @@ func (s *Server) handleChannelMove(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {op, env, src, channel, dst, mode, to_name, move_id, go_msg_id, step, detail}")
 		return
 	}
+	if q.Op == "open" { // hub-wide: no <SRC>, no channel (T16)
+		s.channelMoveOpenAnswer(w, r, q)
+		return
+	}
 	if !s.channelMoveValid(w, r, &q) || !channelMoveReadInputs(w, &q) {
 		return
 	}
@@ -147,8 +154,82 @@ func (s *Server) handleChannelMove(w http.ResponseWriter, r *http.Request) {
 		}
 		s.channelMoveDrive(w, r, op, q)
 	default:
-		writeErr(w, http.StatusBadRequest, "bad_op", "op must be plan, journal, step or mark")
+		writeErr(w, http.StatusBadRequest, "bad_op", "op must be plan, journal, step, mark or open")
 	}
+}
+
+// channelMoveOpenMove is one row of open's .moves (spec 169 T16, 8.5.5 item 3):
+// what the pick-up runs do_spl_channel_workspace_move with. Inputs is P1's
+// detail.inputs, null when P1 has none (R7 c-250 N4); Orchestrators are the
+// orch seats on <DST>'s roster, <agent>@<box>, sorted: MOVE_CALLER's choice.
+type channelMoveOpenMove struct {
+	Dst           string            `json:"dst"`
+	Src           string            `json:"src"`
+	Channel       string            `json:"channel"`
+	MoveID        string            `json:"move_id"`
+	GoMsgID       string            `json:"go_msg_id"`
+	Steps         map[string]string `json:"steps"`
+	Inputs        json.RawMessage   `json:"inputs"`
+	Orchestrators []string          `json:"orchestrators"`
+}
+
+// channelMoveOpenAnswer is op open: the open journals, oldest first; dst, when
+// sent, narrows them to one <DST>. A done journal is never listed. It changes
+// nothing.
+func (s *Server) channelMoveOpenAnswer(w http.ResponseWriter, r *http.Request, q channelMoveRequest) {
+	st, ok := s.o.Store.(store.ChannelMoveOpens)
+	if !ok {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store has no channel move journal")
+		return
+	}
+	dst := strings.ToLower(strings.TrimSpace(q.Dst))
+	if dst != "" && !msg.ValidTenantID(dst) {
+		writeErr(w, http.StatusBadRequest, "bad_tenant", "dst must be a workspace slug, or empty for every workspace")
+		return
+	}
+	rows, err := st.OpenChannelMoves(r.Context(), dst)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "the open journals were not read")
+		return
+	}
+	out := make([]channelMoveOpenMove, 0, len(rows))
+	seats := map[string][]string{}
+	for _, row := range rows {
+		orch, seen := seats[row.Dst]
+		if !seen {
+			if orch, err = s.channelMoveOrchSeats(r.Context(), row.Dst); err != nil {
+				writeErr(w, http.StatusInternalServerError, "internal", "the roster of a target was not read")
+				return
+			}
+			seats[row.Dst] = orch
+		}
+		inputs := row.Inputs
+		if len(inputs) == 0 {
+			inputs = json.RawMessage("null")
+		}
+		out = append(out, channelMoveOpenMove{Dst: row.Dst, Src: row.Src, Channel: row.Channel, MoveID: row.MoveID,
+			GoMsgID: row.GoMsgID, Steps: row.Steps, Inputs: inputs, Orchestrators: orch})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"moves": out})
+}
+
+// channelMoveOrchSeats are the agents with the orch role's number on dst's
+// roster, as <agent>@<box>, sorted; the seats P2 accepts as the caller.
+func (s *Server) channelMoveOrchSeats(ctx context.Context, dst string) ([]string, error) {
+	roster, err := s.o.Store.Roster(ctx, dst)
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for box, agents := range roster {
+		for _, a := range agents {
+			if agentid.IsAgent(a) && slices.Contains(roleNumbers["orch"], agentid.Number(a)) {
+				out = append(out, a+"@"+box)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out, nil
 }
 
 // channelMoveValid checks both workspaces and the channel; it writes the error.

@@ -20,14 +20,16 @@
 #   6. _ppe_ci_base: the newest run whose every wui: job was green; a run
 #      with a red or skipped wui job is passed over; none -> empty
 #   7. the wiring in wf 10: classify outputs wui_base from _ppe_ci_base on a
-#      push and express_base on a dispatch that carries one; wui-e2e-plan
+#      push and express_base, only a 40-hex sha, on a dispatch that carries
+#      one; wui-e2e-plan
 #      plans only on those two (never schedule, never a bare dispatch), is
 #      continue-on-error and
 #      writes a plan only when all three lines are there; wui-e2e takes its
 #      matrix, E2E_SHARD, file list and name from the plan with the 8-shard
 #      default, and a mapped job is named "wui: mapped browser e2e"
 #   CONTROLS: a wf 10 whose matrix is the literal 1..8, one whose plan runs
-#      on every event, one that plans a dispatch without express_base, and
+#      on every event, one that plans a dispatch without express_base, one
+#      that writes express_base unchecked, and
 #      one with no default when the plan is empty, are
 #      each red in check 7
 #------------------------------------------------------------------------------
@@ -145,8 +147,8 @@ check_wiring() {  # <wf 10 file> - the first violation, or nothing
   cls=$(yq '.jobs.classify.steps[] | select(.id == "cls") | .run' "$f")
   [[ "$(awk '/EVENT" == push/,/elif/' <<<"$cls")" == *'_ppe_ci_base "$tsv"'*'wui_base='*'GITHUB_OUTPUT'* ]] \
     || { echo "classify's push branch does not write wui_base from _ppe_ci_base"; return; }
-  [[ "$(awk '/EVENT" == workflow_dispatch && -n "\$BASE"/,/^ *else/' <<<"$cls")" == *'wui_base=$BASE'*'GITHUB_OUTPUT'* ]] \
-    || { echo "classify's dispatch-with-express_base branch does not write wui_base=\$BASE"; return; }
+  [[ "$(awk '/EVENT" == workflow_dispatch && -n "\$BASE"/,/^ *else/' <<<"$cls")" == *'if [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"; fi'* ]] \
+    || { echo "classify's dispatch-with-express_base branch does not write wui_base=\$BASE only for a 40-hex sha"; return; }
   plan=$(yq '.jobs.wui-e2e-plan.steps[] | select(.id == "plan") | .run' "$f")
   [[ "$(yq '.jobs.wui-e2e-plan.needs' "$f")" == *classify* && "$(yq '.jobs.wui-e2e-plan.if' "$f")" == *"!cancelled()"*"run_wui != 'false'"* ]] \
     || { echo "wui-e2e-plan does not need classify or does not skip only on run_wui == 'false'"; return; }
@@ -189,6 +191,7 @@ mut no-default "needs.wui-e2e-plan.outputs.shards || '[1, 2, 3, 4, 5, 6, 7, 8]'"
 mut every-event 'if [[ "$EVENT" == push || ( "$EVENT" == workflow_dispatch && -n "$BASE" ) ]]; then
             # shellcheck disable=SC2016' 'if true; then
             # shellcheck disable=SC2016'
+mut base-unchecked 'if [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"; fi' 'echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"'
 mut dispatch-no-base '( "$EVENT" == workflow_dispatch && -n "$BASE" )' '"$EVENT" == workflow_dispatch'
 
 if [[ $fails -eq 0 ]]; then

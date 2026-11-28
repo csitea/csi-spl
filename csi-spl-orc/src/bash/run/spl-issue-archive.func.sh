@@ -1,10 +1,11 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Soft-archive done issues (rdb 0084) from a desk pane:
+# @description Soft-archive closed issues (rdb 0084) from a desk pane:
 # @description `spool issue archive --as <agent> --ref <key>`. ISSUE_REF
-# @description archives that one key. ISSUE_STATUS (usually done) pages the
-# @description list and archives each done issue. A done epic or feature is
-# @description archived only when every child is done or already archived;
+# @description archives that one key. ISSUE_STATUS (done or diss) pages the
+# @description list and archives each issue in that status; an open or unknown
+# @description status is refused. A closed epic or feature is archived only
+# @description when every child is closed (done or diss) or already archived;
 # @description an open child skips the epic and is never cascaded. DRY_RUN=1
 # @description (the default) lists and prints the count and keys, and archives
 # @description nothing. A real run appends the archived keys to a journal.
@@ -12,7 +13,7 @@
 # @param TENANT_ID (required) - the tenant the desk is seated in
 # @param DESK_AGENT (required) - the agent (the pane's id)
 # @param ISSUE_REF (optional) - one issue key, e.g. SPL-12
-# @param ISSUE_STATUS (optional) - bulk filter; done archives the done issues
+# @param ISSUE_STATUS (optional) - bulk filter, a closed status: done or diss; any other is refused
 # @param ISSUE_ASSIGNEE (optional) - bulk only; default everyone (empty)
 # @param ISSUE_LIMIT (optional) - list page size 1..500, default 100
 # @param ISSUE_ARCHIVE_JOBS (optional) - how many archives run at once, default 4
@@ -71,6 +72,7 @@ spl_issue_archive_bulk() {
   local plan="$1" lim raw
   local -a args=()
   local assignee="${ISSUE_ASSIGNEE-}" status="${ISSUE_STATUS:-}" v name
+  spl_issue_check_closed_status "$status" || return 1
   lim="$(spl_issue_limit)" || return 1
   [[ -z "$assignee" ]] || args+=(--assignee "$assignee")
   [[ -z "$status" ]] || args+=(--status "$status")
@@ -84,18 +86,37 @@ spl_issue_archive_bulk() {
     rm -f "$raw"
     return 1
   fi
-  spl_issue_archive_select "$raw" >"$plan"
+  spl_issue_archive_select "$raw" "$status" >"$plan"
   local rc=$?
   rm -f "$raw"
   return $rc
 }
 
-# spl_issue_archive_select FILE -> plan lines. A done epic is skipped when any
-# child status other than done is still live (archived children are not listed).
+# spl_issue_closed_statuses -> the statuses the hub treats as closed:
+# store.IssueClosed in csi-spl-api/src/go/spool-hub-api/internal/store/issues.go.
+spl_issue_closed_statuses() {
+  printf '%s\n' "done diss"
+}
+
+# spl_issue_check_closed_status STATUS: refuse an open or unknown bulk status.
+spl_issue_check_closed_status() {
+  local st closed
+  closed="$(spl_issue_closed_statuses)"
+  for st in $closed; do
+    [[ "$1" == "$st" ]] && return 0
+  done
+  do_log "FATAL ISSUE_STATUS must be a closed status (${closed// /, }), got: '$1'; nothing was archived"
+  return 1
+}
+
+# spl_issue_archive_select FILE STATUS -> plan lines for the rows in STATUS. A
+# closed epic is skipped when any child is still open (archived children are
+# not listed).
 spl_issue_archive_select() {
-  python3 - "$1" <<'PY'
+  python3 - "$1" "$2" "$(spl_issue_closed_statuses)" <<'PY'
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
+want, closed = sys.argv[2], set(sys.argv[3].split())
 res = doc.get("result") if isinstance(doc, dict) else None
 if not isinstance(res, dict):
     sys.stderr.write("list result is not an object\n")
@@ -109,17 +130,22 @@ def blocked(key):
     e = epics.get(key)
     if not isinstance(e, dict):
         return True
-    for st, n in (e.get("counts") or {}).items():
-        if st != "done" and isinstance(n, int) and n > 0:
+    counts = e.get("counts") or {}
+    for st, n in counts.items():
+        if st not in closed and isinstance(n, int) and n > 0:
             return True
-    total, done = e.get("total"), e.get("done")
-    return isinstance(total, int) and isinstance(done, int) and total != done
+    total = e.get("total")
+    if counts:
+        shut = sum(n for st, n in counts.items() if st in closed and isinstance(n, int))
+    else:
+        shut = sum(n for n in (e.get("done"), e.get("canceled")) if isinstance(n, int))
+    return isinstance(total, int) and total != shut
 
 for i in res.get("issues") or []:
     if not isinstance(i, dict):
         continue
     key, status = i.get("key") or "", i.get("status") or ""
-    if not key or status != "done":
+    if not key or status != want:
         continue
     kind = i.get("kind") or ""
     if kind in ("epic", "feature"):
@@ -155,7 +181,8 @@ i=(d.get("result") or {}).get("issue") or {}
 print(i.get("kind") or "")' "$1"
 }
 
-# spl_issue_archive_epic_ref PLAN: children first, then the epic, or nothing if one is open.
+# spl_issue_archive_epic_ref PLAN: children first, then the epic, or nothing if
+# one is open (a status outside spl_issue_closed_statuses).
 spl_issue_archive_epic_ref() {
   local plan="$1" lim kids
   lim="$(spl_issue_limit)" || return 1
@@ -164,13 +191,13 @@ spl_issue_archive_epic_ref() {
     rm -f "$kids"
     return 1
   fi
-  python3 - "$kids" "$ISSUE_REF" >"$plan" <<'PY'
+  python3 - "$kids" "$ISSUE_REF" "$(spl_issue_closed_statuses)" >"$plan" <<'PY'
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
-ref = sys.argv[2]
+ref, closed = sys.argv[2], set(sys.argv[3].split())
 issues = (doc.get("result") or {}).get("issues") or []
 live = [i for i in issues if isinstance(i, dict) and i.get("key") and i.get("key") != ref]
-if any((i.get("status") or "") != "done" for i in live):
+if any((i.get("status") or "") not in closed for i in live):
     raise SystemExit(0)
 for i in live:
     print("issue " + i["key"])

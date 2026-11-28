@@ -214,6 +214,9 @@ jobs:
       run_iac: ${{ steps.cls.outputs.run_iac }}
       run_orc: ${{ steps.cls.outputs.run_orc }}
       run_cnf: ${{ steps.cls.outputs.run_cnf }}
+      # A2: the wui part's base on a push (_ppe_ci_base, the rule --select
+      # applies), the range the wui-e2e-plan job maps; empty = the full suite
+      wui_base: ${{ steps.cls.outputs.wui_base }}
     steps:
       # the commit graph and trees, no blobs: enough for rev-list and a
       # name-only diff between a base and sha (the checked-out tree is whole,
@@ -270,6 +273,8 @@ jobs:
               done | sort -rn | awk 'NR <= 15')
             jobs_of "$ids"
             out=$(bash "$cls" --select "$HEAD_SHA" "$tsv") || out=""
+            wui_base=$(. csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh && _ppe_ci_base "$tsv") || wui_base=""
+            echo "wui_base=$wui_base" >>"$GITHUB_OUTPUT"
           elif [[ "$EVENT" == schedule && "$WORKFLOW_REF" == */.github/workflows/10_ci-quality.yml@* ]]; then
             # this file's own timer only (wf 13 calls it on its schedule to
             # test a new image: that run must run every part); the finished
@@ -828,6 +833,67 @@ jobs:
 
 
   # ===========================================================================
+  # MAPPED E2E (SPL-6385, csi-spl-doc/specs/016-spool-testability/
+  # ci-volume-2026-11-24.md section 3 A2): on a PUSH the wui-e2e shards run
+  # only the e2e files the change maps to, the pre-push wui-e2e map
+  # (_ppe_ci_plan in csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh), on
+  # as few shards as their CI seconds need (one full-run shard's worth each,
+  # under PRE_PUSH_E2E_CI_BUDGET). The range is classify's wui_base (the
+  # newest run whose every wui job was green)..this sha. Every other event
+  # (the 3-hourly full run, a dispatch, wf 11's pull request, wf 13), a push
+  # touching a layout, app.vue, main.css, tests/e2e/lib, ci-skip.txt, the e2e
+  # runner or its weights (src/node), the bundle's build inputs or this file,
+  # and any plan error or timeout run the full suite on 8 shards. The jobs of
+  # a mapped run are named "wui: mapped browser e2e ...", so a reader of
+  # "wui: browser e2e" (spl-qas-ci-accept) sees only full runs. Runs parallel
+  # to wui-generate, off the critical path. Accepted risk (report row A2,
+  # C5): a harness or viewport fault in a test no mapping picks lands until
+  # the next full run. Gate: ci-wui-e2e-plan.tst.sh.
+  # ===========================================================================
+  wui-e2e-plan:
+    name: "wui: e2e plan (the files this push maps to)"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.run_wui != 'false' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 6
+    outputs:
+      n: ${{ steps.plan.outputs.n }}
+      shards: ${{ steps.plan.outputs.shards }}
+      files: ${{ steps.plan.outputs.files }}
+    steps:
+      # the history for base..sha, no old blobs; the checked-out tree is whole
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Plan the e2e matrix (anything unproven = the full suite)
+        id: plan
+        continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ needs.classify.outputs.wui_base }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          out=""
+          if [[ "$EVENT" == push ]]; then
+            # shellcheck disable=SC2016 # the inner script's own $1 $2
+            out=$(timeout 240 bash -c '. csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh && _ppe_ci_plan "$PWD" "$1" "$2"' _ "$BASE" "$HEAD_SHA") || out=""
+          else
+            echo "wui-e2e plan: $EVENT: the full suite"
+          fi
+          # all three lines or none: a partial plan is the full suite
+          if [[ "$(grep -cE '^(n=[1-9][0-9]*|shards=\[[0-9,]+\]|files=.*)$' <<<"$out")" != 3 ]]; then
+            echo "wui-e2e plan: no complete plan: the full suite (the wui-e2e defaults)"
+            out=""
+          fi
+          printf '%s\n' "$out" | grep . >>"$GITHUB_OUTPUT" || true
+          files=$(sed -n 's/^files=//p' <<<"$out")
+          echo "**e2e plan** (${HEAD_SHA:0:12}): ${files:+mapped: $(wc -w <<<"$files") file(s) on $(sed -n 's/^n=//p' <<<"$out") shard(s): $files}${files:-the full suite on 8 shards}" >>"$GITHUB_STEP_SUMMARY"
+
+  # ===========================================================================
   # The WUI browser suite (016 T021): no-x-scroll, console-errors, and the
   # 1..1 topic-pane gate, against a generated mock-tenant bundle served the
   # way Firebase Hosting does (serve-generated.mjs SPA fallback). Chrome is
@@ -840,10 +906,11 @@ jobs:
   # tests/e2e/*.proof.mjs (live sites or credentials).
   # ===========================================================================
   wui-e2e:
-    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/8"
+    name: "${{ needs.wui-e2e-plan.outputs.files && 'wui: mapped browser e2e' || 'wui: browser e2e' }} (mock, generated) ${{ matrix.shard }}/${{ needs.wui-e2e-plan.outputs.n || 8 }}"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
-    # the bundle exists even when its budget step failed (see wui-generate)
-    needs: [classify, wui-generate]
+    # the bundle exists even when its budget step failed (see wui-generate);
+    # a failed or skipped wui-e2e-plan leaves its outputs empty: 8 shards
+    needs: [classify, wui-generate, wui-e2e-plan]
     if: ${{ !cancelled() && needs.classify.outputs.run_wui != 'false' && needs.wui-generate.outputs.bundle == 'success' }}
     # Longest-first shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
     # 2026-10-02: one serial job ran 104 files in 35 min green and hit the
@@ -863,10 +930,11 @@ jobs:
     # 6 -> 8 (spec 133 round 30, together with orc 2 -> 3): the slowest e2e
     # shard and orc 1/2 both ran ~900 s, so cutting only one path would not
     # move the run end. Peak was 34 concurrent jobs (r29d); this adds 3.
+    # A2 (see wui-e2e-plan): 8 on the full run; a mapped push runs 1..n.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: ${{ fromJSON(needs.wui-e2e-plan.outputs.shards || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
     # 10 -> 20 (2026-09-27): the job reached 9m21s green on 94118eef, and
     # run 36313405989 was killed at 10m with every suite passing so far.
     # 20 -> 30 (2026-09-27): 9bce3654 took 19m51s green; run 36338326017 was
@@ -951,10 +1019,12 @@ jobs:
           name: wui-mock-bundle
           path: csi-spl-wui/.output/public
 
-      - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt)
+      - name: Browser e2e (every tests/e2e/*.test.mjs minus ci-skip.txt, or the mapped files)
         env:
           CI: "1"
-          E2E_SHARD: "${{ matrix.shard }}/8"
+          E2E_SHARD: "${{ matrix.shard }}/${{ needs.wui-e2e-plan.outputs.n || 8 }}"
+          # A2: the mapped files (wui-e2e-plan); empty = every file
+          E2E_FILES: ${{ needs.wui-e2e-plan.outputs.files }}
           E2E_SKIP: ${{ inputs.e2e_skip }}
           # One pinned font (SPL-3469): the same file wui-e2e-mock-serve.sh
           # uses on a box, so hosted (DejaVu) and box (Noto) widths agree.
@@ -970,9 +1040,18 @@ jobs:
           # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
           # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
           # whatever the one before it did, and the step fails at the end naming
-          # each red one (CLE-77827).
-          bash ../csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
-            bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e
+          # each red one (CLE-77827). A mapped push names its files (one word
+          # each, tests/e2e/<name>.test.mjs); the runner shards them alike.
+          # The full suite keeps the bare discovering line
+          # (e2e-runner-coverage.test.mjs pins it).
+          if [[ -n "$E2E_FILES" ]]; then
+            # shellcheck disable=SC2086
+            bash ../csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
+              bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e $E2E_FILES
+          else
+            bash ../csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
+              bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e
+          fi
 
   # ===========================================================================
   # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --

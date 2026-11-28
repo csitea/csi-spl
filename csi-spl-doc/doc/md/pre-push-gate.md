@@ -80,6 +80,30 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   selection:
   `WUI_E2E_RANGE=origin/master..HEAD ./run -a do_check_pre_push_e2e`.
   `PRE_PUSH_E2E=0` turns it off.
+- **The same map in CI** (SPL-6385, `ci-volume-2026-11-24.md` section 3
+  A2): on a wf 10 push the `wui-e2e-plan` job runs `_ppe_ci_plan`
+  (`check-pre-push-e2e.func.sh`) on the wui part's base (classify's
+  `wui_base`, the newest run whose every `wui:` job was green) to the pushed
+  sha, and the `wui-e2e` shards run only the selected files, named
+  `wui: mapped browser e2e ... <i>/<n>`. The selection fills
+  `PRE_PUSH_E2E_CI_BUDGET` CI seconds (default 2 full-run shards' worth, no
+  count cap); n is the selected seconds over one full-run shard's, rounded
+  up. A file the CI budget cuts is printed in the job log and waits for the
+  next full run, so "left to CI" above means the full run when the push is
+  mapped. The full suite on 8 shards runs on the scheduled run, a dispatch,
+  a pull request and wf 13, and on a push that touches a layout, `app.vue`,
+  `error.vue`, `main.css`, `tests/e2e/lib`, `ci-skip.txt`, `src/node`
+  (the runner and `e2e-shard-weights.txt`), `src/public`, a `.d.ts`,
+  `nuxt.config.ts`, `package.json` or the lockfile, the blog, the e2e
+  scripts of `csi-spl-orc`, `.github/` or this file; also when nothing in
+  the push maps (a locale alone, or no WUI file at all), the map selects
+  nothing, or the plan errs or times out (`_ppe_ci_kind`). A locale
+  catalogue, the i18n baselines and language-review reports ride with the
+  component that changed beside them. Replayed on the 179 push gates of
+  2026-11-21..27 that ran e2e, 18 map (1..2 shards each, 26 shard jobs
+  instead of 144); 161 run the full suite, 52 of them touching no WUI file
+  (a shared lib or the cnf, which the classifier sends to every part) and
+  30 the shard weights. Gate: `csi-spl-iac/src/bash/tests/ci-wui-e2e-plan.tst.sh`.
 - **The orc part**, fast tier, runs the orc `*.tst.sh` that name a touched
   file or a function it defines, plus the always-run list
   (`run-all-tests.sh --changed`; the map is

@@ -52,7 +52,7 @@ zero behaviour change, and each lands with a grep-count test that is RED on its 
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: v1.0, the panel's notes N1-N6 folded (c-917 PASS on v0.1, section 9).** Editor: **c-915** (claude, the specs_and_docs backup:
+**Status: closed.** Both rows landed on `origin/master` (`r14-01` `2de10856d` SPL-6733, `r14-02` `454bf1f6b` SPL-6734; section 8), each with a same-vendor claude R7 PASS under waiver `1a7c70da`; retro: [refactor-round-14-20261128-retro.md](refactor-round-14-20261128-retro.md). Plan v1.0, the panel's notes N1-N6 folded (c-917 PASS on v0.1, section 9). Editor: **c-915** (claude, the specs_and_docs backup:
 agy is out of quota on both boxes until about 2026-12-03 and paused on this box until
 2026-11-28T05:24:23Z). Panel: the claude seat
 `hand-sat-c002-refactor-round-14-claude-panel-seat` (live as c-917@sat in
@@ -847,6 +847,17 @@ agy cannot sit (re-checked at placement); never mistral.
   `0e6f561e4`: `git diff --name-only 774876d90 0e6f561e4 --` the 9 row paths -> 0
   (04:4xZ); every count stays on `774876d90`.
 
+- Close (c-915, 2026-11-28T08:0xZ, on `origin/master` `454bf1f6b`, n=1): R6 since
+  W -> the 3 plan commits and the 2 rows, `r14-01` `2de10856d` (SPL-6733, c-336,
+  07:07:55Z) and `r14-02` `454bf1f6b` (SPL-6734, c-349, 07:43:31Z). R5: is-ancestor of
+  `origin/master` and of the box checkout rc 0 for both; r14-02's wf 10 (46122612088)
+  and wf 30 (46122612015) success, `do_check_deploy_lag` dev and prd: WUI serves
+  `454bf1f6`, rc 0 (08:06Z); r14-01's wf 10 (46119874909), 16 and 67 success. C7: the
+  reviewed sha's diff to the landed sha over each row's 4 files is empty, patch-ids
+  equal (`fa4c1ca1c3f4`, `27ee23a6e8c2`). Review lines: r14-02 `do_spl_review_line_check`
+  rc 0 on the reviewer's box (OK 18 of 18, c-375 msg ee406101); r14-01 SYNTAX OK here,
+  the full check not quoted (its seat closed first). Detail: the retro.
+
 ## 9. Consensus
 
 Same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5): agy, the cross-vendor
@@ -858,6 +869,8 @@ panel seat is claude. The r14 retro names this.
 |---|---|---|---|---|---|
 | `c-915` | claude | editor | v1.0 | author | section 8 |
 | claude panel seat (`hand-sat-c002-refactor-round-14-claude-panel-seat`, live as c-917@sat) | claude | panel | v1.0 `4891e4598` (v0.1 `75d0f5fff`) | PASS on both (v0.1 msg 6c6b6686, N1-N6 folded in v1.0; v1.0 msg fd10cc80), W none | seat file `refactor-round-14-20261128/seat-claude.md`; same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
+| row R7 `r14-01` | claude (c-351) | R7, author c-336 (claude) | `c6d406a82` -> landed `2de10856d` | PASS | same-vendor, waiver 1a7c70da; line check: SYNTAX OK here, full check not quoted (retro 4.2) |
+| row R7 `r14-02` | claude (c-375) | R7, author c-349 (claude) | `0579fc04f` -> landed `454bf1f6b` | PASS, GO by hand (review-go held it) | same-vendor, waiver 1a7c70da; line check rc 0 on the reviewer's box, OK 18 of 18 |
 
 No row lane starts before the panel signs the plan sha and its review line passes
 `do_spl_review_line_check` (rc 0), confirmed by the dispatch lease holder.

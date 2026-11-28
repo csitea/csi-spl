@@ -186,3 +186,49 @@ grouping by box, a literal duration, no channels, another message and a
 metric without the tenant label each fail). Hub:
 `internal/hub/box_beat_log_test.go` (2 stored beats write 2 lines, a refused
 one writes none).
+
+## 8. 5xx rate: minutes with a 5xx, not a 5-minute count (SPL-6724)
+
+`rate_5xx` (`<org>-<app>-<env> hub 5xx rate`) pages when at least
+`rate_5xx_minutes` (3) of the last `rate_5xx_window_minutes` (10) minutes each
+carry an HTTP 5xx from the hub's Cloud Run service. Before SPL-6724 it paged
+on at least 5 5xx in one 300 s window.
+
+- Why: the prd pages of 11-27 21:18Z and 11-28 01:33Z (SPL-6707) were one
+  burst each: a Cloud Run cold start, during a box's redial burst on
+  `/v1/ws`, answered 5 to 6 requests within about 4 s with the front end's
+  own 503 ("malformed or connection") and 500 ("aborted after waiting too
+  long for an available instance"). The hub stalls of 10-20 and 10-22 gave
+  1 to 3 5xx a minute, minute after minute. The number of minutes tells them
+  apart; the count in a window does not.
+- Measured on prd, 42 days to 2026-11-28T03:37Z
+  (`run.googleapis.com/request_count`, 5xx, one point a minute, n = 158
+  minutes with a 5xx, 214 5xx): the old rule had 9 episodes, 3 of them
+  one-minute bursts (11-17 03:01Z on `/v1/pins`, 11-27, 11-28). 3 of 10 is
+  true on 10-20 (08:30Z..09:38Z), 10-21 18:44Z (three single 5xx in a row)
+  and 10-22 (from 09:47Z, 2 minutes after the first 5xx), and on none of the
+  bursts. The same PromQL query, run read-only over the 42 days, gave the
+  same episodes.
+- Why not the other shapes: `request_count` has no label for a startup
+  abort or for the path; a separate `/v1/ws` threshold needs a log metric and
+  still pages a burst on another path (11-17 was `/v1/pins`); a threshold
+  `ALIGN_COUNT` counts every minute, because Cloud Run writes zero-valued
+  points; a `duration` on the 300 s sum stays true for the whole 5 minutes
+  a burst is in the window.
+- What it costs: a 5-minute outage that keeps answering 5xx pages at its
+  third minute (plus Monitoring's lag); one with a 5xx every other minute
+  at its fifth. The health check (`uptime`) still pages a hub that is down.
+  A burst of more than 6 5xx in one minute no longer pages on its own.
+  `do_gcp_get_alert_incident` replays threshold conditions only, so it lists
+  this one as "not replayed".
+- cnf `steps.070-gcp-monitoring.rate_5xx_minutes` / `rate_5xx_window_minutes`,
+  the terraform variables of the same names (validated: at least 2 minutes, a
+  window of at most 10), the `condition_prometheus_query_language` of
+  `rate_5xx` in `05-policies.tf`. A change is a cnf edit,
+  `ENV=<env> ./run -a do_tpl_gen`, then a 070 apply with the owner's go, dev
+  first.
+- Test: section 10 of `csi-spl-iac/src/bash/tests/monitoring-incident-070.tst.sh`
+  (the query is the variables, both validated, the rendered dev/prd tfvars
+  carry the cnf; controls: the old threshold and literals fail the rule; on
+  the measured series the three bursts stay quiet, the 10-22 stall and a
+  5-minute outage page by minute 10, and the old rule paged the 11-27 burst).

@@ -79,6 +79,16 @@ resource "google_monitoring_alert_policy" "rate_429" {
   }
 }
 
+# SPL-6724: page on 5xx that keep coming, not on one burst. A Cloud Run cold
+# start answers a box's redial burst on /v1/ws with up to 6 front-end 500/503
+# in ~4 s (11-27 21:18Z, 11-28 01:33Z); the hub stalls of 10-20 and 10-22 gave
+# 1..3 a minute over many minutes. So the condition counts the MINUTES with at
+# least one 5xx in a sliding window. request_count has no label that tells a
+# startup abort apart, and Cloud Run writes zero-valued points, so a threshold
+# ALIGN_COUNT would count every minute: PromQL it is. Measured 42 days to
+# 2026-11-28T03:37Z on prd: 3 of 10 pages on 10-20, 10-21 18:44 and 10-22,
+# never on the one-minute bursts of 11-17, 11-27 and 11-28 that the old
+# ">= 5 in 300 s" paged. Doc: hub-capacity-alerts.md section 8.
 resource "google_monitoring_alert_policy" "rate_5xx" {
   display_name          = "${local.name} hub 5xx rate"
   combiner              = "OR"
@@ -86,17 +96,11 @@ resource "google_monitoring_alert_policy" "rate_5xx" {
   severity              = "ERROR"
 
   conditions {
-    display_name = "at least ${var.rate_5xx_per_5min} HTTP 5xx in five minutes"
-    condition_threshold {
-      filter          = "${local.requests} AND metric.labels.response_code_class = \"5xx\""
-      comparison      = "COMPARISON_GT"
-      threshold_value = var.rate_5xx_per_5min - 1
-      duration        = "0s"
-      aggregations {
-        alignment_period     = "300s"
-        per_series_aligner   = "ALIGN_DELTA"
-        cross_series_reducer = "REDUCE_SUM"
-      }
+    display_name = "HTTP 5xx in at least ${var.rate_5xx_minutes} of the last ${var.rate_5xx_window_minutes} minutes"
+    condition_prometheus_query_language {
+      query               = "count_over_time((sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"${var.hub_service_name}\",response_code_class=\"5xx\"}[1m])) > 0)[${var.rate_5xx_window_minutes}m:1m]) >= ${var.rate_5xx_minutes}"
+      duration            = "0s"
+      evaluation_interval = "60s"
     }
   }
 
@@ -106,7 +110,7 @@ resource "google_monitoring_alert_policy" "rate_5xx" {
 
   documentation {
     mime_type = "text/markdown"
-    content   = "The hub answers 5xx. Read the hub's error logs for the same minutes."
+    content   = "The hub answers 5xx minute after minute. Read the hub's error logs for the same minutes. One burst of a few 5xx on /v1/ws while an instance starts does not page."
   }
 }
 

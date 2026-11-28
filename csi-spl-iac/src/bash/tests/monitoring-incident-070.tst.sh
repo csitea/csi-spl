@@ -40,6 +40,14 @@
 #      validated, the rendered tfvars = cnf; the 300 s alignment and the
 #      threshold stay. Controls: "0s" (master before) and a literal fail the
 #      rule; a 5-min burst (a planned apply) stays quiet where 10 min fires
+#  10. SPL-6724: rate_5xx counts the MINUTES with a 5xx in a sliding window
+#      (PromQL on request_count, var.rate_5xx_minutes of
+#      var.rate_5xx_window_minutes, cnf 3 of 10), so a Cloud Run cold-start
+#      burst on /v1/ws stays quiet; both variables validated, tfvars = cnf.
+#      Controls: the old ">= 5 in 300 s" threshold and literals fail the rule;
+#      on the measured prd series the bursts of 11-17, 11-27 and 11-28 stay
+#      quiet, the 10-22 stall and a 5-minute outage page within 10 minutes,
+#      and the old rule paged the 11-27 burst
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -310,5 +318,78 @@ long=(0 30 60 90 120 150 150 150 150 150 150 150 150 120 90 60 30 0)
 sustained "${want_d:-0}" "${burst[@]}" && fail "a 5-min error burst (planned apply) pages at ${want_d}s" || pass "a 5-min error burst (planned apply) stays quiet at ${want_d}s"
 sustained "${want_d:-0}" "${long[@]}" && pass "12 min of errors pages at ${want_d}s" || fail "12 min of errors does not page at ${want_d}s"
 sustained 0 "${burst[@]}" && pass "CONTROL the same burst pages at 0s (the old rule)" || fail "CONTROL the burst stays quiet at 0s"
+
+# --- 10. SPL-6724: rate_5xx pages on 5xx minute after minute, not one burst --------
+# r5_ok <policies tf> -> 0 when rate_5xx counts the minutes with a 5xx in the window
+r5_ok() {
+  local p; p="$(block "$1" google_monitoring_alert_policy rate_5xx)"
+  [[ -n "$p" ]] || return 1
+  has "$p" 'condition_prometheus_query_language {' || return 1
+  has "$p" 'condition_threshold' && return 1
+  has "$p" 'query               = "count_over_time((sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"${var.hub_service_name}\",response_code_class=\"5xx\"}[1m])) > 0)[${var.rate_5xx_window_minutes}m:1m]) >= ${var.rate_5xx_minutes}"' || return 1
+  [[ "$(attr "$p" duration)" == '"0s"' && "$(attr "$p" evaluation_interval)" == '"60s"' ]] || return 1
+  [[ "$(attr "$p" notification_channels)" == "local.channels" ]] || return 1
+}
+r5_ok "$tf" && pass "rate_5xx: PromQL, minutes with a 5xx >= rate_5xx_minutes in rate_5xx_window_minutes, every channel" \
+  || fail "rate_5xx does not count the minutes with a 5xx: $(block "$tf" google_monitoring_alert_policy rate_5xx | grep -E 'query|threshold' )"
+old_r5='    condition_threshold {
+      filter          = "${local.requests} AND metric.labels.response_code_class = \"5xx\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.rate_5xx_per_5min - 1
+      duration        = "0s"
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }'
+ctl="$(awk -v o="$old_r5" '/^resource "google_monitoring_alert_policy" "rate_5xx"/{on=1} on&&/condition_prometheus_query_language \{/{print o; skip=1; next} skip&&/^    }/{skip=0; next} !skip{print} on&&/^}/{on=0}' <<<"$tf")"
+r5_ok "$ctl" && fail "CONTROL the old >= 5 in 300 s threshold passed the rule" || pass "CONTROL the old >= 5 in 300 s threshold (pages one cold-start burst) fails the rule"
+r5_ok "${tf/'>= ${var.rate_5xx_minutes}"'/'>= 3"'}" && fail "CONTROL a literal minutes count passed the rule" || pass "CONTROL a literal minutes count fails the rule"
+r5_ok "${tf/'[${var.rate_5xx_window_minutes}m:1m]'/'[10m:1m]'}" && fail "CONTROL a literal window passed the rule" || pass "CONTROL a literal window fails the rule"
+for k in rate_5xx_minutes rate_5xx_window_minutes; do
+  vblk="$(awk -v r="^variable \"$k\"" '$0 ~ r {on=1} on{print} on&&/^}/{exit}' "$TFD/02-variables.tf")"
+  grep -q "condition *= var.$k >= " <<<"$vblk" && pass "$k is declared and validated" || fail "$k missing or not validated: $vblk"
+done
+grep -q '^variable "rate_5xx_per_5min"' "$TFD/02-variables.tf" && fail "rate_5xx_per_5min still declared (unused)" || pass "rate_5xx_per_5min is gone"
+r5_m="$(yq -r '.env.steps["070-gcp-monitoring"].rate_5xx_minutes' "$CNF/all.env.yaml")"
+r5_w="$(yq -r '.env.steps["070-gcp-monitoring"].rate_5xx_window_minutes' "$CNF/all.env.yaml")"
+[[ "$r5_m" == 3 && "$r5_w" == 10 ]] && pass "cnf rate_5xx: $r5_m of $r5_w minutes" || fail "cnf rate_5xx '$r5_m' of '$r5_w', want 3 of 10"
+for env in dev prd; do
+  v="$(cat "$CNF/$env/tf/070-gcp-monitoring.vars.tfvars")"
+  [[ "$(sed -nE 's/^rate_5xx_minutes = ([0-9]+)$/\1/p' <<<"$v")" == "$r5_m" && "$(sed -nE 's/^rate_5xx_window_minutes = ([0-9]+)$/\1/p' <<<"$v")" == "$r5_w" ]] \
+    && pass "$env 070 tfvars rate_5xx_minutes / rate_5xx_window_minutes = cnf" || fail "$env 070 tfvars rate_5xx keys differ from cnf"
+done
+# pages_at <minutes> <window> <5xx per minute...> -> the 1-based minute it pages, or none
+pages_at() {
+  awk 'BEGIN{m=ARGV[1]; w=ARGV[2]; for(i=3;i<ARGC;i++){k=i-2; h[k]=(ARGV[i]>0); n=0; for(j=k-w+1;j<=k;j++) if(j>0&&h[j]) n++; if(n>=m){print k; exit}} print "none"}' "$@"
+}
+# old_pages_at <5xx per minute...> -> the minute ">= 5 in 300 s" pages, or none
+old_pages_at() {
+  awk 'BEGIN{for(i=1;i<ARGC;i++){s=0; for(j=i-4;j<=i;j++) if(j>0) s+=ARGV[j]; if(s>=5){print i; exit}} print "none"}' "$@"
+}
+# prd, measured per minute (run.googleapis.com/request_count, 5xx, ALIGN_DELTA
+# 60 s), 42 days to 2026-11-28T03:37Z: the cold-start bursts, 12 minutes from
+# the burst's minute on, and the 10-22 stall from 09:45Z
+burst_1127=(6 0 0 0 0 0 0 0 0 0 0 0)
+burst_1128=(6 0 0 0 0 0 0 0 0 0 0 0)
+burst_1117=(5 0 0 0 0 0 0 0 0 0 0 0)
+stall_1022=(2 2 1 1 0 0 1 3 1 2 0 2 0 0 0 0 1 2 0 0 3 2 2 1)
+outage_5min=(4 4 4 4 4 0 0 0 0 0)
+# quiet <name> <5xx per minute...> -> pass when the 3 of 10 rule never pages
+quiet() {
+  local name="$1" at; shift
+  at="$(pages_at "$r5_m" "$r5_w" "$@")"
+  [[ "$at" == none ]] && pass "$name (cold start) stays quiet" || fail "$name pages at minute $at"
+}
+quiet burst_1127 "${burst_1127[@]}"
+quiet burst_1128 "${burst_1128[@]}"
+quiet burst_1117 "${burst_1117[@]}"
+at="$(pages_at "$r5_m" "$r5_w" "${stall_1022[@]}")"
+[[ "$at" != none && "$at" -le 10 ]] && pass "the 10-22 stall pages at minute $at" || fail "the 10-22 stall pages at '$at'"
+at="$(pages_at "$r5_m" "$r5_w" "${outage_5min[@]}")"
+[[ "$at" != none && "$at" -le 10 ]] && pass "a 5-minute outage pages at minute $at (<= 10)" || fail "a 5-minute outage pages at '$at'"
+[[ "$(old_pages_at "${burst_1127[@]}")" == 1 ]] && pass "CONTROL the old >= 5 in 300 s paged the 11-27 burst" || fail "CONTROL the old rule stays quiet on the 11-27 burst"
+[[ "$(pages_at 1 "$r5_w" "${burst_1127[@]}")" == 1 ]] && pass "CONTROL 1 minute of 10 pages the burst" || fail "CONTROL 1 minute of 10 stays quiet on the burst"
 
 [[ $fails -eq 0 ]] && echo "PASS: all monitoring-incident-070.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

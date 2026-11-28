@@ -135,9 +135,24 @@ variable "rate_429_per_min" {
   description = "Page when the hub answers at least this many 429 in one minute."
 }
 
-variable "rate_5xx_per_5min" {
+variable "rate_5xx_minutes" {
   type        = number
-  description = "Page when the hub answers at least this many 5xx in five minutes."
+  description = "Page when at least this many minutes of the window each carry an HTTP 5xx (SPL-6724: one cold-start burst is one minute)."
+
+  validation {
+    condition     = var.rate_5xx_minutes >= 2 && floor(var.rate_5xx_minutes) == var.rate_5xx_minutes
+    error_message = "rate_5xx_minutes must be a whole number >= 2 (1 pages on every cold-start burst)."
+  }
+}
+
+variable "rate_5xx_window_minutes" {
+  type        = number
+  description = "The sliding window, in minutes, in which rate_5xx_minutes are counted."
+
+  validation {
+    condition     = var.rate_5xx_window_minutes >= var.rate_5xx_minutes && var.rate_5xx_window_minutes <= 10 && floor(var.rate_5xx_window_minutes) == var.rate_5xx_window_minutes
+    error_message = "rate_5xx_window_minutes must be a whole number, >= rate_5xx_minutes and <= 10 (a 5-minute outage must page within 10 minutes)."
+  }
 }
 
 variable "error_logs_per_5min" {

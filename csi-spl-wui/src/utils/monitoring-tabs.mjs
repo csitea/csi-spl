@@ -28,6 +28,9 @@ export const MONITORING_TABS = Object.freeze([
      every lane, a workspace's owners and admins (`staff`) its own lanes (3.6, row B6, SPL-3229);
      `operatorReader` (SPL-5181): also the operator workspace's product owner, read only */
   Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, operatorReader: true, ready: true }),
+  /* spec 153 3.22.3 (SPL-6740, row Q4; owner HUM-10, t1 906c1b28): the placer's line, read only, right after Lanes;
+     operator admins only (the first build is operator only), as Tokens */
+  Object.freeze({ id: 'queue', path: '/monitoring/queue', labelKey: 'monitoring.tab.queue', operatorsOnly: true, ready: true }),
   /* spec 153 3.10 (SPL-4421, row B10; owner HUM-10, t1 08213e0e, msg 8caf41ec): the same lanes, one row per topic
      with its lanes and issues; the same readers as Lanes (it reads the same routes) */
   Object.freeze({ id: 'topics', path: '/monitoring/topics', labelKey: 'monitoring.tab.topics', operatorsOnly: false, staff: true, ready: true }),

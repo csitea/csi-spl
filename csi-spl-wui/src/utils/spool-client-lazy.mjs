@@ -2087,16 +2087,32 @@ async function fleetPaidInvoices(live, mock, op, workspace, month) {
 }
 
 /**
+ * Spec 153 3.22.3 (row Q4, SPL-6740): GET /v1/operator/fleet-queue, the
+ * placer's line, and with `placed` (?placed=1) the closed rows that were in
+ * it, each with its lane (403 operator.workspaces for anyone but an admin of
+ * the operator workspace, as getFleetLanes). getFleetLanes('queue', placed)
+ * calls it: no new stub in the initial chunk. The mock answers from
+ * monitoring-queue.mjs, which loads only here and on the Queue page.
+ */
+async function getFleetQueue(live, mock, placed) {
+  const mq = await import('./monitoring-queue.mjs')
+  if (mock) return mq.mockFleetQueue(placed)
+  return live(mq.queuePath(placed))
+}
+
+/**
  * Spec 153 3.3 (SPL-3215, row B4): GET /v1/operator/fleet-lanes, the fleet's
  * active lanes, each with its discussion and issues (403 operator.workspaces
  * for anyone but an admin of the operator workspace, as getFleetTokens). With
  * `own` (3.6, row B6, SPL-3229): GET /v1/view/lanes, the lanes on this
  * workspace's own topics, for its owners and admins (403 for anyone else).
  * The mock answers from monitoring-lanes.mjs, which loads only here and on
- * the Lanes page.
+ * the Lanes page. With `own` 'queue' (spec 153 3.22.3, row Q4, SPL-6740):
+ * the lanes to be, getFleetQueue.
  */
-async function getFleetLanes(ctx, own = false) {
+async function getFleetLanes(ctx, own = false, placed = false) {
   const { live, mock } = ctx
+  if (own === 'queue') return getFleetQueue(live, mock, placed === true)
   if (mock && own) return mockOwnLanes(await import('./monitoring-lanes.mjs'))
   if (mock) return (await import('./monitoring-lanes.mjs')).mockFleetLanes()
   if (own) return live('/v1/view/lanes')

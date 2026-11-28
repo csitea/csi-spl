@@ -64,6 +64,14 @@
 //     its workspace and #channel; the no-topic lane has its own row;
 //     anyone else: no tab, the direct URL is the 403 sentence. No Topics
 //     code in the initial download.
+//   - spec 153 3.22.3 (SPL-6740, row Q4), C105-C107: Monitoring -> Queue,
+//     right after Lanes, read only, on the mock line (one placing, three
+//     queued): the columns in 3.22.3's order, n/total and placing, the
+//     priority's source, the hold reason or room, the discussion linked
+//     /t/<uuid>, the issue /issues?issue=<KEY>; Placed adds the closed rows,
+//     an active lane linked to its Lanes row, an ended one as text; no
+//     sideways scroll at 1440 and 390 px; anyone else: no tab, the direct
+//     URL is the 403 sentence. No Queue code in the initial download (C107).
 //
 //   - spec 143 costs-redesign.md slice S1 (SPL-3798): the costs page is
 //     Reporting -> Costs -> Spend now (/reporting/costs/spend); the Reporting
@@ -140,6 +148,7 @@ const COSTS_MARKERS = /"costs-page"|"costs-pie"|"spool\.mock\.costs"/
 const TOKENS_MARKERS = /"tokens-page"|"costs-tokens-card"|"spool\.mock\.fleet_tokens"/
 const LANES_MARKERS = /"lanes-page"|"lanes-row"|"spool\.mock\.fleet_lanes"/
 const TOPICS_MARKERS = /"topics-page"|"topics-row"|"topics-lane"/
+const QUEUE_MARKERS = /"queue-page"|"queue-row"|"spool\.mock\.fleet_queue"|fleet-queue/
 const count = (p, sel) => p.$$eval(sel, (els) => els.length).catch(() => -1)
 const text = (p, sel) => p.$eval(sel, (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '')
 const tabIds = (p) => p.$$eval('[data-test^=monitoring-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('monitoring-tab-'.length)))
@@ -565,13 +574,13 @@ async function tabRow(browser, base) {
   ]) {
     const { ctx, p } = await costsPage(browser, base, size, opts)
     await open(p, base, path)
-    const want = opts.operator ? 6 : 3
+    const want = opts.operator ? 8 : 3
     await p.waitForFunction((n) => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= n, { timeout: 15000 }, want).catch(() => null)
     const g = await tabRowGeometry(p)
     const phone = size.width < 600
     if (opts.operator) {
       const ids = await tabIds(p)
-      ok(`C3b ${label}: seven tabs, Lanes then Topics, Invoices last (spec 181 B13), no Costs (SPL-3986)`, ids.join(',') === 'agents,boxes,events,tokens,lanes,topics,invoices', ids)
+      ok(`C3b ${label}: eight tabs, Lanes then Queue (spec 153 C105) then Topics, Invoices last (spec 181 B13), no Costs (SPL-3986)`, ids.join(',') === 'agents,boxes,events,tokens,lanes,queue,topics,invoices', ids)
     }
     ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
     if (phone) {
@@ -706,7 +715,7 @@ async function topicsTab(browser, base, size) {
     await p.evaluate(() => localStorage.setItem('spool.mock.fleet_lanes', 'topics'))
     const res = await open(p, base, '/monitoring/topics')
     ok('topics: /monitoring/topics answers 200', Boolean(res && res.status() === 200), res && res.status())
-    ok('C45 topics: the Topics tab is right after Lanes, active', (await tabIds(p)).join(',').includes('lanes,topics')
+    ok('C45 topics: the Topics tab is right after Lanes and its Queue (spec 153 C105), active', (await tabIds(p)).join(',').includes('lanes,queue,topics')
       && await p.$eval('[data-test=monitoring-tab-topics]', (e) => e.getAttribute('aria-current')).catch(() => '') === 'page', await tabIds(p))
     const rows = await p.waitForFunction(() => document.querySelectorAll('[data-test=topics-row]').length === 3, { timeout: 20000 }).then(() => true, () => false)
     const order = await p.$$eval('[data-test=topics-row]', (els) => els.map((e) => e.getAttribute('data-topic') || '-').join(','))
@@ -841,6 +850,76 @@ async function lanesTab(browser, base, size) {
   }
 }
 
+/** Spec 153 C105-C106 (SPL-6740, row Q4): the Queue tab on the mock line, an operator admin; CONTROL anyone else. CONTROL: on master the page is absent, so every check here FAILS there. */
+async function queueTab(browser, base, size) {
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+    await open(p, base, '/monitoring/agents')
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 8, { timeout: 15000 }).catch(() => null)
+    const ids = await tabIds(p)
+    ok(`C105 queue ${size.width}: the Queue tab right after Lanes`, ids.indexOf('queue') > 0 && ids.indexOf('queue') === ids.indexOf('lanes') + 1, ids)
+    const res = await open(p, base, '/monitoring/queue')
+    ok(`queue ${size.width}: /monitoring/queue answers 200`, Boolean(res && res.status() === 200), res && res.status())
+    const four = await p.waitForFunction(() => document.querySelectorAll('[data-test=queue-row]').length === 4, { timeout: 20000 }).then(() => true, () => false)
+    ok(`C106 queue ${size.width}: four rows, the placing one first, then by position`, four
+      && (await p.$$eval('[data-test=queue-row] [data-test=queue-position]', (els) => els.map((e) => e.textContent.trim()).join(','))) === 'placing,1/3,2/3,3/3')
+    const heads = await p.$$eval('[data-test=queue-table] thead th', (els) => els.map((e) => (e.getAttribute('data-test') || '').replace('queue-col-', '')))
+    ok(`C106 queue ${size.width}: the columns in 3.22.3's order`, heads.join(',') === 'position,prio,class,summary,discussion,issue,vendor,in_line,waits,lane', heads)
+    const cellOf = (ask, sel) => text(p, `[data-test=queue-row][data-ask="${ask}"] [data-test=${sel}]`)
+    const A = (n) => '6a1e0c55-0000-4000-8000-00000000000' + n
+    const prioOf = (ask) => p.$eval(`[data-test=queue-row][data-ask="${ask}"] [data-test=queue-prio]`, (e) => [e.getAttribute('data-priority'), e.querySelector('[data-test=queue-prio-source]')?.textContent.trim()].join(' ')).catch(() => '')
+    ok(`C106 queue ${size.width}: the priority and where it came from`, (await prioOf(A(2))) === '1 own' && (await prioOf(A(4))) === '3 default', [await prioOf(A(2)), await prioOf(A(4))])
+    ok(`C106 queue ${size.width}: the class and its flag`, (await cellOf(A(3), 'queue-class')) === 'feature bypass' && (await cellOf(A(2), 'queue-class')) === 'CI', await cellOf(A(3), 'queue-class'))
+    ok(`C106 queue ${size.width}: the hold reason, else room`, (await cellOf(A(4), 'queue-waits')) === 'grok weekly limit' && (await cellOf(A(2), 'queue-waits')) === 'room')
+    ok(`C106 queue ${size.width}: in line since enqueued_at`, (await cellOf(A(3), 'queue-in-line')) === '1 h 30 min' && (await cellOf(A(4), 'queue-in-line')) === '1 d 2 h', await cellOf(A(4), 'queue-in-line'))
+    const link = (ask, sel) => p.$$eval(`[data-test=queue-row][data-ask="${ask}"] [data-test=${sel}]`, (els) => els.map((e) => e.getAttribute('href') || ''))
+    ok(`C106 queue ${size.width}: the discussion links /t/<uuid>`, (await link(A(3), 'queue-discussion-link')).join() === '/t/' + LANES_MOCK_TOPIC, await link(A(3), 'queue-discussion-link'))
+    ok(`C106 queue ${size.width}: the issue key links /issues?issue=<KEY>`, (await link(A(3), 'queue-issue-link')).join() === '/issues?issue=SPL-6741')
+    ok(`C106 control ${size.width}: no discussion and no issue show a dash`, (await cellOf(A(2), 'queue-discussion')) === '\u2014' && (await cellOf(A(2), 'queue-issue')) === '\u2014')
+    ok(`C106 queue ${size.width}: no lane before a row is placed`, (await count(p, '[data-test=queue-lane-link], [data-test=queue-lane-ended]')) === 0)
+    const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    ok(`C106 queue ${size.width}: no sideways page scroll`, wide <= 0, wide)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-queue-${size.width}.png`, fullPage: true })
+    /* the Placed filter: the closed rows, each placed one with its lane */
+    await p.click('[data-test=queue-placed-input]')
+    const seven = await p.waitForFunction(() => document.querySelectorAll('[data-test=queue-row]').length === 7, { timeout: 15000 }).then(() => true, () => false)
+    ok(`C106 queue ${size.width}: Placed adds the three closed rows`, seven, await count(p, '[data-test=queue-row]'))
+    ok(`C106 queue ${size.width}: a placed row's active lane links its Lanes row`, (await link(A(5), 'queue-lane-link')).join() === '/monitoring/lanes?lane=c-085%40box-a'
+      || (await link(A(5), 'queue-lane-link')).join() === '/monitoring/lanes?lane=c-085@box-a', await link(A(5), 'queue-lane-link'))
+    ok(`C106 queue ${size.width}: a lane no longer active reads ended, its id as text`, (await cellOf(A(6), 'queue-lane')) === 'ended (c-412)' && (await link(A(6), 'queue-lane-link')).length === 0, await cellOf(A(6), 'queue-lane'))
+    ok(`C106 control ${size.width}: a declined row names no lane`, (await cellOf(A(7), 'queue-lane')) === '' && (await cellOf(A(7), 'queue-position')) === 'declined')
+    const wide2 = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    ok(`C106 queue ${size.width}: no sideways page scroll with Placed`, wide2 <= 0, wide2)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-queue-placed-${size.width}.png`, fullPage: true })
+    await ctx.close()
+  }
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+    await p.evaluate(() => localStorage.setItem('spool.mock.fleet_queue', 'empty'))
+    await open(p, base, '/monitoring/queue')
+    ok(`queue empty ${size.width}: the one line`, await waitFor(p, '[data-test=queue-empty]') && (await text(p, '[data-test=queue-empty]')) === 'The queue is empty.')
+    await ctx.close()
+  }
+  {
+    /* C105 CONTROL: a workspace admin who is no operator admin sees Lanes but no Queue; the direct URL is the 403 sentence */
+    const { ctx, p } = await costsPage(browser, base, size, { me: { role: 'admin', permissions: ['topics.read'] } })
+    await open(p, base, '/monitoring/agents')
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 2, { timeout: 15000 }).catch(() => null)
+    const ids = await tabIds(p)
+    ok(`C105 control ${size.width}: a workspace admin sees Lanes, not Queue`, ids.includes('lanes') && !ids.includes('queue'), ids)
+    await ctx.close()
+  }
+  {
+    const { ctx, p } = await costsPage(browser, base, size)
+    await open(p, base, '/monitoring/agents')
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 2, { timeout: 15000 }).catch(() => null)
+    ok(`C105 control ${size.width}: no Queue tab for a member`, !(await tabIds(p)).includes('queue'), await tabIds(p))
+    await open(p, base, '/monitoring/queue')
+    ok(`queue control ${size.width}: the direct URL shows the 403 sentence, no table`, await waitFor(p, '[data-test=queue-forbidden]') && (await count(p, '[data-test=queue-row]')) === 0)
+    await ctx.close()
+  }
+}
+
 /** SPL-4453 (rows 5 and 9 of SPL-4422): a plain member opens each admin or operator Monitoring page by URL; the page decides
  *  from /v1/view/me and sends no read the hub refuses (globalThis.SPOOL_MOCK_403 stays empty), and shows its no-access line.
  *  The mock hub writes the list where it refuses (act-as-mock.mjs mockRefused), not the page.
@@ -855,6 +934,7 @@ async function memberGates(browser, base, size) {
     ['/monitoring/file-streams', 'fs-forbidden'],
     ['/monitoring/agents/CLE-07@box-a', 'agent-lanes-forbidden'],
     ['/monitoring/topics', 'topics-forbidden'],
+    ['/monitoring/queue', 'queue-forbidden'],
   ]) {
     await open(p, base, path)
     const shown = await waitFor(p, `[data-test=${line}]`)
@@ -880,18 +960,21 @@ try {
   const withTokens = []
   const withLanes = []
   const withTopics = []
+  const withQueue = []
   for (const src of initial) {
     const js = await (await fetch(server.base + src)).text()
     if (COSTS_MARKERS.test(js)) withCosts.push(src)
     if (TOKENS_MARKERS.test(js)) withTokens.push(src)
     if (LANES_MARKERS.test(js)) withLanes.push(src)
     if (TOPICS_MARKERS.test(js)) withTopics.push(src)
+    if (QUEUE_MARKERS.test(js)) withQueue.push(src)
   }
   ok('200.html names its initial chunks', initial.length > 0, initial.length)
   ok('no costs page, pie or tenant-costs code in the initial download', withCosts.length === 0, withCosts)
   ok('no Tokens page, card or monitoring-tokens code in the initial download', withTokens.length === 0, withTokens)
   ok('no Lanes page or monitoring-lanes code in the initial download (C20)', withLanes.length === 0, withLanes)
   ok('no Topics page or monitoring-topics code in the initial download (C47)', withTopics.length === 0, withTopics)
+  ok('no Queue page or monitoring-queue code in the initial download (C107)', withQueue.length === 0, withQueue)
 
   console.log('-- spec 153 tab row')
   await tabRow(browser, server.base)
@@ -899,6 +982,8 @@ try {
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     console.log(`-- lanes prio ${size.width}x${size.height}`)
     await lanesPrioSort(browser, server.base, size)
+    console.log(`-- queue ${size.width}x${size.height}`)
+    await queueTab(browser, server.base, size)
   }
 
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {

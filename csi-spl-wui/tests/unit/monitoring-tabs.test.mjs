@@ -23,9 +23,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('monitoring tabs', () => {
-  it('Agents first (the landing tab, Q1 A), then Boxes, Events (SPL-3250), Tokens (spec 140), Lanes (spec 153 C15), Topics (spec 153 3.10, SPL-4421); no Costs (SPL-3986)', () => {
-    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'topics', 'file-streams', 'invoices'])
-    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/tokens', '/monitoring/lanes', '/monitoring/topics', '/monitoring/file-streams', '/monitoring/invoices'])
+  it('Agents first (the landing tab, Q1 A), then Boxes, Events (SPL-3250), Tokens (spec 140), Lanes (spec 153 C15), Queue (spec 153 C105), Topics (spec 153 3.10, SPL-4421); no Costs (SPL-3986)', () => {
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'queue', 'topics', 'file-streams', 'invoices'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/tokens', '/monitoring/lanes', '/monitoring/queue', '/monitoring/topics', '/monitoring/file-streams', '/monitoring/invoices'])
     assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
     for (const t of MONITORING_TABS) {
       assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
@@ -34,7 +34,7 @@ describe('monitoring tabs', () => {
     }
   })
   it('Tokens (spec 140 4.1, SPL-2322) shows beside Agents and Boxes for an operator admin, never for anyone else', () => {
-    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'topics', 'invoices'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'queue', 'topics', 'invoices'])
     /* CONTROL: a member who is not an operator admin, or not known yet, never sees it */
     assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes', 'events'])
     assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes', 'events'])
@@ -45,7 +45,7 @@ describe('monitoring tabs', () => {
     assert.ok(!MONITORING_TABS.some((t) => t.id === 'costs' || t.path === '/monitoring/costs'), 'not even a hidden row')
     const holds = (perms) => (p) => perms.includes(p)
     assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'topics', 'invoices'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'queue', 'topics', 'invoices'])
     /* the old link still lands on Reporting -> Costs: the page is the redirect, off the bar */
     assert.match(read('src/pages/monitoring/costs/index.vue'), /<LegacyMonitoringRedirect \/>/)
     assert.equal(monitoringTabFor('/monitoring/costs'), null)
@@ -97,7 +97,7 @@ describe('monitoring tabs', () => {
     const topics = MONITORING_TABS.find((t) => t.id === 'topics')
     assert.deepEqual({ ...topics }, { id: 'topics', path: '/monitoring/topics', labelKey: 'monitoring.tab.topics', operatorsOnly: false, staff: true, ready: true })
     const ids = MONITORING_TABS.map((t) => t.id)
-    assert.equal(ids.indexOf('topics'), ids.indexOf('lanes') + 1, 'right after Lanes')
+    assert.equal(ids.indexOf('topics'), ids.indexOf('lanes') + 2, 'after Lanes and its Queue (spec 153 C105)')
     /* C45 CONTROL: whoever sees Lanes sees Topics, and nobody else */
     for (const who of [undefined, {}, { operator: false }, { operator: true }, { staff: true }, { staff: false }, { operator: true, staff: false }, { operator: false, can: () => true }]) {
       const v = visibleMonitoringTabs(who).map((t) => t.id)
@@ -106,11 +106,24 @@ describe('monitoring tabs', () => {
     assert.equal(monitoringTabFor('/monitoring/topics'), 'topics')
     assert.equal(monitoringTabFor('/fi/monitoring/topics'), 'topics')
   })
+  it('C105 (spec 153 3.22.3, row Q4, SPL-6740): Queue right after Lanes, operator admins only; a plain member has no Queue tab', () => {
+    const queue = MONITORING_TABS.find((t) => t.id === 'queue')
+    assert.deepEqual({ ...queue }, { id: 'queue', path: '/monitoring/queue', labelKey: 'monitoring.tab.queue', operatorsOnly: true, ready: true })
+    const ids = MONITORING_TABS.map((t) => t.id)
+    assert.equal(ids.indexOf('queue'), ids.indexOf('lanes') + 1, 'right after Lanes')
+    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id).slice(4, 6), ['lanes', 'queue'])
+    /* C105 CONTROL: a plain member, a workspace's staff, the operator workspace's product owner, or not known yet: no Queue */
+    for (const who of [undefined, {}, { operator: false }, { staff: true }, { operatorReader: true }, { operator: false, can: () => true }]) {
+      assert.ok(!visibleMonitoringTabs(who).some((t) => t.id === 'queue'), JSON.stringify(who))
+    }
+    assert.equal(monitoringTabFor('/monitoring/queue'), 'queue')
+    assert.equal(monitoringTabFor('/fi/monitoring/queue'), 'queue')
+  })
   it('Lanes (spec 153 3.6, row B6, SPL-3229, C26): a workspace owner or admin sees the tab, a plain member does not', () => {
     /* C26: staff false has no lanes; twin: staff true has it, and Tokens stays the operator's */
     assert.deepEqual(visibleMonitoringTabs({ staff: false }).map((t) => t.id), ['agents', 'boxes', 'events'])
     assert.deepEqual(visibleMonitoringTabs({ staff: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'lanes', 'topics', 'file-streams'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true, staff: false }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'topics', 'invoices'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, staff: false }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'queue', 'topics', 'invoices'])
     /* who is staff: the hub's pair, TenantOwner || Has(admin) anywhere in the role set (C25b, C26b) */
     const me = (body) => normalizeMe(body)
     assert.equal(monitoringStaff(me({ role: 'biz_owner', roles: ['biz_owner'], tenant_owner: true })), true, 'the owner')

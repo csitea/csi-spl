@@ -14,6 +14,8 @@
 #  10. Samples older than 7 days are trimmed
 #  11. Report-only: an unwritable dir still exits 0 with a WARN
 #  12. ./run -a do_net_external_api_check through the csi-spl-utl harness
+#  13. One copy (r13-01): the ms clock, the ISO stamp and the 7-day trim are
+#      the uplink probe's (spl_uplink_ms, spl_uplink_iso, spl_uplink_trim)
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -199,6 +201,15 @@ if [[ $rc -eq 0 ]] && grep -q "github h.example.com:443 ok" <<<"$out" && [[ -s "
   pass "12. ./run -a do_net_external_api_check through the csi-spl-utl harness"
 else
   fail "12. ./run harness (rc=$rc out=$out)"
+fi
+
+# 13 ------------------------------------------------------------------------
+own=$(grep -nE '^[a-z_]+_(ms|iso|trim)\(\)|TZ=UTC printf|-v cut="\$cut"' "$FUNC_SH" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+if [[ -z "$own" ]] && grep -qF 'spl_uplink_trim "$file" "$cut"' "$FUNC_SH" && grep -qF 'ts="$(spl_uplink_iso "$now")"' "$FUNC_SH" \
+   && grep -qF 't0="$(spl_uplink_ms)"' "$FUNC_SH"; then
+  pass "13. one copy: ms clock, ISO stamp and trim come from spl-uplink-probe.func.sh"
+else
+  fail "13. one copy (own=[$own])"
 fi
 
 echo "=========================================="

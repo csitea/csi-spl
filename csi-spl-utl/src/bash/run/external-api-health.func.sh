@@ -60,24 +60,25 @@ do_net_external_api_check() {
   for ep in "${list[@]}"; do
     [[ "$ep" =~ ^[a-z0-9-]+=[A-Za-z0-9.-]+:[0-9]{1,5}$ ]] || { do_log "FATAL endpoint '$ep' is not name=host:port"; return 1; }
   done
+  # the ms clock, the ISO stamp, the 7-day trim and the default dir are the uplink probe's
+  declare -F spl_uplink_trim >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/src/bash/run/spl-uplink-probe.func.sh"
   dir="${EXTERNAL_API_DIR:-}"
   if [[ -z "$dir" ]]; then
-    declare -F spl_uplink_probe_dir >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/src/bash/run/spl-uplink-probe.func.sh"
     spl_uplink_probe_dir dir || return 1
   fi
   box="${EXTERNAL_API_BOX:-${UPLINK_PROBE_BOX:-$(spl_box_name)}}"
   [[ "$box" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL the box id '$box' is not a plain name (set EXTERNAL_API_BOX)"; return 1; }
   file="$dir/$box.external-api.tsv"
   now="${EXTERNAL_API_NOW:-${EPOCHSECONDS:-$(date +%s)}}"
-  ts="$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' "$now")"
+  ts="$(spl_uplink_iso "$now")"
   tmp="$(mktemp -d)" || { do_log "WARN cannot make a temp dir: no sample"; return 0; }
-  t0="$(ext_api_ms)"
+  t0="$(spl_uplink_ms)"
   for i in "${!list[@]}"; do
     ext_api_probe "${list[$i]}" "$tmo" >"$tmp/$i" &
     pids+=($!)
   done
   wait "${pids[@]}" 2>/dev/null
-  t1="$(ext_api_ms)"
+  t1="$(spl_uplink_ms)"
   mkdir -p "$dir" 2>/dev/null || do_log "WARN cannot create $dir: samples not kept"
   for i in "${!list[@]}"; do
     IFS=$'\t' read -r name host port dnsok dnsms tcpok tcpms tlsok tlsms <"$tmp/$i" || continue
@@ -95,8 +96,8 @@ do_net_external_api_check() {
   done
   rm -rf "$tmp"
   if [[ -f "$file" ]]; then
-    cut="$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' $((now - 7 * 86400)))"
-    ext_api_trim "$file" "$cut"
+    cut="$(spl_uplink_iso $((now - 7 * 86400)))"
+    spl_uplink_trim "$file" "$cut"
   fi
   echo "external-api $ts box=$box endpoints=$n down=$down wall=$((t1 - t0))ms file=$file"
   return 0
@@ -104,9 +105,6 @@ do_net_external_api_check() {
 
 # do_external_api_health - the file-name alias run.sh derives for this file
 do_external_api_health() { do_net_external_api_check "$@"; }
-
-# ext_api_ms - a millisecond wall clock (no fork)
-ext_api_ms() { local t="${EPOCHREALTIME/[.,]/}"; printf '%s' "$((10#$t / 1000))"; }
 
 # ext_api_probe <name=host:port> <timeout> - prints one TSV row:
 # name host port dns_ok dns_ms tcp_ok tcp_ms tls_ok tls_ms
@@ -121,34 +119,20 @@ ext_api_probe() {
   ((${#tcp[@]})) || tcp=(bash -c 'exec 3<>"/dev/tcp/$1/$2"' _)
   # shellcheck disable=SC2016 # $1 and $2 expand in the child bash
   ((${#tls[@]})) || tls=(bash -c 'openssl s_client -connect "$1:$2" -servername "$1" -verify_return_error -brief </dev/null' _)
-  t0="$(ext_api_ms)"
+  t0="$(spl_uplink_ms)"
   timeout "$tmo" "${getent[@]}" hosts "$host" >/dev/null 2>&1 && dnsok=1
-  dnsms=$(( $(ext_api_ms) - t0 ))
+  dnsms=$(( $(spl_uplink_ms) - t0 ))
   if [[ "$dnsok" == 1 ]]; then
-    tcpok=0; t0="$(ext_api_ms)"
+    tcpok=0; t0="$(spl_uplink_ms)"
     timeout "$tmo" "${tcp[@]}" "$host" "$port" >/dev/null 2>&1 && tcpok=1
-    tcpms=$(( $(ext_api_ms) - t0 ))
+    tcpms=$(( $(spl_uplink_ms) - t0 ))
   fi
   if [[ "$tcpok" == 1 ]]; then
-    tlsok=0; t0="$(ext_api_ms)"
+    tlsok=0; t0="$(spl_uplink_ms)"
     timeout "$tmo" "${tls[@]}" "$host" "$port" >/dev/null 2>&1 && tlsok=1
-    tlsms=$(( $(ext_api_ms) - t0 ))
+    tlsms=$(( $(spl_uplink_ms) - t0 ))
   fi
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$host" "$port" "$dnsok" "$dnsms" "$tcpok" "$tcpms" "$tlsok" "$tlsms"
-}
-
-# ext_api_trim <file> <cutoff-iso> - drops the samples older than the cutoff,
-# only when the first line is older
-ext_api_trim() {
-  local file="$1" cut="$2" first=""
-  IFS=$'\t' read -r first _ <"$file" || return 0
-  [[ "$first" < "$cut" ]] || return 0
-  if awk -F'\t' -v cut="$cut" '$1 >= cut' "$file" >"$file.tmp.$$"; then
-    mv -f "$file.tmp.$$" "$file" || do_log "WARN cannot trim $file"
-  else
-    rm -f "$file.tmp.$$"; do_log "WARN cannot trim $file"
-  fi
-  return 0
 }
 
 # Register the row's action name with run.sh's function map when sourced

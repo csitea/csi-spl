@@ -318,7 +318,7 @@ spl_spawn_place_tick() {  # HOLDER
     do_log "INFO hold: $why; ask $(jq -r '.ask_id[0:8]' <<<"$head") stays position $(jq -r '"\(.position) of \(.queue_len)"' <<<"$head")"
     return 0
   fi
-  head="$(spl_spawn_place_band "$head" "$rows")"
+  head="$(spl_spawn_place_band "$head" "$rows" "$holder")"
   spl_spawn_place_take_next "$holder" "$head" "$rows"
 }
 
@@ -336,7 +336,7 @@ spl_spawn_place_take_next() {  # HOLDER HEAD LINE
     rows="$(spl_spawn_place_dark_hold "$rows")"
     head="$(jq -c '.[0] // empty' <<<"$rows")"
     [[ -n "$head" ]] || return 0
-    head="$(spl_spawn_place_band "$head" "$rows")"
+    head="$(spl_spawn_place_band "$head" "$rows" "$1")"
     n=$((n + 1))
   done
 }
@@ -465,13 +465,14 @@ spl_spawn_place_dispatch() {
 
 # 3b. The row the bands pick: a ci row, wherever it stands (the first queued
 # one of ROWS by position the placer can launch, SPL-1817), HEAD when it is ci
-# or flagged, or at priority 1 (its discussion's, e.g. set by the owner's prio
-# word, SPL-5524), a review seat on the owner's review-seat GO next, or HEAD
-# when the share cannot be read (the hub's order holds). The hub orders by
-# priority first, so a ci row on an unset discussion sits behind every
-# priority 1 or 2 row. The share goes to jq as a file, never argv: its bypass
-# list is over one argument's 128 KiB (171 KB on sat 2026-10-29, SPL-4156).
-spl_spawn_place_band() {  # HEAD ROWS
+# or flagged, at priority 1 (its own or its discussion's, SPL-5524) or dragged
+# (a rank_by, spec 153 3.22.8), a review seat on the owner's review-seat GO
+# next, or HEAD when the share cannot be read (the hub's order holds). The hub
+# orders by priority first, so a ci row on an unset discussion sits behind
+# every priority 1 or 2 row. The share goes to jq as a file, never argv: its
+# bypass list is over one argument's 128 KiB (171 KB on sat 2026-10-29,
+# SPL-4156). HOLDER is the placer's holder, for the bypass log.
+spl_spawn_place_band() {  # HEAD ROWS [HOLDER]
   local share pick
   pick="$(jq -c '[.[] | select(.state == "queued" and (.class // "") == "ci" and ._l != false)] | sort_by(.position) | .[0] // empty' <<<"$2")"
   if [[ -n "$pick" ]]; then
@@ -482,6 +483,12 @@ spl_spawn_place_band() {  # HEAD ROWS
   if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
   if jq -e '(.priority // 3) == 1' >/dev/null <<<"$1"; then
     do_log "INFO priority 1 head: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement // ""))"' <<<"$1") is placed first, ahead of the bands (SPL-5524)" >&2
+    spl_spawn_place_bypass_note "prio1:$(jq -r '.priority_by // ""' <<<"$1")" "$1" "${3:-}"
+    printf '%s' "$1"; return 0
+  fi
+  if jq -e '(.rank_by // "") != ""' >/dev/null <<<"$1"; then
+    do_log "INFO dragged head: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement // ""), dragged by \(.rank_by))"' <<<"$1") is placed first, ahead of the bands (spec 153 3.22.8)" >&2
+    spl_spawn_place_bypass_note "drag:$(jq -r '.rank_by' <<<"$1")" "$1" "${3:-}"
     printf '%s' "$1"; return 0
   fi
   pick="$(spl_spawn_place_seat "$2")"
@@ -502,6 +509,22 @@ spl_spawn_place_band() {  # HEAD ROWS
   [[ -n "$pick" ]] || { printf '%s' "$1"; return 0; }
   do_log "INFO band pick: ask $(jq -r '"\(.ask_id[0:8]) (\(._c) at \(._p)%, queue position \(.position))"' <<<"$pick") of $(spl_spawn_share_line "$share")" >&2
   jq -c 'del(._t, ._o, ._c, ._p, ._s)' <<<"$pick"
+}
+
+# 3b. One bypass log line for a head taken past the bands (spec 153 3.22.8,
+# owner msg 8cb6cc7d "You have to keep track for me"): time, ask id, WHY
+# (prio1:<priority_by> or drag:<rank_by>), the holder, the summary. Once per
+# ask and WHY: a head the launcher holds is picked again every tick.
+spl_spawn_place_bypass_note() {  # WHY HEAD HOLDER
+  local id f
+  id="$(jq -r '.ask_id // ""' <<<"$2")"
+  [[ -n "$id" ]] || return 0
+  f="$(spool_asks_dir)/bypass.tsv"
+  [[ -s "$f" ]] && awk -F'\t' -v a="$id" -v m="$1" '$2 == a && $3 == m { found = 1 } END { exit !found }' "$f" && return 0
+  declare -F spl_spawn_share_bypass_record >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-share.func.sh"
+  spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$1" "${3:-$(spl_spawn_place_dispatch)}" "$(jq -r '.summary // ""' <<<"$2")" ||
+    do_log "WARN the bypass log could not be written for ask ${id:0:8} ($1)" >&2
+  return 0
 }
 
 # 3b. A 24 h sample of the live share when one is due, so the samples do not

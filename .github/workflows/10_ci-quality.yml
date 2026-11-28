@@ -289,8 +289,9 @@ jobs:
             for p in cnf hub iac orc wui; do
               if [[ "$line" == parts=all || " ${line#parts=} " == *" $p "* ]]; then out+="run_$p=true"$'\n'; else out+="run_$p=false"$'\n'; fi
             done
-            # A2: a dispatch with express_base maps the e2e range as a push would
-            echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"
+            # A2: a dispatch with express_base maps the e2e range as a push
+            # would; only a 40-hex sha (a newline could add outputs), else full
+            if [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"; fi
           else
             echo "ci-doc-only: $EVENT without a base: full gate"
           fi

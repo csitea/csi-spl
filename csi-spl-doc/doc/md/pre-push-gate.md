@@ -90,7 +90,11 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   count cap); n is the selected seconds over one full-run shard's, rounded
   up. A file the CI budget cuts is printed in the job log and waits for the
   next full run, so "left to CI" above means the full run when the push is
-  mapped. A `workflow_dispatch` with `express_base` maps
+  mapped. The budget cuts files the change DOES map to, not only files no
+  mapping picks: in the GitHub control (run 46098598520) one `AgentBadge.vue`
+  change mapped 235 files, 97 ran and 138 were cut. A cut file stays unrun
+  for up to about 3 h (the scheduled run, cron `43 */3`) plus that run's own
+  time, or longer when the scheduled run is skipped or red. A `workflow_dispatch` with `express_base` maps
   `express_base..sha` the same way (the GitHub control on a throwaway
   branch: plant one component change on top of the branch head and pass the
   head as `express_base`). The full suite on 8 shards runs on the scheduled

@@ -144,6 +144,39 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   no orc test: 33 of 150 orc commits (22%), and whole-tree guards such as
   `run-eager-files.tst.sh` reached trunk red
   ([ci-failures-50](ci-failures-50-2026-11-15.md) T2).
+- **The orc map in CI** (SPL-6385, `ci-volume-2026-11-24.md` section 3
+  A3): on a wf 10 push, classify runs
+  `csi-spl-orc/src/bash/scripts/ci-orc-test-plan.sh` on the orc part's base
+  (`--base`: the newest run whose every `orc:` job was green, the rule
+  `ci-doc-only.sh --select` applies) to the pushed sha, and the `orc-suite`
+  shards run only the planned files (`ORC_TEST_ONLY` of `run-all-tests.sh`,
+  packed by `ORC_TEST_SHARD=<k>/<n>`), named
+  `orc: hermetic (mapped) action tests ... <k>/<n>`. The plan is this
+  part's map, `changed-tests.sh`, on the pushed range, plus two steps: the
+  tests of the orc files that name a changed orc file (its dependents, one
+  level, at most 30), and, for a file outside `csi-spl-orc` that no orc test
+  names, the tests that name one of its parent dirs. n is the planned
+  seconds (`orc-shard-weights.txt`) over one full-run shard's, rounded up,
+  1..3. The full suite on 4 shards runs on the scheduled run, a dispatch
+  without a 40-hex `express_base`, a pull request and wf 13, and on a push
+  whose range the classifier gates in full (`.github`, a dispatcher or
+  `csi-spl-*/lib`, the cnf, `.version`, the runners and the test lib), or
+  that touches any `lib/` dir under `csi-spl-orc` (a feature's too), a
+  non-test file in `src/bash/tests` (a helper, the weights), a `*.tfvars`,
+  Dockerfile, compose file or `csi-spl-orc/src/docker` file (the C4 shape:
+  a pin another file's test reads), or the plan itself; also when a changed
+  orc file is named by no test, there are more than 30 dependents, the
+  selection needs 4 shards, or the plan errs, times out (120 s) or prints a
+  line of any other shape. A test that reaches a changed file by a name no
+  rule keys runs on the next full run, up to about 3 h later (cron
+  `43 */3`). The scheduled run never reuses a mapped run as its head's full
+  gate (`ci-doc-only.sh --reuse` needs the `orc: hermetic action tests`
+  jobs); a green mapped run still counts as the next push's base, as in
+  A2. A dispatch with `express_base` maps the same way (the GitHub control
+  on a throwaway branch). Print a plan:
+  `bash csi-spl-orc/src/bash/scripts/ci-orc-test-plan.sh <base> <sha>`;
+  the map per file: `... ci-orc-test-plan.sh --map [<path>...]`.
+  Gate: `csi-spl-orc/src/bash/tests/ci-orc-test-plan.tst.sh`.
 - **The orc-features part** (spec 133 F1) runs wf 10's orc feature tests
   (`features/run-ci-tests.sh`) for the features a csi-spl-orc change maps
   to: a file under `features/<f>/` selects `<f>`, a file directly under

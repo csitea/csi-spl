@@ -193,7 +193,8 @@ jobs:
   # every part was green, no part runs and the summary names the run it
   # reused; a new head, a red or cancelled gate, or no list -> every part.
   # A mapped push run (A2, "wui: mapped browser e2e") is not such a gate: it
-  # has no "wui: browser e2e" job, so the schedule runs the full suite.
+  # has no "wui: browser e2e" job, so the schedule runs the full suite; nor
+  # is a mapped orc run (A3): it has no "orc: hermetic action tests" job.
   # Only this file's own timer: wf 13 calls it on a schedule of its own to
   # try the next runner image, and that run keeps every part.
   # A green all-parts PUSH gate counts: 5 of 163 schedule runs, 11-20..11-26,
@@ -219,6 +220,9 @@ jobs:
       # A2: the wui part's base on a push (_ppe_ci_base, the rule --select
       # applies), the range the wui-e2e-plan job maps; empty = the full suite
       wui_base: ${{ steps.cls.outputs.wui_base }}
+      # A3: the orc hermetic plan, {"n":..,"shards":[..],"files":".."} for a
+      # mapped push run (ci-orc-test-plan.sh); empty = the full suite, 4 shards
+      orc_plan: ${{ steps.cls.outputs.orc_plan }}
     steps:
       # the commit graph and trees, no blobs: enough for rev-list and a
       # name-only diff between a base and sha (the checked-out tree is whole,
@@ -244,8 +248,9 @@ jobs:
         run: |
           set -uo pipefail
           cls=csi-spl-orc/src/bash/scripts/ci-doc-only.sh
+          plan=csi-spl-orc/src/bash/scripts/ci-orc-test-plan.sh
           tsv="$RUNNER_TEMP/jobs.tsv"; : >"$tsv"
-          out=""
+          out="" orc_base=""
           jobs_of() {  # <id TAB sha [TAB conclusion] lines>: append each run's jobs to $tsv
             local id sha concl rows bad
             while IFS=$'\t' read -r id sha concl; do
@@ -277,6 +282,8 @@ jobs:
             out=$(bash "$cls" --select "$HEAD_SHA" "$tsv") || out=""
             wui_base=$(. csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh && _ppe_ci_base "$tsv") || wui_base=""
             echo "wui_base=$wui_base" >>"$GITHUB_OUTPUT"
+            # A3: the orc part's base, by the rule --select applies
+            orc_base=$(bash "$plan" --base "$tsv") || orc_base=""
           elif [[ "$EVENT" == schedule && "$WORKFLOW_REF" == */.github/workflows/10_ci-quality.yml@* ]]; then
             # this file's own timer only (wf 13 calls it on its schedule to
             # test a new image: that run must run every part); the finished
@@ -294,8 +301,24 @@ jobs:
             # A2: a dispatch with express_base maps the e2e range as a push
             # would; only a 40-hex sha (a newline could add outputs), else full
             if [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"; fi
+            # A3: the orc plan maps that same range, under the same guard
+            if [[ "$BASE" =~ ^[0-9a-f]{40}$ ]]; then orc_base=$BASE; fi
           else
             echo "ci-doc-only: $EVENT without a base: full gate"
+          fi
+          # A3: a push (or a dispatch with a 40-hex express_base) maps the orc
+          # hermetic files; only a plan of the exact shape is written, so a
+          # partial or odd one (and every other event) is the full suite
+          orc_plan=""
+          if [[ -n "$orc_base" ]]; then
+            orc_plan=$(timeout 120 bash "$plan" "$orc_base" "$HEAD_SHA" | sed -n 's/^orc_plan=//p') || orc_plan=""
+          fi
+          if [[ "$orc_plan" =~ ^\{\"n\":([1-3]),\"shards\":\[([1-3,]+)\],\"files\":\"[A-Za-z0-9._\ -]+\"\}$ ]] \
+             && [[ "${BASH_REMATCH[2]}" == "$(seq -s, 1 "${BASH_REMATCH[1]}")" ]]; then
+            echo "orc_plan=$orc_plan" >>"$GITHUB_OUTPUT"
+            echo "**orc plan**: mapped, ${BASH_REMATCH[1]} shard(s), base ${orc_base:0:12}: $(sed 's/.*"files":"//; s/"}$//' <<<"$orc_plan")" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "**orc plan**: the full hermetic suite on 4 shards" >>"$GITHUB_STEP_SUMMARY"
           fi
           sum="**parts** (${HEAD_SHA:0:12}, $EVENT):"
           for p in cnf hub iac orc wui; do
@@ -1242,16 +1265,33 @@ jobs:
   # weights, refreshed from 72 jobs, pack 4 shards to 3,112 / 3,018 / 3,098 /
   # 2,922 s of held-out summed wall (~780 s of test step for the largest).
   # Hosted runners: the extra shard adds no load to the box.
+  # MAPPED ON A PUSH (SPL-6385 A3, ci-volume-2026-11-24.md section 3): classify
+  # runs csi-spl-orc/src/bash/scripts/ci-orc-test-plan.sh on the orc part's
+  # base..sha (the same base --select used) and writes orc_plan: the test
+  # files the change maps to (the tests that name a changed file, the tests
+  # of its dependents, ORC_TEST_ALWAYS) packed on 1..3 shards. Such a job is
+  # named "orc: hermetic (mapped) action tests ... k/n": a reader of
+  # "orc: hermetic action tests" (ci-doc-only.sh --reuse, the required checks
+  # of wf 11) still sees full runs only, and gate-fail-fast.sh's "orc:
+  # hermetic" spares still hold the sibling shards. The full suite on 4 shards: the
+  # schedule, a dispatch without a 40-hex express_base, wf 11, wf 13; a range
+  # the classifier gates in full (cnf, .github, a dispatcher or lib, the
+  # runners), any lib/ dir under csi-spl-orc, a test helper or the weights,
+  # a tfvars or image pin, the plan itself; an orc file no test names; more
+  # than 30 dependents; a selection needing 4 shards; an empty, odd or failed
+  # plan. Accepted risk (the C4 shape): a test that reaches a changed file by
+  # a name no rule keys runs on the next full run, up to ~3 h later.
+  # Gate: csi-spl-orc/src/bash/tests/ci-orc-test-plan.tst.sh.
   # ===========================================================================
   orc-suite:
-    name: "orc: hermetic action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/4"
+    name: "orc: hermetic ${{ needs.classify.outputs.orc_plan && '(mapped) ' || '' }}action tests (stubbed gcloud/curl/docker) ${{ matrix.shard }}/${{ needs.classify.outputs.orc_plan && fromJSON(needs.classify.outputs.orc_plan).n || 4 }}"
     needs: classify
     if: ${{ !cancelled() && needs.classify.outputs.run_orc != 'false' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: ${{ fromJSON(needs.classify.outputs.orc_plan || '{"shards":[1,2,3,4]}').shards }}
     timeout-minutes: 30
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
@@ -1406,7 +1446,8 @@ jobs:
         env:
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
           GH_TOKEN: ${{ github.token }}
-          ORC_TEST_SHARD: ${{ matrix.shard }}/4
+          ORC_TEST_SHARD: ${{ matrix.shard }}/${{ needs.classify.outputs.orc_plan && fromJSON(needs.classify.outputs.orc_plan).n || 4 }}
+          ORC_TEST_ONLY: ${{ needs.classify.outputs.orc_plan && fromJSON(needs.classify.outputs.orc_plan).files || '' }}
         run: |
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \

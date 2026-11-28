@@ -19,6 +19,8 @@
 #   A test gets only its own stdout and stderr, never the runner's spare fd 3
 #   (ORC_TEST_JOBS=1 ran each file with it open): a process the test leaves
 #   behind kept the pre-push part's tee pipe open and hung the hook (SPL-3907).
+#   ORC_TEST_ONLY (SPL-6385 A3) runs only the named files, packed by the
+#   shard, not inherited by a test; an unknown name is refused (rc 2).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -27,7 +29,7 @@ RUNNER="$PROJ_ROOT/src/bash/tests/run-all-tests.sh"
 JOBS_VAR=ORC_TEST_JOBS
 # the suite under test reads these; a caller's values (a CI shard, a local
 # ORC_TEST_SLOWEST=300) must not reach it
-unset ORC_TEST_SHARD ORC_TEST_SLOWEST ORC_TEST_WEIGHTS ORC_TEST_TIMES
+unset ORC_TEST_SHARD ORC_TEST_SLOWEST ORC_TEST_WEIGHTS ORC_TEST_TIMES ORC_TEST_ONLY
 
 fails=0
 pass() { echo "PASS: $1"; }
@@ -118,6 +120,31 @@ printf '* x\n' >"$W/bad-weights.txt"
 ORC_TEST_WEIGHTS="$W/bad-weights.txt" bash "$W/run-all-tests.sh" >"$W/outbad" 2>&1; rcw=$?
 [ "$rcw" -eq 2 ] && grep -q 'orc shard weights: bad line' "$W/outbad" \
   && pass "a bad weights line is refused (rc 2)" || fail "a bad weights line" "rc=$rcw $(cat "$W/outbad")"
+# ORC_TEST_ONLY (SPL-6385 A3, CI's mapped push run): only the named files
+# run, ORC_TEST_SHARD packs just them (a=50 -> 1/2, c=30 -> 2/2), no test
+# inherits it, and a name that is no test file here is refused (rc 2), never
+# a silently smaller run. CONTROL: a runner that ignores it runs all 5.
+ORC_TEST_ONLY="c-w.tst.sh a-w.tst.sh" ORC_TEST_SHARD=1/2 bash "$W/run-all-tests.sh" >"$W/outo1" 2>&1
+ORC_TEST_ONLY="c-w.tst.sh a-w.tst.sh" ORC_TEST_SHARD=2/2 bash "$W/run-all-tests.sh" >"$W/outo2" 2>&1
+[ "$(grep '^=== [a-z]-w' "$W/outo1" | tr '\n' ' ')" = "=== a-w.tst.sh " ] \
+  && [ "$(grep '^=== [a-z]-w' "$W/outo2" | tr '\n' ' ')" = "=== c-w.tst.sh " ] \
+  && grep -qx -- '--- only: 2 of 5 files (ORC_TEST_ONLY)' "$W/outo1" && grep -qx -- '--- shard 2/2 weight: 30 of 80 s' "$W/outo2" \
+  && pass "ORC_TEST_ONLY runs only the named files, packed by ORC_TEST_SHARD (1/2 = a, 2/2 = c)" \
+  || fail "ORC_TEST_ONLY selection" "$(cat "$W/outo1" "$W/outo2")"
+O=$T/only; mkdir -p "$O"
+cp "$RUNNER" "$O/run-all-tests.sh"
+printf '#!/usr/bin/env bash\necho "only=${ORC_TEST_ONLY:-unset}"\n' >"$O/a-env.tst.sh"
+printf '#!/usr/bin/env bash\necho "PASS: b"\n' >"$O/b-other.tst.sh"
+ORC_TEST_ONLY="a-env.tst.sh" bash "$O/run-all-tests.sh" >"$O/out" 2>&1; rco=$?
+[ "$rco" -eq 0 ] && grep -qx 'only=unset' "$O/out" && ! grep -q 'b-other' "$O/out" \
+  && pass "a test file does not inherit ORC_TEST_ONLY, and an unnamed file does not run" || fail "ORC_TEST_ONLY leak or extra file" "rc=$rco $(cat "$O/out")"
+ORC_TEST_ONLY="a-env.tst.sh gone.tst.sh" bash "$O/run-all-tests.sh" >"$O/outbad" 2>&1; rco=$?
+[ "$rco" -eq 2 ] && grep -q "ORC_TEST_ONLY: 'gone.tst.sh' is not a test file here" "$O/outbad" && ! grep -q '^=== a-env' "$O/outbad" \
+  && pass "an ORC_TEST_ONLY name that is no test file is refused (rc 2) before any file runs" || fail "a bad ORC_TEST_ONLY name" "rc=$rco $(cat "$O/outbad")"
+sed '/^only="\${ORC_TEST_ONLY:-}"$/s/.*/only=""/' "$RUNNER" >"$O/run-all-tests.sh"
+ORC_TEST_ONLY="a-env.tst.sh" bash "$O/run-all-tests.sh" >"$O/outc" 2>&1
+grep -q '^=== b-other' "$O/outc" && pass "CONTROL: a runner that ignores ORC_TEST_ONLY runs the unnamed file (caught above)" \
+  || fail "CONTROL: the ORC_TEST_ONLY control did not bite" "$(cat "$O/outc")"
 # the pool starts the heaviest files first: with 2 jobs, a (50) and b (40)
 # start before c, d and s; the suite-order log is unchanged
 : >"$W/started"

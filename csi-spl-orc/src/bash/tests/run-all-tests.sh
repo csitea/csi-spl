@@ -48,6 +48,8 @@
 #   run-all-tests.sh --check-weights <f>  exits 1 when a file's median and
 #                                         its weight differ by > 2x and
 #                                         > 60 s (a stale weight), naming it
+# ORC_TEST_ONLY="<a.tst.sh> <b.tst.sh>" runs only those files (CI's mapped
+# push run, SPL-6385 A3); see below.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 changed=0 bg="" print_jobs=0 wmode="" wtimes=""
@@ -114,6 +116,23 @@ fi
 (( print_jobs )) && { echo "$njobs"; done_early 0; }
 all=()
 for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
+# ORC_TEST_ONLY (SPL-6385 A3): the file names CI's plan
+# (scripts/ci-orc-test-plan.sh) picked, space-separated; only they run, and
+# ORC_TEST_SHARD then packs them. A name that is no test here is an error
+# (exit 2), never a silent smaller run. Unset before any file runs.
+only="${ORC_TEST_ONLY:-}"
+unset ORC_TEST_ONLY
+if [[ -n "$only" ]]; then
+  declare -A want=()
+  for b in $only; do
+    [[ "$b" =~ ^[A-Za-z0-9._-]+\.tst\.sh$ && -f "$dir/$b" ]] || { echo "ORC_TEST_ONLY: '$b' is not a test file here" >&2; done_early 2; }
+    want[$b]=1
+  done
+  kept=()
+  for t in "${all[@]}"; do [[ -n "${want[${t##*/}]:-}" ]] && kept+=("$t"); done
+  echo "--- only: ${#kept[@]} of ${#all[@]} files (ORC_TEST_ONLY)"
+  all=("${kept[@]}")
+fi
 # wt[<basename>] = weight (s); wdef = the weight of an unlisted file
 declare -A wt=()
 wdef=1

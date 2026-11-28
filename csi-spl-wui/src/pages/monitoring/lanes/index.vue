@@ -127,7 +127,7 @@
               <!-- 3.20 (SPL-4810): the lane opens in a dialog, its console at the end -->
               <th scope="row" class="ln-id" data-test="lanes-agent"><button type="button" class="ln-open" :title="t('monitoring.lanes.console.open_title')" data-test="lanes-open" @click="openLane(l)">{{ laneName(l) }}</button></th>
               <td class="ln-box" data-test="lanes-box">{{ l.box || DASH }}</td>
-              <td class="num" data-test="lanes-priority" :data-priority="l.priority || undefined">
+              <td class="num" data-test="lanes-priority" :data-priority="l.priority || undefined" :data-priority-source="l.prioritySource || undefined" :title="l.prioritySource === 'owner_default' ? t('monitoring.lanes.prio_owner_default') : undefined">
                 <span v-if="l.priority" class="ln-prio" :class="'ln-prio--' + l.priority">{{ l.priority }}</span>
                 <span v-else class="muted">{{ DASH }}</span>
               </td>

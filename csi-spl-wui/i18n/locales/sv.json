@@ -3821,6 +3821,7 @@
       "state_live": "Aktiv",
       "state_queued": "I kö",
       "role_seat": "Rollplats",
+      "prio_owner_default": "Inget aktivt ärende sätter en prioritet: ägarens standard 3",
       "filter_box": "Maskin",
       "filter_vendor": "Leverantör",
       "filter_state": "Status",

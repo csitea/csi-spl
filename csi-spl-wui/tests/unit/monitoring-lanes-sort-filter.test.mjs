@@ -248,6 +248,12 @@ describe('the Prio column', () => {
     assert.deepEqual(v.map((l) => l.priority), [2, 0, 0, 1, 0])
     assert.deepEqual(v[0].issues.map((i) => i.priority), [2, 4])
   })
+  it('keeps the prio\'s source (3.14 addendum, SPL-6750); the owner\'s default 3 has a title', () => {
+    const v = fleetLanesOf({ lanes: [{ agent_id: 'c-1', priority: 2, priority_source: 'issue' }, { agent_id: 'c-002', priority: 1, priority_source: 'role' },
+      { agent_id: 'c-3', priority: 3, priority_source: 'owner_default' }, { agent_id: 'c-4' }] }).lanes
+    assert.deepEqual(v.map((l) => l.priority + ':' + l.prioritySource), ['2:issue', '1:role', '3:owner_default', '0:'])
+    assert.match(lanes, /:title="l\.prioritySource === 'owner_default' \? t\('monitoring\.lanes\.prio_owner_default'\) : undefined"/)
+  })
   it('sorts prio 1 first; a lane with no prio is last both ways, ties keep the hub order', () => {
     const v = fleetLanesOf({ lanes: [{ agent_id: 'c-1', priority: 3 }, { agent_id: 'c-2' }, { agent_id: 'c-3', priority: 1 },
       { agent_id: 'c-4', priority: 3 }, { agent_id: 'c-5' }] }).lanes

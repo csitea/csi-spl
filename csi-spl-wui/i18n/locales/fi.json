@@ -3821,6 +3821,7 @@
       "state_live": "Käynnissä",
       "state_queued": "Jonossa",
       "role_seat": "Roolipaikka",
+      "prio_owner_default": "Mikään aktiivinen asia ei aseta prioriteettia: omistajan oletus 3",
       "filter_box": "Kone",
       "filter_vendor": "Toimittaja",
       "filter_state": "Tila",

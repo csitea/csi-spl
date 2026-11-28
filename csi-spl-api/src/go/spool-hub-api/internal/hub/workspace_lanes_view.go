@@ -120,7 +120,6 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 		v.TopicChannel = topic.Channel
 		v.TopicTitle, v.Workspace, v.WorkspaceName = topic.Title, tenant, wsName
 		v.Issues = laneIssues("", prefix, true, byTopic[v.TopicID], status)
-		v.Priority = lanePrio(v.Issues)
 		out.Lanes = append(out.Lanes, v)
 	}
 	for _, l := range onTopic { // ListFleetLanes order: newest write first
@@ -136,7 +135,6 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 		}
 		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
 		v.OriginIssue = laneOriginIssue(l.OriginIssue, prefix, status)
-		v.Priority = lanePrio(v.Issues)
 		v.Workspace, v.WorkspaceName = tenant, wsName
 		out.Lanes = append(out.Lanes, v)
 	}
@@ -147,5 +145,6 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 	for _, q := range queued { // the queue's order, after the lanes
 		keep(q.row)
 	}
+	lanesPrio(out.Lanes)
 	return out, nil
 }

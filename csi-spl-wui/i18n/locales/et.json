@@ -3821,6 +3821,7 @@
       "state_live": "Töös",
       "state_queued": "Järjekorras",
       "role_seat": "Rolli koht",
+      "prio_owner_default": "Ükski aktiivne probleem ei määra prioriteeti: omaniku vaikimisi 3",
       "filter_box": "Masin",
       "filter_vendor": "Tarnija",
       "filter_state": "Olek",

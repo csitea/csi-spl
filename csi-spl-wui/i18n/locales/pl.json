@@ -3821,6 +3821,7 @@
       "state_live": "Aktywna",
       "state_queued": "W kolejce",
       "role_seat": "Stanowisko roli",
+      "prio_owner_default": "Żadne aktywne zgłoszenie nie ustala priorytetu: domyślny priorytet właściciela, 3",
       "filter_box": "Maszyna",
       "filter_vendor": "Dostawca",
       "filter_state": "Stan",

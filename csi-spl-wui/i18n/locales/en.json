@@ -3821,6 +3821,7 @@
       "state_live": "Live",
       "state_queued": "Queued",
       "role_seat": "Role seat",
+      "prio_owner_default": "No live issue sets a priority: the owner's default 3",
       "filter_box": "Box",
       "filter_vendor": "Vendor",
       "filter_state": "State",

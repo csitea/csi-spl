@@ -1,5 +1,11 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-28, SPL-6750): section 3.14 "Every lane has a prio"
+(no row shows a dash any more: a role seat 1, else its live issues, else
+3; `priority_source` beside `priority`), cases C61, C61c, C63, C155. Owner
+HUM-10, t1 topic `af921177`, msgs `29c7b493`, `0618e746`, `62051f1a`,
+`0b61a92a`. Placed by the dispatch holder as one lane brief.
+
 Addendum (2026-11-24, SPL-6383): section 3.30 (bulk Set priority, the
 second action of spec 186's select phase: action value `priority`, the
 existing `PUT /v1/topics/{task_id}/priority` per topic, its permission
@@ -1071,12 +1077,49 @@ The rule (the dispatch holder's reading, the lane brief):
   the sort is SPL-4729's, which carries this key like the others.
 - **Not** a placement rule: the queue and the placer do not read it.
 
+**Every lane has a prio (addendum 2026-11-28, SPL-6750).** The owner,
+verbatim (HUM-10, t1 `af921177`), on the Lanes tab sorted by prio with 18
+dashed rows, msg `29c7b493`: "why there are so many lanes without priority
+?"; msg `0618e746`: "each lane MUST have a priority !!!"; msg `62051f1a`,
+on the dashed rows: "set the priority 3 for each one of them"; msg
+`0b61a92a`: "if they are the lanes which MUST run in order for the whole
+spool-hub to oeprate than their priority must be 1". The dashes were 11
+lanes whose every issue was archived (`FleetLaneIssues` reads no archived
+issue) and the 6 role seats. This replaces the rule's dash sentences above
+("A lane with no issue, or with none that has a prio, shows a dash. A role
+seat ... shows a dash") and "omitted when none":
+
+- the row's `priority` is never absent; `lanePrio`
+  (`hub/fleet_lanes_view.go`), in this order:
+  1. a **role seat** (3.11: c-001 the orchestrator, c-002 / c-003 the
+     dispatchers, on every box; `RoleSeat` or `agentid.IsRoleSeat`) is
+     **1**, whatever its issues: the seats the hub needs to operate;
+  2. else the highest among its **live** issues: not archived (never
+     read), not `done`, not `diss`;
+  3. else **3**, the owner's default: every lane whose issues are all
+     archived, done or diss, a lane with no issue, a key of another prefix
+     only, a queued row whose topic is not the reader's.
+- `priority_source` beside it on every row of both routes: `role`,
+  `issue` or `owner_default`. Still one issue read per GET (C62).
+- The cell shows the number as before; with source `owner_default` its
+  `title` says it is the owner's default 3 (key
+  `monitoring.lanes.prio_owner_default`, every locale, checked with
+  `do_spl_lang_review_gct`). A dash is left only for a hub before this
+  addendum. The sort is unchanged; the queue and the placer still do not
+  read it.
+
 Cases:
 
 - **C61** the operator route: a lane whose topic links prio 3 and 4 and
   whose own key is prio 1 sends `priority` 1 and each issue's prio; the
   same topic without the own key sends 3; no issue, or a key of another
-  prefix only, sends none. **C61b** the workspace route sends the prio of
+  prefix only, sends 3 (addendum SPL-6750; it sent none before).
+  **C61c** (SPL-6750) a role seat with a prio-5 issue sends 1 `role`; a
+  lane whose one issue is diss and archived sends 3 `owner_default`; a
+  lane with no issue sends 3 `owner_default`; a lane with a live prio-2
+  issue and a done prio-1 one sends 2 `issue` (`hub/lanes_prio_test.go`
+  `TestFleetLanesPrioNeverAbsent`, memory and Postgres; red on master
+  ce035a6cc: 5, 0, 0 and 1, no source). **C61b** the workspace route sends the prio of
   the workspace's own issues on the topic. (`hub/lanes_prio_test.go`,
   memory and Postgres; red with the prio left out of `laneIssues`: every
   value 0.)
@@ -1088,7 +1131,14 @@ Cases:
   prio last, a second click descending, a third the hub order; no sideways
   page scroll, at 1440 and 390 px (`tests/e2e/monitoring-costs.test.mjs`
   `lanesPrioSort`; unit `monitoring-lanes-sort-filter.test.mjs` "the Prio
-  column"; red on master: no column).
+  column"; red on master: no column). The dashes are a pre-addendum hub's
+  answer, kept as the WUI's fallback.
+- **C155** (SPL-6750) on the mock fleet's `prio` answer every row shows a
+  prio, 2, 1, 3, 3; the two rows from an issue carry no title, the two
+  owner's defaults carry `data-priority-source="owner_default"` and the
+  title, at 1440 and 390 px (`monitoring-costs.test.mjs`
+  `lanesPrioOwnerDefault`; unit "keeps the prio's source"; red on master:
+  no title).
 
 ### 3.15 The list's sort and filters, in its URL (SPL-4729)
 

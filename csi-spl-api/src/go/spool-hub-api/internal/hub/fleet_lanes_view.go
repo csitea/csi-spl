@@ -60,12 +60,13 @@ type fleetLaneViewJSON struct {
 	Issues     []fleetLaneIssueJSON `json:"issues"`
 	// spec 153 3.12: the issue the lane came from; absent for none, never a guess
 	OriginIssue *fleetLaneIssueJSON `json:"origin_issue,omitempty"`
-	// spec 153 3.14: the highest prio (the lowest number) among Issues;
-	// absent when none of them has one
-	Priority   int    `json:"priority,omitempty"`
-	UpdatedAt  string `json:"updated_at"`
-	AgeS       int64  `json:"age_s"`
-	LastActive string `json:"last_active"`
+	// spec 153 3.14 addendum: never absent; priority_source names the rule
+	// that set it (lanePrio)
+	Priority       int    `json:"priority"`
+	PrioritySource string `json:"priority_source"`
+	UpdatedAt      string `json:"updated_at"`
+	AgeS           int64  `json:"age_s"`
+	LastActive     string `json:"last_active"`
 	// spec 153 3.11: a role seat names no topic and no issue by design
 	RoleSeat bool `json:"role_seat,omitempty"`
 	// spec 153 v1.3 3.8: live | queued; a queued row's wait reason ("" =
@@ -155,7 +156,6 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 		}
 		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
 		v.OriginIssue = laneOriginIssue(l.OriginIssue, prefix, status)
-		v.Priority = lanePrio(v.Issues)
 		place(&v, l.Topic)
 		out.Lanes = append(out.Lanes, v)
 	}
@@ -169,11 +169,11 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 		if topic, mine := titles[q.topic]; mine {
 			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
 			v.Issues = laneIssues("", prefix, true, byTopic[q.topic], status)
-			v.Priority = lanePrio(v.Issues)
 		}
 		place(&v, q.topic)
 		out.Lanes = append(out.Lanes, v)
 	}
+	lanesPrio(out.Lanes)
 	return out, nil
 }
 
@@ -345,15 +345,41 @@ func laneOriginIssue(key, prefix string, status map[int]store.FleetLaneIssue) *f
 	return &fleetLaneIssueJSON{Key: key}
 }
 
-// lanePrio is a lane's prio (spec 153 3.14): the highest among its issues,
-// prio 1 the highest; 0 (absent) when none has one. The origin issue is
-// where the lane came from, not its work, so it does not count.
-func lanePrio(issues []fleetLaneIssueJSON) int {
+// Lane prio sources (spec 153 3.14 addendum; owner HUM-10, t1 af921177,
+// msgs 0618e746 "each lane MUST have a priority", 62051f1a and 0b61a92a).
+const (
+	lanePrioIssue        = "issue"         // the highest of its live issues
+	lanePrioRole         = "role"          // a role seat: the hub needs it to operate
+	lanePrioOwnerDefault = "owner_default" // no live issue with a prio
+	lanePrioRoleSeat     = 1
+	lanePrioDefault      = 3
+)
+
+// lanePrio is a lane's prio and its source, never absent: a role seat (3.11)
+// is 1 whatever its issues; else the highest (lowest number) among its live
+// issues, not done or diss (archived ones are never read); else the owner's
+// default 3. The origin issue is where the lane came from, not its work, so
+// it does not count.
+func lanePrio(v fleetLaneViewJSON) (int, string) {
+	if v.RoleSeat || agentid.IsRoleSeat(v.AgentID) {
+		return lanePrioRoleSeat, lanePrioRole
+	}
 	best := 0
-	for _, i := range issues {
-		if i.Priority > 0 && (best == 0 || i.Priority < best) {
+	for _, i := range v.Issues {
+		live := i.Status != store.IssueDone && i.Status != store.IssueDiss
+		if live && i.Priority > 0 && (best == 0 || i.Priority < best) {
 			best = i.Priority
 		}
 	}
-	return best
+	if best == 0 {
+		return lanePrioDefault, lanePrioOwnerDefault
+	}
+	return best, lanePrioIssue
+}
+
+// lanesPrio sets every row's prio and its source (lanePrio).
+func lanesPrio(ls []fleetLaneViewJSON) {
+	for i := range ls {
+		ls[i].Priority, ls[i].PrioritySource = lanePrio(ls[i])
+	}
 }

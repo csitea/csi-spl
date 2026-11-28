@@ -58,8 +58,11 @@ export function fleetLanesOf(body) {
     topicChannel: str(l.topic_channel),
     issues: (Array.isArray(l.issues) ? l.issues : []).filter((i) => i && typeof i === 'object' && str(i.key))
       .map((i) => ({ key: str(i.key), status: str(i.status), priority: prio(i.priority) })),
-    /* spec 153 3.14: the highest prio among the issues (1 highest); 0 = none */
+    /* spec 153 3.14: the highest prio among the issues (1 highest); 0 = none
+       (a hub before the addendum); the addendum's hub always sends one, with
+       its source: issue, role (a role seat's 1) or owner_default (the 3) */
     priority: prio(l.priority),
+    prioritySource: str(l.priority_source),
     /* spec 153 3.12: the issue the lane came from; null for none, never a guess */
     originIssue: l.origin_issue && typeof l.origin_issue === 'object' && str(l.origin_issue.key)
       ? { key: str(l.origin_issue.key), status: str(l.origin_issue.status) } : null,
@@ -493,11 +496,17 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
       priority: 2, origin_issue: { key: 'SPL-4040', status: 'done' }, updated_at: ago(900), age_s: 900, last_active: ago(120),
       workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
   }
-  if (get(LANES_MOCK_KEY) === 'topics') {
+  const mode = get(LANES_MOCK_KEY)
+  if (mode === 'topics' || mode === 'prio') {
     out.lanes.splice(1, 0, { agent_id: 'c-733', agent_box: 'box-a', vendor: 'claude', scope: 'Monitoring -> Topics',
       topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',
       issues: [{ key: 'SPL-3215', status: 'wip', priority: 3 }, { key: 'SPL-4421', status: 'eval', priority: 1 }], priority: 1, updated_at: ago(600), age_s: 600, last_active: '',
       workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
+  }
+  /* 3.14 addendum (owner t1 af921177, msg 62051f1a): the hub sends every
+     row a prio and its source; the rows with no live issue prio send 3 */
+  if (mode === 'prio') {
+    for (const l of out.lanes) Object.assign(l, l.priority ? { priority_source: 'issue' } : { priority: 3, priority_source: 'owner_default' })
   }
   return out
 }

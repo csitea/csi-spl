@@ -699,6 +699,20 @@ async function lanesPrioSort(browser, base, size) {
   await ctx.close()
 }
 
+/** Spec 153 3.14 addendum C155 (SPL-6750; owner HUM-10, t1 af921177, msgs 0618e746 and 62051f1a): the hub sends every row a prio; a row with no live issue prio shows the owner's default 3, its cell's title says so, a row whose prio comes from an issue has no title. The mock fleet 'prio' (a-277 and m-039 at 3, owner_default). CONTROL: on master the cell carries no title, so the title checks FAIL there. */
+async function lanesPrioOwnerDefault(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+  await p.evaluate(() => localStorage.setItem('spool.mock.fleet_lanes', 'prio'))
+  await open(p, base, '/monitoring/lanes')
+  const cells = () => p.$$eval('[data-test=lanes-row] [data-test=lanes-priority]', (cs) => cs.map((c) => c.textContent.trim() + ':' + (c.getAttribute('data-priority-source') || '') + ':' + (c.getAttribute('title') || '')).join('|'))
+  const got = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 4, { timeout: 8000 }).then(cells, () => '')
+  const rows = got.split('|')
+  ok('C155 lanes: every row shows a prio, no dash', rows.length === 4 && rows.map((r) => r.split(':')[0]).join(',') === '2,1,3,3', got)
+  ok('C155 lanes: an issue prio has no title', rows.slice(0, 2).every((r) => r.endsWith(':issue:')), got)
+  ok('C155 lanes: the owner\'s default 3 says so in its title', rows.slice(2).every((r) => r.startsWith('3:owner_default:') && r.length > '3:owner_default:'.length), got)
+  await ctx.close()
+}
+
 /** Spec 153 3.10 C45-C46 (SPL-4421): the Topics tab on the mock fleet with a fourth lane on c-085's topic, an operator admin; CONTROL anyone else. CONTROL: on master the tab and the page are absent, so every check here FAILS there. */
 async function topicsTab(browser, base, size) {
   {
@@ -899,6 +913,7 @@ try {
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     console.log(`-- lanes prio ${size.width}x${size.height}`)
     await lanesPrioSort(browser, server.base, size)
+    await lanesPrioOwnerDefault(browser, server.base, size)
   }
 
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {

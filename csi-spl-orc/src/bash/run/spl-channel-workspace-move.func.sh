@@ -49,6 +49,12 @@
 # @description ends with a retention, its days, read from the cnf and as the
 # @description per-env service account; a value it cannot read is not sent and
 # @description prints as "RETENTION <copy>: not read: <reason>".
+# @description The owner's decisions (T7d, T16) ride as the detail of plan, P1, P2
+# @description and P4: MOVE_DETAIL, {keep, keep_emails, leave_hours, rule_doc,
+# @description caller}, with MOVE_CALLER as its caller when it names none (a move
+# @description only). P4 sends the detail P2 checked; with neither set the detail
+# @description is null, as before. do_spl_channel_move_pickup passes P1's stored
+# @description detail.inputs here.
 # @param ENV (required) - dev or prd
 # @param CHANNEL (optional) - <SRC>/<channel id>, the workspace and channel to move; needed unless MOVE_CMD=probe
 # @param TO (required) - the <DST> workspace slug
@@ -57,6 +63,7 @@
 # @param TO_NAME (optional) - the channel id in <DST> when <channel id> is taken there
 # @param MOVE_FROM (optional) - restart at this step (P1..P7, P2b) instead of the journal's
 # @param MOVE_GO_MSG - needed for run with DRY_RUN=0: the owner's GO poll answer msg id
+# @param MOVE_DETAIL (optional) - the owner's decisions as a JSON object {keep, keep_emails, leave_hours, rule_doc, caller}, sent at plan, P1, P2 and P4
 # @param MOVE_CALLER - needed for a move with DRY_RUN=0: the <DST> orchestrator seat, <agent id>[@<box>], the probe DMs go to
 # @param AGENT_ID - needed for a move with DRY_RUN=0: the agent id the lane key notes come from
 # @param CHANNEL_MOVE_HUB_CMD (optional, tests) - a command in place of the T7 call: the request JSON on stdin, the answer JSON on stdout, non-zero = refused
@@ -105,6 +112,29 @@ _spl_cwm_args() {
     do_log "FATAL MOVE_FROM must be one of: $(_spl_cwm_steps) (MOVE_MODE=$CWM_MODE), got: '$CWM_FROM'"
     return 1
   }
+  _spl_cwm_args_detail
+}
+
+# _spl_cwm_args_detail: sets CWM_DETAIL, the detail of plan, P1, P2 and P4
+# (T7d, T16): MOVE_DETAIL, a JSON object, with MOVE_CALLER as its caller when it
+# names none (a move only); null when neither is set. A caller in MOVE_DETAIL
+# that is not MOVE_CALLER is refused: P2 would check one seat and P2b probe to
+# another.
+_spl_cwm_args_detail() {
+  local d="${MOVE_DETAIL:-}" c="${MOVE_CALLER:-}" dc
+  [[ "$CWM_MODE" == move ]] || c=""
+  if [[ -z "$d" && -z "$c" ]]; then CWM_DETAIL=null; return 0; fi
+  [[ -z "$d" ]] || jq -e 'type == "object"' >/dev/null 2>&1 <<<"$d" || {
+    do_log "FATAL MOVE_DETAIL must be a JSON object {keep, keep_emails, leave_hours, rule_doc, caller}, got: '$d'"
+    return 1
+  }
+  [[ -n "$d" ]] || d='{}'
+  dc="$(jq -r '.caller // ""' <<<"$d")"
+  [[ -z "$dc" || -z "$c" || "$dc" == "$c" ]] || {
+    do_log "FATAL MOVE_DETAIL's caller $dc is not MOVE_CALLER $c: P2 checks the one, P2b probes to the other"
+    return 1
+  }
+  CWM_DETAIL="$(jq -c --arg c "$c" 'if $c != "" and (.caller // "") == "" then .caller = $c else . end' <<<"$d")"
 }
 
 # _spl_cwm_args_live: what DRY_RUN=0 needs besides (section 8.1, C15).
@@ -179,7 +209,7 @@ _spl_cwm_hub() {
 # _spl_cwm_plan [quiet]: print the plan; 3 when it refuses (C11, Q6).
 _spl_cwm_plan() {
   local p n rule=0
-  p="$(_spl_cwm_hub plan)" || return 1
+  p="$(_spl_cwm_hub plan "" "${CWM_DETAIL:-null}")" || return 1
   if [[ -z "${1:-}" ]]; then
     jq -r '(.counts // {} | to_entries[] | "PLAN count \(.key) \(.value)"),
       (.seats // [] | .[] | "PLAN seat \(.agent) on \(.box // "-")"),
@@ -336,6 +366,7 @@ _spl_cwm_step() {
     P5) _spl_cwm_box_p5 || return $? ;;
     *)
       [[ "$1" != P7 ]] || detail="$(_spl_cwm_p7_detail)" || return 1
+      [[ " P1 P2 P4 " != *" $1 "* ]] || detail="${CWM_DETAIL:-null}"
       out="$(_spl_cwm_hub step "$1" "$detail")" || return 1
       [[ "$1" != P1 ]] || CWM_MOVE="$(jq -r '.move_id // empty' <<<"$out")"
       [[ -n "$CWM_MOVE" ]] || { do_log "FATAL P1 returned no move id"; return 1; }

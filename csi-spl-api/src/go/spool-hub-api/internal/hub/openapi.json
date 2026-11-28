@@ -13343,7 +13343,7 @@
         ],
         "responses": {
           "200": {
-            "description": "op plan: {counts, seats, mentions, members_lost, kept, refuse, shared_files}, it changes nothing; op journal: {move_id, done, steps, seats, lanes}; op step or mark: {move_id, ...}, P7 adds {proofs, kept, report}"
+            "description": "op plan: {counts, seats, mentions, members_lost, kept, refuse, shared_files}, it changes nothing; op journal: {move_id, done, steps, seats, lanes}; op step or mark: {move_id, ...}, P7 adds {proofs, kept, report}; op open (T16): {moves: [{dst, src, channel, move_id, go_msg_id, steps, inputs, orchestrators}]}, every open journal, or one dst's, it changes nothing"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

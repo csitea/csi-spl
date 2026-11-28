@@ -217,8 +217,50 @@ does.
 - **N5:** I did not run `cd csi-spl-iac && ./run -a do_check_pre_push` on either head, and
   neither did the planner (line 606). That stays with the row lanes.
 
+## Re-review of v1.0: PASS on `0d794aa4c8da85cc377ba089b8a2db7f160d7074`
+
+Read: plan v1.0 at `0d794aa4c8da85cc377ba089b8a2db7f160d7074`
+(`git ls-remote origin refs/heads/review/c002-refactor-round-13-planner` -> `0d794aa4c...`,
+the sha the holder relayed in msg `9dd3682e`). `git merge-base --is-ancestor 2d15031a0 0d794aa4c`
+-> rc 0; `git rev-list --count 2d15031a0..0d794aa4c` -> 1; `git diff --stat` -> only the plan
+file, +90 -62. Plan file sha256 `982e9d2d...dd2fc4b`, 898 lines. Runs 2026-11-28T01:3xZ, n=1,
+in fresh scratch clones of `d03028967`.
+
+- **W1 folded.** The second row is `r13-03` in the slug, subject, review branch, brief,
+  batch and counts (v1.0 lines 46, 651, 779, 786-800). `grep -niE 'row 02|rows 01 and 02|01, 02'`
+  on the v1.0 file -> no output. Every remaining `r13-02` (lines 90, 93, 97, 109, 399, 786,
+  789-790) names the old-cycle head or old-cycle brief, or explains the renumbering.
+  Id-free, re-run by me:
+  `git ls-remote origin 'refs/heads/review/r13-01*' 'refs/heads/review/r13-03*' 'refs/heads/*-r13-03-*' 'refs/heads/wip/*r13-03*' | wc -l`
+  -> `0`; `git log origin/master --since="2026-11-27T20:38:00+02:00" --oneline -E --grep='\(r13-' | wc -l`
+  -> `0`; the same with `--grep='r13-03'` -> `0`. In the briefs dir, `r13-03` matches only
+  the old-cycle `c002-r13-03-restart.md`, a different file name from the row's
+  `c002-r13-03-orc-channel-agent-ids.md` (v1.0 line 796).
+- **head2 relabel.** The v1.0 head2 diff differs from v0.1's only on the 2 test-comment
+  labels (`diff head2.diff v10head2.diff` -> `115c115`, `125c125`, `(r13-02)` ->
+  `(r13-03)`). The head1 diff is unchanged (`cmp` rc 0). Applied with `git apply` on
+  `d03028967`: numstat +24 -13, +6 -15, +41 -0; sha256 `0886cb641acc`, `76627571f91b`,
+  `a070c581fec9`, which equals v1.0 line 399. v1.0 head2's
+  `channel-agent-remove-op.tst.sh`: rc 0, 29 / 0. The red control (that test on base): rc 1,
+  22 pass / 7 fail lines, last line `FAIL: 6 assertion(s) in channel-agent-remove-op.tst.sh`.
+  shellcheck 0.10.0 `-S warning -x` on the test: rc 0.
+- **N1 and N4 folded** in the r13-01 brief (v1.0 lines 815-822). Its "existing lazy source
+  at `:42`" holds:
+  `git show d03028967:csi-spl-utl/src/bash/run/external-api-health.func.sh | sed -n 42p`
+  -> `declare -F spl_box_name >/dev/null || source ".../spl-desk-box.func.sh"`, which has
+  no failure branch either.
+- **N2 folded:** one R4 check for both rows, `-E --grep='\(r13-'` (v1.0 lines 781-783).
+- **N3 folded:** the candidates re-read, 196 lines, lines 184-196 not refactor-shaped
+  (v1.0 lines 149-151). It matches my read in section 7.
+- **N5:** stated (v1.0 line 610). `do_check_pre_push` stays with the row lanes.
+- `cd csi-spl-iac && ./run -a do_check_dist_hygiene` on a clone at `0d794aa4c` ->
+  `INFO distribution-hygiene: clean ...`, rc 0.
+
+No new defect.
+
 ## Signature
 
 | plan sha | verdict | seat |
 |---|---|---|
 | `2d15031a07213af4d855fb07e4c3ed179b03a334` (v0.1) | FAIL (W1) | `c-867` claude |
+| `0d794aa4c8da85cc377ba089b8a2db7f160d7074` (v1.0) | **PASS** | `c-867` claude |

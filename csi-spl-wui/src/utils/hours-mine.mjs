@@ -24,6 +24,18 @@ function hoursClamp(min) {
   return Math.min(HOURS_DAY_CAP, Math.max(0, Math.round(Number(min) || 0)))
 }
 
+/**
+ * Spec 107 E7 (T087): what + Add starts at: the rest of the day, the
+ * member's allocation minus the day's total; with no allocation, or the day
+ * already full, HOURS_ADD_DEFAULT (0:30).
+ * @param {number} norm the member's allocation in minutes a day, 0 = none
+ * @param {number} total the day's total minutes
+ */
+export function hoursAddDefault(norm, total) {
+  const left = hoursClamp(norm) - hoursClamp(total)
+  return left > 0 ? left : HOURS_ADD_DEFAULT
+}
+
 /** minutes stepped by `by` (±15), within 0..1440 */
 export function hoursStep(min, by) {
   return hoursClamp((Number(min) || 0) + by)

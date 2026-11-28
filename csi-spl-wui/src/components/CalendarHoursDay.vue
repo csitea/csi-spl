@@ -218,7 +218,7 @@
 import { hoursBanner, hoursFreezeText, hoursBlocksText, hoursHhmm, hoursIndex, hoursSortRows, hoursTarget } from '~/utils/hours-calendar.mjs'
 import {
   HOURS_ADD_DEFAULT, HOURS_NOTE_MAX, HOURS_STEP, HOURS_UNDO_MS,
-  hoursAddEntry, hoursApproveEntries, hoursApproveRow, hoursDayEditable, hoursEditEntry, hoursOpenCount,
+  hoursAddDefault, hoursAddEntry, hoursApproveEntries, hoursApproveRow, hoursDayEditable, hoursEditEntry, hoursOpenCount,
   hoursParseMinutes, hoursRejectEntry, hoursRowOpen, hoursStep, hoursUndoBody,
 } from '~/utils/hours-mine.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
@@ -373,14 +373,15 @@ async function saveNote(r: ViewRow) {
 }
 const why = ref('')
 
-/* + Add (spec 5.3): pick a target, 0:30 by default */
+/* + Add (spec 5.3): pick a target; it starts at the rest of the day's
+   allocation, else 0:30 (spec 107 E7, T087) */
 const adding = ref(false)
 const addTarget = shallowRef<{ target: string, label: string } | null>(null)
 const addMinutes = ref(HOURS_ADD_DEFAULT)
 function openAdd() {
   adding.value = true
   addTarget.value = null
-  addMinutes.value = HOURS_ADD_DEFAULT
+  addMinutes.value = hoursAddDefault(norm.value, cur.value ? cur.value.total : 0)
 }
 async function saveAdd() {
   const a = addTarget.value

@@ -9,9 +9,12 @@
 //   period (409), and Resubmit moves a returned period to frozen.
 // Control: before T013 / T014 src/utils/hours-mine.mjs does not exist and
 // the mock has no PUT, so this file fails at import.
+// - Spec 107 E7 (T087): + Add starts at the allocation minus the day's total,
+//   else 0:30. Control: before T087 hoursAddDefault is not exported, so this
+//   file fails at import.
 // Run: node tests/unit/hours-mine.test.mjs
 import {
-  HOURS_NOTE_MAX, hoursAddEntry, hoursApproveEntries, hoursApproveRow, hoursDayEditable, hoursEditEntry, hoursNote,
+  HOURS_ADD_DEFAULT, HOURS_NOTE_MAX, hoursAddDefault, hoursAddEntry, hoursApproveEntries, hoursApproveRow, hoursDayEditable, hoursEditEntry, hoursNote,
   hoursOpenCount, hoursParseMinutes, hoursRefusalKey, hoursRejectEntry, hoursRowOpen, hoursStep, hoursUndoBody,
 } from '../../src/utils/hours-mine.mjs'
 import { hoursIndex } from '../../src/utils/hours-calendar.mjs'
@@ -70,6 +73,10 @@ ok('Undo of a rejected suggestion removes the entry (the suggestion comes back)'
 ok('Undo of a rejected entry puts its minutes and note back', j(hoursUndoBody('2026-10-06', { target: 't:a', state: 'approved', minutes: 50, note: 'review' })) === j({ entries: [{ day: '2026-10-06', target: 't:a', minutes: 50, state: 'approved', note: 'review' }] }))
 
 // T014: stepper, +15, typed minutes, notes, add
+ok('E7: allocation 8:00 and a 5:00 day -> + Add starts at 3:00', hoursAddDefault(480, 300) === 180)
+ok('E7: a full day -> 0:30', hoursAddDefault(480, 480) === 30 && hoursAddDefault(480, 540) === 30)
+ok('E7: no allocation -> 0:30', hoursAddDefault(0, 0) === 30 && hoursAddDefault(0, 300) === 30 && hoursAddDefault(undefined, 0) === HOURS_ADD_DEFAULT)
+ok('E7: an empty day with an allocation -> the whole allocation', hoursAddDefault(450, 0) === 450)
 ok('±15 stays within 0..1440', hoursStep(10, -15) === 0 && hoursStep(1430, 15) === 1440 && hoursStep(30, 15) === 45)
 ok('typed time: 1:30 and 90 are 90; junk is -1', hoursParseMinutes('1:30') === 90 && hoursParseMinutes(' 90 ') === 90 && hoursParseMinutes('1:75') === -1 && hoursParseMinutes('abc') === -1)
 ok('+15 on a suggestion approves it with 15 more', j(hoursEditEntry('2026-10-05', sug, { minutes: hoursStep(sug.minutes, 15) })) === j({ day: '2026-10-05', target: 't:a', minutes: 125, state: 'approved', note: '' }))

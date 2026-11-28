@@ -33,6 +33,8 @@ declare module '~/utils/operator-console.mjs' {
   export function operatorCreateBody(draft?: OperatorDraft): { body?: Record<string, string>, error?: string }
   export function operatorRootKey(body: unknown): string
   export function replaceOperatorWorkspace(rows: OperatorWorkspace[], row: unknown): OperatorWorkspace[]
+  export function opError(status: number, token: string, detail?: string, permission?: string): Error & { status: number, token: string, detail: string, permission?: string }
+  export function browserStore(): Storage | null
   export function operatorMockSeed(): Array<Record<string, unknown>>
   export function mockOperatorList(store?: Storage | null): { workspaces: Array<Record<string, unknown>> }
   export function mockOperatorCreate(body?: Record<string, unknown>, store?: Storage | null, now?: string): Record<string, unknown>

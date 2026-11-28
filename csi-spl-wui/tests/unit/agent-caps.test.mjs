@@ -95,6 +95,16 @@ ok('the lazy half has agentCaps on the three routes', /async function agentCaps\
   lazy.includes("'/v1/tenant/agent-caps'") && lazy.includes("'/agent-caps'"))
 ok('…and the client names it a lazy method', /'agentCaps',/.test(client))
 
+/* one copy (r14-02): the mock's refusal and its localStorage read are
+   operator-console.mjs's opError and browserStore, which this file imports */
+const caps = readFileSync(new URL('../../src/utils/agent-caps.mjs', import.meta.url), 'utf8')
+const opc = readFileSync(new URL('../../src/utils/operator-console.mjs', import.meta.url), 'utf8')
+ok('one copy: agent-caps.mjs defines no error or store helper of its own',
+  !/^function (capsError|browserStore|\w*Error)\(/m.test(caps) && !/err\.permission = /.test(caps))
+ok('…and imports opError and browserStore from operator-console.mjs, which exports each once',
+  /^import \{[^}]*\bbrowserStore\b[^}]*\bopError\b[^}]*\} from '\.\/operator-console\.mjs'$/m.test(caps) &&
+  (opc.match(/^export function opError\(/gm) || []).length === 1 && (opc.match(/^export function browserStore\(/gm) || []).length === 1)
+
 const s = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', s.ok, s.why)
 

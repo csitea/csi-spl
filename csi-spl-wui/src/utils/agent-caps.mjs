@@ -13,7 +13,7 @@
  */
 
 import { storageGetJson } from './prefs.mjs'
-import { OPERATOR_MOCK_KEY, OPERATOR_WS_ID_RE } from './operator-console.mjs'
+import { OPERATOR_MOCK_KEY, OPERATOR_WS_ID_RE, browserStore, opError } from './operator-console.mjs'
 
 /** The five vendors, in the order the forms show them (spec 147 P1). */
 export const AGENT_CAP_VENDORS = Object.freeze(['claude', 'grok', 'agy', 'mistral', 'qwen', 'codex'])
@@ -91,22 +91,6 @@ export function agentCapsPutBody(draft) {
 
 /* ---- the mock hub (NUXT_PUBLIC_USE_MOCK) --------------------------------- */
 
-function capsError(status, token, detail, permission) {
-  const err = new Error(detail || token)
-  err.status = status
-  err.token = token
-  err.detail = detail || ''
-  if (permission) err.permission = permission
-  return err
-}
-
-function browserStore() {
-  try {
-    if (typeof globalThis.localStorage !== 'undefined') return globalThis.localStorage
-  } catch { /* private mode */ }
-  return null
-}
-
 function mockMap(store, key) {
   const m = store && typeof store.getItem === 'function' ? storageGetJson(key, null, store) : null
   return m && typeof m === 'object' && !Array.isArray(m) ? m : {}
@@ -122,8 +106,8 @@ function mockCapsOf(store, id) {
 function mockOperatorGate(store, id) {
   let on = ''
   try { on = store ? store.getItem(OPERATOR_MOCK_KEY) || '' : '' } catch { on = '' }
-  if (on !== '1') throw capsError(403, 'forbidden', 'only an admin of the operator workspace manages agent caps', 'operator.workspaces')
-  if (!OPERATOR_WS_ID_RE.test(String(id || ''))) throw capsError(404, 'not_found', `workspace '${id}' does not exist`)
+  if (on !== '1') throw opError(403, 'forbidden', 'only an admin of the operator workspace manages agent caps', 'operator.workspaces')
+  if (!OPERATOR_WS_ID_RE.test(String(id || ''))) throw opError(404, 'not_found', `workspace '${id}' does not exist`)
 }
 
 /** The mock's GET /v1/tenant/agent-caps (the mock tenant is AGENT_CAPS_MOCK_TENANT). */
@@ -151,9 +135,9 @@ export function mockOperatorPutAgentCaps(id, body = {}, store = browserStore()) 
   mockOperatorGate(store, id)
   const next = mockCapsOf(store, id)
   for (const [v, c] of Object.entries(body?.caps || {})) {
-    if (!AGENT_CAP_VENDORS.includes(v)) throw capsError(400, 'bad_vendor', `vendor '${v}' is not supported`)
+    if (!AGENT_CAP_VENDORS.includes(v)) throw opError(400, 'bad_vendor', `vendor '${v}' is not supported`)
     if (c === null) { delete next[v]; continue }
-    if (capOf(c) === null || typeof c !== 'number') throw capsError(400, 'bad_cap', 'max_live must be a non-negative integer')
+    if (capOf(c) === null || typeof c !== 'number') throw opError(400, 'bad_cap', 'max_live must be a non-negative integer')
     next[v] = c
   }
   const all = mockMap(store, AGENT_CAPS_MOCK_KEY)

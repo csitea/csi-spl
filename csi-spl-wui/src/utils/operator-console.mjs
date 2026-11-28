@@ -118,7 +118,11 @@ export function replaceOperatorWorkspace(rows, row) {
 
 /* ---- the mock hub (NUXT_PUBLIC_USE_MOCK=1), the e2e's stand-in ---- */
 
-function opError(status, token, detail, permission) {
+/**
+ * The mock hub's refusal: an Error with the hub's status, token, detail and
+ * (when given) the missing permission: the same shape spool-client.mjs builds.
+ */
+export function opError(status, token, detail, permission) {
   const err = new Error(detail || token)
   err.status = status
   err.token = token
@@ -127,8 +131,12 @@ function opError(status, token, detail, permission) {
   return err
 }
 
-/* Byte-identical twin: browserStore() in fleet-load.mjs (merging them is a later lane). */
-function browserStore() {
+/**
+ * The browser's localStorage, or null (no window, or private mode denies it).
+ * agent-caps.mjs uses this copy; its byte-identical twins in fleet-load.mjs and
+ * vendor-keys.mjs are a later lane.
+ */
+export function browserStore() {
   try {
     if (typeof globalThis.localStorage !== 'undefined') return globalThis.localStorage
   } catch { /* private mode */ }

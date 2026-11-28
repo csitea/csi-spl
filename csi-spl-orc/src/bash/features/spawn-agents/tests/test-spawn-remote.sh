@@ -487,4 +487,80 @@ has "16. ... and says so" "skipped: empty task" "$out"
 run16 none reply c-001 c-001@sat "b52e0001-6644" refused "reason: x" 2>/dev/null
 eq "16. CONTROL reply with a task still sends" 1 "$(replies16 b52e0001-6644)"
 
+# ---- 17. a reply acked mid-read or before the read still counts (b53-02) -------
+# request() and issue_reply() matched a reply in inbox/, then read the file a
+# second time: an ack (inbox -> archive) in between gave an empty body, and a
+# remote spawn or issue that succeeded (status: ok) came back as exit 4
+# "refused by home: ". Now reply_body reads each candidate once, archive/ when
+# gone. Races: jq (after a jq read of .body from the inbox file, the old reads),
+# cat-post (right after the one read), cat-pre (between the scan and the read).
+R17="$T_TMP/race17" S17="$T_TMP/race17/spool"
+mkdir -p "$R17/bin" "$S17/c-001/inbox" "$S17/c-001/archive" "$S17/dispatch"
+printf 'SPOOL_DESK_BOX=sat\n' >"$S17/box.env"
+"$real_cat" >"$R17/bin/jq" <<EOF
+#!/usr/bin/env bash
+"$real_jq" "\$@"; r=\$?
+[ "\${RACE17:-}" = jq ] && case " \$* " in *.body*)
+  for a in "\$@"; do case "\$a" in "$S17/c-001/inbox/"*.json) mv -f -- "\$a" "$S17/c-001/archive/" ;; esac; done ;;
+esac
+exit \$r
+EOF
+"$real_cat" >"$R17/bin/cat" <<EOF
+#!/usr/bin/env bash
+mv17() { local a; for a in "\$@"; do case "\$a" in "$S17/c-001/inbox/"*.json) mv -f -- "\$a" "$S17/c-001/archive/" ;; esac; done; }
+[ "\${RACE17:-}" = cat-pre ] && mv17 "\$@"
+"$real_cat" "\$@"; r=\$?
+[ "\${RACE17:-}" = cat-post ] && mv17 "\$@"
+exit \$r
+EOF
+# The send stub answers at once: a reply on the request's task in REPLY17_DIR.
+"$real_cat" >"$R17/send" <<EOF
+#!/usr/bin/env bash
+task=""; while [ "\$#" -gt 0 ]; do case "\$1" in --task) task="\$2"; shift 2 ;; *) shift ;; esac; done
+"$real_jq" -n --arg t "\$task" --arg b "\$REPLY17_BODY" \
+  '{v:1, msg_id:"b53a0001-6713-4713-8713-671367136713", task_id:\$t, ts:"x", from:"c-001@home", to:"c-001", kind:"result", body:\$b, files:[]}' \
+  >"\$REPLY17_DIR/rep-\$task.json"
+EOF
+chmod +x "$R17/bin/jq" "$R17/bin/cat" "$R17/send"
+sed -e '/^case "\${1:-}" in$/,$d' -e "s|^HERE=.*|HERE=\"$T_SCRIPTS\"|" "$SR" >"$R17/sr-lib.sh"
+ok17="$(printf 'spawn-reply v1\nstatus: ok\nagent: c-009@home\npane: %%42\nkey: SPL-9999\n')"
+no17="$(printf 'spawn-reply v1\nstatus: refused\nreason: expired\n')"
+req17() {  # RACE DIR BODY ; request() end to end, stdout + .err/.rc in $R17/req
+  rm -f "$S17/c-001/inbox/"*.json "$S17/c-001/archive/"*.json
+  env SPOOL_ROOT="$S17" SPAWN_REMOTE_SEND_CMD="$R17/send" SPAWN_REMOTE_POLL=1 RACE17="$1" REPLY17_DIR="$2" \
+    REPLY17_BODY="$3" PATH="$R17/bin:$PATH" bash "$SR" --box home --from c-001 --to c-001 --wait 5 claude auto "$WORK" \
+    >"$R17/req" 2>"$R17/req.err"; echo $? >"$R17/req.rc"
+}
+iss17() {  # RACE DIR BODY ; issue_reply() on a reply already in DIR
+  local t="b53f0001-6713-4713-8713-671367136713"
+  rm -f "$S17/c-001/inbox/"*.json "$S17/c-001/archive/"*.json
+  ( export REPLY17_DIR="$2" REPLY17_BODY="$3"; "$R17/send" --task "$t" )
+  env SPOOL_ROOT="$S17" SPAWN_REMOTE_POLL=1 RACE17="$1" PATH="$R17/bin:$PATH" \
+    bash -c '. "$1"; issue_reply home c-001 "$2" 5' _ "$R17/sr-lib.sh" "$t" >"$R17/iss" 2>"$R17/iss.err"; echo $? >"$R17/iss.rc"
+}
+in17="$S17/c-001/inbox" ar17="$S17/c-001/archive"
+for race in jq cat-post cat-pre; do
+  req17 "$race" "$in17" "$ok17"
+  eq "17. request, reply acked ($race): exit 0" 0 "$(cat "$R17/req.rc")"
+  eq "17. ... stdout is the remote <id>@<box> <pane>" "c-009@home %42" "$(cat "$R17/req")"
+  iss17 "$race" "$in17" "$ok17"
+  eq "17. issue_reply, reply acked ($race): exit 0" 0 "$(cat "$R17/iss.rc")"
+  has "17. ... stdout is the reply body" "key: SPL-9999" "$(cat "$R17/iss")"
+  [ "$race" = jq ] && continue
+  check "17. ... the race fired: the reply ended in archive/" bash -c 'ls "$1"/*.json >/dev/null 2>&1 && ! ls "$2"/*.json >/dev/null 2>&1' _ "$ar17" "$in17"
+done
+req17 none "$ar17" "$ok17"
+eq "17. CONTROL request, reply only in archive/: exit 0" 0 "$(cat "$R17/req.rc")"
+eq "17. ... stdout is the remote <id>@<box> <pane>" "c-009@home %42" "$(cat "$R17/req")"
+iss17 none "$ar17" "$ok17"
+eq "17. CONTROL issue_reply, reply only in archive/: exit 0" 0 "$(cat "$R17/iss.rc")"
+for race in none cat-pre; do
+  req17 "$race" "$in17" "$no17"
+  eq "17. CONTROL request, genuine refused ($race): exit 4" 4 "$(cat "$R17/req.rc")"
+  has "17. ... with its reason" "refused by home: expired" "$(cat "$R17/req.err")"
+  iss17 "$race" "$in17" "$no17"
+  eq "17. CONTROL issue_reply, genuine refused ($race): exit 4" 4 "$(cat "$R17/iss.rc")"
+  has "17. ... with its reason" "FATAL refused by home: expired" "$(cat "$R17/iss.err")"
+done
+
 t_done

@@ -194,11 +194,9 @@ request() {
   # 5 = delivered, no pane rang (the serve tick needs none)
   [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || { say "the request did not leave (rc=$rc): $out"; exit 3; }
   if [ "$wait" = 0 ]; then echo "task $task"; return 0; fi
-  local end=$(( $(date +%s) + wait )) f b w
+  local end=$(( $(date +%s) + wait )) b w
   while :; do
-    f="$(reply_file "$from" "$task")"
-    if [ -n "$f" ]; then
-      b="$(body_of "$f" | strip_from_agent)"
+    if b="$(reply_body "$from" "$task")"; then
       case "$(sed -n 's/^status: //p' <<<"$b" | sed -n 1p)" in
         ok) w="$(sed -n 's/^warn: //p' <<<"$b" | sed -n 1p)"; [ -z "$w" ] || say "$box: $w"
             printf '%s %s\n' "$(sed -n 's/^agent: //p' <<<"$b" | sed -n 1p)" "$(sed -n 's/^pane: //p' <<<"$b" | sed -n 1p)"; return 0 ;;
@@ -218,16 +216,20 @@ files_holding() {  # DIR TEXT
     2> >(grep -v "No such file or directory$" >&2)
 }
 
-# The reply to TASK in ID's inbox or archive.
-reply_file() {  # ID TASK
-  local d f
+# The stripped body of the reply to TASK in ID's inbox or archive (b53-02).
+# Reads each candidate once via read_msg_fields (archive/ fallback), so an ack
+# mid-poll cannot empty the body after matching. rc 0 with body on stdout, else 1.
+reply_body() {  # ID TASK
+  local d f _M_MSG _M_FROM _M_TASK _M_BODY
   for d in "$SPOOL_ROOT/$1/inbox" "$SPOOL_ROOT/$1/archive"; do
     [ -d "$d" ] || continue
     while IFS= read -r f; do
-      [ "$(jq -r '.task_id // ""' "$f" 2>/dev/null)" = "$2" ] || continue
-      body_of "$f" | strip_from_agent | sed -n 1p | grep -xF "$MAGIC_REP" >/dev/null && { printf '%s' "$f"; return 0; }
+      read_msg_fields "$1" "$f" || continue
+      [ "$_M_TASK" = "$2" ] || continue
+      [ "$(sed -n 1p <<<"$_M_BODY")" = "$MAGIC_REP" ] && { printf '%s' "$_M_BODY"; return 0; }
     done < <(files_holding "$d" "$2")
   done
+  return 1
 }
 
 # ---- serve -----------------------------------------------------------------
@@ -465,14 +467,12 @@ issue_fields_ok() {  # ID KEY TOPIC
 
 # Wait for the reply; stdout its body. Not ok, or none in time: exit 4 or 5.
 issue_reply() {  # BOX FROM TASK WAIT
-  local end=$(( $(date +%s) + $4 )) f b
+  local end=$(( $(date +%s) + $4 )) b
   while :; do
-    f="$(reply_file "$2" "$3")"
-    [ -z "$f" ] || break
+    b="$(reply_body "$2" "$3")" && break
     [ "$(date +%s)" -lt "$end" ] || { say "FATAL no reply from $1 within $4 s to the issue request (task $3): its desk's box may be down"; exit 5; }
     sleep "${SPAWN_REMOTE_POLL:-5}"
   done
-  b="$(body_of "$f" | strip_from_agent)"
   [ "$(sed -n 's/^status: //p' <<<"$b" | sed -n 1p)" = ok ] || { say "FATAL refused by $1: $(sed -n 's/^reason: //p' <<<"$b" | sed -n 1p)"; exit 4; }
   printf '%s' "$b"
 }
@@ -645,7 +645,7 @@ issue_run() {  # INBOX_ID MSG FROM TASK ID KEY TOPIC BRIEF [TOKEN]
 # spawn-cancel v1 from the holder in ID's inbox or archive), 1 when it has
 # not, 2 when a place a cancel could be in was unreadable (error on stderr).
 task_cancelled() {  # INBOX_ID TASK
-  local id="$1" task="$2" d f b from holder hits blind=0
+  local id="$1" task="$2" d f b from holder hits blind=0 _M_MSG _M_FROM _M_TASK _M_BODY
   [ -n "$task" ] || return 1
   grep -qxF -- "$task" "$STATE/cancelled" 2>/dev/null && return 0
   [ ! -e "$STATE/cancelled" ] || [ -r "$STATE/cancelled" ] || { say "cannot read $STATE/cancelled"; blind=1; }
@@ -656,10 +656,10 @@ task_cancelled() {  # INBOX_ID TASK
     hits="$(files_holding_strict "$d" "$task")" || blind=1
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      b="$(body_of "$f" | strip_from_agent)"
+      read_msg_fields "$id" "$f" || continue
+      b="$_M_BODY" from="$_M_FROM"
       [ "$(printf '%s\n' "$b" | sed -n 1p)" = "$MAGIC_CANCEL" ] || continue
       [ "$(req_field "$b" task)" = "$task" ] || continue
-      from="$(jq -r '.from // ""' "$f" 2>/dev/null)"
       [ "$(qualify "$from")" = "$holder" ] && return 0
     done <<<"$hits"
   done

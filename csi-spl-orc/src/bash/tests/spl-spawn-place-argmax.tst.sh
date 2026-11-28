@@ -33,6 +33,10 @@
 #      (both red before the fix); CONTROLS: a ci head is taken as it is, no
 #      ci row -> the band pick, a ci row the placer cannot launch (_l false)
 #      -> the band pick
+#  10. a dragged head (rank_by, spec 153 C120) is taken past the bands, logged
+#      and written to bypass.tsv as drag:<rank_by> (red before Q1: the band
+#      pick takes the refactor); CONTROL: a dragged row at position 3 under a
+#      plain head does not stop the band pick
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -210,6 +214,20 @@ got="$(ci_pick "$(ci_rows feat-1:feature:2:true refac-2:refactor:3:true ci-3:ci:
 [[ "$got" == refac-2 ]] && ! grep -q "INFO ci row" "$T/err" &&
   pass "9 CONTROL: a ci row the placer cannot launch (_l false) -> the band pick" ||
   fail "9 ci not launchable: got '$got' | $(head -c 400 "$T/err")"
+
+# 10. a dragged head ---------------------------------------------------------------
+# drag_rows N...: ci_rows feat-1:feature:3 refac-2:refactor:3 feat-3:feature:3, rank_by on row N.
+drag_rows() { jq -c --argjson n "$1" '[.[] | if .position == $n then . + {queue_rank: 1000, rank_by: "HUM-10"} else . end]' <<<"$(ci_rows feat-1:feature:3 refac-2:refactor:3 feat-3:feature:3)"; }
+got="$(ci_pick "$(drag_rows 1)")"
+if [[ "$got" == feat-1 ]] && grep -q "INFO dragged head: ask feat-1 (feature claude:feat-1, dragged by HUM-10) is placed first, ahead of the bands" "$T/err" &&
+   [[ "$(awk -F'\t' '$2 == "feat-1" && $3 == "drag:HUM-10"' "$T/asks/bypass.tsv" | grep -c .)" == 1 ]]; then
+  pass "10 a dragged head is taken past the bands, logged, one drag:HUM-10 bypass line (C120)"
+else fail "10 dragged head: got '$got' | $(head -c 400 "$T/err") | $(tail -n 1 "$T/asks/bypass.tsv")"; fi
+got="$(ci_pick "$(drag_rows 3)")"
+[[ "$got" == refac-2 ]] && grep -q "INFO band pick: ask refac-2" "$T/err" && ! grep -q "dragged head" "$T/err" &&
+  [[ "$(awk -F'\t' '$2 == "feat-3"' "$T/asks/bypass.tsv" | grep -c .)" == 0 ]] &&
+  pass "10 CONTROL: a dragged row at position 3 under a plain head -> the band pick, the refactor, no bypass line" ||
+  fail "10 dragged at 3: got '$got' | $(head -c 400 "$T/err")"
 
 echo "$fails failure(s)"
 ((fails == 0))

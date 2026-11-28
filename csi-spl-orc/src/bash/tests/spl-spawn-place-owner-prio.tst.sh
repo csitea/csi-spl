@@ -7,7 +7,9 @@
 #          1 head as it is, ahead of the class bands and a review seat.
 #   1. a priority 1 feature head, bug UNDER its band, a review seat queued:
 #      the head is placed, "INFO priority 1 head" logged (RED on
-#      origin/master: the band pick takes the bug)
+#      origin/master: the band pick takes the bug), and ONE bypass.tsv line
+#      (time, ask, prio1:<priority_by>, the holder; spec 153 C119, RED
+#      before Q1: no line); picked again (a held head), still one line
 #   2. CONTROL: the same rows at priority 3 -> the band pick takes the bug
 #   3. CONTROL: a priority 2 head is not taken first either
 #------------------------------------------------------------------------------
@@ -30,7 +32,7 @@ jq -n -c '{known: 10, unknown: 0, lanes: [], bypasses: [],
 # rows PRIO: a feature head at PRIO, a bug at 2, a logged review seat at 3.
 rows() {
   jq -n -c --argjson p "$1" '[
-    {ask_id: "f0000000-0", state: "queued", class: "feature", position: 1, priority: $p, placement: "claude:owner-prio-word"},
+    {ask_id: "f0000000-0", state: "queued", class: "feature", position: 1, priority: $p, priority_by: "HUM-10", placement: "claude:owner-prio-word"},
     {ask_id: "b0000000-0", state: "queued", class: "bug", position: 2, priority: 3, placement: "claude:a-bug"},
     {ask_id: "s0000000-0000-4000-8000-000000000001", state: "queued", class: "bug", position: 3, priority: 3, placement: "agy:x-reviewer"}]'
 }
@@ -48,14 +50,24 @@ run() {
     shift; "$@"' _ "$PROJ_ROOT" "$@" >"$T/out" 2>"$T/err"
 }
 picked() { jq -r .ask_id "$T/out" 2>/dev/null; }
+# prio1_lines: the bypass log lines of the priority 1 head.
+prio1_lines() { awk -F'\t' '$2 == "f0000000-0" && $3 ~ /^prio1:/' "$T/asks/bypass.tsv"; }
 
 # 1. priority 1 head
 r="$(rows 1)"
-run spl_spawn_place_band "$(jq -c '.[0]' <<<"$r")" "$r"
+run spl_spawn_place_band "$(jq -c '.[0]' <<<"$r")" "$r" c-007@sat
 if [[ "$(picked)" == f0000000-0 ]] && grep -q "INFO priority 1 head: ask f0000000 (feature claude:owner-prio-word) is placed first, ahead of the bands" "$T/err" &&
    ! grep -q "band pick\|review-seat pick" "$T/err"; then
   pass "1 a priority 1 feature head is placed first: ahead of the bug under its band and the review seat"
 else fail "1 priority 1 head: out $(head -c 200 "$T/out") | err $(head -c 400 "$T/err")"; fi
+l="$(prio1_lines)"
+[[ "$(grep -c . <<<"$l")" == 1 ]] && awk -F'\t' '$1 ~ /^20[0-9-]+T[0-9:]+Z$/ && $3 == "prio1:HUM-10" && $4 == "c-007@sat" { ok = 1 } END { exit !ok }' <<<"$l" &&
+  pass "1 the priority 1 pick writes one bypass.tsv line: time, ask, prio1:HUM-10, the holder (C119)" ||
+  fail "1 bypass line: '$l' | log $(tail -n 2 "$T/asks/bypass.tsv")"
+run spl_spawn_place_band "$(jq -c '.[0]' <<<"$r")" "$r" c-007@sat
+[[ "$(picked)" == f0000000-0 && "$(prio1_lines | grep -c .)" == 1 ]] &&
+  pass "1 the same head picked again (held by the launcher): still one bypass line" ||
+  fail "1 repeat pick: $(prio1_lines | grep -c .) line(s)"
 
 # 2. CONTROL: priority 3, the bands decide (the review seat first, then the bug)
 r="$(rows 3)"

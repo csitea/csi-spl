@@ -25,8 +25,9 @@
 #     for every part and `reused=<run id>`; red or cancelled -> every part runs.
 #     A run that skipped a part (a docs push, an earlier reuse) proves nothing
 #     and is passed over, and so is a run with no `wui: browser e2e` job (a
-#     mapped push run of A2 ran only some e2e files); none left -> every part
-#     runs, as before A1b.
+#     mapped push run of A2 ran only some e2e files) or no `orc: hermetic
+#     action tests` job (a mapped push run of A3 ran only some orc test
+#     files); none left -> every part runs, as before A1b.
 #
 # Why a per-part base: the express lane's base was the last GREEN gate, and on
 # a trunk that is red 96 % of the time it fired 0 of 51 times (spec 133 seat C,
@@ -205,7 +206,7 @@ select_parts() {
 # reuse_full <head> <jobs.tsv>: no part when <head> already had a green full gate.
 reuse_full() {
   local head="$1" tsv="$2" run sha name concl p full
-  local -A seen=() has=() skip=() bad=() e2e=()
+  local -A seen=() has=() skip=() bad=() e2e=() orc=()
   local -a order=()
   if [[ -n "$head" && -r "$tsv" ]]; then
     while IFS=$'\t' read -r run sha name concl; do
@@ -217,12 +218,13 @@ reuse_full() {
       has[$run.$p]=1
       [[ "$concl" != skipped ]] || skip[$run.$p]=1
       [[ "$name" != "wui: browser e2e"* || "$concl" == skipped ]] || e2e[$run]=1
+      [[ "$name" != "orc: hermetic action tests"* || "$concl" == skipped ]] || orc[$run]=1
     done <"$tsv"
   fi
   for run in "${order[@]}"; do
     full=1
     for p in "${PARTS[@]}"; do [[ -n "${has[$run.$p]:-}" && -z "${skip[$run.$p]:-}" ]] || full=0; done
-    [[ -n "${e2e[$run]:-}" ]] || full=0
+    [[ -n "${e2e[$run]:-}" && -n "${orc[$run]:-}" ]] || full=0
     [[ -z "${bad[$run]:-}" ]] || break
     if (( full )); then
       for p in "${PARTS[@]}"; do echo "run_$p=false"; done
@@ -230,7 +232,7 @@ reuse_full() {
       echo "ci-doc-only: ${head:0:12} had a green all-parts gate, run $run: no part runs" >&2
       exit 0
     fi
-    echo "ci-doc-only: run $run on ${head:0:12} skipped a part or the full browser e2e: not a full gate, passed over" >&2
+    echo "ci-doc-only: run $run on ${head:0:12} skipped a part, the full browser e2e or the full orc suite: not a full gate, passed over" >&2
     run=""
   done
   for p in "${PARTS[@]}"; do echo "run_$p=true"; done

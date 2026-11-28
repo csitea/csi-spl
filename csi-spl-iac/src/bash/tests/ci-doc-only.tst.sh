@@ -170,8 +170,8 @@ printf '%s\n' "60	1234567890abcdef1234567890abcdef12345678	hub: suite	success" >
 reuse() { (cd "$R" && bash "$CLS" --reuse "$1" "$2" 2>/dev/null) | paste -sd' ' -; }
 full() {  # <run> <sha> <conclusion of hub: suite> - one all-parts run
   printf '%s\n' "$1	$2	classify: parts	success" "$1	$2	hub: suite	$3" "$1	$2	wui: browser e2e (mock, generated) 1/8	success" \
-    "$1	$2	iac: suite	success" "$1	$2	orc: hermetic 1/2	success" "$1	$2	cnf: validator	success" \
-    "$1	$2	distribution-hygiene sweep	success" "$1	$2	gate health	skipped"
+    "$1	$2	iac: suite	success" "$1	$2	orc: hermetic action tests (stubbed gcloud/curl/docker) 1/4	success" \
+    "$1	$2	cnf: validator	success" "$1	$2	distribution-hygiene sweep	success" "$1	$2	gate health	skipped"
 }
 partial() {  # <run> <sha> - a reused or docs-only run: every part skipped
   printf '%s\n' "$1	$2	classify: parts	success" "$1	$2	hub: suite	skipped" "$1	$2	wui: e2e 1/3	skipped" \
@@ -204,6 +204,12 @@ printf '%s\n' "80	$s4	classify: parts	success" "80	$s4	hub: suite	success" "80	$
   "80	$s4	orc: hermetic 1/2	success" "80	$s4	cnf: validator	success" "80	$s4	distribution-hygiene sweep	success" >"$T/r7.tsv"
 [[ "$(reuse "$s4" "$T/r7.tsv")" == "$ALL" ]] && pass "reuse: a mapped push run (no full browser e2e) is no full gate: every part runs" \
   || fail "reuse: a mapped run counted as full: want '$ALL', got '$(reuse "$s4" "$T/r7.tsv")'"
+# A3 (SPL-6385): a mapped orc push run (its hermetic jobs named "orc: hermetic
+# (mapped) action tests", only the files its change maps to) is no full orc
+# suite either, even with a full browser e2e: the schedule runs every part.
+full 81 "$s4" success | sed 's#orc: hermetic action tests (stubbed gcloud/curl/docker) 1/4#orc: hermetic (mapped) action tests (stubbed gcloud/curl/docker) 1/1#' >"$T/r8.tsv"
+[[ "$(reuse "$s4" "$T/r8.tsv")" == "$ALL" ]] && pass "reuse: a mapped orc push run (no full orc hermetic suite) is no full gate: every part runs" \
+  || fail "reuse: a mapped orc run counted as full: want '$ALL', got '$(reuse "$s4" "$T/r8.tsv")'"
 partial 78 "$s4" >"$T/r6.tsv"
 [[ "$(reuse "$s4" "$T/r6.tsv")" == "$ALL" && "$(reuse "$s4" "$T/none.tsv")" == "$ALL" ]] \
   && pass "reuse: only a partial gate, or no list -> every part runs" || fail "reuse: partial or no list skipped a part"

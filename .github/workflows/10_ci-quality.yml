@@ -192,6 +192,8 @@ jobs:
   # sha and calls ci-doc-only.sh --reuse: when the newest of them that ran
   # every part was green, no part runs and the summary names the run it
   # reused; a new head, a red or cancelled gate, or no list -> every part.
+  # A mapped push run (A2, "wui: mapped browser e2e") is not such a gate: it
+  # has no "wui: browser e2e" job, so the schedule runs the full suite.
   # Only this file's own timer: wf 13 calls it on a schedule of its own to
   # try the next runner image, and that run keeps every part.
   # A green all-parts PUSH gate counts: 5 of 163 schedule runs, 11-20..11-26,

@@ -90,6 +90,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from spool_redact import redact  # noqa: E402
 import spool_discussion as sd  # noqa: E402
+from spool_desk_root import desk_root  # noqa: E402
 
 # A participant id, as lib/spool-env.inc.sh SPOOL_ID_RE (specs/061): c-004, and
 # the legacy CLE-07 that readers keep accepting.
@@ -494,21 +495,6 @@ def hook_main(agy="", vibe=False):
 
 
 # ── post half (box user) ────────────────────────────────────────────────────
-def desk_root(home):
-    """The cloud state root of this box's desks under desk-root.inc.sh (spec
-    069 row B4): the desk user's, else HOME's. "" when it cannot tell."""
-    lib = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "..", "lib", "desk-root.inc.sh"
-    )
-    try:
-        r = subprocess.run(
-            ["bash", lib, home], capture_output=True, text=True, timeout=20
-        )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    return r.stdout.strip() if r.returncode == 0 else ""
-
-
 def seat_glob():
     """The pattern of every seat dir on this box; "" when it cannot tell."""
     pat = os.environ.get("SPOOL_MIRROR_SEATS")

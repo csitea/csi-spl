@@ -35,6 +35,11 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+)
+from spool_desk_root import desk_root  # noqa: E402
+
 HOOK_RE = re.compile(r"""([^\s'"]*spool-mirror\.py)""")
 PROC = os.environ.get("AMC_PROC_ROOT") or "/proc"
 
@@ -132,21 +137,6 @@ def env_of(pid):
 def argv_of(pid):
     b = read_bytes(os.path.join(PROC, str(pid), "cmdline"))
     return [a.decode(errors="replace") for a in b.split(b"\0") if a] if b else []
-
-
-def desk_root(home):
-    """The cloud state root of this box's desks under desk-root.inc.sh (spec
-    069 row B4): the desk user's, else HOME's. "" when it cannot tell."""
-    lib = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "..", "lib", "desk-root.inc.sh"
-    )
-    try:
-        r = subprocess.run(
-            ["bash", lib, home], capture_output=True, text=True, timeout=20
-        )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    return r.stdout.strip() if r.returncode == 0 else ""
 
 
 def seats_of(agent):

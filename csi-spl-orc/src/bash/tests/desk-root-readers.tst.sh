@@ -9,6 +9,8 @@
 #  0b. spool_box_kv, the box-config read the three fleet desk readers share:
 #      quotes dropped, the last line wins, a value with a space or an
 #      unreadable file reads empty; one definition, in desk-root.inc.sh
+#  0c. desk_root, the python readers' call of it: one definition, in
+#      lib/spool_desk_root.py (r14-01)
 #   per reader, three runs in a sandbox (caller A, desk user B, getent stub):
 #   a. SPOOL_DESK_USER unset, the desk under A: found, as before the key
 #   b. SPOOL_DESK_USER=B, the desk under B only: found
@@ -82,6 +84,7 @@ eq "0b. spool_box_kv: quotes dropped, the last line wins" two "$(run a bash -c "
 eq "0b. spool_box_kv: a value with a space reads empty" "" "$(run a bash -c "$LIB; spool_box_kv '$T/kv.env' Q")"
 eq "0b. spool_box_kv: an unreadable file reads empty, rc 0" ":0" "$(run a bash -c "$LIB; spool_box_kv '$T/no-such.env' K; echo \":\$?\"")"
 eq "0b. spool_box_kv is defined once, in desk-root.inc.sh" "$FEAT/lib/desk-root.inc.sh" "$(grep -rlE '^(spool_box_kv|kv)\(\) *\{' "$FEAT/lib" "$S")"
+eq "0c. desk_root is defined once, in lib/spool_desk_root.py" "$FEAT/lib/spool_desk_root.py" "$(grep -rlE '^def desk_root\(' "$FEAT/lib" "$S")"
 
 # verdict NAME MODE FOUND(0|1): a/b must find, c must not.
 verdict() {

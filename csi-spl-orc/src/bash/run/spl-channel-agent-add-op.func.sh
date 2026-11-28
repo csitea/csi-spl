@@ -38,11 +38,9 @@
 do_spl_channel_agent_add_op() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-$(spl_desk_box_default)}" agents="${AGENTS:-}" dry=1 raw a
+  local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-$(spl_desk_box_default)}" agents="${AGENTS:-}" dry=1 raw
   local allowdef="${ALLOW_DEFAULT_CHANNEL:-0}"
   [[ "$allowdef" == 0 || "$allowdef" == 1 ]] || { do_log "FATAL ALLOW_DEFAULT_CHANNEL must be 0 or 1, got: '$allowdef'"; return 1; }
-  local -a ids=()
-  declare -A seen=()
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   raw="$ch"
@@ -64,16 +62,7 @@ do_spl_channel_agent_add_op() {
         return 1
       fi ;;
   esac
-  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL AGENT_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ -n "$agents" ]] || { do_log "FATAL AGENTS must name at least one agent id"; return 1; }
-  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  for a in $agents; do
-    spl_is_agent_id "$a" || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
-    [[ -n "${seen[$a]:-}" ]] && continue
-    seen[$a]=1
-    ids+=("$a")
-  done
-  agents="${ids[*]}"
+  _spl_channel_agent_ids agents "$box" || return 1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
     do_log "OK DRY_RUN would add $agents on $box to #$ch in $tenant (origin=invite) on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
@@ -82,6 +71,28 @@ do_spl_channel_agent_add_op() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   spl_via_proxy _spl_channel_agent_add_op_run "$tenant" "$ch" "$box" "$agents" "$allowdef"
+}
+
+# _spl_channel_agent_ids <var name> <box>: the AGENT_BOX and AGENTS checks of
+# the operator channel seat actions (add_op, remove_op). Refuses a box that is
+# not a box id (box-wui is reserved), an empty list and an entry that is not an
+# agent id; then writes the named var's space-separated ids back deduped, in
+# first-seen order. 1 with the FATAL on the first bad value.
+_spl_channel_agent_ids() {
+  local -n _cai_ids="$1"
+  local box="$2" a
+  local -a ids=()
+  local -A seen=()
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL AGENT_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
+  [[ -n "$_cai_ids" ]] || { do_log "FATAL AGENTS must name at least one agent id"; return 1; }
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  for a in $_cai_ids; do
+    spl_is_agent_id "$a" || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
+    [[ -n "${seen[$a]:-}" ]] && continue
+    seen[$a]=1
+    ids+=("$a")
+  done
+  _cai_ids="${ids[*]}"
 }
 
 # _spl_channel_agent_add_op_run <tenant> <channel> <box> <agents> [allowdef]

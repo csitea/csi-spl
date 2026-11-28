@@ -11,6 +11,9 @@
 #   3. DRY_RUN=0: one transaction, UPDATE ... origin='removed' only (no DELETE,
 #      no INSERT), app.tenant_id set, values as -v, as the env SA
 #   4. runner: removed / absent reported; a count mismatch or psql failure is FATAL
+#   5. one copy (r13-03): _spl_channel_agent_ids in spl-channel-agent-add-op.func.sh
+#      checks AGENT_BOX and AGENTS for both operator actions; remove_op sourced
+#      alone loads it and keeps its plan, dedupe and refusals
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -132,6 +135,44 @@ in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT='' 
 [[ $rc -ne 0 ]] && grep -q 'returned 0 removed and 0 absent, want 1' "$T/out" && pass "4. an empty result is FATAL" || fail "4. empty: $(cat "$T/out")"
 in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_RC=2 STUB_PSQL_OUT='boom'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'failed: boom' "$T/out" && pass "4. a psql failure is FATAL" || fail "4. psql rc: $(cat "$T/out")"
+
+# --- 5. _spl_channel_agent_ids, one copy, remove_op alone (r13-03) -------------------
+ADD="$PROJ_ROOT/src/bash/run/spl-channel-agent-add-op.func.sh"
+ids_of() {
+  env PROJ_PATH="$PROJ_ROOT" BOX_ARG="$1" IDS_ARG="$2" bash -c '
+    set -uo pipefail; do_log() { echo "$*"; }
+    source "$1"; v="$IDS_ARG"; _spl_channel_agent_ids v "$BOX_ARG" || exit $?
+    printf "IDS=[%s]\n" "$v"' _ "$ADD" 2>&1
+}
+out=$(ids_of box-desk 'c-002 c-001 c-002'); rc=$?
+[[ $rc -eq 0 && "$out" == "IDS=[c-002 c-001]" ]] && pass "5. _spl_channel_agent_ids dedupes in first-seen order" || fail "5. dedupe ($rc: $out)"
+out=$(ids_of box-wui c-001); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENT_BOX 'box-wui' is not a box id (box-wui is reserved)"* ]] && pass "5. _spl_channel_agent_ids refuses box-wui" || fail "5. box-wui ($rc: $out)"
+out=$(ids_of box-desk ''); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENTS must name at least one agent id"* ]] && pass "5. _spl_channel_agent_ids refuses an empty list" || fail "5. empty ($rc: $out)"
+out=$(ids_of box-desk 'c-001 HUM-4'); rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL AGENTS entry 'HUM-4' is not an agent id"* ]] && pass "5. _spl_channel_agent_ids refuses a non-agent id" || fail "5. human ($rc: $out)"
+alone() {
+  : >"$T/calls.log"
+  env -u DRY_RUN -u AGENT_BOX -u SPOOL_DESK_BOX HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" \
+    SPOOL_BOX_ENV="$T/box.env" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" ENV=dev "$@" bash -c '
+    set -uo pipefail; do_log() { echo "$*"; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh; do source "$f"; done
+    source "$PROJ_PATH/src/bash/run/spl-channel-agent-remove-op.func.sh"
+    do_spl_channel_agent_remove_op' >"$T/out" 2>&1 </dev/null
+}
+alone TENANT_ID=t1 CHANNEL=spool-hub-devel AGENTS='c-001 c-001'; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" && $(grep -o 'c-001' "$T/out" | wc -l) -eq 1 ]] \
+  && grep -q 'DRY_RUN would remove c-001 on box-desk from #spool-hub-devel in t1 (origin=removed)' "$T/out" \
+  && pass "5. remove_op alone loads the helper: plan, deduped, no cloud" || fail "5. alone dry: rc=$rc $(cat "$T/out")"
+alone TENANT_ID=t1 CHANNEL=x AGENTS=c-001 AGENT_BOX=box-wui DRY_RUN=0; rc=$?
+[[ $rc -eq 1 && ! -s "$T/calls.log" ]] && grep -q "FATAL AGENT_BOX 'box-wui' is not a box id (box-wui is reserved)" "$T/out" \
+  && pass "5. remove_op alone refuses box-wui before any call" || fail "5. alone box-wui: rc=$rc $(cat "$T/out")"
+[[ $(grep -c '^_spl_channel_agent_ids()' "$ADD") -eq 1 ]] && grep -q '_spl_channel_agent_ids agents "$box" || return 1' "$ADD" \
+  && pass "5. one copy: spl-channel-agent-add-op.func.sh hosts and calls _spl_channel_agent_ids" || fail "5. host"
+own=$(grep -nE 'is not a box id|AGENTS entry|seen\[\$a\]|spl_is_agent_id' "$FUNC" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+[[ -z "$own" ]] && grep -q '_spl_channel_agent_ids agents "$box" || return 1' "$FUNC" \
+  && pass "5. one copy: remove_op delegates to _spl_channel_agent_ids" || fail "5. remove_op own=[$own]"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

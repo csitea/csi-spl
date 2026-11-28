@@ -27,25 +27,16 @@
 do_spl_channel_agent_remove_op() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-$(spl_desk_box_default)}" agents="${AGENTS:-}" dry=1 a
-  local -a ids=()
-  declare -A seen=()
+  local tenant="${TENANT_ID:-}" ch="${CHANNEL:-}" box="${AGENT_BOX:-$(spl_desk_box_default)}" agents="${AGENTS:-}" dry=1
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL CHANNEL must be a channel id, got: '$ch'"; return 1; }
   [[ "$ch" == general ]] && ch=lobby
   case "$ch" in
     issues|tasks) do_log "FATAL #$ch is not a channel an agent sits in (reserved / retired)"; return 1 ;;
   esac
-  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL AGENT_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ -n "$agents" ]] || { do_log "FATAL AGENTS must name at least one agent id"; return 1; }
-  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  for a in $agents; do
-    spl_is_agent_id "$a" || { do_log "FATAL AGENTS entry '$a' is not an agent id"; return 1; }
-    [[ -n "${seen[$a]:-}" ]] && continue
-    seen[$a]=1
-    ids+=("$a")
-  done
-  agents="${ids[*]}"
+  # shellcheck source=spl-channel-agent-add-op.func.sh
+  declare -F _spl_channel_agent_ids >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-channel-agent-add-op.func.sh" || return 1
+  _spl_channel_agent_ids agents "$box" || return 1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
     do_log "OK DRY_RUN would remove $agents on $box from #$ch in $tenant (origin=removed) on $SPL_SQL_CONN. Re-run with DRY_RUN=0."
@@ -59,8 +50,8 @@ do_spl_channel_agent_remove_op() {
 # _spl_channel_agent_remove_op_run <tenant> <channel> <box> <agents>, with
 # SPL_PROXY_DSN set (inside spl_via_proxy).
 _spl_channel_agent_remove_op_run() {
-  local out rc=0 n_removed n_absent n_want=0 a ids
-  for a in $4; do n_want=$((n_want + 1)); done
+  local out rc=0 n_removed n_absent n_want=0 ids
+  for _ in $4; do n_want=$((n_want + 1)); done
   out="$(_spl_channel_agent_remove_op_sql |
     spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
       -v tenant="$1" -v channel="$2" -v box="$3" -v agents="$4")" || rc=$?

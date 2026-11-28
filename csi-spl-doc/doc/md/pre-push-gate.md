@@ -155,7 +155,12 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   part's map, `changed-tests.sh`, on the pushed range, plus two steps: the
   tests of the orc files that name a changed orc file (its dependents, one
   level, at most 30), and, for a file outside `csi-spl-orc` that no orc test
-  names, the tests that name one of its parent dirs. n is the planned
+  names, the tests that name one of its parent dirs; and every mapped plan
+  runs the tree guards (`ORC_PLAN_TREE_GUARDS`: `qto-private-index`,
+  `no-literal-paths`, `func-name-unique`, `check-fleet-rules-drift`,
+  `check-qto-doc-drift`), tests that scan the whole tree, which no file
+  key reaches. That list is kept by hand: a guard missing from it runs on
+  the full run only. n is the planned
   seconds (`orc-shard-weights.txt`) over one full-run shard's, rounded up,
   1..3. The full suite on 4 shards runs on the scheduled run, a dispatch
   without a 40-hex `express_base`, a pull request and wf 13, and on a push
@@ -176,6 +181,19 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   on a throwaway branch). Print a plan:
   `bash csi-spl-orc/src/bash/scripts/ci-orc-test-plan.sh <base> <sha>`;
   the map per file: `... ci-orc-test-plan.sh --map [<path>...]`.
+  Replayed on the 324 push gates of 2026-11-21..27 that ran the orc
+  hermetic suite (wf 10 on master, the job list classify would have read at
+  each start): 211 map (198 on 1 shard, 10 on 2, 3 on 3), 113 run the full
+  suite (75 the classifier's full gate, 15 a lib, 14 an orc file no test
+  names, 6 over 30 dependents, 2 a test helper, 1 no base): 679 shard jobs
+  instead of 1,296, an estimated ~10,800 of 19,440 billed minutes (a 1-min
+  set-up per shard plus the planned weight at the full run's rate; not
+  measured on GitHub). Of the 21 red orc runs with a failing test file, the
+  plan runs the full suite or the file in 17; the 4 others are
+  `dispatch-rotate.tst.sh` case 32 in 2 gates (a load flake, red in 4
+  unrelated ranges until 7be64a8f2 fixed the test) and
+  `qto-private-index.tst.sh` in 2 (a doc line, `bug-round-52-plan.md`): the
+  reason the tree guards exist.
   Gate: `csi-spl-orc/src/bash/tests/ci-orc-test-plan.tst.sh`.
 - **The orc-features part** (spec 133 F1) runs wf 10's orc feature tests
   (`features/run-ci-tests.sh`) for the features a csi-spl-orc change maps

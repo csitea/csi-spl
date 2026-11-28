@@ -7,6 +7,7 @@
 #   1. an orc push changing one action runs only its mapped .tst.sh (plus
 #      ORC_TEST_ALWAYS) on 1 shard; a changed helper also runs the tests of
 #      the action that calls it (its dependent); a heavier pick packs 2 shards.
+#      The tree guards (qto-private-index.tst.sh ...) join every mapped plan.
 #   2. a lib/ change (csi-spl-orc/lib, a feature's lib), a test helper, the
 #      shard weights or the plan itself runs all 4 shards (orc_plan=).
 #   3. the C4 shape: an orc test that reads a pin of another tree by its dir
@@ -110,6 +111,18 @@ got=$(plan "$B" "$h")
 h=$(change "$o/tests/helper.tst.sh" '# a comment')
 [[ "$(files_of "$(plan "$B" "$h")")" == "helper.tst.sh $ALW" ]] && pass "1. a changed test runs itself" \
   || fail "1. a changed test" "$(plan "$B" "$h") ($(cat "$T/why"))"
+
+# a tree guard (ORC_PLAN_TREE_GUARDS) joins every mapped plan: the doc
+# line that turned qto-private-index red was in no key (2026-11-26)
+mk qto-private-index.tst.sh 'true'
+git -C "$R" add -A && git -C "$R" commit -qm guard && B=$(git -C "$R" rev-parse HEAD)
+h=$(change "$o/run/foo-bar.func.sh" '# a comment' csi-spl-doc/doc/md/x-plan.md)
+got=$(files_of "$(plan "$B" "$h")")
+[[ "$got" == "foo-bar.tst.sh qto-private-index.tst.sh $ALW" ]] && pass "1. a tree guard (qto-private-index.tst.sh) joins a mapped plan" \
+  || fail "1. tree guard" "got '$got' ($(cat "$T/why"))"
+got=$(cd "$R" && ORC_PLAN_TREE_GUARDS="" bash "$o/scripts/ci-orc-test-plan.sh" "$B" "$h" 2>/dev/null | sed -n 's/.*"files":"\([^"]*\)".*/\1/p')
+[[ " $got " != *" qto-private-index.tst.sh "* ]] && pass "CONTROL: with no tree guards the plan leaves qto-private-index.tst.sh out (caught above)" \
+  || fail "CONTROL: the tree-guard control did not bite" "got '$got'"
 
 # --- 2. a shared lib, a test helper, the weights, the plan: all 4 shards -----
 for p in csi-spl-orc/lib/bash/shared.func.sh "$o/features/x/lib/feat.inc.sh" "$o/tests/wait-thing.inc.sh" \

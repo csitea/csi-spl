@@ -7,7 +7,7 @@
 #
 #   ci-orc-test-plan.sh <base-sha> <head-sha>
 #     The plan for <base>..<head>. Prints ONE line on stdout:
-#       orc_plan={"n":<1..3>,"shards":[1..n],"files":"<a.tst.sh> <b.tst.sh>"}
+#       orc_plan={"n":<1..3>,"shards":[1..n],"files":"<test file names, space-separated>"}
 #     a MAPPED run: those files only, packed on n shards (ORC_TEST_ONLY and
 #     ORC_TEST_SHARD=<k>/<n> of run-all-tests.sh), or
 #       orc_plan=
@@ -38,6 +38,12 @@
 #   3. a path outside csi-spl-orc that no orc test names (changed-tests.sh
 #      ignores it): a test that names one of its parent dirs (two levels or
 #      deeper, e.g. csi-spl-api/src/go/spool-hub-api) joins the plan.
+#   4. the TREE GUARDS (ORC_PLAN_TREE_GUARDS) join every mapped plan: tests
+#      that scan the whole tree, so no file key reaches them. Measured
+#      2026-11-21..27: qto-private-index.tst.sh went red on a doc line
+#      (bug-round-52-plan.md) in 2 push gates whose plan would have left it
+#      out. The list is by hand (~61 s of weight): a guard missing from it
+#      runs on the next full run only.
 #
 # FAILS SAFE to the full suite (orc_plan=): a base or head that is not a
 # 40-hex sha, a base git cannot read or that is not an ancestor; the
@@ -45,7 +51,7 @@
 # parts=all: .github, a dispatcher or csi-spl-*/lib, cnf, .version, go.mod,
 # the suite runners and the test lib, a merge); a lib/ dir under csi-spl-orc
 # (a feature's lib too); a shared test helper or the runner's input (any
-# non-.tst.sh file directly in src/bash/tests: *.inc.sh, the shard weights);
+# non-test file directly in src/bash/tests: *.inc.sh, the shard weights);
 # this file; any *.tfvars, Dockerfile, docker-compose file or
 # csi-spl-orc/src/docker file (the C4 shape: a pin an orc test of another
 # file reads); too many dependents; an empty selection; a selection that
@@ -60,6 +66,7 @@ tests="$orc/src/bash/tests"
 SHARDS=4
 max_deps="${ORC_PLAN_MAX_DEPS:-30}"
 always="${ORC_TEST_ALWAYS-require-cloud-env.tst.sh run-eager-files.tst.sh}"
+always+=" ${ORC_PLAN_TREE_GUARDS-qto-private-index.tst.sh no-literal-paths.tst.sh func-name-unique.tst.sh check-fleet-rules-drift.tst.sh check-qto-doc-drift.tst.sh}"
 
 full() { echo "orc_plan="; echo "ci-orc-test-plan: full suite: $1" >&2; exit 0; }
 

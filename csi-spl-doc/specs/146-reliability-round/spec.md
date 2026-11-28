@@ -153,6 +153,17 @@ of `ALERT_ISSUE_GCP_ENVS` runs by its own project key (SPL-5164):
   nothing. Live needs `ALERT_ISSUE_DRY_RUN=0` and `ALERT_ISSUE_DISCUSSION=<topic
   uuid>` (the discussion a disk or GCP alert's issue links) in
   `dispatch/lease.conf`, set on the dispatch holder's go.
+- **Archived discussion** (SPL-6720): `do_spl_spawn_enqueue` refuses an ask
+  whose discussion is archived (SPL-5671). On 2026-11-27 the
+  `ALERT_ISSUE_DISCUSSION` topic was archived at 13:19Z and two alert lanes
+  (SPL-6706, SPL-6707) were refused with a log WARN only, for about 8 h. Now
+  a live tick that meets that refusal closes the refused ask, opens a fresh
+  #alerts topic for the alert (`do_spl_desk_post`, a post that starts
+  `Alert investigation <KEY>:`, which the fold never reads as an alert),
+  re-raises the ask and the lane there, and comments the new topic on the
+  issue. The tick then sends the orch holder ONE spool note (task
+  `alert-issue`) naming every refused issue, and returns 3. It does this on
+  every tick until `ALERT_ISSUE_DISCUSSION` names a live topic again.
 - **Off switch**: `ALERT_ISSUE=0` in `dispatch/lease.conf` (or the env).
 - **State**: one file, `jq . /var/spool-hub/dispatch/alert-issue/state.json`
   (a dry run keeps `state.dry.json`): per fingerprint its key, count, first

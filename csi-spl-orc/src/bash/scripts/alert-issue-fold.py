@@ -10,7 +10,8 @@ prints JSON, it calls nothing. do_spl_alert_issue_tick does the I/O.
 SRC_DIR  the sources one tick read, each file optional:
          alerts.json  `spool topics --channel alerts --json`: {"topics": [
                       {"task_id", "subject", "last_ts"}]}; a recovery notice
-                      (ALERT_ISSUE_IGNORE_RX, default RECOVERY) is skipped
+                      (ALERT_ISSUE_IGNORE_RX, default RECOVERY) and the
+                      tick's own fresh-topic post (OWN_POST) are skipped
          disk.ndjson  `spool tail --task disk-headroom --json`: v:1 notes
          gcp.txt      `do_gcp_list_alert_incidents` output ("== <env> (..)",
                       then "<start> .. <end>  <policy>  peak=<v>  <res>")
@@ -62,6 +63,9 @@ DISK = re.compile(
 )
 # a notice that something recovered is not an alert (ALERT_ISSUE_IGNORE_RX)
 RECOVERY = r"\b(back after|is back|recovered|cleared|resolved)\b"
+# the tick's own post that opens a fresh topic for a lane whose discussion is
+# archived (SPL-6720) is no alert either, whatever ALERT_ISSUE_IGNORE_RX says
+OWN_POST = re.compile(r"^alert investigation [A-Z]+-\d+: ", re.I)
 GCP_ENV = re.compile(r"^== (\S+) \((\S+)\)$")
 GCP_ROW = re.compile(
     r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z) \.\. \S+\s+(.+?)\s+peak=\S+\s*(.*)$"
@@ -113,7 +117,7 @@ def alerts_topics(raw):
     skip = re.compile(os.environ.get("ALERT_ISSUE_IGNORE_RX") or RECOVERY, re.I)
     for t in page.get("topics") or []:
         subj = t.get("subject") or ""
-        if skip.search(subj):
+        if skip.search(subj) or OWN_POST.search(subj):
             continue
         out.append(
             {

@@ -24,6 +24,12 @@
 # @description     closer's own rule, issue-close-landed.py --keys), else held
 # @description   - at most one lane per fingerprint per 24 h and 3 a day; over
 # @description     a cap the issue is still filed, with no lane
+# @description   - an enqueue refused because the discussion is archived
+# @description     (SPL-5671): the refused ask is closed, the alert opens a
+# @description     fresh #alerts topic (do_spl_desk_post, "Alert investigation
+# @description     <KEY>: ...", which the fold never reads as an alert) and the
+# @description     lane is re-raised there; the tick sends the orch holder ONE
+# @description     spool note (task alert-issue) and returns 3 (SPL-6720)
 # @description Runs only on the machine whose agent holds the orch role
 # @description (<spool root>/dispatch/lease.orch), so the fleet files once; a
 # @description live tick reads lease.orch again after its reads and before each
@@ -47,7 +53,8 @@
 # @param ALERT_ISSUE_HOLDER (optional) - the orch holder <ID>@<box> (the asks tick passes it); default lease.orch
 # @param ALERT_ISSUE_BOX (optional) - this machine's box id, default spl_desk_box_default
 # @param ALERT_ISSUE_ALERTS_CMD ALERT_ISSUE_DISK_CMD ALERT_ISSUE_GCP_CMD (optional, tests) - replace a source read: print its raw output
-# @param ALERT_ISSUE_RUN (optional, tests) - replaces ./run for the issue, ask and enqueue actions
+# @param ALERT_ISSUE_RUN (optional, tests) - replaces ./run for the issue, ask, post and enqueue actions
+# @param ALERT_ISSUE_SEND (optional, tests) - replaces spool-send.sh for the archived-discussion note
 # @param ALERT_ISSUE_GIT_DIR (optional) - the checkout whose origin/master proves a fix, default the repo of this tree
 # @param ALERT_ISSUE_NOW (optional, tests) - epoch seconds
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -60,7 +67,7 @@ do_spl_alert_issue_tick() {
   root="${SPOOL_ROOT:-/var/spool-hub}"; dir="$root/dispatch/alert-issue"
   spl_ai_conf "$root"
   [[ "${ALERT_ISSUE:-1}" == 1 ]] || { do_log "INFO alert issue tick off (ALERT_ISSUE=0)"; return 0; }
-  AI_DRY="${DRY_RUN:-1}"
+  AI_DRY="${DRY_RUN:-1}"; AI_ARCHIVED=""
   if [[ "$AI_DRY" == 0 && ! "${ALERT_ISSUE_DISCUSSION:-}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
     do_log "FATAL ALERT_ISSUE_DISCUSSION must be a topic id (a lowercase UUID) for a live run: the issue of a disk or GCP alert links it"
     return 1
@@ -97,6 +104,11 @@ do_spl_alert_issue_tick() {
   mv "$src/state.json" "$st" || rc=1
   spl_ai_summary "$plan"
   rm -rf "$src"; exec 6>&-
+  if [[ -n "$AI_ARCHIVED" ]]; then
+    do_log "ERROR ALERT_ISSUE_DISCUSSION $ALERT_ISSUE_DISCUSSION is archived: the lane of $AI_ARCHIVED was re-raised on a fresh topic (rc 3)"
+    spl_ai_archived_note
+    rc=3
+  fi
   return "$rc"
 }
 
@@ -397,9 +409,57 @@ spl_ai_lane() {
     ASK_SUMMARY="alert investigation $key: $(jq -r '.text[0:120]' <<<"$a")" ASK_DISCUSSION="$ALERT_ISSUE_DISCUSSION" -- do_spl_ask_put)" ||
     { do_log "WARN the ask for $key was not recorded: no lane ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
   out="$(spl_ai_run ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="claude:$slug" ASK_BY="$AI_HOLDER" \
-    ASK_DISCUSSION="$ALERT_ISSUE_DISCUSSION" -- do_spl_spawn_enqueue)" ||
-    { do_log "WARN the lane for $key was not enqueued ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
+    ASK_DISCUSSION="$ALERT_ISSUE_DISCUSSION" -- do_spl_spawn_enqueue)" || {
+    if grep -q 'was archived at' <<<"$out"; then spl_ai_relane "$a" "$key" "$id" "$slug" "$brief"; return 0; fi
+    do_log "WARN the lane for $key was not enqueued ($(tail -1 <<<"$out" | cut -c1-200))"; return 0
+  }
   do_log "OK enqueued lane $slug for $key (ask ${id:0:8})"
+}
+
+# SPL-6720: the enqueue refused the lane because its discussion is archived
+# (SPL-5671; ALERT_ISSUE_DISCUSSION 7cc26bd2, 2026-11-27: two alert lanes lost
+# with a WARN only). As c-001 did by hand (ask 94e1fa5f): close the refused
+# ask, open a fresh #alerts topic for the alert and re-raise the lane there.
+# AI_ARCHIVED collects the keys: the tick then tells the holder and returns 3.
+spl_ai_relane() {  # ALERT KEY ASK_ID SLUG BRIEF
+  local a="$1" key="$2" old="$3" slug="$4" brief="$5" out topic id
+  AI_ARCHIVED="${AI_ARCHIVED:+$AI_ARCHIVED }$key"
+  do_log "ERROR the lane for $key was refused: its discussion is archived (ALERT_ISSUE_DISCUSSION=$ALERT_ISSUE_DISCUSSION); re-raising it on a fresh #alerts topic"
+  spl_ai_run ASK_ID="$old" ASK_REASON="not queued, its discussion is archived (SPL-5671): re-raised on a fresh #alerts topic" \
+    ASK_BY="$AI_HOLDER" -- do_spl_ask_close >/dev/null || do_log "WARN the refused ask ${old:0:8} of $key was not closed"
+  out="$(spl_ai_run ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" DESK_CHANNEL=alerts DESK_KIND=note \
+    DESK_BODY="$(jq -r --arg k "$key" '"Alert investigation \($k): the lane of this alert runs on this topic, the alert discussion is archived (SPL-6720). Alert: \(.text[0:300])"' <<<"$a")" \
+    -- do_spl_desk_post)"
+  topic="$(grep '^{' <<<"$out" | tail -1 | jq -r '.send.task_id // .task_id // empty' 2>/dev/null)"
+  [[ "$topic" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] ||
+    { do_log "ERROR no fresh #alerts topic for the lane of $key, no lane: $(tail -1 <<<"$out" | cut -c1-200)"; return 0; }
+  { spl_ai_brief "$a" "$key" "$slug" "$topic" >"$brief" && [[ -s "$brief" ]]; } ||
+    { do_log "ERROR the brief $brief was not rewritten: no lane for $key"; return 0; }
+  id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  out="$(spl_ai_run ASK_ID="$id" ASK_KIND=task ASK_FROM="$AI_HOLDER" ASK_TOPIC="$topic" \
+    ASK_SUMMARY="alert investigation $key (re-raise of ${old:0:8}, its discussion archived): $(jq -r '.text[0:100]' <<<"$a")" \
+    ASK_DISCUSSION="$topic" -- do_spl_ask_put)" ||
+    { do_log "ERROR the re-raised ask for $key was not recorded: no lane ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
+  out="$(spl_ai_run ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="claude:$slug" ASK_BY="$AI_HOLDER" \
+    ASK_DISCUSSION="$topic" -- do_spl_spawn_enqueue)" ||
+    { do_log "ERROR the re-raised lane for $key was not enqueued ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
+  spl_ai_run ISSUE_REF="$key" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" \
+    ISSUE_BODY="The alert discussion is archived: the investigator lane runs on /t/$topic (ask ${id:0:8}, SPL-6720)." \
+    -- do_spl_issue_comment >/dev/null || do_log "WARN the fresh topic of $key was not commented on it"
+  do_log "OK enqueued lane $slug for $key on the fresh topic ${topic:0:8} (ask ${id:0:8})"
+}
+
+# SPL-6720: ONE spool note per tick to the orch holder when an archived
+# ALERT_ISSUE_DISCUSSION refused a lane (the tick's rc is then 3).
+# ALERT_ISSUE_SEND replaces spool-send.sh (tests).
+spl_ai_archived_note() {
+  local send="${ALERT_ISSUE_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}" rc=0 body
+  body="alert issue tick on ${AI_HOLDER##*@}: ALERT_ISSUE_DISCUSSION $ALERT_ISSUE_DISCUSSION is archived, so the enqueue refused the lane of $AI_ARCHIVED (SPL-5671). Each was re-raised on a fresh #alerts topic (see the tick log). Point ALERT_ISSUE_DISCUSSION in $root/dispatch/lease.conf at a live topic; every tick says this again until then (SPL-6720)."
+  SPOOL_ROOT="$root" SPOOL_ASKS=0 SPOOL_BIN="${SPL_SPOOL:-${SPOOL_BIN:-}}" bash "$send" --from "${AI_HOLDER%@*}" --to "${AI_HOLDER%@*}" \
+    --kind note --task alert-issue --no-ask --body "$body" >/dev/null 2>&1 6>&- 7>&- 8>&- || rc=$?
+  # spool-send.sh: 1-9 = delivered, only the poke did not ring
+  if (( rc >= 10 || rc == 2 )); then do_log "ERROR the archived-discussion note did NOT reach $AI_HOLDER (spool-send exit $rc)"; return 1; fi
+  do_log "OK told $AI_HOLDER: ALERT_ISSUE_DISCUSSION is archived ($AI_ARCHIVED)"
 }
 
 spl_ai_brief() {

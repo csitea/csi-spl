@@ -41,6 +41,10 @@
 #   11. the disk source finds an absolute spool with none on PATH (SPL-5164)
 #   12. the GCP source drops the one-project pins the lease loop exports, and
 #       still asks for every env of ALERT_ISSUE_GCP_ENVS (SPL-5164)
+#   13. an archived ALERT_ISSUE_DISCUSSION refuses the enqueue (SPL-5671): each
+#       refused ask is closed and re-raised on a fresh #alerts topic, the holder
+#       gets ONE note for the tick, rc 3; a live discussion: rc 0, no note; the
+#       fold never reads the fresh-topic post as an alert (SPL-6720)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -80,7 +84,7 @@ cat >"$T/run" <<EOF
 #!/bin/bash
 a="\$2"
 [ -e /proc/self/fd/6 ] && echo "\$a" >>"$T/fd6.log"
-echo "\$a ref=\${ISSUE_REF:-} st=\${ISSUE_STATUS:-} prio=\${ISSUE_PRIORITY:-} epic=\${ISSUE_EPIC:-} disc=\${ISSUE_DISCUSSIONS:-} class=\${SPAWN_CLASS:-} place=\${SPAWN_PLACE:-} topic=\${ASK_TOPIC:-} by=\${ASK_BY:-}\${ASK_FROM:-} dry=\${DRY_RUN:-}" >>"$T/calls.log"
+echo "\$a ref=\${ISSUE_REF:-} st=\${ISSUE_STATUS:-} prio=\${ISSUE_PRIORITY:-} epic=\${ISSUE_EPIC:-} disc=\${ISSUE_DISCUSSIONS:-} class=\${SPAWN_CLASS:-} place=\${SPAWN_PLACE:-} topic=\${ASK_TOPIC:-} by=\${ASK_BY:-}\${ASK_FROM:-} dry=\${DRY_RUN:-} adisc=\${ASK_DISCUSSION:-} chan=\${DESK_CHANNEL:-} aid=\${ASK_ID:-}" >>"$T/calls.log"
 case "\$a" in
   do_spl_issue_status) printf 'issue-status\t%s\t%s\n' "\$ISSUE_REF" "\$(cat "$T/status.\$ISSUE_REF" 2>/dev/null || echo wip)" ;;
   do_spl_issue_list)
@@ -97,6 +101,14 @@ case "\$a" in
     true ;;
   do_spl_issue_update) [ -f "$T/update.fail" ] && { echo "FATAL hub down"; exit 1; }; echo ok ;;
   do_spl_issue_comment) [ -f "$T/move.after.comment" ] && echo "c-001@box-b 1" >"$SP/dispatch/lease.orch"; echo ok ;;
+  do_spl_spawn_enqueue)
+    # the SPL-5671 refusal of do_spl_spawn_enqueue, word for word
+    [ -f "$T/archived.\${ASK_DISCUSSION:-none}" ] && {
+      echo "FATAL ask \${ASK_ID%%-*} not queued: its topic \$ASK_DISCUSSION was archived at 2026-11-27T13:19:00Z, so the placer would decline it (SPL-4955): re-raise the request on a live task (SPL-5671)"; exit 1; }
+    echo ok ;;
+  do_spl_desk_post)
+    n=\$(cat "$T/posts" 2>/dev/null || echo 0); n=\$((n + 1)); echo \$n >"$T/posts"
+    echo "{\"env\":\"dev\",\"channel\":\"\$DESK_CHANNEL\",\"send\":{\"delivery\":\"hub\",\"msg_id\":\"m\$n\",\"task_id\":\"1886f34f-96c8-49e4-ac70-96c850d9113\$n\"}}" ;;
   *) echo ok ;;
 esac
 EOF
@@ -336,6 +348,44 @@ printf 'LEASE_ENV=dev\nLEASE_TENANT=t1\n' >"$SP/dispatch/lease.conf"
 out="$(tick DRY_RUN=0 ALERT_ISSUE_DISCUSSION=)"; rc=$?
 [[ $rc != 0 && ! -e "$T/calls.log" ]] && grep -q 'FATAL ALERT_ISSUE_DISCUSSION' <<<"$out" && pass "8. live without ALERT_ISSUE_DISCUSSION: refused" ||
   fail "8. no discussion: rc $rc $out"
+
+# 13 (SPL-6720): the alert discussion is archived. A disk and a GCP alert
+# (both link ALERT_ISSUE_DISCUSSION) each get a lane; each enqueue is refused,
+# each ask is re-raised on its own fresh #alerts topic; ONE note, rc 3
+reset; rm -f "$T/posts" "$T/send.log"; : >"$S/alerts.json"; cp "$T/disk.keep" "$S/disk.ndjson"; gcp_at 2026-11-02T11:00Z
+printf '#!/bin/sh\necho "$*" >>"%s"\n' "$T/send.log" >"$T/send"; chmod +x "$T/send"
+touch "$T/archived.$DISC"
+out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?
+rm -f "$T/archived.$DISC"
+F1=1886f34f-96c8-49e4-ac70-96c850d91131 F2=1886f34f-96c8-49e4-ac70-96c850d91132
+[[ $rc == 3 ]] && grep -q "ERROR ALERT_ISSUE_DISCUSSION $DISC is archived" <<<"$out" &&
+  pass "13. an archived discussion: the tick says so (ERROR) and returns 3" || fail "13. rc $rc (want 3): $out"
+[[ "$(wc -l <"$T/send.log" 2>/dev/null)" == 1 ]] && grep -q -- "--to c-001 --kind note --task alert-issue .*$DISC is archived.*SPL-10[12] SPL-10[12]" "$T/send.log" &&
+  pass "13. ONE spool note to the orch holder for the tick, naming both issues" || fail "13. notes: $(cat "$T/send.log" 2>/dev/null)"
+[[ "$(grep -c "^do_spl_spawn_enqueue .* adisc=$DISC " "$T/calls.log")" == 2 && "$(count do_spl_ask_close)" == 2 &&
+   "$(grep -c '^do_spl_desk_post .* chan=alerts ' "$T/calls.log")" == 2 ]] &&
+  grep -q "^do_spl_ask_put .* topic=$F1 .* adisc=$F1 " "$T/calls.log" && grep -q "^do_spl_spawn_enqueue .* adisc=$F1 " "$T/calls.log" &&
+  grep -q "^do_spl_ask_put .* topic=$F2 .* adisc=$F2 " "$T/calls.log" && grep -q "^do_spl_spawn_enqueue .* adisc=$F2 " "$T/calls.log" &&
+  pass "13. each refused ask is closed and re-raised (ask + enqueue) on its own fresh #alerts topic" || fail "13. re-raise: $(cat "$T/calls.log")"
+c1="$(grep "^do_spl_ask_close " "$T/calls.log" | sed -n 1p | sed 's/.* aid=//')"
+grep -q "^do_spl_ask_put .* aid=$c1\$" "$T/calls.log" && grep -q "^do_spl_spawn_enqueue .* adisc=$DISC aid=$c1\$" <<<"$(sed 's/ chan=//' "$T/calls.log")" &&
+  pass "13. the closed ask is the refused one" || fail "13. closed ${c1:-none}: $(grep -E 'ask_close|enqueue' "$T/calls.log")"
+[[ "$(grep -lE "^Discussion: topic ($F1|$F2)\$" "$SP/dispatch/briefs"/*.md 2>/dev/null | wc -l)" == 2 ]] && ! grep -q "$DISC" "$SP/dispatch/briefs"/*.md &&
+  [[ "$(grep -c "^do_spl_issue_comment .*ref=SPL-10" "$T/calls.log")" == 2 ]] &&
+  pass "13. both briefs name their fresh topic, never the archived one; each issue gets a comment with its new topic" ||
+  fail "13. briefs: $(grep -h '^Discussion' "$SP/dispatch/briefs"/*.md 2>/dev/null) comments $(count do_spl_issue_comment)"
+# the control: the same alerts on a live discussion
+reset; rm -f "$T/posts" "$T/send.log"
+out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?
+[[ $rc == 0 && ! -e "$T/send.log" && "$(count do_spl_spawn_enqueue)" == 2 && "$(count do_spl_desk_post)" == 0 ]] &&
+  pass "13. a live discussion: rc 0, no note, no fresh topic, 2 enqueues" || fail "13. live: rc $rc $(cat "$T/send.log" 2>/dev/null) $out"
+# the fold never reads the tick's own fresh-topic post as an alert
+F="$T/fold13"; mkdir -p "$F"; echo '{}' >"$F/issues.json"
+jq -n '{topics: [{task_id: "1886f34f-96c8-49e4-ac70-96c850d91131", last_ts: "2026-11-02T11:59:00Z",
+  subject: "Alert investigation SPL-101: the lane of this alert runs on this topic, the alert discussion is archived (SPL-6720). Alert: DISK HEADROOM sat (u): CRITICAL /mnt/data"}]}' >"$F/alerts.json"
+plan13="$(ALERT_ISSUE_IGNORE_RX='^never$' python3 "$PROJ_ROOT/src/bash/scripts/alert-issue-fold.py" plan "$F" "$F/none.json" "$NOW" "$F/issues.json")"
+[[ "$(jq '.actions | length' <<<"$plan13")" == 0 ]] && pass "13. the fold skips the tick's own 'Alert investigation <KEY>:' post, ALERT_ISSUE_IGNORE_RX set or not" ||
+  fail "13. fold: $(jq -c '.actions' <<<"$plan13")"
 
 # 9: the asks tick hook
 hook() {

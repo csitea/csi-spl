@@ -129,11 +129,36 @@ DRY_RUN=0 OSS_SET_RULESET=1 act && grep -q '^api -X PUT repos/o/app/rulesets/9' 
 grep -qE '^  gate:$' "$WF_DIR/11_ci-public.yml" && grep -qE '^    name: "gate"$' "$WF_DIR/11_ci-public.yml" \
   && ok "wf 11's one job is named gate" || no "wf 11 has no job named \"gate\": the ruleset's check names are stale"
 # a matrix shard "<name> k/m" is reported by a job named "<name> ${{ matrix.shard }}/m"
-while IFS= read -r c; do
-  n="${c#gate / }"
-  [[ "$n" =~ ^(.*)\ [0-9]+/([0-9]+)$ ]] && n="${BASH_REMATCH[1]} \${{ matrix.shard }}/${BASH_REMATCH[2]}"
-  grep -qF "    name: \"$n\"" "$WF_DIR/10_ci-quality.yml" && ok "wf 10 reports: $c" || no "wf 10 has no job named \"$n\" (update oss_ruleset_checks)"
-done < <(oss_ruleset_checks)
+# pr_names <wf 10>: wf 10 with each job name as a pull request run renders it.
+# The orc-suite name (SPL-6385 A3) reads classify's orc_plan, which a pull
+# request never gets, so each "${{ needs.classify.outputs.orc_plan && A || B }}"
+# is its B side ('' or a bare value).
+pr_names() {
+  perl -pe "s/\\$\\{\\{ needs\\.classify\\.outputs\\.orc_plan && .*? \\|\\| '?([^'}]*?)'? \\}\\}/\\1/g" "$1"
+}
+# missing_checks <wf 10>: each required check no job of that file reports
+missing_checks() {
+  local c n rendered
+  rendered=$(pr_names "$1")
+  while IFS= read -r c; do
+    n="${c#gate / }"
+    [[ "$n" =~ ^(.*)\ [0-9]+/([0-9]+)$ ]] && n="${BASH_REMATCH[1]} \${{ matrix.shard }}/${BASH_REMATCH[2]}"
+    grep -qF "    name: \"$n\"" <<<"$rendered" || echo "$n"
+  done < <(oss_ruleset_checks)
+}
+miss=$(missing_checks "$WF_DIR/10_ci-quality.yml")
+[[ -z "$miss" ]] && ok "wf 10 reports every required check: $(oss_ruleset_checks | paste -sd, -)" \
+  || while IFS= read -r n; do no "wf 10 has no job named \"$n\" (update oss_ruleset_checks)"; done <<<"$miss"
+# CONTROL: an orc-suite name whose pull request side renders anything else
+# (here "(full) " for the empty side) is no required check
+sed "s/'(mapped) ' || ''/'(mapped) ' || '(full) '/" "$WF_DIR/10_ci-quality.yml" >"$T/w10-ctl.yml"
+if cmp -s "$WF_DIR/10_ci-quality.yml" "$T/w10-ctl.yml"; then
+  no "CONTROL setup: the orc-suite name mutation did not apply to wf 10 (update the control)"
+else
+  [[ "$(missing_checks "$T/w10-ctl.yml")" == *"orc: hermetic action tests (stubbed gcloud/curl/docker)"* ]] \
+    && ok "CONTROL: an orc-suite name that renders otherwise on a pull request is no required check" \
+    || no "CONTROL: a mis-rendered orc-suite name still passed"
+fi
 
 echo "=== oss-public-settings: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

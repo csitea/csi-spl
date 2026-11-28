@@ -4790,7 +4790,7 @@
       "traces": "El canal está en {dst}, pero {src} todavía contiene rastros.",
       "moved": "El canal se ha movido."
     },
-    "rerun": "El movimiento se intentará de nuevo automáticamente.",
+    "rerun": "Un operador de la flota vuelve a ejecutar el traslado.",
     "proof_row": "{name}: {n}",
     "open_channel": "Abra el canal en {dst}",
     "open_topic": "Abrir el tema del movimiento",

@@ -4790,7 +4790,7 @@
       "traces": "Het kanaal bevindt zich in {dst}, maar {src} bevat nog steeds sporen.",
       "moved": "Het kanaal is verplaatst."
     },
-    "rerun": "De actie wordt automatisch opnieuw geprobeerd.",
+    "rerun": "Een operator van de vloot voert de verplaatsing opnieuw uit.",
     "proof_row": "{name}: {n}",
     "open_channel": "Open het kanaal in {dst}",
     "open_topic": "Open het onderwerp van de verplaatsing",

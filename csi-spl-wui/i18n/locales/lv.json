@@ -4790,7 +4790,7 @@
       "traces": "Kanāls atrodas {dst}, bet {src} joprojām satur pēdas.",
       "moved": "Kanāls ir pārvietots."
     },
-    "rerun": "Pārvietošana tiks mēģināta vēlreiz automātiski.",
+    "rerun": "Flotes operators palaiž pārvietošanu vēlreiz.",
     "proof_row": "{name}: {n}",
     "open_channel": "Atveriet kanālu {dst}",
     "open_topic": "Atvērt pārvietošanas tēmu",

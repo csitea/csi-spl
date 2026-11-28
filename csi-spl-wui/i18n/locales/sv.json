@@ -4790,7 +4790,7 @@
       "traces": "Kanalen är i {dst}, men {src} innehåller fortfarande spår.",
       "moved": "Kanalen har flyttats."
     },
-    "rerun": "Flytten kommer att försökas igen automatiskt.",
+    "rerun": "En operatör i flottan kör flytten igen.",
     "proof_row": "{name}: {n}",
     "open_channel": "Öppna kanalen i {dst}",
     "open_topic": "Öppna flyttens ämne",

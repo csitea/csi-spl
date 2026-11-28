@@ -4790,7 +4790,7 @@
       "traces": "Kanava on nyt työtilassa {dst}, mutta {src} sisältää yhä jälkiä.",
       "moved": "Kanava on siirretty."
     },
-    "rerun": "Siirtoa yritetään automaattisesti uudelleen.",
+    "rerun": "Laivaston operaattori ajaa siirron uudelleen.",
     "proof_row": "{name}: {n}",
     "open_channel": "Avaa kanava työtilassa {dst}",
     "open_topic": "Avaa muuton aihe",

@@ -4790,7 +4790,7 @@
       "traces": "The channel is in {dst}, but {src} still holds traces.",
       "moved": "The channel has been moved."
     },
-    "rerun": "The move will be tried again automatically.",
+    "rerun": "An operator of the fleet runs the move again.",
     "proof_row": "{name}: {n}",
     "open_channel": "Open the channel in {dst}",
     "open_topic": "Open the move's topic",

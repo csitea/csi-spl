@@ -234,8 +234,46 @@ The seat brief names the r13 plan as `refactor-round-14-20261128-plan.md (on
 origin/master)`, for the format and the r13 left-out section. That file is not
 on master. I read the r13 plan, `refactor-round-13-20261127-plan.md`, section 7.
 
-## State (for a rotation)
+## v1.0 signature: **PASS**, signed on `4891e459849e3492f8168991913fcab1d42559a9`
 
-v0.1 verdict written and pushed to `review/c002-refactor-round-14-claude-seat`.
-Next: wait for the editor's v1.0 sha, re-check it, and sign it in this file
-(a second commit on the same branch), then report in the same form.
+Read by c-917@sat (rotated session) at 2026-11-28T04:5xZ. The v1.0 head is one
+commit on the v0.1 I passed, and it touches only the plan file:
+
+- `git ls-remote origin refs/heads/review/c002-refactor-round-14-planner` ->
+  `4891e459849e3492f8168991913fcab1d42559a9`
+- `git log --format='%H %P %ae %ce' 75d0f5fff..4891e4598` -> one commit, parent
+  `75d0f5fff2f2e12eba42372ffb8c2dce1ef0d3dd`, author and committer
+  the repo's canonical commit address (CLAUDE.md)
+- `git diff --stat 75d0f5fff 4891e4598` -> `refactor-round-14-20261128-plan.md | 73`,
+  1 file, +55 -18. No row code, window, row, batch or count changed.
+
+Each fold checked against my v0.1 notes (plan line numbers are on `4891e4598`):
+
+| note | plan v1.0 | check | result |
+|---|---|---|---|
+| N1 r13-01 R7 notes | `:138-145`, section 7 row `:821` | relay file `c-915/archive/...--5feeb039.json` exists (from c-001 on the other box, body 6048 chars); its body contains `EPOCHREALTIME`, `TZ=UTC`, `8-day`, `empty stamp`, `func.sh:64`, `func.sh:81` -> True each | folded; the plan's four readings match the words in the relay. None is a refactor row. |
+| N2 `/proc` twin, new lanes | `:119-124`, `:666-671`, section 7 `:816` | `lane-map.sh --check <9 row paths> --agent c-917` at 04:52:10Z -> **rc 4**, 0 owned, **22** unknown, all on the other box, `c-290`, `c-298`, `c-303` among them | folded; deferral still holds (no owned row path) |
+| N3 `m2c` e2e | `:611`, `:786` | read | a required r14-02 result field |
+| N4 smoke run | `:765-777` | `git archive 774876d90 csi-spl-orc/src/bash/features/spawn-agents` into scratch; `python3 .../spool-mirror.py </dev/null` -> **rc 64**; `python3 .../agent-mirror-check.py --bogus </dev/null` -> **rc 2** (n=1) | matches the plan. (`git diff --name-only 774876d90 75d0f5fff -- csi-spl-orc` -> only `spl-review-go.{func,tst}.sh`, so 774876d90 and 75d0f5fff have the same mirror scripts.) |
+| N5 `opError` wording | `:468`, `:382`, `:787-788` | head2 rebuilt: plan `:388-508` applied with `git apply --recount` to `git archive 774876d90 csi-spl-wui/src csi-spl-wui/tests/unit` (+ `package.json`) -> rc 0; `sha256sum` -> `operator-console.mjs` **34fa31013fe0**, `agent-caps.mjs` **a4ea0ef4832c**; `node tests/unit/agent-caps.test.mjs` -> rc 0, 31 OK, 0 FAIL; `node tests/unit/operator-console.test.mjs` -> rc 0, 40 OK, 0 FAIL (n=1); `git show 774876d90:csi-spl-wui/src/utils/spool-client.mjs \| sed -n 261,264p` -> `err.status`, `err.token`, `err.detail`, `if (permission) err.permission` | folded and true |
+| N6 the two suites red in the planner's harness | `:563-564`, `:774-776` | read | a required r14-01 result field |
+
+The row paths have not drifted: `git diff --name-only 774876d90 origin/master -- <the 9 row paths>`
+-> 0 (origin/master `fce81edf49e7`, which is newer than the `0e6f561e4` the plan names).
+
+### v1.0 defects
+
+None.
+
+### v1.0 notes
+
+- **N7** (plan `:860`): the panel row of the consensus table has 5 cells under a
+  6-column header (`awk -F'|' '{print NF-2}'` -> 6, 6, 5 for the header, the editor
+  row and the panel row). The verdict went into the "plan sha" cell. The editor sets
+  this row when it folds the signature, so it can fix the cells then.
+- **N8** (plan `:666-667`): the plan says 21 unknown lanes at 04:46:04Z. My run at
+  04:52:10Z reads 22, all on the other box, and none owns a row path. That is live state, and
+  it changes nothing.
+- **N9**: the brief says the editor folds this seat file into the plan's v1.0 commit.
+  `4891e4598` does not contain it, so the file is only on
+  `review/c002-refactor-round-14-claude-seat`. The landing must take it from there.

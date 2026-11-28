@@ -66,6 +66,15 @@
 #      last tick's fetch is not seen (no fetch). RED before the fix: the
 #      view fetched (FETCH_HEAD moved, the key seen) and wrote both files.
 #      One lane map read for two rows on the same prerequisite (N1)
+#  15. SPL-6721: a shared-issue row is judged by its own pushes.log ranges;
+#      CONTROL a sibling row and a reused id: held; a far lane: held, the
+#      reason names the box
+#  16. SPL-6735: a shared row is never released by its key. RED before the
+#      fix: a never-placed shared slug whose key has a closing commit read
+#      free; now HELD "never placed". A lane found on the hub (no
+#      .place.slugs row) on another box: held, naming the box, until its own
+#      review/<slug> lands on trunk (free); on this box: its own pushes.log
+#      decides. CONTROL the hub silent: held
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -616,9 +625,64 @@ out="$(tick)"; tick >/dev/null
 [[ "$(launched row-after-shr1)" == 1 ]] && grep -q 'ask f1f1f1f1 (row-after-shr1): slug-shr1 (SPL-9501), its own commits landed' <<<"$out" &&
   pass "15. the placer releases it to the line: placed once" || fail "15. placed: $(launched row-after-shr1) | $out"
 [[ "$(launched row-after-shr3)" == 0 ]] &&
-  grep -q 'ask f3f3f3f3 (row-after-shr3) is waiting on slug-shr3 (SPL-9501): not landed on origin/master (a shared-issue row whose lane is not on this box: only a commit closing SPL-9501 releases it here)' <<<"$out" &&
+  grep -q 'ask f3f3f3f3 (row-after-shr3) is waiting on slug-shr3 (SPL-9501): a shared-issue row whose lane c-953 is on box box-far: its own pushes are not readable from here, only its review/slug-shr3 on origin releases it (a commit closing SPL-9501 does not)' <<<"$out" &&
   pass "15. CONTROL a shared row whose lane is on another box: held, the reason says why" || fail "15. far: $(launched row-after-shr3) | $out"
 done_ask "$H3" 2>/dev/null
+
+# 16. SPL-6735: a shared row is released by its own work, never by its key ---------
+# (spec 190 W1: never placed, its key closed by the spec docs commit, six rows
+# released after it; spec 071 T12a/T13: placed nowhere either, read as "on
+# another box")
+export HUB_ISSUES="$HUB_ISSUES SPL-9601=wip"
+for s in slug-np slug-fh slug-hh slug-hs; do printf '# Lane brief: %s\nIssue: SPL-9601\nIssue-Role: shared\n%s\n' "$s" "$ES" >"$T/briefs/$s.md"; done
+for s in np fh hh hs; do printf '# Lane brief: row-after-%s\n%s\nAfter: slug-%s\n' "$s" "$ES" "$s" >"$T/briefs/row-after-$s.md"; done
+cat >"$T/bin/np-lanes" <<'STUB'
+#!/usr/bin/env bash
+echo '{"hub": "ok", "lanes": [{"agent_id": "c-960", "agent_box": "box-far", "branch": "c-960-slug-other", "issue_key": "SPL-9601", "state": "done"},
+  {"agent_id": "c-961", "agent_box": "box-far", "branch": "c-961-slug-fh", "issue_key": "SPL-9601", "state": "done"},
+  {"agent_id": "c-962", "agent_box": "box-desk", "branch": "c-962-slug-hh", "issue_key": "SPL-9601", "state": "done"}]}'
+STUB
+chmod +x "$T/bin/np-lanes"
+np_st() {  # ROW [LANES_CMD]: its After: state, the lane map never kept between calls
+  rm -f "$T/spool/asks/.place.lanes"
+  on "spl_asks_init; spl_spawn_after_state $T/briefs/$1.md" SPAWN_AFTER_LANES_CMD="${2:-$T/bin/np-lanes}" 2>/dev/null
+}
+land "docs(190-media, SPL-9601): the spec, its docs commit closes the shared key"$'\n\n'"Closes: SPL-9601"
+git -C "$T/app" fetch -q origin
+[[ -n "$(on "spl_spawn_after_li; li_landed $T/app SPL-9601" 2>/dev/null)" ]] || fail "16. setup: SPL-9601 should be closed on trunk"
+got="$(np_st row-after-np)"
+[[ "$got" == $'held\twaiting on slug-np (SPL-9601): a shared-issue row never placed (no .place.slugs row here, no hub lane row on branch <id>-slug-np); a commit closing SPL-9601 does not release it' ]] &&
+  pass "16. RED case: a never-placed shared slug whose key has a closing commit: HELD, never placed" || fail "16. never placed: $got"
+got="$(np_st row-after-hs "$T/bin/archived-live")"
+[[ "$got" == $'held\twaiting on slug-hs (SPL-9601): a shared-issue row not placed from this box, and the hub lane map did not answer' ]] &&
+  pass "16. CONTROL the hub lane map does not answer: HELD, never free" || fail "16. hub silent: $got"
+got="$(np_st row-after-fh)"
+[[ "$got" == $'held\twaiting on slug-fh (SPL-9601): a shared-issue row whose lane c-961 is on box box-far: its own pushes are not readable from here, only its review/slug-fh on origin releases it (a commit closing SPL-9601 does not)' ]] &&
+  pass "16. a shared row lane found on the hub on another box, its key closed: HELD, the reason names the lane and the box" || fail "16. far: $got"
+work review/slug-fh fh.txt "feat(wui): the far row's own work (SPL-9601 row W1)"
+rev="$(git -C "$T/pusher" rev-parse HEAD)"
+git -C "$T/app" fetch -q origin
+got="$(np_st row-after-fh)"
+[[ "$got" == $'held\twaiting on slug-fh: review/slug-fh not on origin/master (1 of 1 commits missing)' ]] &&
+  pass "16. CONTROL the far lane's review/slug-fh pushed, not on trunk: HELD" || fail "16. far review: $got"
+git -C "$T/pusher" fetch -q origin && git -C "$T/pusher" checkout -q -B w-master origin/master &&
+  GIT_COMMITTER_DATE="@$(( $(date +%s) - 120 )) +0000" gq -C "$T/pusher" cherry-pick "$rev" >/dev/null 2>&1 &&
+  git -C "$T/pusher" push -q origin HEAD:master 2>/dev/null
+git -C "$T/app" fetch -q origin
+got="$(np_st row-after-fh)"
+[[ "$got" == $'free\tslug-fh (review/slug-fh) landed '* ]] &&
+  pass "16. the far lane's own landed push (its review/slug-fh twin on trunk): free" || fail "16. far landed: $got"
+shr_life "$T/spool/c-962" slug-hh
+sed -i 's/SPL-9501/SPL-9601/' "$T/spool/c-962/lifetime/brief.md"
+got="$(np_st row-after-hh)"
+[[ "$got" == held$'\t'*"none of its own pushes citing SPL-9601"* ]] &&
+  pass "16. CONTROL a lane of this box found on the hub (no .place.slugs row), nothing of its own landed: HELD" || fail "16. hub here: $got"
+shr_land "$T/spool/c-962" "perf(ci-hh): the row's own work (SPL-9601)"
+got="$(np_st row-after-hh)"
+[[ "$got" == $'free\tslug-hh (SPL-9601), its own commits landed '* ]] &&
+  pass "16. that lane's own push lands: free" || fail "16. hub here landed: $got"
+[[ ! -e "$T/spool/asks/.place.slugs" ]] || ! grep -qE '^slug-(np|fh|hh|hs)'$'\t' "$T/spool/asks/.place.slugs" ||
+  fail "16. .place.slugs got a row for a hub-found lane: $(grep -E '^slug-(np|fh|hh|hs)' "$T/spool/asks/.place.slugs")"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

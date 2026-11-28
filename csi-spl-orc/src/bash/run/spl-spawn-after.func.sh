@@ -39,8 +39,13 @@
 #     row of a multi-row issue cites the key outside its scope, never
 #     closing it): its lane's own pushes citing the key are on trunk
 #     (spl_spawn_after_shared_landed, SPL-6721); a sibling row's commit on
-#     the same key never releases it. Its lane on another box: the key's
-#     close rule only.
+#     the same key never releases it, and the key's close rule never does
+#     either (SPL-6735: a spec docs commit `Closes:` the shared key and
+#     released every row after a row that was never placed). A shared row
+#     placed nowhere (no .place.slugs row here, no hub lane row whose branch
+#     is <id>-<slug>): held, "never placed". Its lane on another box: its
+#     pushes.log is not readable from here, so only its review/<slug> on
+#     origin (above) releases it; held until then, the reason names the box.
 # The land time is the committer time of the oldest closing commit (a key),
 # resp. of the newest trunk twin (a review branch); the delay counts from it.
 #
@@ -119,6 +124,19 @@ spl_spawn_after_hub_key() {  # SLUG AGENT
       | .issue_key // "" | select(test("^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*$"))] | last // ""' <<<"$out")"
   [[ -n "$k" ]] || return 1
   printf '%s\n' "$k"
+}
+
+# The lane that ran SLUG, "<id>@<box>" of the newest hub lane row on branch
+# <id>-<SLUG> (any box), for a slug with no .place.slugs row here. rc 1: the
+# hub answered, no such row (never placed, or its row is past the hub's week);
+# rc 2: it did not answer.
+spl_spawn_after_hub_lane() {  # SLUG
+  local out a
+  out="$(spl_spawn_after_lanes)" || return 2
+  a="$(jq -r --arg s "$1" '[.lanes[] | select((.agent_id // "") != "" and (.branch // "") == (.agent_id + "-" + $s))
+      | "\(.agent_id)@\(.agent_box // "")"] | last // ""' <<<"$out")"
+  [[ -n "$a" ]] || return 1
+  printf '%s\n' "${a%@}"
 }
 
 # The hub's lane map JSON (do_spl_lane_map, LANE_ALL=1: done rows too; the
@@ -223,18 +241,21 @@ spl_spawn_after_state() {  # BRIEF
     printf 'held\twaiting on %s: its lane has no issue key known on this box or on the hub yet (not placed, or placed elsewhere)\n' "$after"
     return 0
   fi
-  local slug="" far=""
+  local slug=""
   [[ "$key" == "$after" ]] || { slug="$after"; after="$after ($key)"; }
   if [[ -n "$slug" ]]; then
     rc=0; at="$(spl_spawn_after_shared_landed "$slug" "$key")" || rc=$?
     case "$rc" in
       0) spl_spawn_after_delay_state "$after, its own commits" "$at" "$delay"; return 0 ;;
       1) printf 'held\twaiting on %s: a shared-issue row, none of its own pushes citing %s is on origin/master yet\n' "$after" "$key"; return 0 ;;
-      2) far=" (a shared-issue row whose lane is not on this box: only a commit closing $key releases it here)" ;;
+      2) printf 'held\twaiting on %s: a shared-issue row whose lane %s is on box %s: its own pushes are not readable from here, only its review/%s on origin releases it (a commit closing %s does not)\n' \
+           "$after" "${at%@*}" "${at#*@}" "$slug" "$key"; return 0 ;;
+      4) printf 'held\twaiting on %s: a shared-issue row never placed (no .place.slugs row here, no hub lane row on branch <id>-%s); a commit closing %s does not release it\n' "$after" "$slug" "$key"; return 0 ;;
+      5) printf 'held\twaiting on %s: a shared-issue row not placed from this box, and the hub lane map did not answer\n' "$after"; return 0 ;;
     esac
   fi
   if ! at="$(spl_spawn_after_landed "$key")"; then
-    printf 'held\twaiting on %s: not landed on origin/master%s\n' "$after" "$far"
+    printf 'held\twaiting on %s: not landed on origin/master\n' "$after"
     return 0
   fi
   spl_spawn_after_delay_state "$after" "$at" "$delay"
@@ -250,16 +271,26 @@ spl_spawn_after_state() {  # BRIEF
 # agent, a lane of this box; its lifetime is each generation (the live dir,
 # a .retired/<id>.<utc> one) whose brief has SLUG's brief heading, so an id
 # reused on this box for a sibling row is another lifetime, never counted.
-# Prints the newest own commit's committer time, rc 0; rc 1: shared, nothing
-# of its own landed; rc 2: shared, its lane's pushes.log is not on this box;
-# rc 3: not a shared row (the key decides).
+# A slug with no .place.slugs row is looked up on the hub's lane map (a lane
+# placed by another box's placer, or by hand). Prints the newest own commit's
+# committer time, rc 0; rc 1: shared, nothing of its own landed; rc 2:
+# shared, its lane is on another box (or its pushes.log is not on this
+# box): prints the lane, <id>@<box>; rc 3: not a shared row (the key
+# decides); rc 4: shared and placed nowhere; rc 5: not placed from this box
+# and the hub did not answer. Never rc 3 for a shared row: its key's close
+# rule says nothing about whether this row was built (SPL-6735).
 spl_spawn_after_shared_landed() {  # SLUG KEY
-  local brief head agent id life dir h at=0 ct found=0
+  local brief head agent id life dir h at=0 ct found=0 rc=0
   local -a own=()
   brief="$(spl_spawn_place_brief "$1")"
   [[ -n "$brief" ]] && grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:[*_` ]*shared([^A-Za-z]|$)' "$brief" 2>/dev/null || return 3
   agent="$(awk -F'\t' -v s="$1" '$1 == s { a = $2 } END { print a }' "$(spool_asks_dir)/.place.slugs" 2>/dev/null)"
-  [[ -n "$agent" ]] && spl_spawn_after_here "$agent" || return 2
+  if [[ -z "$agent" ]]; then
+    agent="$(spl_spawn_after_hub_lane "$1")" || rc=$?
+    (( rc != 2 )) || return 5
+    [[ -n "$agent" ]] || return 4
+  fi
+  if ! spl_spawn_after_here "$agent"; then printf '%s\n' "$agent"; return 2; fi
   spl_spawn_after_li
   head="$(grep -m1 '^# ' "$brief")"; id="${agent%@*}"; dir="$(spl_spawn_after_dir)"
   for life in "$SPOOL_ROOT/$id/lifetime" "$SPOOL_ROOT/.retired/$id".*/lifetime; do
@@ -267,7 +298,7 @@ spl_spawn_after_shared_landed() {  # SLUG KEY
     found=1; life="${life%/lifetime}"
     mapfile -t -O "${#own[@]}" own < <(li_own_cites "${life%/*}" "${life##*/}" "$dir" "$2")
   done
-  (( found )) || return 2
+  if (( ! found )); then printf '%s@%s\n' "$id" "${ASKS_BOX:-${SPOOL_DESK_BOX:-this box}}"; return 2; fi
   for h in "${own[@]}"; do
     ct="$(li_git "$dir" log -1 --format=%ct "$h")"
     (( ct > at )) && at="$ct"

@@ -1474,8 +1474,16 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 # Non-zero = failed, the reason in ROTATE_ERR; the caller runs spl_rotate_restore.
 # A start stopped on the 'auth/login' dialog inside the shared-credential
 # refresh gap (spl_rotate_login_race, SPL-6615) is dropped and spawned ONCE more.
+# A start whose CLI quit with a model on its line is spawned ONCE more on the
+# CLI's own default (spl_rotate_model_quit, spec 184 row L5, owner Q5 "fb").
 spl_rotate_spawn() {
+  local t0
+  t0="$(date +%s)"
   spl_rotate_spawn_try "$@" && return 0
+  if spl_rotate_model_quit "$1" "$t0"; then
+    spl_rotate_drop_new
+    ROTATE_MODEL_OFF=1 spl_rotate_spawn_try "$@"; return
+  fi
   [[ "${ROTATE_NEW_DIALOG:-}" == auth/login ]] || return 1
   spl_rotate_login_race "$ROTATE_NEW_PANE" || return 1
   spl_rotate_log "${ROTATE_RID:--}" SPAWN WAIT "$ROTATE_NEW_PANE (pid ${ROTATE_NEW_PID:-none}) dropped: the login healed, one respawn"
@@ -1483,7 +1491,27 @@ spl_rotate_spawn() {
   spl_rotate_spawn_try "$@"
 }
 
+# spl_rotate_model_quit ID T0: 0 when the start that began at epoch T0 recorded
+# a model (lifetime/model.txt, written by the launcher at or after T0, not
+# cli-default) and its CLI quit: no pid came up, or the start check read the
+# "session ended" banner. Rotation runs spawn-window.sh with
+# SPAWN_START_CHECK=0 (its own dialog check runs once the pid is known), so
+# the L4 relaunch inside that block never fires here; this is its twin. One
+# WARN in rotate.log and the lane journal. 1 = not a model quit, or already
+# retried (ROTATE_MODEL_OFF=1).
+spl_rotate_model_quit() {
+  local f="$SPOOL_ROOT/$1/lifetime/model.txt" m t l
+  [[ "${ROTATE_MODEL_OFF:-0}" != 1 && -n "${ROTATE_NEW_PANE:-}" ]] || return 1
+  [[ -z "${ROTATE_NEW_PID:-}" || "${ROTATE_NEW_DIALOG:-}" == "session ended" ]] || return 1
+  m="$(head -n1 "$f" 2>/dev/null)"; t="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+  [[ -n "$m" && "$m" != cli-default ]] && (( t >= $2 )) || return 1
+  l="WARN model $m refused by ${ROTATE_KIND:-claude}, started on the CLI default (the CLI quit at start)"
+  spl_rotate_log "${ROTATE_RID:--}" SPAWN WAIT "$l; one respawn"
+  { printf '%s rotate %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$l" >> "${f%/*}/journal.log"; } 2>/dev/null || true
+}
+
 # spl_rotate_spawn_try ID SEED: one start, as spl_rotate_spawn describes.
+# ROTATE_MODEL_OFF=1: no model setting in force (the Q5 retry, as row L4's).
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_rotate_spawn_try() {
   local id="$1" seed="$2" sess out pid user t0 got tag bin wd
@@ -1508,7 +1536,9 @@ spl_rotate_spawn_try() {
   [[ "${ROTATE_KIND:-claude}" == claude ]] || cfg=""
   wd="$(spl_rotate_workdir "$id")" || { ROTATE_ERR="$(spl_rotate_workdir_why "$id")"; return 1; }
   # SPAWN_START_CHECK=0: the dialog check runs here, once the pid is known
-  out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} ${cfg:+"SPAWN_CLAUDE_CONFIG_DIR=$cfg"} \
+  local off=()
+  [[ "${ROTATE_MODEL_OFF:-0}" != 1 ]] || off=(-u SPAWN_MODEL -u SPAWN_MODEL_MAP SPOOL_AGENT_MODEL_CNF=/dev/null)
+  out="$(env "${off[@]}" SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} ${cfg:+"SPAWN_CLAUDE_CONFIG_DIR=$cfg"} \
     SPAWN_LANE_SCOPE="${ROTATE_LANE_SCOPE:-role $id (rotation $ROTATE_RID)}" \
     bash "$ROTATE_SPAWN" "${ROTATE_KIND:-claude}" "$id" "$wd" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"

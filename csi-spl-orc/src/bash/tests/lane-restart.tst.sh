@@ -35,6 +35,16 @@
 #      mapped channel: the dry run names the rules file and exports nothing;
 #      DRY_RUN=0 exports it (non-empty) and the distil names it; a failed
 #      export is RULES FAIL, no distil, no respawn; no Channel: line, no change
+#   9. spec 184 row L5 (owner Q4 "rot", Q5 "fb"): the restart re-resolves the
+#      model from the setting in force with the lane's task kind
+#      (lifetime/category.json "tests", cnf by_kind.tests.claude opus,
+#      default.claude sonnet): the launch carries --model 'opus' ONCE and
+#      lifetime/model.txt reads opus; a model the CLI's live list does not
+#      hold starts without it, one WARN in the log and the lane journal; a
+#      respawn that starts no claude with the model is respawned ONCE more
+#      without it (one WARN); the shipped empty cnf adds nothing (case 3).
+#      Red control: drop the category.json read -> the launch carries
+#      --model 'sonnet' and 9a fails.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -89,6 +99,7 @@ case "$cmd" in
     mode="$(cat "$T/respawn.mode" 2>/dev/null || echo ok)"
     [ "$mode" = refuse ] && exit 1
     [ "$mode" = refuse-once ] && { echo ok >"$T/respawn.mode"; exit 1; }
+    [ "$mode" = nostart-once ] && { echo ok >"$T/respawn.mode"; mode=nostart; }
     old="$(awk -F'\t' -v p="$tgt" '$1 == p {print $2}' "$P")"; rm -rf "$T/proc/$old"
     if [ "$mode" = nostart ]; then printf '%s\t3001\n' "$tgt" >"$P"
     else "$T/bin/proc" 2001 0; printf '%s\t2001\n' "$tgt" >"$P"; fi ;;
@@ -362,6 +373,41 @@ world
 act >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q 'CHANNEL RULES' "$T/o" && pass "8. no Channel: line: no rules line" || fail "8. none: rc=$rc"
 unset CHANNEL_RULES_EXPORT_CMD
+
+# --- 9. the model of the setting in force (spec 184 row L5) ----------------------
+printf '{"work_kind":"tests","category_path":""}\n' >"$S/c-900/lifetime/category.json"
+printf 'env:\n  box:\n    agent_model:\n      default: { claude: "sonnet" }\n      by_kind: { tests: { claude: "opus" } }\n' >"$T/model.yaml"
+# a claude stub whose --help names the aliases, as claude 2.1.323 does
+printf '#!/usr/bin/env bash\n[ "${1:-}" = --help ] && echo "  --model <model>   Provide an alias (e.g. '"'"'opus'"'"' or '"'"'sonnet'"'"') or a full name"\nexit 0\n' >"$T/bin/claude"
+chmod +x "$T/bin/claude"
+launch9() { grep -oE 'printf %s [A-Za-z0-9+/=]+ ' "$T/tmux/respawn.cmd" | cut -d' ' -f3 | base64 -d; }
+world; rm -f "$S/c-900/lifetime/journal.log" "$S/c-900/lifetime/model.txt"
+act DRY_RUN=0 SPOOL_AGENT_MODEL_CNF="$T/model.yaml" >"$T/o" 2>&1; rc=$?
+l="$(launch9)"
+[[ $rc -eq 0 && "$(grep -o -- "--model '[a-z]*'" <<<"$l" | paste -sd' ')" == "--model 'opus'" ]] &&
+  [[ "$l" == *"--dangerously-skip-permissions --model 'opus' \"Read $DIST"* ]] &&
+  pass "9a. the restart takes the lane's kind: --model 'opus' once, after the perm flags" || fail "9a. rc=$rc launch: $l"
+[[ "$(cat "$S/c-900/lifetime/model.txt" 2>/dev/null)" == opus ]] && pass "9a. lifetime/model.txt reads opus" || fail "9a. model.txt: $(cat "$S/c-900/lifetime/model.txt" 2>&1)"
+world; rm -f "$S/c-900/lifetime/journal.log"
+printf 'env:\n  box:\n    agent_model:\n      default: {}\n      by_kind: { tests: { claude: "retired-x" } }\n' >"$T/model2.yaml"
+act DRY_RUN=0 SPOOL_AGENT_MODEL_CNF="$T/model2.yaml" CLAUDE_BIN="$T/bin/claude" >"$T/o" 2>&1; rc=$?
+l="$(launch9)"
+W9='WARN model retired-x refused by claude, started on the CLI default (not in its live list)'
+[[ $rc -eq 0 && "$l" != *--model* && "$(grep -cF "$W9" "$T/o")" == 1 && "$(grep -cF "$W9" "$S/c-900/lifetime/journal.log" 2>/dev/null)" == 1 ]] &&
+  [[ "$(cat "$S/c-900/lifetime/model.txt" 2>/dev/null)" == cli-default ]] &&
+  pass "9b. a model outside the live list: no --model, one WARN (log + journal), model.txt cli-default" || fail "9b. rc=$rc launch: $l | $(cat "$T/o")"
+world; rm -f "$S/c-900/lifetime/journal.log"; echo nostart-once >"$T/respawn.mode"
+act DRY_RUN=0 SPOOL_AGENT_MODEL_CNF="$T/model.yaml" >"$T/o" 2>&1; rc=$?
+l="$(launch9)"
+W9='WARN model opus refused by claude, started on the CLI default (no session started with it)'
+[[ $rc -eq 0 && "$(grep -c '^respawn ' "$T/tmux/log")" == 2 && "$l" != *--model* && "$(grep -cF "$W9" "$T/o")" == 1 ]] &&
+  grep -q ' DONE OK c-900 restarted' "$T/o" && [[ "$(grep -cF "$W9" "$S/c-900/lifetime/journal.log" 2>/dev/null)" == 1 ]] &&
+  pass "9c. no claude started with the model: ONE more respawn without it, one WARN, DONE" || fail "9c. rc=$rc respawns=$(grep -c '^respawn ' "$T/tmux/log") launch: $l | $(cat "$T/o")"
+world; echo nostart >"$T/respawn.mode"
+act DRY_RUN=0 SPOOL_AGENT_MODEL_CNF="$T/model.yaml" >"$T/o" 2>&1; rc=$?
+[[ "$(grep -c '^respawn ' "$T/tmux/log")" == 2 ]] && grep -q 'FALLBACK' "$T/o" &&
+  pass "9c. it fails on the default too: no third respawn, the ordinary seat_fail_action" || fail "9c. twice: respawns=$(grep -c '^respawn ' "$T/tmux/log") $(cat "$T/o")"
+rm -f "$S/c-900/lifetime/category.json"
 
 echo
 [[ $fails -eq 0 ]] && { echo "lane-restart: all passed"; exit 0; } || { echo "lane-restart: $fails failed"; exit 1; }

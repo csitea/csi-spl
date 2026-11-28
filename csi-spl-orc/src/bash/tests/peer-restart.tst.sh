@@ -32,6 +32,15 @@
 #      the marker and are cut with it; the desk steps run in both
 #  11. the cron scripts run their action from the checkout, name a missing tool,
 #      and share one body: say, check_tools and peer_cron_main are in peer-cron.inc.sh
+#  12. spec 184 row L5 (owner Q4 "rot"): a seat spawned with Kind: tests (its
+#      lifetime/category.json) and cnf by_kind.tests.claude opus
+#      (default.claude sonnet), restarted by spl_peer_restart_spawn through
+#      the REAL spawn-window.sh (dry run, model-launch.inc.sh): its launch
+#      carries --model 'opus' once; a model outside the CLI's live list
+#      starts without it, with L4's WARN once. (The peer restart keeps
+#      spawn-window's start check on, so L4's own quit relaunch covers it.)
+#      Red control: drop the category.json read of spawn-window.sh
+#      sw_category -> the launch carries --model 'sonnet' and 12a fails.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -442,6 +451,35 @@ PEER_CRON_TOOLS=no-such-tool-x bash "$SC/peer-restart-cron.sh" > "$T/o" 2>&1; rc
 got="$(cd "$PROJ_ROOT/src/bash/scripts" && grep -lE '^(say|check_tools|peer_cron_main)\(\) *\{' peer-cron.inc.sh peer-distill-cron.sh peer-ensure-cron.sh peer-restart-cron.sh 2>/dev/null | tr '\n' ' ')"
 [[ "$got" == "peer-cron.inc.sh " ]] && pass "11. say, check_tools and peer_cron_main are defined once, in peer-cron.inc.sh" ||
   fail "11. defined once (want 'peer-cron.inc.sh ', got '$got')"
+
+# --- 12. the model of the setting in force (spec 184 row L5) -----------------------
+cat >"$T/l5" <<'EOF5'
+#!/usr/bin/env bash
+set -uo pipefail
+. "$PROJ_PATH/src/bash/tests/model-launch.inc.sh"
+ml_setup "$1/ml" c-952; trap ml_cleanup EXIT
+[ -z "${L5_TESTS_MODEL:-}" ] || ml_cnf "$L5_TESTS_MODEL"
+do_log() { echo "$*"; }
+source "$PROJ_PATH/src/bash/run/spl-peer-restart.func.sh"
+_spl_rotate_lib_deps
+mkdir -p "$1/proc"
+ROTATE_TMUX=/bin/true ROTATE_SPAWN="$ML/bin/spawn-dry" ROTATE_RID=20261128T0500Z-c-952 ROTATE_POLL=1 ROTATE_WORKDIR="$ML/repo"
+ROTATE_AGENT_HOME="$1" ROTATE_OLD_PANE="" ROTATE_OLD_PID="" PEER_HARNESS=claude PEER_START_WAIT=0 LEASE_PROC_ROOT="$1/proc"
+echo "# seat seed of c-952" >"$1/seed.md"
+spl_peer_restart_spawn c-952 "$1/seed.md"; echo "rc=$?"
+EOF5
+chmod +x "$T/l5"
+L5="$T/l5d"; rm -rf "$L5"
+PROJ_PATH="$PROJ_ROOT" "$T/l5" "$L5" >"$T/l5.out" 2>&1
+M5="$(grep '^PLAN launch' "$L5/ml/spawn.out" 2>/dev/null | grep -oE -- "--model '[^']*'" | paste -sd' ')"
+[[ "$M5" == "--model 'opus'" ]] && grep -q "^PLAN category .*work_kind tests <- .*c-952/lifetime/category.json (respawn, record kept)" "$L5/ml/spawn.out" &&
+  pass "12a. a peer restart carries --model 'opus' once, from the seat's lifetime/category.json" || fail "12a. models '$M5': $(cat "$T/l5.out" "$L5/ml/spawn.out" 2>&1 | tail -5)"
+rm -rf "$L5"
+L5_TESTS_MODEL=retired-x PROJ_PATH="$PROJ_ROOT" "$T/l5" "$L5" >"$T/l5.out" 2>&1
+[[ "$(grep -c '^PLAN launch' "$L5/ml/spawn.out")" == 1 ]] && ! grep '^PLAN launch' "$L5/ml/spawn.out" | grep -- --model >/dev/null &&
+  [[ "$(grep -c 'WARN model retired-x refused by claude, started on the CLI default (not in its live list)' "$L5/ml/spawn.out")" == 1 ]] &&
+  pass "12b. a model outside the live list: no --model, L4's WARN once" || fail "12b. $(grep -E 'PLAN launch|WARN' "$L5/ml/spawn.out")"
+rm -rf "$L5"
 
 echo
 (( fails == 0 )) && { echo "peer-restart: all passed"; exit 0; }

@@ -104,6 +104,19 @@
 #      (spl_lane_rotate_warn, DRY_RUN=0) print no stderr line; rc 0 and 0,
 #      the warn's note is still sent. Red control (origin/master f529b3091):
 #      1 environ line and 1 rotate.lane.warned line, rc 0 and 0.
+#  37. spec 184 row L5 (owner Q4 "rot", Q5 "fb"): a lane spawned with
+#      Kind: tests (its lifetime/category.json) and cnf by_kind.tests.claude
+#      opus (default.claude sonnet) is rotated through the REAL
+#      spawn-window.sh (dry run, model-launch.inc.sh) with the seed
+#      spl_lane_rotate_seed writes (no Kind: line) and the env
+#      spl_rotate_spawn_try gives it (SPAWN_REUSE_ID=1, SPAWN_START_CHECK=0):
+#      its launch carries --model 'opus' once; a model outside the CLI's
+#      live list starts without it with L4's WARN (the start-check skip does
+#      not skip the live check); a start whose CLI quit with the model is
+#      spawned ONCE more on the CLI default, one WARN in rotate.log and the
+#      lane journal; control: no model on the line = one start, no WARN.
+#      Red control: drop the category.json read of spawn-window.sh sw_category
+#      -> the launch carries --model 'sonnet' and 37a fails.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -918,6 +931,46 @@ reset; lane c-937 70
 FENCE_GONE_PID=2937 ROTATE_SPAWN="$T/bin/spawn-fenced" tick
 check "36. old session gone at FAIL: the row says so, not that it keeps the lane" 'grep -q "FAIL FAIL SPAWN: .*the old session (pid 2937) is gone too: no session carries the lane, the watchdog.s restart (S3) owns it" "$D/rotate.log" && ! grep -q "keeps the lane" "$D/rotate.log"'
 check "36. old session gone at FAIL: the holder's note says so too" 'grep -q "dispatch-lane-rotate.*The old session (pid 2937) is gone too" "$T/send.log" && ! grep -q "keeps the lane" "$T/send.log"'
+
+# --- 37. the model of the setting in force (spec 184 row L5) --------------------------------------
+cat >"$T/bin/l5" <<'EOF5'
+#!/usr/bin/env bash
+# MODE: dry (the real spawn-window.sh, dry run) | quit (spawn-model stub)
+set -uo pipefail
+. "$PROJ_PATH/src/bash/tests/model-launch.inc.sh"
+ml_setup "$1/ml" c-951; trap ml_cleanup EXIT
+[ -z "${L5_TESTS_MODEL:-}" ] || ml_cnf "$L5_TESTS_MODEL"
+[ -z "${L5_CNF:-}" ] || export SPOOL_AGENT_MODEL_CNF="$L5_CNF"
+do_log() { echo "$*"; }
+source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
+_spl_rotate_lib_deps
+ROTATE_TMUX=/bin/true ROTATE_KIND=claude ROTATE_RID=20261128T0500Z-c-951 ROTATE_START_WAIT=0 ROTATE_POLL=1
+ROTATE_WORKDIR="$ML/repo" ROTATE_AGENT_HOME="$1" ROTATE_LOG="$1/rotate.log" LEASE_DIR="$1" ROTATE_BOX=box
+ROTATE_HANDOFF="$1/handoff.md" ROTATE_ACK_TIMEOUT=900 PROJ_PATH="$PROJ_PATH"
+echo "# Task brief of c-951" >"$SPOOL_ROOT/c-951/lifetime/brief.md"
+spl_lane_rotate_seed c-951 "$1/seed.md"
+if [ "$2" = quit ]; then ml_model_stub; ROTATE_SPAWN="$ML/bin/spawn-model"; else ROTATE_SPAWN="$ML/bin/spawn-dry"; fi
+spl_rotate_spawn c-951 "$1/seed.md"; echo "rc=$?"
+EOF5
+chmod +x "$T/bin/l5"
+L5="$T/l5"; rm -rf "$L5"
+PROJ_PATH="$PROJ_ROOT" "$T/bin/l5" "$L5" dry >"$T/l5.out" 2>&1
+M="$(grep '^PLAN launch' "$L5/ml/spawn.out" | grep -oE -- "--model '[^']*'" | paste -sd' ')"
+check "37a. rotated: the launch carries --model 'opus' once (by_kind.tests, from lifetime/category.json)" '[ "$M" = "--model '"'"'opus'"'"'" ]'
+check "37a. ...through the respawn's record, SPAWN_REUSE_ID=1, SPAWN_START_CHECK=0" 'grep -q "^PLAN category .*work_kind tests <- .*c-951/lifetime/category.json (respawn, record kept)" "$L5/ml/spawn.out" && ! grep -q "Kind:" "$L5/seed.md"'
+rm -rf "$L5"
+L5_TESTS_MODEL=retired-x PROJ_PATH="$PROJ_ROOT" "$T/bin/l5" "$L5" dry >"$T/l5.out" 2>&1
+check "37b. a model outside the live list: the rotated launch goes without --model" '[ "$(grep -c "^PLAN launch" "$L5/ml/spawn.out")" = 1 ] && ! grep "^PLAN launch" "$L5/ml/spawn.out" | grep -- --model >/dev/null'
+check "37b. ...with L4's WARN, once" '[ "$(grep -c "WARN model retired-x refused by claude, started on the CLI default (not in its live list)" "$L5/ml/spawn.out")" = 1 ]'
+rm -rf "$L5"
+PROJ_PATH="$PROJ_ROOT" "$T/bin/l5" "$L5" quit >"$T/l5.out" 2>&1
+W5="WARN model opus refused by claude, started on the CLI default (the CLI quit at start)"
+check "37c. the CLI quit with the model: ONE more start, on the CLI default, both respawns" '[ "$(paste -sd"|" "$L5/ml/launches")" = "opus 1|cli-default 1" ]'
+check "37c. ...one WARN in rotate.log output and one in the lane journal" '[ "$(grep -cF "$W5" "$T/l5.out")" = 1 ] && [ "$(grep -cF "$W5" "$L5/ml/spool/c-951/lifetime/journal.log")" = 1 ]'
+rm -rf "$L5"
+L5_CNF=/dev/null PROJ_PATH="$PROJ_ROOT" "$T/bin/l5" "$L5" quit >"$T/l5.out" 2>&1
+check "37c. CONTROL: no model on the line: one start, no WARN, no journal" '[ "$(paste -sd"|" "$L5/ml/launches")" = "cli-default 1" ] && ! grep -q "WARN model" "$T/l5.out" && [ ! -e "$L5/ml/spool/c-951/lifetime/journal.log" ]'
+rm -rf "$L5"
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

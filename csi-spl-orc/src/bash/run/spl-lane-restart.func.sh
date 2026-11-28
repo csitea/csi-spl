@@ -166,7 +166,7 @@ spl_lane_restart_plan() {
 
 spl_lane_restart_spawn() {
   local rid="$LANE_RESTART_RID" id="$ID" pane="$LANE_RESTART_PANE" user stray action
-  if ! spl_lane_restart_respawn "$rid" "$pane"; then
+  if ! spl_lane_restart_respawn "$rid" "$pane" && ! spl_lane_restart_model_quit "$rid" "$pane"; then
     action="$(spl_lane_restart_fail_action)"
     spl_lane_restart_fallback "$rid" "$pane" "$LANE_SPAWN_ERR" "$action" || return 1
   fi
@@ -197,6 +197,7 @@ spl_lane_restart_spawn() {
 spl_lane_restart_respawn() {
   local rid="$1" pane="$2" t0 p
   LANE_NEW_PID="" LANE_SPAWN_ERR=""
+  spl_lane_restart_model "$rid"
   if ! spl_rotate_tmux respawn-pane -k -t "$pane" -c "$LANE_RESTART_WT" "$(spl_lane_restart_pane_cmd)" 2>/dev/null; then
     LANE_SPAWN_ERR="tmux refused respawn-pane on $pane"
     spl_lane_restart_log "$rid" SPAWN FAIL "$LANE_SPAWN_ERR"
@@ -255,15 +256,69 @@ spl_lane_restart_fallback() {
   return "$rc"
 }
 
+# spl_lane_restart_model RID: the model the new claude starts on, resolved
+# from the setting in force (spec 184 row L5, owner Q4 "rot"), as a restore
+# does (restore-core _rs_model_pick): spool_agent_model claude with the task
+# kind of SPAWN_TASK_KIND, else lifetime/category.json .work_kind; never
+# lifetime/model.txt, a record only (7.1.4). Live check (Q3 "liv"): a model
+# the CLI's list (spool_agent_models) does not hold starts on the CLI default
+# with one WARN; no list (exit 4) skips the check; a full claude-* name passes
+# on syntax alone (G8). LANE_RESTART_MODEL_OFF=1 (the Q5 retry) = no model.
+# Sets LANE_RESTART_MODEL (model or ""); writes lifetime/model.txt.
+spl_lane_restart_model() {
+  local k="${SPAWN_TASK_KIND:-}" m="" list f="$SPOOL_ROOT/$ID/lifetime"
+  LANE_RESTART_MODEL=""
+  if [[ "${LANE_RESTART_MODEL_OFF:-0}" != 1 ]]; then
+    [[ -n "$k" ]] || k="$(jq -r '.work_kind // empty' "$f/category.json" 2>/dev/null || true)"
+    m="$(spool_agent_model claude "$k" 2>/dev/null)" || m=""
+  fi
+  if [[ -n "$m" ]] && { declare -F spool_agent_models >/dev/null || source "$ROTATE_FEAT/lib/agent-models.inc.sh" 2>/dev/null; } &&
+     list="$(CLAUDE_BIN="$(spl_lane_restart_bin)" spool_agent_models claude 2>/dev/null)" &&
+     ! grep -qxF -- "$m" <<<"$list" && [[ "$m" != claude-* ]]; then
+    spl_lane_restart_model_warn "$1" "$m" "not in its live list"; m=""
+  fi
+  LANE_RESTART_MODEL="$m"
+  [[ "${DRY_RUN:-1}" == 1 ]] && return 0
+  { mkdir -p "$f" && printf '%s\n' "${m:-cli-default}" > "$f/model.txt"; } 2>/dev/null || true
+}
+
+# spl_lane_restart_model_warn RID MODEL WHY: the spec 184 4 step 6 WARN, in the
+# restart log and the lane journal (<spool root>/<id>/lifetime/journal.log).
+spl_lane_restart_model_warn() {
+  local l="WARN model $2 refused by claude, started on the CLI default ($3)" j="$SPOOL_ROOT/$ID/lifetime/journal.log"
+  spl_lane_restart_log "$1" SPAWN WARN "$l"
+  [[ "${DRY_RUN:-1}" == 1 ]] && return 0
+  { mkdir -p "${j%/*}" && printf '%s lane-restart %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$l" >> "$j"; } 2>/dev/null || true
+}
+
+# spl_lane_restart_model_quit RID PANE: owner Q5 "fb": a respawn that started
+# no claude with a model on its line is respawned ONCE more on the CLI's own
+# default, with one WARN; 0 when that one started (LANE_NEW_PID set). 1 when
+# no model was on the line, or the second respawn failed too.
+spl_lane_restart_model_quit() {
+  local m="${LANE_RESTART_MODEL:-}"
+  [[ -n "$m" && "${LANE_RESTART_MODEL_OFF:-0}" != 1 ]] || return 1
+  spl_lane_restart_model_warn "$1" "$m" "no session started with it"
+  LANE_RESTART_MODEL_OFF=1 spl_lane_restart_respawn "$1" "$2"
+}
+
+# The agent user's own claude, not whatever `claude` a login PATH finds.
+spl_lane_restart_bin() {
+  local bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
+  [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
+  printf '%s' "$bin"
+}
+
 # The pane's command, run by the tmux server (the box user): it hops to the
 # agent user with spool_agent_exec and starts claude through spool-harness, as
 # spawn-core does. The launch line travels base64-encoded, so no quote of the
 # seed is parsed twice.
 spl_lane_restart_pane_cmd() {
   local bin flags esc launch b64
-  bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
-  [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
+  bin="$(spl_lane_restart_bin)"
   if declare -F spool_claude_perm_flags >/dev/null; then flags="$(spool_claude_perm_flags)"; else flags="--dangerously-skip-permissions"; fi
+  # spec 184 row L5: the model spl_lane_restart_model resolved, after the perm flags
+  [[ -z "${LANE_RESTART_MODEL:-}" ]] || flags="$flags $(spool_model_args claude "$LANE_RESTART_MODEL")"
   spool_dq_escape esc "$(spl_lane_restart_seed)"
   launch="export SPOOL_ROOT='$SPOOL_ROOT' SPOOL_AGENT_ID='$ID' CLE_TMUX_PANE='$LANE_RESTART_PANE'; cd '$LANE_RESTART_WT' && exec bash '$ROTATE_FEAT/scripts/spool-harness.sh' --as '$ID' --mirror -- '${bin:-claude}' --name '$(spool_decorate "$ID")' $flags \"$esc\""
   b64="$(printf '%s' "$launch" | base64 | tr -d '\n')"

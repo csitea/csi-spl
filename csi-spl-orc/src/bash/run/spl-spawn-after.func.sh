@@ -35,6 +35,12 @@
 #     key on trunk does not prove the row's own work landed (a dependent row
 #     was placed on a split fix citing its prerequisite's key while the
 #     prerequisite's review head was not on trunk, 2026-11-22).
+#   - a row slug with no such branch whose brief says `Issue-Role: shared` (a
+#     row of a multi-row issue cites the key outside its scope, never
+#     closing it): its lane's own pushes citing the key are on trunk
+#     (spl_spawn_after_shared_landed, SPL-6721); a sibling row's commit on
+#     the same key never releases it. Its lane on another box: the key's
+#     close rule only.
 # The land time is the committer time of the oldest closing commit (a key),
 # resp. of the newest trunk twin (a review branch); the delay counts from it.
 #
@@ -217,12 +223,57 @@ spl_spawn_after_state() {  # BRIEF
     printf 'held\twaiting on %s: its lane has no issue key known on this box or on the hub yet (not placed, or placed elsewhere)\n' "$after"
     return 0
   fi
-  [[ "$key" == "$after" ]] || after="$after ($key)"
+  local slug="" far=""
+  [[ "$key" == "$after" ]] || { slug="$after"; after="$after ($key)"; }
+  if [[ -n "$slug" ]]; then
+    rc=0; at="$(spl_spawn_after_shared_landed "$slug" "$key")" || rc=$?
+    case "$rc" in
+      0) spl_spawn_after_delay_state "$after, its own commits" "$at" "$delay"; return 0 ;;
+      1) printf 'held\twaiting on %s: a shared-issue row, none of its own pushes citing %s is on origin/master yet\n' "$after" "$key"; return 0 ;;
+      2) far=" (a shared-issue row whose lane is not on this box: only a commit closing $key releases it here)" ;;
+    esac
+  fi
   if ! at="$(spl_spawn_after_landed "$key")"; then
-    printf 'held\twaiting on %s: not landed on origin/master\n' "$after"
+    printf 'held\twaiting on %s: not landed on origin/master%s\n' "$after" "$far"
     return 0
   fi
   spl_spawn_after_delay_state "$after" "$at" "$delay"
+}
+
+# A row on a shared multi-row issue (its brief says `Issue-Role: shared`)
+# cites KEY outside its commit scope with no Closes:, by rule
+# (lane-issue-and-docs.md 1.6, SPL-6257), so no trunk commit closes KEY for
+# it, and every row's commits cite the same KEY (SPL-6721). Its own work is
+# read the way the exit gate reads it (li_own_cites): the ranges its lane's
+# do_spl_push_master recorded in lifetime/push-master/pushes.log, on
+# origin/master, whose message names KEY. The lane is SLUG's .place.slugs
+# agent, a lane of this box; its lifetime is each generation (the live dir,
+# a .retired/<id>.<utc> one) whose brief has SLUG's brief heading, so an id
+# reused on this box for a sibling row is another lifetime, never counted.
+# Prints the newest own commit's committer time, rc 0; rc 1: shared, nothing
+# of its own landed; rc 2: shared, its lane's pushes.log is not on this box;
+# rc 3: not a shared row (the key decides).
+spl_spawn_after_shared_landed() {  # SLUG KEY
+  local brief head agent id life dir h at=0 ct found=0
+  local -a own=()
+  brief="$(spl_spawn_place_brief "$1")"
+  [[ -n "$brief" ]] && grep -qiE '^[-*_ >]*Issue[- ]Role[*_ ]*:[*_` ]*shared([^A-Za-z]|$)' "$brief" 2>/dev/null || return 3
+  agent="$(awk -F'\t' -v s="$1" '$1 == s { a = $2 } END { print a }' "$(spool_asks_dir)/.place.slugs" 2>/dev/null)"
+  [[ -n "$agent" ]] && spl_spawn_after_here "$agent" || return 2
+  spl_spawn_after_li
+  head="$(grep -m1 '^# ' "$brief")"; id="${agent%@*}"; dir="$(spl_spawn_after_dir)"
+  for life in "$SPOOL_ROOT/$id/lifetime" "$SPOOL_ROOT/.retired/$id".*/lifetime; do
+    [[ -d "$life" ]] && grep -qxF -- "$head" <(grep -hm1 '^# ' "$life/brief.md" "$life/brief.keep.md" 2>/dev/null) || continue
+    found=1; life="${life%/lifetime}"
+    mapfile -t -O "${#own[@]}" own < <(li_own_cites "${life%/*}" "${life##*/}" "$dir" "$2")
+  done
+  (( found )) || return 2
+  for h in "${own[@]}"; do
+    ct="$(li_git "$dir" log -1 --format=%ct "$h")"
+    (( ct > at )) && at="$ct"
+  done
+  (( at > 0 )) || return 1
+  printf '%s\n' "$at"
 }
 
 # The state of a prerequisite NAME that landed at epoch AT, with DELAY minutes.

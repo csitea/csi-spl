@@ -575,6 +575,51 @@ grep -q $'^slug-v\tc-930@box-far\tSPL-9401\t' "$T/spool/asks/.place.slugs" && [[
   fail "14. CONTROL tick: $(grep slug-v "$T/spool/asks/.place.slugs") | $out"
 done_ask "$V1" 2>/dev/null; done_ask "$V2" 2>/dev/null; done_ask "$V3" 2>/dev/null
 
+# 15. SPL-6721: a shared-issue row is judged by its own pushes, not by its key ---------
+shr_land() {  # SPOOL_DIR SUBJECT: one trunk commit, recorded as that lane's pushes.log range
+  local base
+  git -C "$T/pusher" fetch -q origin && git -C "$T/pusher" checkout -q -B w-master origin/master
+  base="$(git -C "$T/pusher" rev-parse HEAD)"
+  land "$2" 300 && mkdir -p "$1/lifetime/push-master" &&
+    echo "2026-01-15T11:00:00Z $base..$(git -C "$T/pusher" rev-parse HEAD)" >>"$1/lifetime/push-master/pushes.log"
+  git -C "$T/app" fetch -q origin
+}
+shr_life() {  # SPOOL_DIR SLUG: a lane lifetime of the row SLUG (or of any heading)
+  mkdir -p "$1/lifetime" && printf '# Lane brief: %s\nIssue: SPL-9501\nIssue-Role: shared\n' "$2" >"$1/lifetime/brief.md"
+}
+export HUB_ISSUES="$HUB_ISSUES SPL-9501=wip"
+for s in slug-shr1 slug-shr2 slug-shr3; do printf '# Lane brief: %s\nIssue: SPL-9501\nIssue-Role: shared\n%s\n' "$s" "$ES" >"$T/briefs/$s.md"; done
+printf 'slug-shr1\tc-951@box-desk\t\t1\nslug-shr2\tc-952@box-desk\t\t1\nslug-shr3\tc-953@box-far\t\t1\n' >>"$T/spool/asks/.place.slugs"
+# c-951 ran slug-shr1 and retired; the id was reused on this box for another lane
+shr_life "$T/spool/.retired/c-951.20260115T090000Z" slug-shr1
+shr_life "$T/spool/c-951" slug-other
+shr_life "$T/spool/c-952" slug-shr2
+H1=f1f1f1f1-0000-4000-8000-000000009501; H3=f3f3f3f3-0000-4000-8000-000000009503
+put "$H1" row-after-shr1; put "$H3" row-after-shr3
+on do_spl_spawn_enqueue ASK_ID="$H1" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-shr1 SPAWN_AFTER=slug-shr1 >/dev/null 2>&1
+on do_spl_spawn_enqueue ASK_ID="$H3" SPAWN_CLASS=feature SPAWN_PLACE=claude:row-after-shr3 SPAWN_AFTER=slug-shr3 >/dev/null 2>&1
+[[ "$(state "$H1")" == queued && "$(state "$H3")" == queued ]] || fail "15. not queued: $(hubrow "$H1") $(hubrow "$H3")"
+shr_st() { on "spl_asks_init; spl_spawn_after_state $T/briefs/$1.md" 2>/dev/null; }
+shr_land "$T/spool/c-952" "perf(ci-b2): the sibling row's work (SPL-9501)"
+got="$(shr_st row-after-shr1)"
+[[ "$got" == $'held\twaiting on slug-shr1 (SPL-9501): a shared-issue row, none of its own pushes citing SPL-9501 is on origin/master yet' ]] &&
+  pass "15. CONTROL a sibling row's commit on the same key (its own pushes.log): still HELD" || fail "15. sibling: $got"
+shr_land "$T/spool/c-951" "perf(ci-o): a reused id's later lane cites the key (SPL-9501)"
+got="$(shr_st row-after-shr1)"
+[[ "$got" == held$'\t'*"none of its own pushes"* ]] &&
+  pass "15. CONTROL the reused id's live lifetime (another brief heading) cites the key: still HELD" || fail "15. reused id: $got"
+shr_land "$T/spool/.retired/c-951.20260115T090000Z" "perf(ci-a1b): the row's own work, the key outside the scope (SPL-9501)"
+got="$(shr_st row-after-shr1)"
+[[ "$got" == $'free\tslug-shr1 (SPL-9501), its own commits landed '* ]] &&
+  pass "15. the row's own push (key outside the scope, no Closes:) is on trunk: free" || fail "15. own push: $got"
+out="$(tick)"; tick >/dev/null
+[[ "$(launched row-after-shr1)" == 1 ]] && grep -q 'ask f1f1f1f1 (row-after-shr1): slug-shr1 (SPL-9501), its own commits landed' <<<"$out" &&
+  pass "15. the placer releases it to the line: placed once" || fail "15. placed: $(launched row-after-shr1) | $out"
+[[ "$(launched row-after-shr3)" == 0 ]] &&
+  grep -q 'ask f3f3f3f3 (row-after-shr3) is waiting on slug-shr3 (SPL-9501): not landed on origin/master (a shared-issue row whose lane is not on this box: only a commit closing SPL-9501 releases it here)' <<<"$out" &&
+  pass "15. CONTROL a shared row whose lane is on another box: held, the reason says why" || fail "15. far: $(launched row-after-shr3) | $out"
+done_ask "$H3" 2>/dev/null
+
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }
 echo "FAIL: $fails"

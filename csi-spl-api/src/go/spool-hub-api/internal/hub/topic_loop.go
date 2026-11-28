@@ -334,6 +334,35 @@ func loopWindowErr(b loopBody) string {
 	return ""
 }
 
+// loopWindowEditErr is loopWindowErr's from < to for an edit that sends
+// only one bound (R7 N2): the other is the stored loop's, so a window_to
+// before the stored window_from gets the over-midnight text, not the
+// store's generic refusal. A loop not found is the store's to answer.
+func (s *Server) loopWindowEditErr(r *http.Request, tenant, task string, ls store.TopicLoopStore, b loopBody) string {
+	if (b.WindowFrom == nil) == (b.WindowTo == nil) || derefStr(b.WindowFrom)+derefStr(b.WindowTo) == "" {
+		return ""
+	}
+	loops, err := ls.TopicLoops(r.Context(), tenant, task)
+	if err != nil {
+		return ""
+	}
+	for _, l := range loops {
+		if l.LoopID != r.PathValue("loop_id") {
+			continue
+		}
+		f, t := l.WindowFrom, l.WindowTo
+		setIf := func(dst *string, v *string) {
+			if v != nil {
+				*dst = *v
+			}
+		}
+		setIf(&f, b.WindowFrom)
+		setIf(&t, b.WindowTo)
+		return loopWindowErr(loopBody{WindowFrom: &f, WindowTo: &t})
+	}
+	return ""
+}
+
 func (s *Server) handleTopicLoopAdd(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	q, ls, ok := s.loopWriter(w, r, true)
@@ -369,6 +398,10 @@ func (s *Server) handleTopicLoopEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	b, ok := readLoopBody(w, r)
 	if !ok {
+		return
+	}
+	if msg := s.loopWindowEditErr(r, q.t.ID, q.task, ls, b); msg != "" {
+		writeErr(w, http.StatusBadRequest, "bad_loop", msg)
 		return
 	}
 	e := store.TopicLoopEdit{Prompt: b.Prompt, Triggers: b.Triggers, Interval: b.IntervalMin, State: b.State,

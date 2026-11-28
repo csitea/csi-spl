@@ -26,6 +26,14 @@ func TestTopicLoopWindowRoutes(t *testing.T) {
 		t.Fatalf("add with a window: %d %v", code, out)
 	}
 	id := out["loop_id"].(string)
+	// R7 N2: one bound against the stored other gets the over-midnight text.
+	code, out = call(t, r.e, r.tid, http.MethodPut, path+"/"+id, "HUM-1", map[string]any{"window_to": "07:00"})
+	if msg, _ := out["detail"].(string); code != http.StatusBadRequest || out["error"] != "bad_loop" || !strings.Contains(msg, "over midnight") {
+		t.Fatalf("edit window_to before the stored window_from: %d %v, want 400 naming over midnight", code, out)
+	}
+	if code, out = call(t, r.e, r.tid, http.MethodPut, path+"/"+id, "HUM-1", map[string]any{"window_to": "16:00"}); code != http.StatusOK || out["window_to"] != "16:00" {
+		t.Fatalf("edit window_to inside: %d %v", code, out)
+	}
 	code, out = call(t, r.e, r.tid, http.MethodPut, path+"/"+id, "HUM-1",
 		map[string]any{"window_from": "", "window_to": "", "workdays_only": false})
 	if _, has := out["window_from"]; code != http.StatusOK || has || out["workdays_only"] != nil {

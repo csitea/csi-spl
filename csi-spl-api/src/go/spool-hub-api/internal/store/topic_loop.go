@@ -354,6 +354,12 @@ func topicLoopIsPeriodKey(k string) bool { return k == LoopEveryHour || k == Loo
 // topicLoopWindowed reports a loop with a work window (v0.12).
 func topicLoopWindowed(l TopicLoop) bool { return l.WindowFrom != "" || l.WorkdaysOnly }
 
+// topicLoopInWindow reports at inside l's work window (v0.12), always true
+// for a loop with none. A claim at an instant outside it (a ticker that ran
+// late past the window end: a hub outage, a deploy gap) drops the every_*
+// keys and only moves next_due_at: no fire and no catch-up outside it (W4).
+func topicLoopInWindow(l TopicLoop, at time.Time) bool { return topicLoopWindowNext(l, at).Equal(at) }
+
 // topicLoopWindowNext is the first instant at or after c inside l's work
 // window in DailyTZ (spec 182 v0.12): c itself when it is inside, else
 // WindowFrom (or midnight) of the next day that may fire. WindowTo is
@@ -602,7 +608,9 @@ func topicLoopClaim(l TopicLoop, at time.Time) (TopicLoop, bool) {
 		l.DueAt = l.DailyDueAt
 	}
 	if due(l.NextDueAt) {
-		l.Due = append(l.Due, topicLoopPeriodKeys(l)...)
+		if topicLoopInWindow(l, at) { // v0.12 W4: a late claim outside the window fires nothing
+			l.Due = append(l.Due, topicLoopPeriodKeys(l)...)
+		}
 		l.NextDueAt = topicLoopDue(l, at)
 	}
 	if due(l.IdleDueAt) {

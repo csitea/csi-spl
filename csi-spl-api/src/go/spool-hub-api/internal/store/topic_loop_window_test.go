@@ -51,6 +51,9 @@ func TestTopicLoopWindowDue(t *testing.T) {
 		"workdays only, all day: a weekday":  {every45, "2026-12-01T08:00:00Z", "2026-12-01T08:45:00Z"},
 		"hours only: Saturday is a day too":  {daily, "2026-11-28T14:30:00Z", "2026-11-29T06:00:00Z"},
 		"no zone is UTC":                     {utc, "2026-11-27T16:30:00Z", "2026-11-30T08:00:00Z"},
+		"DST change day, spring: to start":   {daily, "2026-03-29T03:00:00Z", "2026-03-29T05:00:00Z"},
+		"DST change day, spring: past end":   {daily, "2026-03-29T14:00:00Z", "2026-03-30T05:00:00Z"},
+		"DST change day, fall: to start":     {daily, "2026-10-25T05:00:00Z", "2026-10-25T06:00:00Z"},
 	} {
 		if got := topicLoopDue(c.l, zt(t, c.from)); !got.Equal(zt(t, c.at)) {
 			t.Errorf("%s: due %v, want %s", why, got.UTC(), c.at)
@@ -60,6 +63,27 @@ func TestTopicLoopWindowDue(t *testing.T) {
 	plain := TopicLoop{Triggers: []string{LoopEveryHour}, State: TopicLoopOn, DailyTZ: helsinki}
 	if from := zt(t, "2026-11-28T22:30:00Z"); !topicLoopDue(plain, from).Equal(from.Add(time.Hour)) {
 		t.Errorf("no window: %v, want from + 1h", topicLoopDue(plain, from))
+	}
+}
+
+// TestTopicLoopWindowLateClaim: W4 on the claim (R7 W1, the reviewer's
+// probe): a slot due inside the window but claimed after its end (a late
+// ticker) fires nothing and moves to the next slot; a claim inside fires;
+// a loop with no window fires late as before.
+func TestTopicLoopWindowLateClaim(t *testing.T) {
+	l := windowLoop()
+	l.NextDueAt = zt(t, "2026-11-27T15:00:00Z")                 // Friday 17:00 Helsinki
+	got, ok := topicLoopClaim(l, zt(t, "2026-11-27T18:00:00Z")) // Friday 20:00
+	if !ok || len(got.Due) != 0 || !got.NextDueAt.Equal(zt(t, "2026-11-30T06:00:00Z")) {
+		t.Errorf("late claim: ok=%v due=%v next=%v, want claimed, no key, next Monday 08:00", ok, got.Due, got.NextDueAt.UTC())
+	}
+	if got, ok := topicLoopClaim(l, zt(t, "2026-11-27T15:00:00Z")); !ok || len(got.Due) != 1 || got.Due[0] != LoopEveryHour {
+		t.Errorf("claim at 17:00: ok=%v due=%v, want every_hour", ok, got.Due)
+	}
+	plain := TopicLoop{Triggers: []string{LoopEveryHour}, State: TopicLoopOn, DailyTZ: helsinki, NextDueAt: l.NextDueAt}
+	if got, ok := topicLoopClaim(plain, zt(t, "2026-11-27T18:00:00Z")); !ok || len(got.Due) != 1 ||
+		!got.NextDueAt.Equal(zt(t, "2026-11-27T19:00:00Z")) {
+		t.Errorf("no window, late: ok=%v due=%v next=%v, want every_hour and at + 1h", ok, got.Due, got.NextDueAt.UTC())
 	}
 }
 
@@ -126,6 +150,10 @@ func TestTopicLoopWindowStore(t *testing.T) {
 			}
 			if again, err := f.ls.TopicLoops(f.ctx, f.tn, f.task); err != nil || !again[0].NextDueAt.Equal(c.NextDueAt) {
 				t.Fatalf("stored next due: %+v %v, want %v", again, err, c.NextDueAt)
+			}
+			late := claim(zt(t, "2026-12-01T18:00:00Z")) // Tuesday 20:00: the 08:00 slot claimed late, outside
+			if late.LoopID == "" || len(late.Due) != 0 || !late.NextDueAt.Equal(zt(t, "2026-12-02T06:00:00Z")) {
+				t.Fatalf("late claim outside the window: %+v, want claimed with no key, next due Wednesday 08:00", late)
 			}
 			to := "16:00"
 			e, err := f.ls.EditTopicLoop(f.ctx, f.tn, f.task, got.LoopID, TopicLoopEdit{WindowTo: &to, By: "HUM-1",

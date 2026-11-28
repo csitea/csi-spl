@@ -345,14 +345,20 @@ func (s *Postgres) ClaimDueTopicLoops(ctx context.Context, at time.Time, limit i
 // topicLoopWindowClaim moves, in the claim's transaction, the next_due_at
 // of each claimed loop with a work window (v0.12) whose every_* came due
 // from the claim's at + period to the window's next slot (topicLoopDue,
-// the one rule Memory runs too). A loop with no window is not written
-// again, so the claim of today's loops is unchanged.
+// the one rule Memory runs too), and drops those every_* keys from Due when
+// the claim's at is outside the window (W4: a late claim fires nothing
+// there, as topicLoopClaim). A loop with no window is not written again,
+// so the claim of today's loops is unchanged.
 func topicLoopWindowClaim(ctx context.Context, tx pgx.Tx, out []TopicLoop, at time.Time) error {
+	at = followAt(at)
 	for i, l := range out {
 		if !topicLoopWindowed(l) || !slices.ContainsFunc(l.Due, topicLoopIsPeriodKey) {
 			continue
 		}
-		want := topicLoopDue(l, followAt(at))
+		if !topicLoopInWindow(l, at) {
+			out[i].Due = slices.DeleteFunc(slices.Clone(l.Due), topicLoopIsPeriodKey)
+		}
+		want := topicLoopDue(l, at)
 		if want.Equal(l.NextDueAt) {
 			continue
 		}

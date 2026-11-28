@@ -1255,7 +1255,7 @@ stated here as the decision.
 | W1 | A loop whose trigger is `every_hour` or `every_n_minutes` may carry a **work window**: "only on working days" (Monday to Friday) and / or "only between `from` and `to`", each `hh:mm` 24-hour. Both limits are optional and independent; a new loop has neither. Any other trigger takes no window (`400 bad_loop`). |
 | W2 | The window is read in the loop's own zone, `daily_tz` (the zone rule of section 3 row DLY; `""` is UTC). The form shows the zone field once a limit is checked, the browser's zone to start. |
 | W3 | `from` is the first minute a fire may be due, `to` the last, **inclusive** (every 60 minutes from 08:00 to 17:00 fires at 08:00, 09:00, ... 17:00 when the slots fall on the hour). `from` must be before `to` on the same day: a window over midnight is **refused** with a clear error, not supported. |
-| W4 | **No fire outside the window and no catch-up.** The next due time is the next slot (`from + period`, as before) when it is inside the window, else the window's start on the next day that may fire (Friday 16:30 + 60 min, window 08:00-17:00 Mon-Fri, is Monday 08:00). A fire then counts its slots from that start. The 12-per-hour cap (5.1) is unchanged. |
+| W4 | **No fire outside the window and no catch-up.** The next due time is the next slot (`from + period`, as before) when it is inside the window, else the window's start on the next day that may fire (Friday 16:30 + 60 min, window 08:00-17:00 Mon-Fri, is Monday 08:00). A fire then counts its slots from that start. A slot claimed **late**, at an instant outside the window (a hub outage, a deploy gap or a cold start ran the ticker past the window's end), does not fire either: the claim moves `next_due_at` to the next in-window slot and leaves the every_* keys out of the row's due keys (`topicLoopInWindow`), so the ticker sends nothing (R7 W1, 2026-11-28). The 12-per-hour cap (5.1) is unchanged. |
 | W5 | **No limit = the behaviour before v0.12, exactly**: a loop without a window computes `next_due_at` as before, and the claim (4.2 step 5) writes it as before. Every stored loop has no window. |
 | W6 | **Known limit**: public holidays are not known; a working day is Monday to Friday in `daily_tz`. Spec 187 scheduled tasks are not in scope (the owner said "loops"). Channel loops (section 9) are not built; they take the window when they are. |
 
@@ -1272,7 +1272,9 @@ The due walk is one Go function, `topicLoopWindowNext` in
 Memory claim. The Postgres claim keeps its one UPDATE (`next_due_at = $1 +
 period`) and then, in the same transaction, rewrites `next_due_at` only for
 the claimed rows with a window whose every_* key came due
-(`topicLoopWindowClaim`), so there is one rule for the window, in Go, and
+(`topicLoopWindowClaim`), dropping their every_* keys when the claim's
+instant is outside the window (W4, as the Memory claim does), so there is
+one rule for the window, in Go, and
 the claim of a loop without one is not written twice. DST: the window's
 start is built in `daily_tz` with `time.Date`, so Monday 08:00 Helsinki is
 05:00Z after the March change and 06:00Z after the October one.
@@ -1281,6 +1283,7 @@ start is built in `daily_tz` with `time.Date`, so Monday 08:00 Helsinki is
 take `window_from`, `window_to` (`hh:mm` or `""`) and `workdays_only`
 (boolean); the hub refuses a bound that is not `hh:mm` and a `from` not
 before `to` (`400 bad_loop`, "a window over midnight is not supported"),
+also when a `PUT` sends only one bound and the other is the stored one,
 the store the rest. Every answer carries `window_from` / `window_to` when
 the window has hours and `workdays_only: true` when it is set, each with
 `daily_tz`; a loop with no window answers no new field. `openapi.json` names
@@ -1303,12 +1306,13 @@ err_window}` in every locale file.
 
 | test | proves |
 |---|---|
-| `internal/store/topic_loop_window_test.go` `TestTopicLoopWindowDue` | the walk on a fake clock: Friday 16:30 -> Monday 08:00; a weekday before the window -> its start; inside -> + interval; the `to` minute is inside; past it -> next day; Saturday -> Monday; both DST weekends (Helsinki); working days with no hours; hours with no working days; no zone = UTC; no window = from + period |
-| same file, `TestTopicLoopWindowStore` (Memory and Postgres) | the eight refusals (overnight, empty, one bound, not `hh:mm`, `24:00`, a window on a non-timer, working days on `daily_at`), the stored window, Monday 08:00 as the first due, a claim at 17:00 moves to Tuesday 08:00 (no burst), an edit of `to` re-walks, dropping the time trigger clears the window |
-| `internal/hub/topic_loop_window_test.go` `TestTopicLoopWindowRoutes` | the routes take, answer and clear the window; six refusals, each `400 bad_loop` naming its reason |
+| `internal/store/topic_loop_window_test.go` `TestTopicLoopWindowDue` | the walk on a fake clock: Friday 16:30 -> Monday 08:00; a weekday before the window -> its start; inside -> + interval; the `to` minute is inside; past it -> next day; Saturday -> Monday; both DST weekends (Helsinki) and both change days themselves (2026-03-29, 2026-10-25); working days with no hours; hours with no working days; no zone = UTC; no window = from + period |
+| same file, `TestTopicLoopWindowStore` (Memory and Postgres) | the eight refusals (overnight, empty, one bound, not `hh:mm`, `24:00`, a window on a non-timer, working days on `daily_at`), the stored window, Monday 08:00 as the first due, a claim at 17:00 moves to Tuesday 08:00 (no burst), a late claim at Tuesday 20:00 fires nothing and moves to Wednesday 08:00, an edit of `to` re-walks, dropping the time trigger clears the window |
+| same file, `TestTopicLoopWindowLateClaim` | W4 on the claim (R7 W1): Friday 17:00 claimed at 20:00 fires nothing, next Monday 08:00; claimed at 17:00 fires; a loop with no window still fires late |
+| `internal/hub/topic_loop_window_test.go` `TestTopicLoopWindowRoutes` | the routes take, answer and clear the window; a `PUT` of only `window_to` before the stored `window_from` names "over midnight"; six refusals, each `400 bad_loop` naming its reason |
 | `csi-spl-wui/tests/unit/topic-loops-window.test.mjs` | form, body, clear on edit, row label, the mock's twin rules |
 | `csi-spl-wui/tests/e2e/topic-loops-dialog.test.mjs` part 9 | in Chrome: the limits under "Every hour" only, an overnight window refused, the saved row names its window |
-| red control | `topicLoopDue` with the window ignored (`return from.Add(p)`): `TestTopicLoopWindowDue` red on 9 of 12 cases and `TestTopicLoopWindowStore` red on the first due; green restored |
+| red control | `topicLoopDue` with the window ignored (`return from.Add(p)`): `TestTopicLoopWindowDue` red on 9 of 12 cases and `TestTopicLoopWindowStore` red on the first due; green restored. The late claim: `topicLoopInWindow` as `return true` reds `TestTopicLoopWindowLateClaim` and `TestTopicLoopWindowStore/memory`; the Postgres strip in `topicLoopWindowClaim` removed reds `TestTopicLoopWindowStore/postgres` only; green restored |
 
 ## 9. Channel loops (v0.9 SPL-6440; v0.10 SPL-6474)
 

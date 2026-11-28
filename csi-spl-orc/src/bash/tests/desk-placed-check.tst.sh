@@ -16,6 +16,9 @@
 #   8. the hub did not answer (hub: unreachable), or the map failed: refused
 #   9. not placed / never placed / a > quote / a ``` fence / "replaced":
 #      sent without reading the map
+#  9b. SPL-6751: "no row is placed", "nothing placed", "none are placed":
+#      sent without reading the map (red before, on 2de10856d); CONTROLS:
+#      "no wait, placed c-777" (c-777 not live) and a bare "placed": refused
 #  10. a fleet-sized map (over 128 KB, one argv word's limit) is read
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -122,6 +125,19 @@ for B9 in "Fix D is not placed yet: queued as an ask." "c-777 was never placed."
   sent "9. sent without a placement claim: ${B9%%$'\n'*}" "$B9"
   [[ -e "$T/map.read" ]] && fail "9. the lane map was read for: $B9" || :
 done
+
+# --- 9b. no / nothing / none placed (SPL-6751) ------------------------------------------
+for B9 in "Spec 153 batch 3 waits: no row is placed yet." "No lane placed for it." "No new lane was placed today." \
+  "Nothing is placed until the owner answers." "Nothing placed yet." "None are placed." "none placed"; do
+  send "$B9"; rc=$?
+  sent "9b. sent without a placement claim: $B9" "$B9"
+  [[ -e "$T/map.read" ]] && fail "9b. the lane map was read for: $B9" || :
+done
+map ok c-123:box-a:live
+send "Fix D: no wait, placed c-777 now."; rc=$?
+refused "9b. CONTROL 'no wait, placed c-777' with c-777 not live is refused" 'FATAL placed lane c-777 is not live'
+send "Batch 3 placed, nothing else to do."; rc=$?
+refused "9b. CONTROL 'placed' with no lane id and no negation is refused" 'names no lane on that line'
 
 # --- 10. a big map ------------------------------------------------------------------------
 rows=(); for i in $(seq 100 999); do rows+=("m-$i:box-with-a-long-name-$i:done"); done

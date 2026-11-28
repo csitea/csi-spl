@@ -237,8 +237,9 @@ comments and issue descriptions.
    `lane-map.sh --all` shows a live row for it. Until then the ask is
    `asked` or `queued`, not placed. `do_spl_desk_reply` refuses (FATAL,
    nothing sent) a placed line naming no lane, a lane with no live row, and
-   a lane map whose hub did not answer. `not placed`, `never placed`, a `>`
-   quote and a code block are not claims. The code:
+   a lane map whose hub did not answer. `not placed`, `never placed`, `no
+   row is placed`, `nothing placed`, `none are placed`, a `>` quote and a
+   code block are not claims (SPL-6751). The code:
    `csi-spl-orc/src/bash/run/spl-desk-placed-check.func.sh` (SPL-3524).
 
 20. **Answer in the workspace and topic where the person asked** (owner
@@ -287,7 +288,9 @@ comments and issue descriptions.
    - A sha said to be on master is on master (SPL-5994: t1 7e9986f3 msg
      42189c54 told the owner "done, `b33f2a306` on master", the pre-rebase
      sha; the landed one was `dc3f39027`). A commit sha (7..40 hex with a
-     digit and a letter, topic uuids aside) on the same line as `on master`
+     digit and a letter; topic uuids aside, and an id after `ask`, `msg`,
+     `message`, `topic`, `poll`, `request`, `post`, `/t/` or `/m/`, or a
+     list of them, is no sha: SPL-6751) on the same line as `on master`
      or `landed` must be an ancestor of `origin/master` after a fetch; name
      the landed sha (`git log origin/master --grep <issue key>`), never the
      sha of your branch before the rebase. `not on master` and `not landed`

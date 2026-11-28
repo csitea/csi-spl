@@ -12,8 +12,13 @@
 #   3. "not on master" / "not landed yet" with the rebased sha -> posted;
 #      a sha on a line with no claim -> posted
 #   4. an unknown sha "on master" -> refused; a failed fetch -> refused
+#   5. SPL-6751: an 8-hex ask / msg / topic / poll / request / post id (or a
+#      /t/ /m/ link, or a list after the id word) on a claim line is no sha
+#      -> posted; CONTROL: the rebased sha with an id word after it, or
+#      before it with no id word -> still refused
 #   (a **Live** post is left to rule 16: desk-live-proof.tst.sh)
-# Red control: on origin/master before SPL-5994, case 1 was posted.
+# Red control: on origin/master before SPL-5994, case 1 was posted; before
+# SPL-6751 (2de10856d), every case 5 post was refused.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -100,6 +105,22 @@ post "Landed as deadbeef123 on master.$CHK"
 refused && pass "an unknown sha is refused" || fail "an unknown sha was not refused: $(why)"
 post "Landed as $LANDED on master.$CHK" "$T/no-such-repo"
 refused && grep -q 'fetch' "$T/e" && pass "a failed fetch is refused and says so" || fail "a failed fetch was not refused: $(why)"
+
+# --- 5. ids after an id word are no sha (SPL-6751) --------------------------------
+for b in "SPL-6647 is on master as $LANDED (reviewer ask 5ddf4d3a).$CHK" \
+  "Landed $LANDED, asks 5ddf4d3a, 6a27166d and 7b1c2d3e answered.$CHK" \
+  "On master: $LANDED (owner msg 65a45673 and 591ca574, topic 6a27166d).$CHK" \
+  "Landed $LANDED for poll 4e432858, request ab12cd34, post 9f8e7d6c.$CHK" \
+  "Landed $LANDED as /t/6a27166d/m/5ddf4d3a asked.$CHK" "Landed $LANDED: message id 1a7c70da.$CHK"; do
+  post "$b"
+  posted && pass "an id after an id word is no sha: '${b:0:40}'" || fail "an id after an id word was checked as a sha: '$b': $(why)"
+done
+for b in "SPL-6647 is on master as $PRE (reviewer ask 5ddf4d3a).$CHK" "Ask 5ddf4d3a: landed $PRE.$CHK" \
+  "Landed $LANDED and $PRE.$CHK"; do
+  post "$b"
+  refused && grep -q "$PRE" "$T/e" && pass "CONTROL the rebased sha is still refused: '${b:0:40}'" ||
+    fail "CONTROL the rebased sha was not refused: '$b': $(why)"
+done
 
 echo "desk-reply-sha-on-master: $fails failure(s)"
 ((fails == 0))

@@ -41,7 +41,10 @@ spl_desk_placed_check() {
 
 # _spl_desk_placed_lines <body>: the lines that claim a placement: `placed`
 # as a word, outside ``` fences and `>` quotes, once `not / never / n't`
-# (with up to two words between it and `placed`) is dropped.
+# (with up to two words between it and `placed`) is dropped, and so are
+# `no <0..2 words> (is|are|was|were)? placed`, `nothing (is|was)? placed` and
+# `none (is|are|was|were)? placed` (SPL-6751: "no row is placed yet" was
+# refused as a placed claim naming no lane).
 _spl_desk_placed_lines() {
   local line claim fence=0
   while IFS= read -r line; do
@@ -49,7 +52,8 @@ _spl_desk_placed_lines() {
     if [[ "$line" =~ ^[[:space:]]*\`\`\` ]]; then fence=$((1 - fence)); continue; fi
     (( fence )) && continue
     [[ "$line" =~ ^[[:space:]]*\> ]] && continue
-    claim="$(sed -E "s/(not|never|n't)( +[A-Za-z]+){0,2} +placed//Ig" <<<"$line")"
+    claim="$(sed -E "s/(not|never|n't)( +[A-Za-z]+){0,2} +placed//Ig;
+      s/\\b(no( +[A-Za-z]+){0,2}( +(is|are|was|were))?|nothing( +(is|was))?|none( +(is|are|was|were))?) +placed//Ig" <<<"$line")"
     grep -qiE '(^|[^A-Za-z])placed([^A-Za-z]|$)' <<<"$claim" && printf '%s\n' "$line"
   done <<<"$1"
   return 0

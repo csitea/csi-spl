@@ -603,7 +603,10 @@ sys.exit(1)' "$words" "$body")" || rc=$?
 # _spl_desk_reply_sha_on_master <body>: SPL-5994 (how-to-post.md rule 22;
 # t1 7e9986f3 msg 42189c54 told the owner "done, b33f2a306 on master", the
 # pre-rebase sha: the landed one was dc3f39027). A sha (7..40 lowercase hex
-# with a digit and a letter, topic UUIDs cut out first) on a line that says
+# with a digit and a letter; topic UUIDs cut out first, and so is the id,
+# or the list of ids, after an id word: ask(s), msg(s), message(s), topic(s),
+# poll(s), request(s), post(s) (also "<word> id"), /t/, /m/ (SPL-6751: "on
+# master as 8ccd408a8 (reviewer ask 5ddf4d3a)" was refused) on a line that says
 # "on master" or "landed" must be an ancestor of origin/master after a fetch;
 # else one FATAL on stderr and 1, nothing sent. An unknown sha and a failed
 # fetch refuse too. "not on master", "not landed" (also "not yet", "never")
@@ -618,9 +621,12 @@ _spl_desk_reply_sha_on_master() {
 import re, sys
 claim = re.compile(r"\b(on\s+(origin/)?master|landed)\b", re.I)
 neg = re.compile(r"\b(not|never)(\s+yet)?\s+(on\s+(origin/)?master|landed)\b", re.I)
+ids = re.compile(r"(\b(?:asks?|msgs?|messages?|topics?|polls?|requests?|posts?)(?:\s+ids?)?\b:?\s*|/[tm]/)"
+                 r"[0-9a-f]{7,40}\b(?:(?:\s*,\s*|\s+(?:and|or)\s+|/)[0-9a-f]{7,40}\b)*", re.I)
 seen = []
 for line in sys.argv[1].splitlines():
     line = re.sub(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", "", line)
+    line = ids.sub(lambda m: m.group(1), line)
     if not claim.search(neg.sub("", line)):
         continue
     for c in re.split(r"[;.!?]|,\s", line):

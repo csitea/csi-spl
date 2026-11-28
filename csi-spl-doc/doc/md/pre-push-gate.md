@@ -90,7 +90,11 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   count cap); n is the selected seconds over one full-run shard's, rounded
   up. A file the CI budget cuts is printed in the job log and waits for the
   next full run, so "left to CI" above means the full run when the push is
-  mapped. The full suite on 8 shards runs on the scheduled run, a dispatch,
+  mapped. A `workflow_dispatch` with `express_base` maps
+  `express_base..sha` the same way (the GitHub control on a throwaway
+  branch: plant one component change on top of the branch head and pass the
+  head as `express_base`). The full suite on 8 shards runs on the scheduled
+  run, a dispatch without `express_base`,
   a pull request and wf 13, and on a push that touches a layout, `app.vue`,
   `error.vue`, `main.css`, `tests/e2e/lib`, `ci-skip.txt`, `src/node`
   (the runner and `e2e-shard-weights.txt`), `src/public`, a `.d.ts`,

@@ -20,12 +20,15 @@
 #   6. _ppe_ci_base: the newest run whose every wui: job was green; a run
 #      with a red or skipped wui job is passed over; none -> empty
 #   7. the wiring in wf 10: classify outputs wui_base from _ppe_ci_base on a
-#      push; wui-e2e-plan plans only on a push, is continue-on-error and
+#      push and express_base on a dispatch that carries one; wui-e2e-plan
+#      plans only on those two (never schedule, never a bare dispatch), is
+#      continue-on-error and
 #      writes a plan only when all three lines are there; wui-e2e takes its
 #      matrix, E2E_SHARD, file list and name from the plan with the 8-shard
 #      default, and a mapped job is named "wui: mapped browser e2e"
 #   CONTROLS: a wf 10 whose matrix is the literal 1..8, one whose plan runs
-#      on every event, and one with no default when the plan is empty, are
+#      on every event, one that plans a dispatch without express_base, and
+#      one with no default when the plan is empty, are
 #      each red in check 7
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -142,6 +145,8 @@ check_wiring() {  # <wf 10 file> - the first violation, or nothing
   cls=$(yq '.jobs.classify.steps[] | select(.id == "cls") | .run' "$f")
   [[ "$(awk '/EVENT" == push/,/elif/' <<<"$cls")" == *'_ppe_ci_base "$tsv"'*'wui_base='*'GITHUB_OUTPUT'* ]] \
     || { echo "classify's push branch does not write wui_base from _ppe_ci_base"; return; }
+  [[ "$(awk '/EVENT" == workflow_dispatch && -n "\$BASE"/,/^ *else/' <<<"$cls")" == *'wui_base=$BASE'*'GITHUB_OUTPUT'* ]] \
+    || { echo "classify's dispatch-with-express_base branch does not write wui_base=\$BASE"; return; }
   plan=$(yq '.jobs.wui-e2e-plan.steps[] | select(.id == "plan") | .run' "$f")
   [[ "$(yq '.jobs.wui-e2e-plan.needs' "$f")" == *classify* && "$(yq '.jobs.wui-e2e-plan.if' "$f")" == *"!cancelled()"*"run_wui != 'false'"* ]] \
     || { echo "wui-e2e-plan does not need classify or does not skip only on run_wui == 'false'"; return; }
@@ -149,6 +154,8 @@ check_wiring() {  # <wf 10 file> - the first violation, or nothing
     || { echo "the plan step is not continue-on-error"; return; }
   [[ "$(awk '/EVENT" == push/,/else/' <<<"$plan")" == *_ppe_ci_plan* && "$(sed -n '/^ *else/,/^ *fi/p' <<<"$plan")" != *_ppe_ci_plan* ]] \
     || { echo "the plan step plans on another event than push"; return; }
+  [[ "$plan" == *'if [[ "$EVENT" == push || ( "$EVENT" == workflow_dispatch && -n "$BASE" ) ]]; then'* ]] \
+    || { echo "the plan step plans on another event than a push or a dispatch with express_base"; return; }
   [[ "$plan" == *'!= 3'*'out=""'* ]] || { echo "the plan step writes a partial plan"; return; }
   for o in n shards files; do
     [[ "$(yq ".jobs.wui-e2e-plan.outputs.$o" "$f")" == *"steps.plan.outputs.$o"* ]] || { echo "wui-e2e-plan has no $o output"; return; }
@@ -165,7 +172,7 @@ check_wiring() {  # <wf 10 file> - the first violation, or nothing
     || { echo "the browser step does not shard by the plan's n (default 8) or does not pass E2E_FILES"; return; }
   [[ -n "$e2e" ]]
 }
-v=$(check_wiring "$W10"); [[ -z "$v" ]] && pass "7. wf 10: classify's wui_base -> wui-e2e-plan (push only, all-or-nothing) -> the wui-e2e matrix, 8 by default" \
+v=$(check_wiring "$W10"); [[ -z "$v" ]] && pass "7. wf 10: classify's wui_base -> wui-e2e-plan (push or dispatch with express_base, all-or-nothing) -> the wui-e2e matrix, 8 by default" \
   || fail "7. wf 10: $v"
 mut() {  # <name> <python replace args> - a mutated copy of wf 10; check 7 must be red on it
   python3 - "$W10" "$T/$1.yml" "$2" "$3" 2>/dev/null <<'PY'
@@ -179,9 +186,10 @@ PY
 }
 mut literal-matrix "\${{ fromJSON(needs.wui-e2e-plan.outputs.shards || '[1, 2, 3, 4, 5, 6, 7, 8]') }}" "[1, 2, 3, 4, 5, 6, 7, 8]"
 mut no-default "needs.wui-e2e-plan.outputs.shards || '[1, 2, 3, 4, 5, 6, 7, 8]'" "needs.wui-e2e-plan.outputs.shards"
-mut every-event 'if [[ "$EVENT" == push ]]; then
+mut every-event 'if [[ "$EVENT" == push || ( "$EVENT" == workflow_dispatch && -n "$BASE" ) ]]; then
             # shellcheck disable=SC2016' 'if true; then
             # shellcheck disable=SC2016'
+mut dispatch-no-base '( "$EVENT" == workflow_dispatch && -n "$BASE" )' '"$EVENT" == workflow_dispatch'
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all ci-wui-e2e-plan.tst.sh assertions"

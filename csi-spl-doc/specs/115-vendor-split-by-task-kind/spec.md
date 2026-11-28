@@ -173,6 +173,14 @@ first, as it is today. A vendor switched off or paused there counts as
 **out** in every kind (section 5). It is never picked, and its weight in a
 row goes to that row's backup, or to claude when the backup is also out.
 
+### 3.4 The model a kind starts on (spec 184)
+
+The split picks the vendor; spec 184 picks the model that vendor starts
+with, per vendor and optionally per task kind of this spec: cnf
+`env.box.agent_model` next to `agent_split_by_kind`, and a per-workspace
+override on the same WUI Split page. How to set and refresh it:
+[agent-model-per-kind.md](../../doc/md/agent-model-per-kind.md).
+
 ## 4. Picker (`do_spl_lane_mix`)
 
 Inputs: `LANE_MIX_KIND` (new names or aliases), `LANE_MIX_SENSITIVE`,

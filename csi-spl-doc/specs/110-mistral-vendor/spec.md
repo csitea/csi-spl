@@ -207,7 +207,9 @@ the agent user, n = 1 each:
   written by the install action:
   - `active_model` is pinned (cnf `env.box.mistral_vibe.model`, default
     `mistral-vibe-cli-latest`). That turns off the server-side model routing
-    for an unset model.
+    for an unset model. Spec 184 can start a seat on another model:
+    `VIBE_ACTIVE_MODEL` at launch beats this `active_model`
+    ([agent-model-per-kind.md](../../doc/md/agent-model-per-kind.md)).
   - The `[[mcp_servers]]` spool entry, written by T008.
   - Session logging stays on: the mirror reads the session files.
 - **The satellite.** It needs its own login: its own Team seat (D3) and its

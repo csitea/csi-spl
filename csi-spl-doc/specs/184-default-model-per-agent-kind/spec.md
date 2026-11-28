@@ -1,6 +1,11 @@
 # Spec 184: Default Model per Agent Kind
 
-Status: **Draft v0.6** (2026-11-27). Lane `c-358` (`claude`, the backup for
+Status: **v0.7, built** (2026-11-28): rows M0, C1, L1, L2, L3, L4, L5, A1,
+I1, H1, H2 (with its follow-up H3) and W1 are on master; how to set and
+refresh it: [agent-model-per-kind.md](../../doc/md/agent-model-per-kind.md)
+(row D1). Open: the hub's workspace rows and the box readings are not yet
+wired into a launch or a report (that page, sections 1.3 and 2.1), and
+rows F3, F4, F5 of section 10. Was: Draft v0.6 (2026-11-27). Lane `c-358` (`claude`, the backup for
 `specs_and_docs`: no agy CLI on this box, agy at quota on the other).
 v0.1 `3c8f2f7fd`; v0.2 folds the owner's answers to the form (poll
 `ccb3a406`, HUM-10 msg `0d33aa83`): Q1 `bo`, Q2 `bo`, Q3 `liv`, Q4 `rot`,
@@ -9,7 +14,7 @@ Q5 `fb`; v0.3 folds the R7 review notes N1 and N2 (a-069, agy PASS on
 (row M0, lane `c-888`); v0.5 records the reading route's auth and the
 built shapes of 7.1.5 and proposes row H2 (row H1, lane `c-894`); v0.6
 adds section 10, the agy alternative-model fallback (lane `c-738`,
-SPL-6661). Every change is in section 9.
+SPL-6661); v0.7 is row D1's status and docs. Every change is in section 9.
 Epic: **SPL-2398**. Issue: **SPL-6036**. Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:815215f5-2d1b-47df-b465-b4ea0ee5d991` (`t1`).
 Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec.md)
@@ -21,7 +26,8 @@ Builds on: [115 vendor split by task kind](../115-vendor-split-by-task-kind/spec
 
 Line references were measured on `origin/master` `dd7a2795a`. CLI help was
 read with `--help` only, on this box (no paid call, and no list command that
-may reach a vendor). Nothing here is built.
+may reach a vendor). Sections 1 to 9 were written before the build; what
+landed is in the status line above and the "As built" parts.
 
 ## 0. The owner's words (HUM-10, t1 #spool-hub-biz, topic `815215f5`, msg `c91190e9`, verbatim)
 
@@ -531,6 +537,28 @@ contract gap A1 raised (c-884 msg `0b5a2bc7`).
 Row W1 (lane `c-287`, SPL-6725): 7.1.5 gains "As built by row W1" (the
 Split page's model table, its choices, the syntax check, Save). The
 status line is left to row D1.
+
+### 9.6 Row D1: status and docs (v0.7)
+
+Row D1 (lane `c-412`, SPL-6742), measured on `origin/master` `e6e9b2fd8`:
+the status line names the landed rows (`git log origin/master --grep 'spec
+184 row'`: L2 `d739b7614`, L3 `af1e4dd86`, L4 `3e0d9b961`, L5 `566080ade`,
+H2 `2d8d0523d`, H3 `1989d4ff9`, W1 `d5e66eaed`) and points to the new
+operations page `csi-spl-doc/doc/md/agent-model-per-kind.md`. Specs 115
+(section 3.4) and 110 (section 2.3) point to it. Found while writing it, not
+changed here (code of other rows):
+
+- Nothing outside tests and docs sets `SPAWN_MODEL_MAP` or calls
+  `spool_agent_models_report`, so a WUI setting reaches no launch and no box
+  sends a reading yet.
+- `spool_model_args` (`lib/spool-env.inc.sh`) adds words for claude, grok
+  and mistral only; 7.1.3 calls the agy, qwen and codex rows measured, yet a
+  workspace model for them is dropped silently (the cnf validator refuses
+  them).
+- Lane handover mode B (`csi-spl-orc/src/bash/run/spl-lane-handover.func.sh:258`)
+  takes the task kind only from the first `Kind:` line of the handover
+  brief (the old lane's `lifetime/brief.md`, embedded); no brief there, no
+  `by_kind` model.
 
 ### 9.4 Changes from v0.5
 

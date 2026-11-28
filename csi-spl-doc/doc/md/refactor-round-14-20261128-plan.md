@@ -857,7 +857,7 @@ panel seat is claude. The r14 retro names this.
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
 | `c-915` | claude | editor | v1.0 | author | section 8 |
-| claude panel seat (`hand-sat-c002-refactor-round-14-claude-panel-seat`, live as c-917@sat) | claude | panel | v0.1 `75d0f5fff` PASS (msg 6c6b6686, W none, N1-N6 folded in v1.0); v1.0 sign pending | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
+| claude panel seat (`hand-sat-c002-refactor-round-14-claude-panel-seat`, live as c-917@sat) | claude | panel | v1.0 `4891e4598` (v0.1 `75d0f5fff`) | PASS on both (v0.1 msg 6c6b6686, N1-N6 folded in v1.0; v1.0 msg fd10cc80), W none | seat file `refactor-round-14-20261128/seat-claude.md`; same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
 
 No row lane starts before the panel signs the plan sha and its review line passes
 `do_spl_review_line_check` (rc 0), confirmed by the dispatch lease holder.

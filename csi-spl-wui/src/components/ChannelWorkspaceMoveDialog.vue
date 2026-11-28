@@ -216,8 +216,12 @@ async function confirm() {
   try {
     const a = await api.channelWorkspaceMoveConfirm(props.channelId, body())
     const moveId = String(a?.move_id || '')
-    confirmed.set(props.channelId, { moveId, topic: String(a?.topic || '') })
     busy.value = false
+    if (!moveId) {
+      error.value = hubCopy(a)
+      return
+    }
+    confirmed.set(props.channelId, { moveId, topic: String(a?.topic || '') })
     await showStatus(moveId, String(a?.topic || ''))
   } catch (e) {
     busy.value = false
@@ -236,7 +240,9 @@ async function confirmRefused(e: unknown) {
   }
   const open = openMoveId(e)
   if (open) {
-    await showStatus(open, '')
+    /* the 409 names no topic: this page's own click of that move knows it */
+    const mine = confirmed.get(props.channelId)
+    await showStatus(open, mine?.moveId === open ? mine.topic : '')
     return
   }
   error.value = hubCopy(e)
@@ -249,10 +255,13 @@ async function showStatus(moveId: string, topic: string) {
   if (topic) void topicLink(topic)
   try {
     status.value = await api.channelMoveStatus(moveId)
-  } catch {
+  } catch (e) {
     /* T17's route reads the journal in the page's workspace; from <SRC> a
-       journal kept in <DST> answers 404 unknown_move (spec 169 9.x, open) */
-    statusGone.value = true
+       journal kept in <DST> answers 404 unknown_move (spec 169 9.x, open);
+       any other failure (5xx, network) is an error, not that case */
+    const code = (e && typeof e === 'object' && 'status' in e) ? Number((e as { status?: unknown }).status) : 0
+    if (code === 404) statusGone.value = true
+    else error.value = hubCopy(e)
   }
 }
 

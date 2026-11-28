@@ -4790,7 +4790,7 @@
       "traces": "Kanał znajduje się w {dst}, ale {src} nadal zawiera ślady.",
       "moved": "Kanał został przeniesiony."
     },
-    "rerun": "Przesunięcie zostanie automatycznie ponowione.",
+    "rerun": "Operator floty ponownie uruchamia przeniesienie.",
     "proof_row": "{name}: {n}",
     "open_channel": "Otwórz kanał w {dst}",
     "open_topic": "Otwórz temat ruchu",

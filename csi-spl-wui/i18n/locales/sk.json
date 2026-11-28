@@ -4790,7 +4790,7 @@
       "traces": "Kanál je v {dst}, ale {src} stále obsahuje stopy.",
       "moved": "Kanál bol presunutý."
     },
-    "rerun": "Presun sa automaticky zopakuje.",
+    "rerun": "Operátor flotily spustí presun znova.",
     "proof_row": "{name}: {n}",
     "open_channel": "Otvoriť kanál v {dst}",
     "open_topic": "Otvoriť tému o presune",

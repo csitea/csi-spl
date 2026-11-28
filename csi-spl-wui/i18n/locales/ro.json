@@ -4790,7 +4790,7 @@
       "traces": "Canalul este în {dst}, dar {src} încă păstrează urme.",
       "moved": "Canalul a fost mutat."
     },
-    "rerun": "Mutarea va fi încercată din nou automat.",
+    "rerun": "Un operator al flotei rulează din nou mutarea.",
     "proof_row": "{name}: {n}",
     "open_channel": "Deschide canalul în {dst}",
     "open_topic": "Deschide subiectul mutării",

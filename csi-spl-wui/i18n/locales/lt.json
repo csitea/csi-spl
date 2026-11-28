@@ -4790,7 +4790,7 @@
       "traces": "Kanalas yra {dst}, bet {src} vis dar turi pėdsakų.",
       "moved": "Kanalas buvo perkeltas."
     },
-    "rerun": "Perkėlimas bus bandytas dar kartą automatiškai.",
+    "rerun": "Laivyno operatorius perkėlimą paleidžia iš naujo.",
     "proof_row": "{name}: {n}",
     "open_channel": "Atidarykite kanalą {dst} faile",
     "open_topic": "Atidaryti perkėlimo temą",

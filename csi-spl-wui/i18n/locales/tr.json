@@ -4790,7 +4790,7 @@
       "traces": "Kanal {dst} konumunda, ancak {src} hâlâ izleri barındırıyor.",
       "moved": "Kanal taşındı."
     },
-    "rerun": "Hareket otomatik olarak tekrar denenecektir.",
+    "rerun": "Filonun bir operatörü taşımayı yeniden çalıştırır.",
     "proof_row": "{name}: {n}",
     "open_channel": "{dst} dizinindeki kanalı açın.",
     "open_topic": "Taşınma konusunu açın",

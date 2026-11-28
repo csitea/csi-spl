@@ -4790,7 +4790,7 @@
       "traces": "Kanal asub kaustas {dst}, aga {src} sisaldab endiselt jälgi.",
       "moved": "Kanal on teisaldatud."
     },
-    "rerun": "Liigutust proovitakse automaatselt uuesti.",
+    "rerun": "Laevastiku operaator käivitab teisalduse uuesti.",
     "proof_row": "{name}: {n}",
     "open_channel": "Ava kanal {dst} -s",
     "open_topic": "Ava kolimise teema",

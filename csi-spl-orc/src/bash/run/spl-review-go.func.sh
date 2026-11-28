@@ -717,8 +717,10 @@ _spl_review_go_unplaced() {
 # where a `live` right before `tmux` does not count when never / not / no
 # stands 0..4 plain words (none a target word, no punctuation) before it
 # (`never the box's live tmux server`); the read-only migration-number claim
-# `DRY_RUN=0 ./run -a do_rdb_migration_next` (a git ref, no prd write; a
-# chained `&& ENV=prd ...` on the line still holds); and the exact backticked `DRY_RUN=0` when one of three literal test
+# `DRY_RUN=0 ./run -a do_rdb_migration_next` as the whole `./run` (a git
+# ref, no prd write; a second `-a` or any other argument still holds, as
+# does a chained `&& ENV=prd ...`); and the exact backticked `DRY_RUN=0`
+# when one of three literal test
 # descriptions follows it, `ORDERED_BY`, install `ok_msg` or
 # install/check/remove lifecycle, then check / test / case, and neither its
 # line (its own cell, in a markdown table of 4 or more columns) nor the
@@ -775,7 +777,7 @@ HUNK = re.compile(r"(?i)\bapply(?=(?:[^\S\n]+[A-Za-z0-9._,'\u2019-]+){0,4}[^\S\n
 CMD = re.compile(r"(?i)(?:\./run|&&|-a\s+do_|--(?:prd|prod)\b|\b(?:terraform|gcloud)\b|(?<!\.)\b(?:make|sudo|python[0-9]*|bash|sh|perl|node|psql|kubectl|docker|curl|ssh|cd)\s|\bdo_(?:provision|tf_|gcp_|spl_desk_up|spl_issue_|spl_topic_|spl_private_|spl_tenant_))")
 DRY = re.compile(r"(?<!`)`DRY_RUN=0`(?!`)(?=[^\S\n]+(?:`ORDERED_BY`|install[^\S\n]+`ok_msg`|install/check/remove[^\S\n]+lifecycle)[^\S\n]+(?i:checks?|tests?|cases?)\b)")
 NEG_LIVE_TMUX = re.compile(r"(?i)(\b(?:never|not|no)\b(?:[^\S\n]+(?!(?:prd|prod|production|dev|live|database|db|schema|sql|migrations?|steps?|terraform|tf|tfvars|gcp|cloud|iam|billing|infra|provision)\b)[\w'\u2019-]+){0,4}?)[^\S\n]+live(?=[^\S\n]+tmux\b)")
-RDB = re.compile(r"\bDRY_RUN=0(?=[^\S\n]+\./run[^\S\n]+-a[^\S\n]+do_rdb_migration_next\b)")
+RDB = re.compile(r"\bDRY_RUN=0(?=[^\S\n]+\./run[^\S\n]+-a[^\S\n]+do_rdb_migration_next\b[^\S\n]*(?:`|&&|\|\||;|[.,]?[^\S\n]*$|[.,][^\S\n]))")
 ls = txt.split("\n")
 for i, l in enumerate(ls):
     if HUNK.search(l) and not TGT.search(NEG_LIVE_TMUX.sub(r"\1", l)):

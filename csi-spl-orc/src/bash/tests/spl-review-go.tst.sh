@@ -1531,7 +1531,8 @@ SHA="$old" && "${G[@]}" -C "$T/repo" push -q -f origin "$SHA:refs/heads/review/c
 
 # --- 37. owner-go false holds and C4 headings / rc suffixes (b53-01) -----------------------------------
 # The probes are rc01-b53.sh's (bug-round-53-plan.md section 4.1): 7 red
-# probes held (or dropped a test) on 3308d118f; the 11 controls must hold.
+# probes held (or dropped a test) on 3308d118f; the 11 controls must hold,
+# and so must R7 W1's: a second `-a` after do_rdb_migration_next.
 # r37 <og|c4> <name> <want rc> <body> [token]: one probe, run on the function
 r37() {
   local bf="$T/c37-$2.md" out got=0
@@ -1557,6 +1558,9 @@ r37 c4 red_n1_c4_never_headings 0 $'# Lane brief: b53-01\n## Do\n1. Run `bash ow
 r37 c4 red_n2_c4_non_br_rc_suffix 1 $'# Lane brief: b52-02-orc-x\n## Do\n1. Run `bash own.tst.sh`, `bash rc01-p19.sh <sha>`, and `bash rc01-foo.sh <sha>`.' "rc01-p19.sh, rc01-foo.sh"
 r37 og ctrl_real_dry_run_holds 1 $'# Lane brief: x\n## Do\n1. Run `DRY_RUN=0 ./run -a do_spl_desk_up`.' "'DRY_RUN=0'"
 r37 og ctrl_rdb_plus_prd_holds 1 $'# Lane brief: x\n## Do\n1. Run `DRY_RUN=0 ./run -a do_rdb_migration_next && ENV=prd ./run -a do_tf_apply`.' "'ENV=prd'"
+r37 og ctrl_rdb_multi_action_holds 1 $'# Lane brief: x\n## Do\n1. Run `cd csi-spl-orc && IDENTITY_RESTORE_IDS=c-123 DRY_RUN=0 ./run -a do_rdb_migration_next -a do_spl_agent_identity_restore`.' "'DRY_RUN=0'"
+r37 og ctrl_rdb_extra_arg_holds 1 $'# Lane brief: x\n## Do\n1. Run `DRY_RUN=0 ./run -a do_rdb_migration_next --actions do_gcp_project_delete`.' "'DRY_RUN=0'"
+r37 og red_rdb_migration_next_eol 0 $'# Lane brief: x\n## Do\n1. Claim the number: DRY_RUN=0 ./run -a do_rdb_migration_next'
 r37 og ctrl_hunk_live_same_sentence_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks to the live prd database.'
 r37 og ctrl_hunk_later_sentence_live_prd_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks. Then roll them out on the live prd database.'
 r37 og ctrl_hunk_eg_live_prd_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks to e.g. the live prd database.'

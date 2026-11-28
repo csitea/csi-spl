@@ -4747,5 +4747,61 @@
     "refused": "{topic} konusuna gönderilmedi: {reason}",
     "retry": "Tekrar dene",
     "none": "Konu seçilmedi"
+  },
+  "channel_move": {
+    "title": "#{name} başka bir çalışma alanına taşı",
+    "target": "Hedef çalışma alanı",
+    "target_pick": "Bir çalışma alanı seçin",
+    "no_targets": "Bu kanal, başka hiçbir çalışma alanına taşınamaz.",
+    "counts": "Kanalla birlikte taşınanlar",
+    "count_row": "{table}: {n}",
+    "members_lost": "Orada üye olmayan kişiler",
+    "keep": "{who} yu {dst} ye ekle",
+    "mentions": "Bağlantılar yerinde bırakıldı.",
+    "shared_files": "Burada kalan dosyalar da dahil",
+    "kept": "Taşınma sonrasında kopyalar saklandı.",
+    "kept_row": "{store}: {until} tarihine kadar saklanır",
+    "next": "Sonraki adım",
+    "back": "Geri",
+    "recheck": "Hareketi tekrar kontrol edin.",
+    "blocked_intro": "Kanal henüz {dst} adresine taşınamıyor. Aşağıdaki her satırı temizleyin, ardından tekrar kontrol edin.",
+    "leave_hours": "{who} grubunun saat satırlarını bu çalışma alanında bırakın.",
+    "clears": {
+      "seat": "O temsilciye hedef çalışma alanında bir masa verin veya onu kanaldan çıkarın.",
+      "pin": "Bu makineyi hedef çalışma alanına sabitleyin.",
+      "shared": "Burada kalan bir şey de bu eşyayı kullanır: önce sahibi karar verir.",
+      "hours": "Kişiyi hedef çalışma alanına ekleyin veya saat bilgilerini burada bırakın.",
+      "name": "Hedef çalışma alanında, arşivlenmiş olanlar da dahil olmak üzere, bu isimde bir kanal mevcuttur.",
+      "orchestrator": "Hedef çalışma alanında öncelikle bir orkestratör koltuğuna ihtiyaç duyulmaktadır.",
+      "quota": "Kanalın dosyaları, hedef çalışma alanının dosya kotasını karşılamıyor.",
+      "other": "Taşınmadan önce bunu temizleyin."
+    },
+    "confirm_body": "#{name} öğesini {dst} konumuna taşı: konuları, mesajları, dosyaları ve sorunları da onunla birlikte taşınacak.",
+    "confirm_lost": "Bu kişiler erişimlerini kaybediyor: {who}",
+    "no_undo": "Satırlar taşındıktan sonra bu işlem geri alınamaz.",
+    "go": "Kanalı {dst} konumuna taşıyın.",
+    "busy": "Transferi doğruluyoruz…",
+    "state": {
+      "waiting": "Taşınmanın başlamasını bekliyoruz. Henüz hiçbir şey hareket etmedi.",
+      "stuck": "Taşıma işleminin başlamasını bekliyorum. Hiçbir şey hareket etmedi. 15 dakika oldu, hala başlamadı.",
+      "running": "Hareket devam ediyor. Bitmeden önce hiçbir şey tamamlanmış olarak gösterilmiyor.",
+      "not_moved": "Kanal yeri değiştirilmedi. İçeriğinde de hiçbir şey değişmedi.",
+      "cleanup_failed": "Kanal {dst} konumunda, temizleme işlemi tamamlanmadı.",
+      "traces": "Kanal {dst} konumunda, ancak {src} hâlâ izleri barındırıyor.",
+      "moved": "Kanal taşındı."
+    },
+    "rerun": "Hareket otomatik olarak tekrar denenecektir.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "{dst} dizinindeki kanalı açın.",
+    "open_topic": "Taşınma konusunu açın",
+    "status_gone": "Bu çalışma alanından hamlenin durumu okunamıyor. Operatör çalışma alanındaki ilgili konu, her değişikliği gösteriyor.",
+    "error": {
+      "channel_move_owner": "Kanalı yalnızca operatör çalışma alanının sahibi hareket ettirebilir.",
+      "go_required": "Sunucu onayı kabul etmedi. Hiçbir şey taşınmadı.",
+      "move_refused": "Sunucu taşıma işlemini başlatmayı reddetti. Hiçbir şey taşınmadı.",
+      "unknown_tenant": "Bu kanalı o çalışma alanına taşıyamazsınız.",
+      "bad_channel": "Bu kanal taşınamaz.",
+      "fallback": "Sunucu yanıt vermedi. Hiçbir şey taşınmadı; tekrar deneyin."
+    }
   }
 }

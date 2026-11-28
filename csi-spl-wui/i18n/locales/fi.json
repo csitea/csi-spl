@@ -4747,5 +4747,61 @@
     "refused": "Ei lähetetty aiheeseen {topic}: {reason}",
     "retry": "Yritä uudelleen",
     "none": "Ei valittua aihetta"
+  },
+  "channel_move": {
+    "title": "Siirrä #{name} toiseen työtilaan",
+    "target": "Kohdetyötila",
+    "target_pick": "Valitse työtila",
+    "no_targets": "Et ole minkään muun työtilan jäsen, johon tämä kanava voi siirtyä.",
+    "counts": "Mitä siirtyy kanavan mukana",
+    "count_row": "{table}: {n}",
+    "members_lost": "Ihmiset, jotka eivät ole siellä jäseniä",
+    "keep": "Lisää {who} työtilaan {dst}",
+    "mentions": "Linkit jätetty paikoilleen",
+    "shared_files": "Tiedostot, jotka pysyvät myös täällä",
+    "kept": "Muuton jälkeen säilytetyt kopiot",
+    "kept_row": "{store}: säilytetään {until}",
+    "next": "Seuraava vaihe",
+    "back": "Takaisin",
+    "recheck": "Tarkista siirto uudelleen",
+    "blocked_intro": "Kanavaa ei voi vielä siirtää työtilaan {dst}. Korjaa jokainen alla oleva rivi ja tarkista sitten uudelleen.",
+    "leave_hours": "Jätä {who}:n tuntirivit tähän työtilaan",
+    "clears": {
+      "seat": "Anna kyseiselle agentille työpöytä kohdetyötilassa tai poista se kanavasta.",
+      "pin": "Kiinnitä kyseinen kone kohdetyötilaan.",
+      "shared": "Jokin, joka jää tänne, käyttää myös tätä esinettä: omistaja päättää sen ensin.",
+      "hours": "Lisää henkilö kohdetyötilaan tai jätä hänen tuntirivinsä tähän.",
+      "name": "Kohdetyötilassa on jo tämän niminen kanava, arkistoidut kanavat mukaan lukien.",
+      "orchestrator": "Kohdetyötila tarvitsee ensin orkestroijan paikan.",
+      "quota": "Kanavan tiedostot eivät mahdu kohdetyötilan tiedostokiintiöön.",
+      "other": "Selvitä tämä ennen muuttoa."
+    },
+    "confirm_body": "Siirrä #{name} kohteeseen {dst}: sen aiheet, viestit, tiedostot ja ongelmat siirtyvät sen mukana.",
+    "confirm_lost": "Nämä henkilöt menettävät käyttöoikeuden: {who}",
+    "no_undo": "Tätä ei voi perua rivien siirtämisen jälkeen.",
+    "go": "Siirrä kanava työtilaan {dst}",
+    "busy": "Vahvistetaan siirtoa…",
+    "state": {
+      "waiting": "Odotan muuton alkamista. Mikään ei ole liikkunut.",
+      "stuck": "Odotan muuton alkamista. Mikään ei ole liikkunut. Se ei ole käynnistynyt 15 minuuttiin.",
+      "running": "Siirto on käynnissä. Mitään ei näytetä valmiina ennen sen päättymistä.",
+      "not_moved": "Kanavaa ei siirretty. Mikään siinä ei muuttunut.",
+      "cleanup_failed": "Kanava on nyt työtilassa {dst}, mutta siivous ei valmistunut.",
+      "traces": "Kanava on nyt työtilassa {dst}, mutta {src} sisältää yhä jälkiä.",
+      "moved": "Kanava on siirretty."
+    },
+    "rerun": "Siirtoa yritetään automaattisesti uudelleen.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Avaa kanava työtilassa {dst}",
+    "open_topic": "Avaa muuton aihe",
+    "status_gone": "Siirron tilaa ei voida lukea tästä työtilasta. Sen aihe operaattorityötilassa näyttää jokaisen muutoksen.",
+    "error": {
+      "channel_move_owner": "Vain operaattorin työtilan omistaja voi siirtää kanavaa.",
+      "go_required": "Palvelin ei hyväksynyt vahvistusta. Mitään ei siirretty.",
+      "move_refused": "Palvelin kieltäytyi aloittamasta siirtoa. Mitään ei siirretty.",
+      "unknown_tenant": "Et voi siirtää tätä kanavaa tuohon työtilaan.",
+      "bad_channel": "Tätä kanavaa ei voi siirtää.",
+      "fallback": "Palvelin ei vastannut. Mitään ei siirretty; yritä uudelleen."
+    }
   }
 }

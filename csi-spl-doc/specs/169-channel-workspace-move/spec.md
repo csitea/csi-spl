@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.36 (2026-11-27). Status: **Draft** (part built: section 8.4's hub
+Version: v0.37 (2026-11-28). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -152,6 +152,10 @@ v0.35 ticks row T13 (SPL-5845): the second dev run, after T13b and T13c, passed.
 P4 4.46 s, P7 8.53 s ([dev-rehearsal.md](dev-rehearsal.md) section 8). Row R3 adds it.
 v0.36 builds row T17 (SPL-6682): the stored refusal, `GET /v1/channel-moves/{move_id}`, the
 status line and the `#alerts` line (8.5.6, "Built (T17)").
+v0.37 builds rows T19 and T20 (SPL-6730): the dialog's three screens and the stuck table,
+the menu item on (8.5.6, "Built (T19)"), the strings checked with Google Cloud Translation;
+open item T17b: the status route reads the page's workspace, so the dialog on `<SRC>`'s
+page cannot read a journal kept in `<DST>`.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -669,7 +673,7 @@ finds nothing, and no row of section 10 asked for it before this version. Today 
 only door is the shell action, called as the env's service account.
 
 Built: the probe and the plan of 8.5.3, with 8.5.2's owner test and targets and 8.5.4's
-`.blocked` (T14), and the confirm of 8.5.5 items 1 and 2 (T15), and the menu item with its probe of 8.5.1 and 8.5.2 (T18, off until T19's dialog lands). Not built yet: the rest of this section. The owner decided Q9, Q10 and Q11 (11.1,
+`.blocked` (T14), and the confirm of 8.5.5 items 1 and 2 (T15), and the menu item with its probe of 8.5.1 and 8.5.2 (T18), the stored refusal, the status route and line of 8.5.6 (T17), and the dialog of 8.5.4 and the stuck table of 8.5.6 (T19). Not built yet: the box's pick-up of 8.5.5 item 3 (T16), and T17b (8.5.6). The owner decided Q9, Q10 and Q11 (11.1,
 msg a271ca2c): A to each, the answers the text below was written for.
 
 #### 8.5.1 Where it sits
@@ -854,6 +858,43 @@ Built (T17, `api/hub/channel_move_status.go`):
   workspace's open journals whose only step is a P1 done 15 minutes ago). It names the move id
   and links its topic, never the channel.
 
+Built (T19, `csi-spl-wui/src/components/ChannelWorkspaceMoveDialog.vue`, lazy):
+
+- **Where.** `ChannelSidebar.vue` mounts `LazyChannelWorkspaceMoveDialog` on T18's
+  `workspaceMoveTarget`; `WORKSPACE_MOVE_BUILT` is now `true`, so the item shows after the
+  probe answered `allowed`. The dialog stays off the initial script (Nuxt's `Lazy` prefix).
+- **The three screens** (8.5.4). Plan: the target (one target is picked for the person), the
+  counts, the mentions, the shared files, the kept list, a `keep` checkbox per
+  `.members_lost`. Blocked: each `.blocked` line in the hub's words with what clears it
+  (`stopKind` in `src/utils/channel-workspace-move.mjs`: seat, pin, shared, hours, name,
+  orchestrator, quota, other); an hours stop names its member and has "leave these rows"
+  (`leave_hours`), then the plan is asked again. Confirm: the counts, who loses access, "cannot
+  be undone", one button enabled only with nothing blocked. `keep_emails` is sent empty: the
+  plan's answer lists no invite emails, so there is nothing to offer yet.
+- **The confirm** (8.5.5) posts `{dst, keep, keep_emails, leave_hours}`. 409 `move_blocked`
+  asks the plan again and shows the blocked screen; 409 `move_open` reads the move id from its
+  detail and shows that move's status; any other refusal stays on the confirm with a message.
+  A confirmed move is kept per channel for the page, so reopening the dialog shows its status,
+  never a second confirm.
+- **The stuck table** (8.5.6) reads `GET /v1/channel-moves/{move_id}` and shows its `state`:
+  `waiting` (and `stuck` once `stuck` is true), `running`, `not_moved` with the reason,
+  `cleanup_failed` with the reason and the link, `traces` with each proof's name and count,
+  `moved` with the link and the kept list. Only `moved` reads as moved. No retry, no cancel.
+- **Open item T17b.** The route takes its workspace from the page's Origin (`humanTenant`,
+  `internal/hub/origin_tenant.go`) and reads `ChannelMoveByID` there, but the journal is kept
+  in `<DST>`; the dialog runs on `<SRC>`'s page, so on a tenant-host deploy the read answers
+  404 `unknown_move`. The dialog then says the status cannot be read here and links the GO's
+  topic in the operator workspace (the apex tenant), where the status line is posted. T17b
+  (c-001's ruling 8f44b2ff, a hub row in T17's files): `GET /v1/channel-moves/{move_id}?dst=<slug>`;
+  the dialog passes `?dst=<the picked DST>` once T17b is live.
+- **The mock** answers these routes only for an e2e that wrote its fixture
+  (`spool.mock.channel_move`); without it the probe offers no move, as before.
+- Tests: `tests/unit/channel-workspace-move.test.mjs` (the screens, the stop kinds, the
+  table's rows, the mock, the client calls); `tests/e2e/channel-workspace-move.test.mjs`
+  (C35's browser half, 1280x800 and a 390 px phone: the item after the probe, plan, blocked
+  with the hours choice, confirm, the GO body sent, T17's reason in the table on desktop, the
+  404 path with the topic link on the phone).
+
 ## 9. Cases (each lands with its red control)
 
 | # | case | red control |
@@ -939,9 +980,9 @@ Each row is one small task; files named are where it lands.
 | T15 | Hub: the confirm (8.5.5 items 1, 2): form and answer in a new topic of the operator workspace, then P1, the detail kept for P2. Tests C32, C33 | built (SPL-5846): `api/hub/channel_move_confirm.go` (`POST /v1/channels/{channel}/workspace-move`, the door and the body of T14's plan; 409 `move_blocked` / `move_open` and 501 write nothing; the form and the person's `Answer: GO` in a new `#lobby` topic of the operator workspace, then `channelMoveGo`, then P1 with that answer as the journal's GO; answers `{move_id, topic}`), `api/hub/channel_move_browser.go` (`channelMoveBrowserBlocked`, the plan route's `.blocked` shared with the confirm), `api/hub/channel_move_steps.go` (`p1` keeps `detail.inputs`), `openapi.json`; tests `api/hub/channel_move_confirm_test.go` (C32 on Postgres: the GO, the journal, P1's detail, the GO on the operator route and its replay for another dst refused, a second click; a blocked confirm writes nothing. C33: `step`, `mark` and `go_msg_id` in the body, the operator workspace's admin, the service account's token, the member session on the operator route, Memory's 501; W1: 24 clicks at once, W2: a P1 refusal deletes its GO, W3: a P1 failing after its journal row keeps its GO), `api/store/channel_move_journal_postgres.go` (`LockChannelMove`; `OpenChannelMove` reads and writes under the channel's transaction lock), `api/store/channel_move_journal_test.go` (16 P1s at once, ten rounds) |
 | T16 | Shell: `do_spl_channel_move_pickup` and the operator op `open` (8.5.5 item 3); `do_spl_channel_workspace_move` sends the journal's `detail` at P1 and P2; a P1 done with no `detail.inputs` (8.5.5 item 2, R7 c-250 N4) is handled, not sent as `{}`. Test C34 | `orc/run/spl-channel-move-pickup.func.sh`, `orc/run/spl-channel-workspace-move.func.sh`, their tests; the op in `api/hub/channel_move.go` |
 | T17 | Hub: the stored refusal and `GET /v1/channel-moves/{move_id}`, the status line in the GO's topic, the `#alerts` line (8.5.6). Test C35's store and hub half | built (SPL-6682): `api/hub/channel_move_status.go` (the route, the state, the line and the alert; `SweepChannelMoves` on the retention sweep), `api/hub/channel_move_steps.go` (`channelMoveRecord` before every operator answer; P7 keeps `.kept`), `api/store/channel_move_journal*.go` (`ChannelMoveStatuses`), `openapi.json`; tests `api/hub/channel_move_status_test.go` (C35 hub half on Postgres: who reads, the wait's line and alert once, a refused P2 stored and posted once; each later row of the table from a seeded journal), `api/store/channel_move_journal_status_test.go` (C35 store half) |
-| T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | built (SPL-6684), off until T19: `src/utils/sidebar-row-menu.mjs` (`rowMenuItems` puts `move-workspace` after `properties` and before `archive-channel` when `workspaceMove`; `workspaceMoveMenu` offers it only on the probe's `allowed: true`, any other answer or a failed call hides it; `WORKSPACE_MOVE_BUILT = false` keeps the item and its probe off, T19 turns it on with its dialog), `src/components/SidebarRowMenu.vue` (the probe when a channel's menu opens, never at page load, not on a default channel; emits `moveWorkspace` with the targets), `ChannelSidebar.vue` (`askMoveChannel` sets `workspaceMoveTarget` for T19's lazy dialog), `src/utils/spool-client-lazy.mjs` (`channelWorkspaceMoveProbe`, `GET /v1/channels/{channel}/workspace-move`; the mock offers no move), key `sidebar.row_menu.move_to_workspace` in every locale (`do_spl_lang_review_gct`); test `tests/unit/sidebar-row-menu.test.mjs` |
-| T19 | WUI: the dialog's three screens and the stuck table (8.5.4, 8.5.6), lazy, proven in Chrome on phone and desktop. Test C35's browser half | `src/components/ChannelWorkspaceMoveDialog.vue`, `tests/e2e/channel-workspace-move.test.mjs`, `i18n/locales/*`, a help page |
-| T20 | agy's final language review of T18's and T19's strings in every locale, before they ship (the language rule) | `i18n/locales/*` |
+| T18 | WUI: the menu item and its probe (8.5.1, 8.5.2), keys in every locale | built (SPL-6684), on since T19: `src/utils/sidebar-row-menu.mjs` (`rowMenuItems` puts `move-workspace` after `properties` and before `archive-channel` when `workspaceMove`; `workspaceMoveMenu` offers it only on the probe's `allowed: true`, any other answer or a failed call hides it; `WORKSPACE_MOVE_BUILT` kept the item and its probe off until T19 turned it on with its dialog), `src/components/SidebarRowMenu.vue` (the probe when a channel's menu opens, never at page load, not on a default channel; emits `moveWorkspace` with the targets), `ChannelSidebar.vue` (`askMoveChannel` sets `workspaceMoveTarget` for T19's lazy dialog), `src/utils/spool-client-lazy.mjs` (`channelWorkspaceMoveProbe`, `GET /v1/channels/{channel}/workspace-move`; the mock offers no move), key `sidebar.row_menu.move_to_workspace` in every locale (`do_spl_lang_review_gct`); test `tests/unit/sidebar-row-menu.test.mjs` |
+| T19 | WUI: the dialog's three screens and the stuck table (8.5.4, 8.5.6), lazy, proven in Chrome on phone and desktop. Test C35's browser half | built (SPL-6730): `src/components/ChannelWorkspaceMoveDialog.vue` (lazy), `src/utils/channel-workspace-move.mjs` (screens, stop kinds, the table's rows, the e2e mock), `src/utils/spool-client-lazy.mjs` (`channelWorkspaceMovePlan`, `channelWorkspaceMoveConfirm`, `channelMoveStatus`), `ChannelSidebar.vue` (mounts it), `WORKSPACE_MOVE_BUILT = true`, keys `channel_move.*` in every locale, help `channels-and-direct-messages.md` section 2.5; tests `tests/unit/channel-workspace-move.test.mjs`, `tests/e2e/channel-workspace-move.test.mjs` (C35 browser half). Open: T17b (8.5.6) |
+| T20 | The language check of T18's and T19's strings in every locale, before they ship (the language rule: Google Cloud Translation since owner msg 36b3ff7f; agy optional) | T19's strings: done in T19's change by `do_spl_lang_review_gct`, its reports in `csi-spl-wui/i18n/lang-review/` (SPL-6730). T18's key: its own run (SPL-6684) |
 
 Note under row T11 (T8c, R7 c-666 N1): P7's `left in <SRC>` proof is a move's only; a copy (T11) runs only `missing in <DST>`.
 

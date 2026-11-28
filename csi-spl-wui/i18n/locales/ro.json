@@ -4747,5 +4747,61 @@
     "refused": "Nu a fost trimis către {topic}: {reason}",
     "retry": "Reîncercați",
     "none": "Niciun subiect selectat"
+  },
+  "channel_move": {
+    "title": "Mută #{name} în alt spațiu de lucru",
+    "target": "Spațiul de lucru țintă",
+    "target_pick": "Alegeți un spațiu de lucru",
+    "no_targets": "Nu ești membru al niciunui alt spațiu de lucru în care acest canal se poate muta.",
+    "counts": "Ce se mută odată cu canalul",
+    "count_row": "{table}: {n}",
+    "members_lost": "Persoane care nu sunt membre acolo",
+    "keep": "Adaugă {who} la {dst}",
+    "mentions": "Legături lăsate la locul lor",
+    "shared_files": "Fișiere care rămân și aici",
+    "kept": "Copii păstrate după mutare",
+    "kept_row": "{store}: păstrat până la {until}",
+    "next": "Pasul următor",
+    "back": "Spate",
+    "recheck": "Verificați din nou mutarea",
+    "blocked_intro": "Canalul nu poate fi mutat încă la {dst}. Ștergeți fiecare linie de mai jos, apoi verificați din nou.",
+    "leave_hours": "Păstrați rândurile de ore pentru {who} în acest spațiu de lucru",
+    "clears": {
+      "seat": "Acordă-i agentului respectiv un birou în spațiul de lucru țintă sau elimină-l din canal.",
+      "pin": "Fixează acea mașină în spațiul de lucru țintă.",
+      "shared": "Ceva ce rămâne aici folosește și acest obiect: proprietarul decide primul.",
+      "hours": "Adăugați persoana în spațiul de lucru țintă sau lăsați rândurile cu orele acesteia aici.",
+      "name": "În spațiul de lucru țintă există un canal cu acest nume, inclusiv cele arhivate.",
+      "orchestrator": "Spațiul de lucru țintă are nevoie mai întâi de un loc de orchestrator.",
+      "quota": "Fișierele canalului nu se încadrează în cota de fișiere a spațiului de lucru țintă.",
+      "other": "Ștergeți asta înainte de mutare."
+    },
+    "confirm_body": "Mută #{name} la {dst}: subiectele, mesajele, fișierele și problemele sale vor fi mutate odată cu acesta.",
+    "confirm_lost": "Aceste persoane își pierd accesul: {who}",
+    "no_undo": "Această acțiune nu poate fi anulată odată ce rândurile au fost mutate.",
+    "go": "Mută canalul la {dst}",
+    "busy": "Confirmând mutarea…",
+    "state": {
+      "waiting": "Aștept să înceapă mutarea. Nu s-a mișcat nimic.",
+      "stuck": "Aștept să înceapă mutarea. Nu s-a mișcat nimic. Nu a început de 15 minute.",
+      "running": "Mutarea este în desfășurare. Nimic nu este afișat ca finalizat înainte de finalizare.",
+      "not_moved": "Canalul nu a fost mutat. Nimic în el nu s-a schimbat.",
+      "cleanup_failed": "Canalul este în {dst}, curățarea nu s-a finalizat.",
+      "traces": "Canalul este în {dst}, dar {src} încă păstrează urme.",
+      "moved": "Canalul a fost mutat."
+    },
+    "rerun": "Mutarea va fi încercată din nou automat.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Deschide canalul în {dst}",
+    "open_topic": "Deschide subiectul mutării",
+    "status_gone": "Starea mutării nu poate fi citită din acest spațiu de lucru. Subiectul său din spațiul de lucru al operatorului afișează fiecare modificare.",
+    "error": {
+      "channel_move_owner": "Doar proprietarul spațiului de lucru al operatorului mută un canal.",
+      "go_required": "Serverul nu a acceptat confirmarea. Nu s-a mutat nimic.",
+      "move_refused": "Serverul a refuzat să înceapă mutarea. Nimic nu a fost mutat.",
+      "unknown_tenant": "Acel spațiu de lucru nu este unul în care poți muta acest canal.",
+      "bad_channel": "Acest canal nu poate fi mutat.",
+      "fallback": "Serverul nu a răspuns. Nu s-a mutat nimic; încercați din nou."
+    }
   }
 }

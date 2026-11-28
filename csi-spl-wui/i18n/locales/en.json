@@ -4747,5 +4747,61 @@
     "refused": "Not sent to {topic}: {reason}",
     "retry": "Retry",
     "none": "No topic selected"
+  },
+  "channel_move": {
+    "title": "Move #{name} to another workspace",
+    "target": "Target workspace",
+    "target_pick": "Pick a workspace",
+    "no_targets": "You are a member of no other workspace this channel can move to.",
+    "counts": "What goes with the channel",
+    "count_row": "{table}: {n}",
+    "members_lost": "People who are not members there",
+    "keep": "Add {who} to {dst}",
+    "mentions": "Links left in place",
+    "shared_files": "Files that stay here as well",
+    "kept": "Copies kept after the move",
+    "kept_row": "{store}: kept until {until}",
+    "next": "Next step",
+    "back": "Back",
+    "recheck": "Check the move again",
+    "blocked_intro": "The channel cannot move to {dst} yet. Clear each line below, then check again.",
+    "leave_hours": "Leave the hours rows of {who} in this workspace",
+    "clears": {
+      "seat": "Give that agent a desk in the target workspace, or remove it from the channel.",
+      "pin": "Pin that machine in the target workspace.",
+      "shared": "Something that stays here uses this item too: the owner decides it first.",
+      "hours": "Add the person to the target workspace, or leave their hours rows here.",
+      "name": "A channel with this name exists in the target workspace, archived ones included.",
+      "orchestrator": "The target workspace needs an orchestrator seat first.",
+      "quota": "The channel's files do not fit the target workspace's file quota.",
+      "other": "Clear this before the move."
+    },
+    "confirm_body": "Move #{name} to {dst}: its topics, messages, files and issues go with it.",
+    "confirm_lost": "These people lose access: {who}",
+    "no_undo": "This cannot be undone once the rows have moved.",
+    "go": "Move the channel to {dst}",
+    "busy": "Confirming the move…",
+    "state": {
+      "waiting": "Waiting for the move to start. Nothing has moved.",
+      "stuck": "Waiting for the move to start. Nothing has moved. It has not started for 15 minutes.",
+      "running": "The move is running. Nothing is shown as done before it ends.",
+      "not_moved": "The channel was not moved. Nothing in it changed.",
+      "cleanup_failed": "The channel is in {dst}, the clean-up did not finish.",
+      "traces": "The channel is in {dst}, but {src} still holds traces.",
+      "moved": "The channel has been moved."
+    },
+    "rerun": "The move will be tried again automatically.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Open the channel in {dst}",
+    "open_topic": "Open the move's topic",
+    "status_gone": "The move's status cannot be read from this workspace. Its topic in the operator workspace shows each change.",
+    "error": {
+      "channel_move_owner": "Only the owner of the operator workspace moves a channel.",
+      "go_required": "The server did not accept the confirmation. Nothing was moved.",
+      "move_refused": "The server refused to start the move. Nothing was moved.",
+      "unknown_tenant": "That workspace is not one you can move this channel to.",
+      "bad_channel": "This channel cannot be moved.",
+      "fallback": "The server did not answer. Nothing was moved; try again."
+    }
   }
 }

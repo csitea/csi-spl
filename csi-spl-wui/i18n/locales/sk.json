@@ -4747,5 +4747,61 @@
     "refused": "Neodoslané na {topic}: {reason}",
     "retry": "Skúsiť znova",
     "none": "Žiadna vybratá téma"
+  },
+  "channel_move": {
+    "title": "Presunúť #{name} do iného pracovného priestoru",
+    "target": "Cieľový pracovný priestor",
+    "target_pick": "Vyberte si pracovný priestor",
+    "no_targets": "Nie ste členom žiadneho iného pracovného priestoru, do ktorého sa tento kanál nedá presunúť.",
+    "counts": "Čo ide s kanálom",
+    "count_row": "{table}: {n}",
+    "members_lost": "Ľudia, ktorí tam nie sú členmi",
+    "keep": "Pridať {who} do {dst}",
+    "mentions": "Odkazy ponechané na mieste",
+    "shared_files": "Súbory, ktoré tu tiež zostávajú",
+    "kept": "Kópie uchovávané po presťahovaní",
+    "kept_row": "{store}: uchovávané do {until}",
+    "next": "Ďalší krok",
+    "back": "Späť",
+    "recheck": "Znova skontrolujte pohyb",
+    "blocked_intro": "Kanál sa zatiaľ nemôže presunúť na {dst}. Vymažte všetky riadky nižšie a potom to znova skontrolujte.",
+    "leave_hours": "Ponechajte riadky s hodinami pre {who} v tomto pracovnom priestore",
+    "clears": {
+      "seat": "Prideľte tomuto agentovi stôl v cieľovom pracovnom priestore alebo ho odstráňte z kanála.",
+      "pin": "Pripnite daný počítač v cieľovom pracovnom priestore.",
+      "shared": "Niečo, čo tu zostane, túto položku tiež používa: majiteľ o nej rozhodne ako prvý.",
+      "hours": "Pridajte osobu do cieľového pracovného priestoru alebo tu ponechajte riadky s jej hodinami.",
+      "name": "Kanál s týmto názvom existuje v cieľovom pracovnom priestore, vrátane archivovaných.",
+      "orchestrator": "Cieľový pracovný priestor najprv potrebuje miesto orchestrátora.",
+      "quota": "Súbory kanála nezodpovedajú kvóte súborov cieľového pracovného priestoru.",
+      "other": "Pred presťahovaním si to vyjasnite."
+    },
+    "confirm_body": "Presunúť #{name} do {dst}: jeho témy, správy, súbory a problémy idú s ním.",
+    "confirm_lost": "Títo ľudia stratia prístup: {who}",
+    "no_undo": "Po presunutí riadkov sa to už nedá vrátiť späť.",
+    "go": "Presunúť kanál na {dst}",
+    "busy": "Potvrdzuje sa presun…",
+    "state": {
+      "waiting": "Čakám na začiatok sťahovania. Nič sa nepohlo.",
+      "stuck": "Čakám na začiatok sťahovania. Nič sa nepohlo. Nezačalo sa to už 15 minút.",
+      "running": "Presun prebieha. Pred jeho ukončením sa nič nezobrazuje ako dokončené.",
+      "not_moved": "Kanál nebol presunutý. Nič sa na ňom nezmenilo.",
+      "cleanup_failed": "Kanál je v stave {dst}, čistenie sa nedokončilo.",
+      "traces": "Kanál je v {dst}, ale {src} stále obsahuje stopy.",
+      "moved": "Kanál bol presunutý."
+    },
+    "rerun": "Presun sa automaticky zopakuje.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Otvoriť kanál v {dst}",
+    "open_topic": "Otvoriť tému o presune",
+    "status_gone": "Stav presunu nie je možné z tohto pracovného priestoru prečítať. Jeho téma v pracovnom priestore operátora zobrazuje každú zmenu.",
+    "error": {
+      "channel_move_owner": "Kanál môže presunúť iba vlastník pracovného priestoru operátora.",
+      "go_required": "Server neprijal potvrdenie. Nič nebolo presunuté.",
+      "move_refused": "Server odmietol spustiť presun. Nič nebolo presunuté.",
+      "unknown_tenant": "Do tohto pracovného priestoru nemôžete tento kanál presunúť.",
+      "bad_channel": "Tento kanál nie je možné presunúť.",
+      "fallback": "Server neodpovedal. Nič nebolo presunuté; skúste to znova."
+    }
   }
 }

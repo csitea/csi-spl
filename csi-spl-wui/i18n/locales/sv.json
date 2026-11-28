@@ -4747,5 +4747,61 @@
     "refused": "Inte skickat till {topic}: {reason}",
     "retry": "Försök igen",
     "none": "Inget ämne valt"
+  },
+  "channel_move": {
+    "title": "Flytta #{name} till en annan arbetsyta",
+    "target": "Målarbetsyta",
+    "target_pick": "Välj en arbetsyta",
+    "no_targets": "Du är inte medlem i någon annan arbetsyta som den här kanalen kan flytta till.",
+    "counts": "Vad som hör till kanalen",
+    "count_row": "{table}: {n}",
+    "members_lost": "Personer som inte är medlemmar där",
+    "keep": "Lägg till {who} till {dst}",
+    "mentions": "Länkar kvar på plats",
+    "shared_files": "Filer som också stannar kvar här",
+    "kept": "Kopior sparas efter flytten",
+    "kept_row": "{store}: sparas till {until}",
+    "next": "Nästa steg",
+    "back": "Tillbaka",
+    "recheck": "Kontrollera flytten igen",
+    "blocked_intro": "Kanalen kan inte flyttas till {dst} ännu. Rensa varje rad nedan och kontrollera sedan igen.",
+    "leave_hours": "Lämna timraderna för {who} i den här arbetsytan",
+    "clears": {
+      "seat": "Ge agenten ett skrivbord i målarbetsytan, eller ta bort den från kanalen.",
+      "pin": "Fäst den maskinen i målarbetsytan.",
+      "shared": "Något som stannar här använder även detta föremål: ägaren bestämmer det först.",
+      "hours": "Lägg till personen i målarbetsytan eller lämna deras timraderna här.",
+      "name": "En kanal med detta namn finns i målarbetsytan, inklusive arkiverade.",
+      "orchestrator": "Målarbetsytan behöver först en orkestrator-plats.",
+      "quota": "Kanalens filer passar inte målarbetsytans filkvot.",
+      "other": "Rensa detta innan flytten."
+    },
+    "confirm_body": "Flytta #{name} till {dst}: dess ämnen, meddelanden, filer och problem följer med.",
+    "confirm_lost": "Dessa personer förlorar åtkomst: {who}",
+    "no_undo": "Detta kan inte ångras när raderna har flyttats.",
+    "go": "Flytta kanalen till {dst}",
+    "busy": "Bekräftar flytten…",
+    "state": {
+      "waiting": "Väntar på att flytten ska börja. Ingenting har rört sig.",
+      "stuck": "Väntar på att flytten ska börja. Ingenting har rört sig. Den har inte startat på 15 minuter.",
+      "running": "Flytten pågår. Ingenting visas som klart innan den är klar.",
+      "not_moved": "Kanalen flyttades inte. Ingenting i den ändrades.",
+      "cleanup_failed": "Kanalen är i {dst}, rensningen slutfördes inte.",
+      "traces": "Kanalen är i {dst}, men {src} innehåller fortfarande spår.",
+      "moved": "Kanalen har flyttats."
+    },
+    "rerun": "Flytten kommer att försökas igen automatiskt.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Öppna kanalen i {dst}",
+    "open_topic": "Öppna flyttens ämne",
+    "status_gone": "Flyttens status kan inte läsas från den här arbetsytan. Dess ämne i operatorarbetsytan visar varje ändring.",
+    "error": {
+      "channel_move_owner": "Endast ägaren av operatörens arbetsyta flyttar en kanal.",
+      "go_required": "Servern accepterade inte bekräftelsen. Ingenting flyttades.",
+      "move_refused": "Servern vägrade att starta flytten. Ingenting flyttades.",
+      "unknown_tenant": "Den arbetsytan är inte en som du kan flytta den här kanalen till.",
+      "bad_channel": "Den här kanalen kan inte flyttas.",
+      "fallback": "Servern svarade inte. Ingenting har flyttats; försök igen."
+    }
   }
 }

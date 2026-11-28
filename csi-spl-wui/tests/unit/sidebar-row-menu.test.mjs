@@ -226,8 +226,8 @@ describe('channel rows', () => {
 /* spec 169 8.5.1, 8.5.2 (row T18, SPL-6684): Move to workspace sits in the
    channel branch after Properties and before Archive channel, and shows only
    once the hub's probe (GET /v1/channels/{channel}/workspace-move, T14)
-   answered allowed. Until T19's dialog lands, WORKSPACE_MOVE_BUILT keeps it
-   (and its probe) off. */
+   answered allowed. WORKSPACE_MOVE_BUILT kept it (and its probe) off until
+   T19's dialog landed; T19 turned it on. */
 describe('Move to workspace (spec 169 T18)', () => {
   const ids = (opts) => rowMenuItems(false, { channel: true, properties: true, archivable: true, deletable: true, ...opts }).map((i) => i.id)
 
@@ -248,16 +248,17 @@ describe('Move to workspace (spec 169 T18)', () => {
     assert.deepEqual(workspaceMoveMenu({ allowed: true }, true), { allowed: true, targets: [] })
   })
 
-  it('stays off, probe included, until T19 builds the dialog', () => {
-    assert.equal(WORKSPACE_MOVE_BUILT, false)
-    assert.deepEqual(workspaceMoveMenu({ allowed: true, targets: [{ slug: 'beta', name: 'Beta' }] }), { allowed: false, targets: [] })
+  it('is on since T19 built the dialog; off, it hides the item, probe included', () => {
+    assert.equal(WORKSPACE_MOVE_BUILT, true)
+    assert.deepEqual(workspaceMoveMenu({ allowed: true, targets: [{ slug: 'beta', name: 'Beta' }] }), { allowed: true, targets: [{ slug: 'beta', name: 'Beta' }] })
+    assert.deepEqual(workspaceMoveMenu({ allowed: true, targets: [{ slug: 'beta', name: 'Beta' }] }, false), { allowed: false, targets: [] })
     const menu = src('src/components/SidebarRowMenu.vue')
     assert.match(menu, /if \(!WORKSPACE_MOVE_BUILT \|\| !channelId\.value \|\| isPublicChannel\(channelId\.value\)\) return/)
     assert.match(menu, /workspaceMove: move\.value\.allowed/)
     assert.match(menu, /emit\('moveWorkspace', move\.value\.targets\)/)
   })
 
-  it('the probe is a lazy client GET on T14\'s route; the mock offers no move', async () => {
+  it('the probe is a lazy client GET on T14\'s route; the mock offers no move without the e2e fixture', async () => {
     const calls = []
     const ctx = { mock: false, live: async (path, opts) => { calls.push({ path, opts }); return { allowed: true, targets: [] } } }
     assert.deepEqual(await lazySpoolMethods.channelWorkspaceMoveProbe(ctx, 'team a'), { allowed: true, targets: [] })

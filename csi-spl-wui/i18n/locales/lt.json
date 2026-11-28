@@ -4747,5 +4747,61 @@
     "refused": "Neišsiųsta į {topic}: {reason}",
     "retry": "Bandyti dar kartą",
     "none": "Nepasirinkta tema"
+  },
+  "channel_move": {
+    "title": "Perkelti #{name} į kitą darbo sritį",
+    "target": "Tikslinė darbo vieta",
+    "target_pick": "Pasirinkite darbo vietą",
+    "no_targets": "Jūs nesate jokios kitos darbo srities, į kurią šis kanalas galėtų pereiti, narys.",
+    "counts": "Kas perkeliama kartu su kanalu",
+    "count_row": "{table}: {n}",
+    "members_lost": "Žmonės, kurie ten nėra nariai",
+    "keep": "Pridėti {who} prie {dst}",
+    "mentions": "Nuorodos paliktos vietoje",
+    "shared_files": "Failai, kurie taip pat lieka čia",
+    "kept": "Kopijos, saugomos po persikėlimo",
+    "kept_row": "{store}: saugoma iki {until}",
+    "next": "Kitas žingsnis",
+    "back": "Atgal",
+    "recheck": "Dar kartą patikrinkite judesį",
+    "blocked_intro": "Kanalas dar negali persikelti į {dst}. Išvalykite kiekvieną eilutę apačioje ir patikrinkite dar kartą.",
+    "leave_hours": "Palikite {who} valandų eilutes šioje darbo srityje",
+    "clears": {
+      "seat": "Suteikite tam agentui stalą paskirties darbo srityje arba pašalinkite jį iš kanalo.",
+      "pin": "Prisekite tą įrenginį tikslinėje darbo vietoje.",
+      "shared": "Kažkas, kas čia lieka, irgi naudoja šį daiktą: pirmiausia tai nusprendžia savininkas.",
+      "hours": "Pridėkite asmenį prie tikslinės darbo srities arba palikite jo valandų eilutes čia.",
+      "name": "Tikslinėje darbo srityje yra kanalas tokiu pavadinimu, įskaitant ir archyvuotus.",
+      "orchestrator": "Tikslinei darbo sričiai pirmiausia reikia orkestratoriaus vietos.",
+      "quota": "Kanalo failai netelpa į tikslinės darbo srities failų kvotą.",
+      "other": "Prieš persikraustymą tai išvalykite."
+    },
+    "confirm_body": "Perkelti #{name} į {dst}: kartu bus perkeltos ir su jomis susijusios temos, pranešimai, failai ir problemos.",
+    "confirm_lost": "Šie asmenys praranda prieigą: {who}",
+    "no_undo": "Šio veiksmo negalima atšaukti, kai eilutės jau perkeltos.",
+    "go": "Perkelti kanalą į {dst}",
+    "busy": "Patvirtinamas perkėlimas…",
+    "state": {
+      "waiting": "Laukiama, kol prasidės kraustymas. Niekas nepajudėjo.",
+      "stuck": "Laukiama, kol prasidės judėjimas. Niekas nepajudėjo. Jis neprasidėjo 15 minučių.",
+      "running": "Perkėlimas vykdomas. Prieš jam pasibaigiant niekas nerodoma kaip atlikta.",
+      "not_moved": "Kanalas nebuvo perkeltas. Jame niekas nepasikeitė.",
+      "cleanup_failed": "Kanalas yra {dst}, valymas nebaigtas.",
+      "traces": "Kanalas yra {dst}, bet {src} vis dar turi pėdsakų.",
+      "moved": "Kanalas buvo perkeltas."
+    },
+    "rerun": "Perkėlimas bus bandytas dar kartą automatiškai.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Atidarykite kanalą {dst} faile",
+    "open_topic": "Atidaryti perkėlimo temą",
+    "status_gone": "Perkėlimo būsenos negalima nuskaityti iš šios darbo srities. Jo tema operatoriaus darbo srityje rodo kiekvieną pakeitimą.",
+    "error": {
+      "channel_move_owner": "Kanalą perkelia tik operatoriaus darbo srities savininkas.",
+      "go_required": "Serveris nepriėmė patvirtinimo. Niekas nebuvo perkelta.",
+      "move_refused": "Serveris atsisakė pradėti perkėlimą. Niekas nebuvo perkelta.",
+      "unknown_tenant": "Į tą darbo sritį negalite perkelti šio kanalo.",
+      "bad_channel": "Šio kanalo negalima perkelti.",
+      "fallback": "Serveris neatsakė. Niekas nebuvo perkelta; bandykite dar kartą."
+    }
   }
 }

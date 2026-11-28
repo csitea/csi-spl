@@ -4747,5 +4747,61 @@
     "refused": "Niet verzonden naar {topic}: {reason}",
     "retry": "Opnieuw proberen",
     "none": "Geen onderwerp geselecteerd"
+  },
+  "channel_move": {
+    "title": "Verplaats #{name} naar een andere werkruimte",
+    "target": "Doelwerkruimte",
+    "target_pick": "Kies een werkplek",
+    "no_targets": "Je bent lid van geen enkele andere werkruimte waarnaar dit kanaal kan worden verplaatst.",
+    "counts": "Wat hoort bij het kanaal?",
+    "count_row": "{table}: {n}",
+    "members_lost": "Mensen die daar geen lid van zijn",
+    "keep": "Voeg {who} toe aan {dst}",
+    "mentions": "Links blijven intact",
+    "shared_files": "Bestanden die hier ook blijven staan",
+    "kept": "Kopieën bewaard na de verhuizing",
+    "kept_row": "{store}: bewaard tot {until}",
+    "next": "Volgende stap",
+    "back": "Rug",
+    "recheck": "Controleer de zet nogmaals.",
+    "blocked_intro": "Het kanaal kan nog niet naar {dst} overschakelen. Wis elke regel hieronder en controleer het opnieuw.",
+    "leave_hours": "Laat de urenrijen van {who} in deze werkruimte staan.",
+    "clears": {
+      "seat": "Geef die agent een bureau in de beoogde werkruimte, of verwijder hem uit het kanaal.",
+      "pin": "Plaats die machine in de doelwerkruimte.",
+      "shared": "Iets dat hier blijft, gebruikt dit voorwerp ook: de eigenaar beslist dat eerst.",
+      "hours": "Voeg de persoon toe aan de doelwerkruimte, of laat de urenrijen hier staan.",
+      "name": "Er bestaat een kanaal met deze naam in de doelwerkruimte, inclusief gearchiveerde kanalen.",
+      "orchestrator": "De beoogde werkruimte heeft allereerst een orchestrator-account nodig.",
+      "quota": "De bestanden van het kanaal passen niet binnen het bestandsquotum van de doelwerkruimte.",
+      "other": "Maak dit vrij voordat je verhuist."
+    },
+    "confirm_body": "Verplaats #{name} naar {dst}: de bijbehorende onderwerpen, berichten, bestanden en problemen gaan mee.",
+    "confirm_lost": "Deze mensen verliezen de toegang: {who}",
+    "no_undo": "Dit kan niet meer ongedaan gemaakt worden zodra de rijen verplaatst zijn.",
+    "go": "Verplaats het kanaal naar {dst}",
+    "busy": "De verhuizing wordt bevestigd…",
+    "state": {
+      "waiting": "Ik wacht tot de verhuizing begint. Er is nog niets verplaatst.",
+      "stuck": "Ik wacht tot de verhuizing begint. Er is nog niets gebeurd. Het is al 15 minuten niet begonnen.",
+      "running": "De verhuizing is bezig. Er wordt niets als voltooid gemarkeerd voordat de verhuizing is afgerond.",
+      "not_moved": "Het kanaal is niet verplaatst. Er is niets aan veranderd.",
+      "cleanup_failed": "Het kanaal bevindt zich in {dst}, de opruiming is niet voltooid.",
+      "traces": "Het kanaal bevindt zich in {dst}, maar {src} bevat nog steeds sporen.",
+      "moved": "Het kanaal is verplaatst."
+    },
+    "rerun": "De actie wordt automatisch opnieuw geprobeerd.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Open het kanaal in {dst}",
+    "open_topic": "Open het onderwerp van de verplaatsing",
+    "status_gone": "De status van de verplaatsing kan niet vanuit deze werkruimte worden afgelezen. Het bijbehorende onderwerp in de operatorwerkruimte toont elke wijziging.",
+    "error": {
+      "channel_move_owner": "Alleen de eigenaar van de operatorwerkruimte kan een kanaal verplaatsen.",
+      "go_required": "De server accepteerde de bevestiging niet. Er is niets verplaatst.",
+      "move_refused": "De server weigerde de verplaatsing te starten. Er werd niets verplaatst.",
+      "unknown_tenant": "Dat is niet de werkruimte waarnaar je dit kanaal kunt verplaatsen.",
+      "bad_channel": "Dit kanaal kan niet worden verplaatst.",
+      "fallback": "De server reageerde niet. Er is niets verplaatst; probeer het opnieuw."
+    }
   }
 }

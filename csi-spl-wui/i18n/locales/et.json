@@ -4747,5 +4747,61 @@
     "refused": "Ei saadetud teemale {topic}: {reason}",
     "retry": "Proovi uuesti",
     "none": "Teemat pole valitud"
+  },
+  "channel_move": {
+    "title": "Teisalda #{name} teise tööruumi",
+    "target": "Sihttööruum",
+    "target_pick": "Valige tööruum",
+    "no_targets": "Sa ei ole ühegi teise tööruumi liige, kuhu see kanal saab kolida.",
+    "counts": "Mis kanaliga kaasneb",
+    "count_row": "{table}: {n}",
+    "members_lost": "Inimesed, kes pole seal liikmed",
+    "keep": "Lisa {who} väärtusele {dst}",
+    "mentions": "Lingid jäeti paika",
+    "shared_files": "Failid, mis jäävad samuti siia",
+    "kept": "Pärast kolimist säilitatavad koopiad",
+    "kept_row": "{store}: hoitakse kuni {until}",
+    "next": "Järgmine samm",
+    "back": "Tagasi",
+    "recheck": "Kontrolli käiku uuesti",
+    "blocked_intro": "Kanal ei saa veel {dst} -sse liikuda. Tühjendage kõik allolevad read ja kontrollige uuesti.",
+    "leave_hours": "Jäta {who} tundide read sellesse tööruumi",
+    "clears": {
+      "seat": "Andke sellele agendile sihttööruumis laud või eemaldage see kanalist.",
+      "pin": "Kinnitage see masin sihttööruumi.",
+      "shared": "Miski, mis siia jääb, kasutab ka seda eset: omanik otsustab selle esmalt.",
+      "hours": "Lisa inimene sihttööruumi või jätke tema tundide read siia.",
+      "name": "Selle nimega kanal on sihttööruumis olemas, sealhulgas arhiveeritud kanalid.",
+      "orchestrator": "Sihttööruumis on kõigepealt vaja orkestraatori kohta.",
+      "quota": "Kanali failid ei mahu sihttööruumi failikvooti.",
+      "other": "Selge see enne kolimist ära."
+    },
+    "confirm_body": "Teisalda #{name} kausta {dst}: sellega lähevad kaasa ka selle teemad, sõnumid, failid ja probleemid.",
+    "confirm_lost": "Need inimesed kaotavad juurdepääsu: {who}",
+    "no_undo": "Seda ei saa tagasi võtta, kui read on juba liigutatud.",
+    "go": "Liiguta kanal kausta {dst}",
+    "busy": "Kolimise kinnitamine…",
+    "state": {
+      "waiting": "Ootan kolimise algust. Miski pole liikunud.",
+      "stuck": "Ootan kolimise algust. Miski pole liikunud. See pole 15 minutit alanud.",
+      "running": "Teisaldamine on pooleli. Enne selle lõppu ei kuvata midagi tehtuna.",
+      "not_moved": "Kanalit ei liigutatud. Selles ei muutunud midagi.",
+      "cleanup_failed": "Kanal on {dst}, puhastamine ei lõppenud.",
+      "traces": "Kanal asub kaustas {dst}, aga {src} sisaldab endiselt jälgi.",
+      "moved": "Kanal on teisaldatud."
+    },
+    "rerun": "Liigutust proovitakse automaatselt uuesti.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Ava kanal {dst} -s",
+    "open_topic": "Ava kolimise teema",
+    "status_gone": "Teisalduse olekut ei saa sellest tööruumist lugeda. Selle teema operaatori tööruumis näitab iga muudatust.",
+    "error": {
+      "channel_move_owner": "Kanalit liigutab ainult operaatori tööruumi omanik.",
+      "go_required": "Server ei aktsepteerinud kinnitust. Midagi ei teisaldatud.",
+      "move_refused": "Server keeldus teisaldamist alustamast. Midagi ei teisaldatud.",
+      "unknown_tenant": "See tööruum ei ole selline, kuhu sa seda kanalit teisaldada saaksid.",
+      "bad_channel": "Seda kanalit ei saa teisaldada.",
+      "fallback": "Server ei vastanud. Midagi ei liigutatud; proovige uuesti."
+    }
   }
 }

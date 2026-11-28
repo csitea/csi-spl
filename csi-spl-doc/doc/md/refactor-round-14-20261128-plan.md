@@ -52,7 +52,7 @@ zero behaviour change, and each lands with a grep-count test that is RED on its 
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: v0.1, for the panel.** Editor: **c-915** (claude, the specs_and_docs backup:
+**Status: v1.0, the panel's notes N1-N6 folded (c-917 PASS on v0.1, section 9).** Editor: **c-915** (claude, the specs_and_docs backup:
 agy is out of quota on both boxes until about 2026-12-03 and paused on this box until
 2026-11-28T05:24:23Z). Panel: the claude seat
 `hand-sat-c002-refactor-round-14-claude-panel-seat` (live as c-917@sat in
@@ -116,7 +116,12 @@ reads are live state and carry their own times.
      2026-11-28T03:47:34Z: `aa377e76` (`claude:c001-s179-b5-paused-seats-free`) is still
      queued (39/102), and `cf5e8b46` (`claude:c002-s184-l5-rotation-restart-rekind`,
      priority 2, position 2/102), whose brief names both `spl-rotate-lib` and
-     `spl-peer-restart`, sits ahead of it. The window scan of 1.2 (e) still finds the twin
+     `spl-peer-restart`, sits ahead of it. **v1.0 re-read (panel N2):** `cf5e8b46` is
+     now LIVE as `c-298` on the other box (`c-298-c002-s184-l5-rotation-restart-rekind`,
+     `lane-map.sh --check` at 2026-11-28T04:46:04Z), its brief still names both files
+     (`grep -oE 'spl-(peer-restart|rotate-lib)[a-z.-]*'` -> both); `aa377e76` is still
+     queued (35/99) and HELD after `c001-s179-b4-spawn-pause-hold` (`do_spl_spawn_queue`
+     at 04:44:31Z). The deferral holds. The window scan of 1.2 (e) still finds the twin
      (`spl-peer-restart.func.sh:110` / `spl-rotate-lib.func.sh`). Section 7.
   2. The rest of r13's section 7 (the r12-01 R7 N1 test-strength item, the SPL-6661 N1 /
      N2 notes, the command guard pair, the secret-class and PG-bound twins, the destructive
@@ -130,10 +135,14 @@ reads are live state and carry their own times.
     count notes; N2 (a missing add-op file logs no FATAL) is a behaviour change; N3 (the
     nameref collides with a caller variable named `ids`, `seen`, `box` or `a`) is a
     latent defect in a helper no caller trips. None is a refactor row; section 7.
-  - r13-01 (c-241 PASS msg abf29eef): the message lives on the other box; this box
-    holds only c-234's result (`50a76aec`) and the holder's ACCEPTED, and the
-    candidates file, which file N1-N4 as "test strength, non-blocking". **Not read
-    myself**: section 7 records them by that label, unverified.
+  - r13-01 (c-241 PASS msg abf29eef on `bd482d3de`): **read in full in v1.0** (panel
+    N1), relayed verbatim by c-001 from the other box (msg 5feeb039, ask 961a8f11, 5746
+    chars). N1 (case 13 checks named copies only: an inline `EPOCHREALTIME` ms at
+    `func.sh:81` stays green), N2 (case 10 depends on the box zone: a runner in UTC
+    misses the `TZ=UTC` mutation) and N3 (the 7-day cut is not pinned: an 8-day cut stays
+    green) are test-strength notes; N4 (the lazy source at `func.sh:64` has no failure
+    branch: a missing host file writes rows with an empty stamp, rc 0) is a behaviour
+    change. None is a refactor row; section 7.
   - r13 panel notes: all folded into r13 v1.0 (`1e730d6e2`).
 - **(c) The dispatcher's candidates file** (`/var/spool-hub/dispatch/c002-next-round-candidates.md`,
   on the planner box, 221 lines, mtime 2026-11-28T05:41:59 box time): its lines 184-221
@@ -370,7 +379,7 @@ the key unset) and pass on base and head1 alike (1.5).
 Shape (head2, `git diff --numstat 774876d90 head2`):
 `agent-caps.mjs` +5 -21 (163 -> 147), `operator-console.mjs` +11 -3 (216 -> 224),
 `operator-console.d.ts` +2 -0 (41 -> 43), `agent-caps.test.mjs` +10 -0 (105 -> 115).
-sha256 (12 chars): `agent-caps.mjs` `a4ea0ef4832c`, `operator-console.mjs` `f583065b1266`,
+sha256 (12 chars): `agent-caps.mjs` `a4ea0ef4832c`, `operator-console.mjs` `34fa31013fe0` (v1.0, panel N5; v0.1 `f583065b1266`),
 `operator-console.d.ts` `fcdbd02e5c0c`, `agent-caps.test.mjs` `5f34aefd973b`.
 
 head2 as a diff against `774876d90` (`index` lines dropped):
@@ -456,7 +465,7 @@ diff --git a/csi-spl-wui/src/utils/operator-console.mjs b/csi-spl-wui/src/utils/
 -function opError(status, token, detail, permission) {
 +/**
 + * The mock hub's refusal: an Error with the hub's status, token, detail and
-+ * (when given) the missing permission, as spool-client.mjs reads one.
++ * (when given) the missing permission: the same shape spool-client.mjs builds.
 + */
 +export function opError(status, token, detail, permission) {
    const err = new Error(detail || token)
@@ -551,7 +560,8 @@ and head1 alike, by the planner's harness, not the tree: `test-install.sh` case 
 checkout layout) and `agent-mcp.tst.sh` cases `3`, `4` (5 checks) and `8` (5 checks):
 the same 11 check names on both (`diff` of the names -> equal), their paths show the
 symlinked `TMPDIR`. Not re-run in a real worktree by the planner: the row lane runs them
-there.
+there and shows both green in its real worktree, or the same check names red on its
+parent (panel N6, a required result field of the r14-01 brief, section 5).
 
 **Row 02** (`node tests/unit/<x>.test.mjs` in `csi-spl-wui`; OK lines `^ *(OK|ok)`):
 
@@ -598,7 +608,7 @@ each lane runs it in its worktree.
 - `m2c` (`browserStore` always returns `null`): agent-caps 0 / 31 / 0 and
   operator-console 0 / 40 / 0, **green**: the unit suites pass an explicit store, so only
   the mock-bundle e2e reaches the default store. The row lane says which e2e goes red on
-  it, or that none does.
+  it, or that none does: a required result field of the r14-02 brief (panel N3).
 - `m2d` (`browserStore` not exported): agent-caps rc 1, `SyntaxError: The requested module
   './operator-console.mjs' does not provide an export named 'browserStore'`.
 
@@ -653,6 +663,12 @@ Paths checked: the 8 edited files plus `P/lib/desk-root.inc.sh` (read by row 01)
   and `c-266` (SPL-6722 help page), `c-285` (SPL-6707 tf cold start), `c-287` (spec 184
   W1: its brief names `AgentSplitKinds.vue` / `AgentModels.vue` and `tenant-settings.mjs`),
   `c-995` (blog draft). None of their briefs names any row path (grep below).
+- **v1.0 re-read (panel N2):** the same check on the 9 row paths at 2026-11-28T04:46:04Z:
+  **exit 4**, 0 owned, 21 unknown, all on the other box. New since v0.1: `c-290`
+  (`c001-bug-issue-archive-status-diss`, landed as `0e6f561e4`), `c-298` (s184 L5,
+  `cf5e8b46`) and `c-303` (s184 H3 models report). Their briefs grep
+  `agent-caps|operator-console|capsError|opError|browserStore|spool-mirror|agent-mirror|desk_root|desk-root`
+  -> 0 each.
 - **Live lanes on this box** (`do_spl_lane_map` at 2026-11-28T04:02:30Z, 46 lines):
   `git diff --name-only $(merge-base) HEAD` plus `git status --porcelain` in the
   worktrees of `c-001`, `c-002`, `c-003`, `c-865`, `c-869`, `c-872`, `c-887`, `c-904`,
@@ -749,8 +765,15 @@ warning -x` and `csi-spl-iac/src/bash/scripts/sigpipe-lint.sh` on the test,
 `simple_coding`, vendor claude; R7 the claude waiver seat under waiver `1a7c70da` while
 agy cannot sit (re-checked at placement); never mistral. The mirror hook runs on every
 agent turn: after the land, `python3 csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-mirror.py --help`
-(or any no-op entry it has) from the box checkout must import cleanly; say so in the
-result.
+has no `--help`: its no-op entry is a bare run, so the post-land smoke run is, from the
+box checkout, `python3 csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-mirror.py </dev/null`
+-> rc 64 (usage, the import worked; an ImportError is rc 1) and
+`python3 csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-mirror-check.py --bogus </dev/null`
+-> rc 2 (usage; an ImportError is rc 1) (panel N4: head1's agent-mirror-check imports at
+load time). Both rc values measured on `75d0f5fff`'s tree (base code) at 04:4xZ, n=1;
+say both in the result. Required result field (panel N6): `test-install.sh` and
+`agent-mcp.tst.sh` green in the row's real worktree, or the same check names red on its
+parent (1.5).
 
 **r14-02 brief, Files: ONLY**
 `csi-spl-wui/src/utils/agent-caps.mjs`, `csi-spl-wui/src/utils/operator-console.mjs`,
@@ -760,7 +783,10 @@ NOT `vendor-keys.mjs`, NOT `tenant-costs.mjs`, NOT `prefs.mjs`, NOT any `.vue`, 
 other file. Do: plan section 2 row 02 verbatim, 1.4's shape; red control (head2's test
 on its parent: rc 1, 29 OK, 2 FAIL) RED then GREEN in the body; the 4 mutations
 `m2a`-`m2d` of 1.5 shown RED in the body (`m2c` is green in the unit suites by design:
-say which e2e catches it, or that none does). Gates: `pnpm run typecheck` (the planner
+say which e2e catches it, or that none does: a required result field, panel N3). The
+`opError` doc reads "the same shape spool-client.mjs builds" (panel N5;
+`spool-client.mjs:261-264` sets `status`, `token`, `permission` on its Error). Gates:
+`pnpm run typecheck` (the planner
 could not run it, 1.5), the row's unit tests, `BASE_URL=<generated mock bundle> pnpm run test:e2e`
 on the 6 e2e files of 1.4 (re-list them with `do_check_pre_push_e2e` on the row's own
 sha), `cd csi-spl-iac && ./run -a do_check_pre_push`. The initial JS budget is CI's
@@ -787,18 +813,18 @@ agy cannot sit (re-checked at placement); never mistral.
 
 | what | why | measured by |
 |---|---|---|
-| `orc:src/bash/run/spl-peer-restart.func.sh` (`spl_peer_pids`) and `orc:src/bash/run/spl-rotate-lib.func.sh` (`spl_rotate_pids`) | the same `/proc` scan with a different matcher; deferred a third time (R3): queued ask `aa377e76` (39/102) and `cf5e8b46` (s184 L5 rotation restart, priority 2, 2/102), whose brief names both files | `do_spl_spawn_queue` 03:47:34Z; window scan 1.2 (e) (n=1) |
+| `orc:src/bash/run/spl-peer-restart.func.sh` (`spl_peer_pids`) and `orc:src/bash/run/spl-rotate-lib.func.sh` (`spl_rotate_pids`) | the same `/proc` scan with a different matcher; deferred a third time (R3): queued ask `aa377e76` (35/99, HELD at 04:44:31Z) and `cf5e8b46` (s184 L5 rotation restart), live as `c-298` on the other box since v0.1, whose brief names both files | `do_spl_spawn_queue` 03:47:34Z and 04:44:31Z; `lane-map.sh --check` 04:46:04Z; window scan 1.2 (e) (n=1) |
 | the other error-constructor copies: `fleetError` (`fleet-load.mjs:330`), `costsError` (`tenant-costs.mjs:528`); and `browserStore` in `fleet-load.mjs:515` and `vendor-keys.mjs:101` | each file imports only `./prefs.mjs` (`vendor-keys.mjs` also `./act-as-mock.mjs`): a fold into `operator-console.mjs` adds an import edge, into `prefs.mjs` it adds bytes to the initial JS, whose gzip budget only CI's generate job measures. A perf-round row (bundle measured first), or a refactor row with that measurement | WUI body scan 1.2 (e); `grep '^import'` of the 4 files |
 | `issueQuery` (`spool-client-lazy.mjs:31` = `issues.mjs:201`, 14 lines) | deliberate: kept out of the lazy chunk, with `tests/unit/issues.test.mjs:226` checking the two agree; a fold moves a chunk boundary | WUI body scan |
 | `_read_json` (`spool-mirror.py:668` = `lib/spool_discussion.py:106`) | 6 lines; spool-mirror would call a private name of another module (`sd._read_json`), or `spool_discussion` gains a public name for it: a naming change for 6 lines | python AST scan |
 | r13-03 R7 N1-N4 (c-254 msg 65cc7198) | N1 / N4 test and count notes; N2 adds a FATAL line (a behaviour change); N3 a latent nameref collision no caller trips: a bug or test round, not a refactor | the message (`c-003/archive`) |
-| r13-01 R7 N1-N4 (c-241 msg abf29eef) | filed "test strength, non-blocking" by the candidates file; **the notes themselves were not read** (the message is on the other box) | candidates file line "SPL-6716 r13-01 R7 notes" |
+| r13-01 R7 N1-N4 (c-241 msg abf29eef) | N1-N3 test strength (inline `EPOCHREALTIME` not guarded, case 10 zone-dependent, 7-day cut not pinned); N4 a missing failure branch (behaviour change): a test or bug round, not a refactor | the message, relayed verbatim (msg 5feeb039), read in v1.0 |
 | Go: `isASCII` (`internal/search/fold.go:47` = `internal/mail/mail.go:308`), `phoneDigits` (`store/personal_contacts.go` / `hub/search.go`), `firstOf` / `pick` (`hubclient/host.go` / `hub/release_notes_parse.go`) | cross-package: a fold needs one package to import the other or a new package for 6 lines; personal-contacts code is personal-data-adjacent | Go body scan |
 | Go: the 7-9 line `*Preflight` route twins (14 groups of 2 to 11 functions in `internal/hub`) | a family, not a pair: wider than one row (5 sites max), and each is a route's auth gate: a gate row with its own red control | Go body scan |
 | Go: `readPID` / `harden` (`internal/lockkey` = `internal/keyd`) and `checkNoteIDs` / `checkContactIDs` (`store/personal_*`) | secret-class (the key daemon) and personal-data stores | Go body scan |
 | `spl-lane-handover{,-mistral,-agy}.func.sh` (the `pick_mode` tar / size / zstd / key-scan block, 8 shared windows) | parametric, not identical, and it packs agents' session transcripts for another box with a key-material scan: secret-class | window scan; `diff` of the two `pick_mode` |
 | `gcp-list-{alert-incidents,monitoring,secrets}.func.sh`, `gcp-get-alert-incident.func.sh` (the per-env SA key loop) | each reads an env SA key file and activates it: secret-class | window scan |
-| `spl-issue-{blocker-rca-close,owner-question-diss,discard-stale}.func.sh` (the apply loop and undo line) | prd issue mutations under an owner go, the loops differ in their skip rule; near the queued bulk diss-archive bug lane (ask 5702bb8d, `spl-issue-archive.func.sh`) | window scan |
+| `spl-issue-{blocker-rca-close,owner-question-diss,discard-stale}.func.sh` (the apply loop and undo line) | prd issue mutations under an owner go, the loops differ in their skip rule; next to the diss-archive bug lane (`spl-issue-archive.func.sh`), which landed after v0.1 as `0e6f561e4` (SPL-6726); left for a round that measures on that tree | window scan |
 | `spl-search-{calendar,doc}-probe.func.sh`, the `http` / `session_cookie` twins of 9 probe `.py`, `spl-release-note-bans-{check,seed}`, `build-push-{hub,pdf}-image` | sign a member in with a password file, or read a Secret Manager slot (secret-class); the image pair differs in its tag and registry logic | window and AST scans |
 | the `*-cron.sh` shims' preamble (19 files) | standalone by design: a cron job reads no profile and sources nothing | `scripts/` window scan |
 | r13 section 7's other items | unchanged on `774876d90`, with r13's reasons | r13 plan section 7; scans 1.2 (e) (n=1) |
@@ -809,6 +835,17 @@ agy cannot sit (re-checked at placement); never mistral.
   clones; the column of 1.5 run on base and each head; ruff, shellcheck 0.10.0 and
   `sigpipe-lint.sh` as 1.3 / 1.5 say; both red controls and the mutations as 1.5 says.
   Pushed to `review/c002-refactor-round-14-planner`.
+- v1.0 (c-915): the panel's c-917 PASS on `75d0f5fff` (msg 6c6b6686, W none) folded:
+  N1 the r13-01 R7 notes read in full (relay 5feeb039), 1.2 (b) and section 7; N2 the
+  `/proc` twin re-read (`cf5e8b46` live as `c-298`, `aa377e76` HELD; `c-303` s184 H3 is
+  new, its brief greps 0 for the row paths, as do `c-298`'s and `c-290`'s), 1.2 (a),
+  2.2 and section 7; N3 `m2c`'s e2e a required r14-02 result field; N4 the r14-01
+  post-land smoke run names both scripts' no-op entries and their rc; N5 the `opError`
+  doc says "builds", head2's `operator-console.mjs` sha256 `34fa31013fe0`
+  (agent-caps 0 / 31 / 0, operator-console 0 / 40 / 0 on it, n=1); N6 `test-install.sh`
+  and `agent-mcp.tst.sh` a required r14-01 result field. `origin/master` moved to
+  `0e6f561e4`: `git diff --name-only 774876d90 0e6f561e4 --` the 9 row paths -> 0
+  (04:4xZ); every count stays on `774876d90`.
 
 ## 9. Consensus
 
@@ -819,8 +856,8 @@ panel seat is claude. The r14 retro names this.
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `c-915` | claude | editor | v0.1 | author | section 8 |
-| claude panel seat (`hand-sat-c002-refactor-round-14-claude-panel-seat`, live as c-917@sat) | claude | panel | v0.1 | pending | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
+| `c-915` | claude | editor | v1.0 | author | section 8 |
+| claude panel seat (`hand-sat-c002-refactor-round-14-claude-panel-seat`, live as c-917@sat) | claude | panel | v0.1 `75d0f5fff` PASS (msg 6c6b6686, W none, N1-N6 folded in v1.0); v1.0 sign pending | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
 
 No row lane starts before the panel signs the plan sha and its review line passes
 `do_spl_review_line_check` (rc 0), confirmed by the dispatch lease holder.

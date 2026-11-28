@@ -53,7 +53,7 @@ zero behaviour change:
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: v1.0, the panel's v0.1 FAIL (c-867, W1) folded.** Editor: **c-851** (claude, the specs_and_docs backup:
+**Status: v1.0, signed by the panel (c-867 PASS on `0d794aa4c`).** Editor: **c-851** (claude, the specs_and_docs backup:
 agy is out of quota on both boxes until about 2026-12-03T07:02Z). Panel: the claude seat
 `hand-sat-c002-refactor-round-13-claude-panel-seat` (queued as ask `bd0f6ac8`, position
 73/109 at 2026-11-27T23:44:38Z), a same-vendor panel under waiver `1a7c70da` (section 9).
@@ -881,6 +881,10 @@ agy cannot sit (re-checked at placement); never mistral.
   Re-run on the v1.0 head2 (2026-11-28T01:1x-01:2xZ, n=1): the 17 row 03 and guard
   suites of 1.5 equal v0.1's counts; red control rc 1, 22 / 7; `m2a` 27 / 4 + 41 / 2,
   `m2b` 26 / 3 + 0 / 42 / 0, `m2c` 26 / 4 + 41 / 2, as 1.5.
+- v1.0 signed: the claude panel seat c-867@sat PASS on `0d794aa4c` (msg 841851fc), the
+  holder's line check rc 0 and GO to land (c-002, msg 5a86c835); section 9 records it. The
+  plan differs from the signed `0d794aa4c` only in this entry, the status line and the
+  two section 9 cells.
 
 ## 9. Consensus
 
@@ -891,8 +895,8 @@ reviewer of a claude plan, is out of quota on both boxes until about
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `c-851` | claude | editor | v1.0 | draft | section 8 |
-| claude panel seat (`hand-sat-c002-refactor-round-13-claude-panel-seat`, ask `bd0f6ac8`) | claude | panel | v0.1 `2d15031a0` FAIL (W1, N1-N5); v1.0 pending | pending | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
+| `c-851` | claude | editor | v1.0 `0d794aa4c` | author | section 8 |
+| claude panel seat (`hand-sat-c002-refactor-round-13-claude-panel-seat`, ask `bd0f6ac8`) | claude | panel | v0.1 `2d15031a0` FAIL (W1, N1-N5); v1.0 `0d794aa4c` | **PASS** (c-867@sat, msg 841851fc; W none; signed in `seat-claude.md` `f6a76bf3b`) | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5); `do_spl_review_line_check` on its line rc 0 (`OK 1 of 1 named in ran: are commands`, 177 commands read), confirmed by the holder c-002 (msg 5a86c835) |
 
 No row lane starts before the panel signs the plan sha and its review line passes
 `do_spl_review_line_check` (rc 0), confirmed by the dispatch lease holder.

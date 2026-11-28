@@ -139,81 +139,86 @@ in this browser.
   Only a topic you started yourself, in this tab, is held; a new topic from
   someone else keeps the unread edge.
 
-### 7.1 Selecting Topics and Multicasting (Planned — spec 186)
+### 7.1 Selecting Topics and Multicasting
 
-> [!NOTE]
-> **Planned (spec 186, not built yet).** The topic selection and multicast
-> controls below describe the planned workflow and are not in the live app yet.
+You can select several topics across one or more channels of your workspace
+and act on them together, for example to send one prompt to all of them at
+once (**Multicast**).
 
-Once built, you will be able to select multiple topics across one or more
-channels of your workspace and act on them together — for example, to send one
-prompt to several topics at once (**Multicast**).
-
-- **Where selection will work**: on any channel's topic list (`#lobby` included)
-  and on your own workspace's rows in **Monitoring → Topics** (rows from another
-  workspace will not be selectable). Direct messages and the `issues` channel
-  will not have topic selection boxes.
-- **Ticking topics (desktop)**: hovering over or focusing a topic card will
-  reveal the checkbox at its left edge, halfway down the card and never on the
+- **Where selection works**: on any channel's topic list (`#lobby` included)
+  and on your own workspace's rows in **Monitoring → Topics** (a row from
+  another workspace has no checkbox, and its tooltip says why). Direct messages
+  and the `issues` channel have no topic selection boxes.
+- **Ticking topics (desktop)**: hovering over or focusing a topic card reveals
+  the checkbox at its left edge, halfway down the card and never on the
   sender's icon (on a one-line card, just below the icon); once one topic is
-  ticked, checkboxes will appear on every card. Clicking will toggle a topic, **Shift-click** will
-  select a range from the last ticked card, **`x`** on a focused card will
-  toggle it, and **`Esc`** will clear the selection.
+  ticked, every card shows its checkbox. A click toggles a topic,
+  **Shift-click** selects a range from the last ticked card, **`x`** on a
+  focused card toggles it, and **`Esc`** clears the selection. The card's menu
+  also has **Select** as its first item.
 - **Ticking topics (phone)**: long-pressing or swiping right on a topic card
-  will open its menu with a **Select** item right after **Archive** (on a
-  desktop, **Select** is the menu's first item; in **Monitoring → Topics**,
-  each own-workspace card will show its checkbox directly). While at least one
-  topic is selected, every card will show its checkbox, tapping a card will
-  toggle it instead of opening the topic, and card swipes and drag-to-move will
-  pause until the selection is cleared.
-- **Keeping your selection across filters and channels**: changing the channel
-  filter (**All** / **New**, or column filters in **Monitoring → Topics**) or
-  switching to another channel in the same workspace will keep your selection,
-  so you can pick topics from several channels before acting. The page checkbox
-  will select every topic currently shown, and **Select all N matching** will
-  select all matching topics in that list (in **Monitoring → Topics**, only your
-  current workspace's matching rows). The selection will stay in memory for your
-  current browser session and clear when you click **Clear**, finish an action,
-  switch workspaces, or reload the page.
+  opens its menu, with a **Select** item right after **Archive**. In
+  **Monitoring → Topics**, each own-workspace card shows its checkbox directly.
+  While at least one topic is selected, every card shows its checkbox, tapping
+  a card toggles it instead of opening the topic, and card swipes and
+  drag-to-move pause until the selection is cleared.
+- **Filter by topic title**: on a channel's topic list (not on the **#lobby**
+  page and not in a direct message), the **Filter** menu has a **Topic title**
+  field under **New** / **All**. Type a pattern and, a moment after your last
+  key, the list shows only the topics whose title matches it (**New** and the
+  sort still apply); the filter icon shows its dot while the title narrows the
+  list. Spool's server resolves the pattern:
+  - `*` matches every active channel topic in your workspace that you can read
+    and act on (archived topics, direct messages and issue discussions
+    excluded).
+  - Anything else is a case-insensitive regular expression (RE2) matched
+    anywhere in the topic title; use `^` to anchor it to the start, such as
+    `^release`.
+  - An invalid pattern is named under the field and the title filter ends; so
+    does an empty field. A pattern that matches nothing says **No topic
+    matches** under the field. The field filters the list; it does not select
+    anything by itself.
+- **The select tick**: while nothing is selected, the tick in the list header
+  selects exactly the topics listed: every topic with no filter, only the
+  filtered ones under a filter.
+- **Keeping your selection across filters and channels**: changing the filter
+  (**All** / **New**, the topic title, or the column filters in **Monitoring →
+  Topics**) or switching to another channel in the same workspace keeps your
+  selection, so you can pick topics from several channels before acting. The
+  selection lives in memory for your browser session and clears when you click
+  **Clear**, finish an action, switch workspaces, or reload the page.
 - **The selection bar**: while one or more topics are selected, the selection
-  bar will replace the list header. It will show the page checkbox, the
-  selection count (with `in k channels` when spanning multiple channels),
-  **Select by title**, the bulk action buttons (such as **Multicast**), and
-  **Clear**. On a phone, the bar will use icon buttons with tooltips and
-  accessibility labels.
-- **Select by title (patterns and `*`)**: opening **Select by title** from the
-  selection bar — or from the list header when nothing is selected — will let
-  you enter one pattern per line (up to 10 lines; as a sheet on a phone):
-  - `*` on a line will select every active channel topic in your workspace that
-    you can read and act on (excluding archived topics, direct messages, and
-    issue discussions).
-  - Any other line will act as a case-insensitive regular expression (RE2)
-    matched anywhere in the topic title (use `^`, such as `^release`, to anchor
-    to the start).
-  - **Add matching topics** will ask the hub to resolve the patterns and add
-    the matching topics to your selection (deduplicated). An invalid pattern
-    will name the line and add nothing.
-- **Multicast**: clicking **Multicast** in the selection bar will open the
-  **Send to n topics** dialog (a full-screen sheet on a phone). It will list
-  the selected topics grouped by channel — each with a remove button (`×`) —
-  above a composer with `@mentions` and file attachments (your page composer
-  and its draft will not change).
-  - Spool will check every target before sending (access, archived state, files,
-    and remaining workspace message quota). **Send to n topics** will stay
-    disabled while any target is refused; removing refused targets with `×`
-    will re-check.
-  - Sending will upload attached files once and post one normal message into
-    each selected topic. Each copy will route normally to that topic's or
-    channel's agents and any leading `@mention`, and count as one message
-    toward your workspace's monthly quota. Replies will stay in each topic on
-    its own.
-  - The dialog will show per-topic status as copies arrive. When every topic
-    succeeds, the dialog will close and the selection will clear; if a copy is
-    refused at send time, the dialog will stay open with your text and offer
-    **Retry** for the failed topics.
-  - In **Discussion loops**, the **Send to several topics** switch will reuse
-    your current selection and title patterns so a loop can post to matching
-    topics on every fire (patterns will be re-resolved at fire time).
+  bar replaces the list header. On a channel page it starts with the list's
+  **Filter** and **Sort** icons (so you can still filter by title while topics
+  are ticked), then the page checkbox (it selects the topics listed), the
+  selection count (with `in k channels` when it spans several channels), the
+  bulk action buttons (such as **Multicast**), and **Clear**. Once the page
+  checkbox has ticked every topic listed, a line under the bar offers **Select
+  all N matching**, which adds every matching topic of that list (under a
+  title filter, all the topics the title matches; in **Monitoring → Topics**,
+  only your current workspace's rows). On a phone, the bar uses icon buttons
+  with tooltips and accessibility labels.
+- **Multicast**: clicking **Multicast** in the selection bar opens the **Send
+  to n topics** dialog (a full-screen sheet on a phone; **Back** closes it and
+  keeps the selection). It lists the selected topics grouped by channel, each
+  with a remove button (`×`), and a composer with `@mentions` and file
+  attachments (your page composer and its draft do not change). The composer
+  sits above the topics when your **Settings → Behaviour → Message order** is
+  newest first, below them when it is newest last.
+  - Spool checks every target before sending (access, archived state, files,
+    and the workspace's remaining monthly messages). **Send to n topics** stays
+    unavailable while any target is refused, with the reason shown next to it;
+    removing a refused target with `×` checks again.
+  - Sending uploads attached files once and posts one normal message into each
+    selected topic. Each copy routes normally to that topic's or channel's
+    agents and any leading `@mention`, and counts as one message toward your
+    workspace's monthly quota. Replies stay in each topic on its own.
+  - The dialog shows each topic's status as its copy arrives. When every topic
+    succeeds, the dialog closes and the selection clears; if a copy is refused
+    at send time, the dialog stays open with your text and offers **Retry** for
+    the failed topics.
+- **Not built yet (spec 186)**: a **Discussion loops** switch to send a loop's
+  prompt to several topics on every fire is planned and is not in the app yet.
 
 ---
 
@@ -222,4 +227,4 @@ prompt to several topics at once (**Multicast**).
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).
 
-<!-- version: 1.3.0 · updated: 2026-11-24 -->
+<!-- version: 1.4.0 · updated: 2026-11-28 -->

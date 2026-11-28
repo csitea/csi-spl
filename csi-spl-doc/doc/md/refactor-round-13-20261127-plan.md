@@ -43,7 +43,7 @@ zero behaviour change:
   (`:72`, `:98`), although it already sources `orc:src/bash/run/spl-uplink-probe.func.sh`
   (`:65`, only when `EXTERNAL_API_DIR` is unset). The row sources it on every run and
   deletes the copies. Guarded by case `13` of `utl:src/bash/tests/external-api-health.tst.sh`.
-- **Row 02 (`_spl_channel_agent_ids`, the operator channel seat actions' box and agent id
+- **Row 03 (`_spl_channel_agent_ids`, the operator channel seat actions' box and agent id
   checks, 3 `csi-spl-orc` files):** `orc:src/bash/run/spl-channel-agent-add-op.func.sh:67-76`
   and `orc:src/bash/run/spl-channel-agent-remove-op.func.sh:39-48` carry the same 10
   lines (AGENT_BOX check, empty AGENTS check, lazy source of `spool-env.inc.sh`, the
@@ -53,7 +53,7 @@ zero behaviour change:
 
 The two rows share no file: both are **Batch 1**.
 
-**Status: v0.1 for panel review.** Editor: **c-851** (claude, the specs_and_docs backup:
+**Status: v1.0, the panel's v0.1 FAIL (c-867, W1) folded.** Editor: **c-851** (claude, the specs_and_docs backup:
 agy is out of quota on both boxes until about 2026-12-03T07:02Z). Panel: the claude seat
 `hand-sat-c002-refactor-round-13-claude-panel-seat` (queued as ask `bd0f6ac8`, position
 73/109 at 2026-11-27T23:44:38Z), a same-vendor panel under waiver `1a7c70da` (section 9).
@@ -62,7 +62,7 @@ agy is out of quota on both boxes until about 2026-12-03T07:02Z). Panel: the cla
 (`d030289673d10a4ad4caad945382d05e0f474c27`, `origin/master` at 2026-11-27T23:43:47Z),
 n=1 per command unless stated. The tests of 1.5 ran in scratch clones of `d03028967`
 (not committed): "base" unmodified, "head1" = base + row 01 as in 1.3, "head2" = base +
-row 02 as in 1.4; each red control and mutation ran on its tree and was restored after.
+row 03 as in 1.4; each red control and mutation ran on its tree and was restored after.
 1.3 and 1.4 print each head as a unified diff against `d03028967`, so any panel or R7
 seat can rebuild head1 and head2 with `git apply` and check the sha256 values. Queue,
 lane map, brief and branch reads are live state and carry their own times.
@@ -94,7 +94,8 @@ lane map, brief and branch reads are live state and carry their own times.
   `KEEP wip/c-596-c002-r13-01-wui-decompose-message-card before-window ...`,
   `nothing deleted`. This plan's own review branch is
   `review/c002-refactor-round-13-planner` (not matched by `review/r13-*`). The
-  `review/r13-02` name collides with row 02's review branch: section 5.
+  `review/r13-02` head is why the second row is numbered **r13-03**, not r13-02 (holder
+  ruling on the panel's W1, section 5): no row of this round uses the id `r13-02`.
 - **Old-cycle files:** `git ls-tree --name-only origin/master csi-spl-doc/doc/md/ | grep refactor-round-13`
   -> 3: `refactor-round-13-plan.md`, `refactor-round-13-retro.md`, `refactor-round-13/`.
   The dated names of this round match 0 entries.
@@ -145,7 +146,9 @@ lane map, brief and branch reads are live state and carry their own times.
     test hunks pipe into no early-exit consumer (`sigpipe-lint.sh` rc 0, 1.5).
   - r12 panel notes: all folded into r12 v1.0 (`bbef68498`).
 - **(c) The dispatcher's candidates file** (`/var/spool-hub/dispatch/c002-next-round-candidates.md`,
-  on the planner box, 183 lines, mtime 2026-11-28T01:28:11 box time), its
+  on the planner box, 183 lines, mtime 2026-11-28T01:28:11 box time; re-read for v1.0 at
+  2026-11-28T01:04:26Z: 196 lines, mtime 02:04:06 box time, the 13 new lines 184-196 are
+  the SPL-6698 L4 and SPL-6699 H2 review notes, test and bug shaped, none a refactor), its
   refactor-shaped items:
   - line 1 (literal `/var` paths in `spl-watchdog.func.sh` and `spl-lane-rotate.func.sh`):
     served, `git grep -nE '/var/\$|/var/csi|LOGIN_STATE_DIR:-' d03028967 -- <both files>`
@@ -166,7 +169,7 @@ lane map, brief and branch reads are live state and carry their own times.
   - `ext_api_trim` = `spl_uplink_trim`: with the gcp apis enable/disable pair, the only
     cross-file function twin -> row 01.
   - `spl-channel-agent-add-op.func.sh:67-76` = `spl-channel-agent-remove-op.func.sh:39-48`
-    (plus the dry-run gate line) -> **row 02** (1.4).
+    (plus the dry-run gate line) -> **row 03** (1.4).
   - Every other hit is secret-class, PG-bound, a guard or already folded: section 7.
 
 ### 1.3 Row 01's site: the external API probe reuses the uplink probe's helpers
@@ -345,7 +348,7 @@ the same exit codes. Existing cases 1 (row format with the ISO stamp), 3
 with `EXTERNAL_API_DIR` set, the path where base never sourced the uplink probe, and pass
 on base and head1 alike (1.5).
 
-### 1.4 Row 02's site: `_spl_channel_agent_ids` (add-op, remove-op)
+### 1.4 Row 03's site: `_spl_channel_agent_ids` (add-op, remove-op)
 
 On `d03028967`:
 
@@ -393,7 +396,8 @@ Shape (head2, `git diff --numstat d03028967 head2`):
 `channel-agent-remove-op.tst.sh` +41 -0 (137 -> 178). sha256 (12 chars):
 `spl-channel-agent-add-op.func.sh` `0886cb641acc`,
 `spl-channel-agent-remove-op.func.sh` `76627571f91b`,
-`channel-agent-remove-op.tst.sh` `a34c5a00909b`.
+`channel-agent-remove-op.tst.sh` `a070c581fec9` (v1.0: the two `(r13-02)` labels of the
+v0.1 head read `(r13-03)`, a comment-only change; v0.1's value was `a34c5a00909b`).
 
 head2 as a diff against `d03028967` (`index` lines dropped):
 
@@ -512,7 +516,7 @@ diff --git a/csi-spl-orc/src/bash/tests/channel-agent-remove-op.tst.sh b/csi-spl
  #   3. DRY_RUN=0: one transaction, UPDATE ... origin='removed' only (no DELETE,
  #      no INSERT), app.tenant_id set, values as -v, as the env SA
  #   4. runner: removed / absent reported; a count mismatch or psql failure is FATAL
-+#   5. one copy (r13-02): _spl_channel_agent_ids in spl-channel-agent-add-op.func.sh
++#   5. one copy (r13-03): _spl_channel_agent_ids in spl-channel-agent-add-op.func.sh
 +#      checks AGENT_BOX and AGENTS for both operator actions; remove_op sourced
 +#      alone loads it and keeps its plan, dedupe and refusals
  #------------------------------------------------------------------------------
@@ -522,7 +526,7 @@ diff --git a/csi-spl-orc/src/bash/tests/channel-agent-remove-op.tst.sh b/csi-spl
  in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_RC=2 STUB_PSQL_OUT='boom'; rc=$?
  [[ $rc -ne 0 ]] && grep -q 'failed: boom' "$T/out" && pass "4. a psql failure is FATAL" || fail "4. psql rc: $(cat "$T/out")"
  
-+# --- 5. _spl_channel_agent_ids, one copy, remove_op alone (r13-02) -------------------
++# --- 5. _spl_channel_agent_ids, one copy, remove_op alone (r13-03) -------------------
 +ADD="$PROJ_ROOT/src/bash/run/spl-channel-agent-add-op.func.sh"
 +ids_of() {
 +  env PROJ_PATH="$PROJ_ROOT" BOX_ARG="$1" IDS_ARG="$2" bash -c '
@@ -585,26 +589,26 @@ base; "-" means that head does not touch the suite's tree.
 | `orc:src/bash/tests/spl-uplink-probe.tst.sh` | 01 | 0 / 22 / 0 | = | - |
 | `orc:src/bash/tests/reliability-checks-cron.tst.sh` | 01 | 0 / 9 / 0 | = | - |
 | `orc:src/bash/features/spawn-agents/tests/test-spawn-hub-dns.sh` | 01 | 0 / 21 / 0 | = | - |
-| `orc:src/bash/tests/channel-agent-remove-op.tst.sh` | 02 | 0 / 21 / 0 | - | 0 / 29 / 0 (+8, section 5) |
-| `orc:src/bash/tests/channel-agent-add-op.tst.sh` | 02 | 0 / 42 / 0 | - | = |
-| `orc:src/bash/tests/dispatch-subscribe.tst.sh` | 02 | 0 / 31 / 0 | - | = |
-| `orc:src/bash/tests/dispatch-tick.tst.sh` | 02 | 0 / 29 / 0 | - | = |
-| `orc:src/bash/tests/tests-hermetic.tst.sh` | 02 | 0 / 9 / 0 | - | = |
-| `orc:src/bash/tests/dispatch-inbound-pg.tst.sh` | 02 | 0 / 20 / 0 | - | = |
-| `orc:src/bash/tests/run-eager-files.tst.sh` | 01, 02 | 0 / 14 / 0 | = | = |
-| `orc:src/bash/tests/no-literal-paths.tst.sh` | 01, 02 | 0 / 15 / 0 | = | = |
-| `orc:src/bash/tests/func-name-unique.tst.sh` | 01, 02 | 0 / 2 / 0 | = | = |
-| `iac:src/bash/tests/no-box-path-source.tst.sh` | 01, 02 | 0 / 10 / 0 | = | = |
-| `iac:src/bash/tests/action-header-tags.tst.sh` | 01, 02 | 0 / 6 / 0 | = | = |
-| `iac:src/bash/tests/param-required.tst.sh` | 01, 02 | 0 / 17 / 0 | = | = |
-| `iac:src/bash/tests/run-lazy-loader.tst.sh` | 01, 02 | 0 / 30 / 0 | = | = |
-| `iac:src/bash/tests/bash-cleancode.tst.sh` | 01, 02 | 0 / 15 / 0 | = | = |
-| `iac:src/bash/tests/gcloud-account-pinned.tst.sh` | 01, 02 | 0 / 48 / 0 | = | = |
-| `utl:src/bash/tests/param-required.tst.sh` | 01, 02 | 0 / 17 / 0 | = | = |
-| `utl:src/bash/tests/print-help.tst.sh` | 01, 02 | 0 / 4 / 0 | = | = |
+| `orc:src/bash/tests/channel-agent-remove-op.tst.sh` | 03 | 0 / 21 / 0 | - | 0 / 29 / 0 (+8, section 5) |
+| `orc:src/bash/tests/channel-agent-add-op.tst.sh` | 03 | 0 / 42 / 0 | - | = |
+| `orc:src/bash/tests/dispatch-subscribe.tst.sh` | 03 | 0 / 31 / 0 | - | = |
+| `orc:src/bash/tests/dispatch-tick.tst.sh` | 03 | 0 / 29 / 0 | - | = |
+| `orc:src/bash/tests/tests-hermetic.tst.sh` | 03 | 0 / 9 / 0 | - | = |
+| `orc:src/bash/tests/dispatch-inbound-pg.tst.sh` | 03 | 0 / 20 / 0 | - | = |
+| `orc:src/bash/tests/run-eager-files.tst.sh` | 01, 03 | 0 / 14 / 0 | = | = |
+| `orc:src/bash/tests/no-literal-paths.tst.sh` | 01, 03 | 0 / 15 / 0 | = | = |
+| `orc:src/bash/tests/func-name-unique.tst.sh` | 01, 03 | 0 / 2 / 0 | = | = |
+| `iac:src/bash/tests/no-box-path-source.tst.sh` | 01, 03 | 0 / 10 / 0 | = | = |
+| `iac:src/bash/tests/action-header-tags.tst.sh` | 01, 03 | 0 / 6 / 0 | = | = |
+| `iac:src/bash/tests/param-required.tst.sh` | 01, 03 | 0 / 17 / 0 | = | = |
+| `iac:src/bash/tests/run-lazy-loader.tst.sh` | 01, 03 | 0 / 30 / 0 | = | = |
+| `iac:src/bash/tests/bash-cleancode.tst.sh` | 01, 03 | 0 / 15 / 0 | = | = |
+| `iac:src/bash/tests/gcloud-account-pinned.tst.sh` | 01, 03 | 0 / 48 / 0 | = | = |
+| `utl:src/bash/tests/param-required.tst.sh` | 01, 03 | 0 / 17 / 0 | = | = |
+| `utl:src/bash/tests/print-help.tst.sh` | 01, 03 | 0 / 4 / 0 | = | = |
 
-Not run by the planner: `cd csi-spl-iac && ./run -a do_check_pre_push` on either head
-(the row lanes run it in their worktree); `gcloud-account-pinned.tst.sh` counts are
+Not run by the planner nor by the panel seat (panel N5): `cd csi-spl-iac && ./run -a do_check_pre_push`
+on either head; each row lane runs it in its worktree before its push (section 5); `gcloud-account-pinned.tst.sh` counts are
 box-dependent (48 here, equal on base and heads).
 
 `shellcheck 0.10.0 -S warning -x` on the 5 edited files: rc 0 (base rc 0 too; head2 first
@@ -621,7 +625,7 @@ on each head's files: rc 0.
   equal). head2: rc 0, 29 pass, 0 fail.
 
 **Mutations** (one defect planted in the final head, then restored, n=1; columns:
-row 01 = `external-api-health` + `spl-uplink-probe`, row 02 = `channel-agent-remove-op`
+row 01 = `external-api-health` + `spl-uplink-probe`, row 03 = `channel-agent-remove-op`
 + `channel-agent-add-op`):
 - `m1a` (drop the source of `spl-uplink-probe.func.sh`): ext-api rc 1, 10 / 4
   (cases 1, 3, 5b, 10); uplink 0 / 22 / 0.
@@ -644,7 +648,7 @@ The tests that name the sites (R2), `git grep -lE` over `*/tests/*` on `d0302896
   -> **`utl:.../external-api-health.tst.sh`** (edited), `orc:.../spl-uplink-probe.tst.sh`,
   `orc:.../reliability-checks-cron.tst.sh`, `orc:.../spawn-agents/tests/test-spawn-hub-dns.sh`
   (and `orc-shard-weights.txt`, a table).
-- Row 02 (`spl-channel-agent-(add|remove)-op|do_spl_channel_agent_(add|remove)_op|_spl_channel_agent_(add|remove)_op`)
+- Row 03 (`spl-channel-agent-(add|remove)-op|do_spl_channel_agent_(add|remove)_op|_spl_channel_agent_(add|remove)_op`)
   -> **`orc:.../channel-agent-remove-op.tst.sh`** (edited), `orc:.../channel-agent-add-op.tst.sh`,
   `dispatch-inbound-pg.tst.sh`, `dispatch-subscribe.tst.sh`, `dispatch-tick.tst.sh`,
   `tests-hermetic.tst.sh`.
@@ -655,7 +659,7 @@ The tests that name the sites (R2), `git grep -lE` over `*/tests/*` on `d0302896
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r13-01-utl-ext-api-uplink-helpers)` | one fact, one copy (developer guide 2.2.4) | `external-api-health.func.sh` keeps byte-identical copies of the uplink probe's ms clock (`:109` = `spl-uplink-probe.func.sh:95`) and 7-day trim (`:142-152` = `:184-194`) and inlines its ISO stamp twice (`:72`, `:98` = `:89`), though it already sources that file (`:65`) for the default dir (1.3) | `utl:src/bash/run/external-api-health.func.sh:63-67,72,98-99,108-109,140-152`<br>`utl:src/bash/tests/external-api-health.tst.sh:16,204` | copies of `spl_uplink_ms` and `spl_uplink_trim` 2 -> 1 each; inline copies of the `spl_uplink_iso` body 2 -> 0 (1.3) | 1.3's shape (head1 diff in 1.3). **Red control:** head1's `external-api-health.tst.sh` on base: rc 1, 13 pass, 1 fail (`13. one copy`), then GREEN on head1 (`0/14/0`). Mutations `m1a` (drop the source: 4 fail), `m1b` (trim no-op: 1 + uplink 1), `m1c` (own `ext_api_ms` back: 1), `m1d` (no `TZ=UTC`: 1 + uplink 3, box-dependent) (1.5); outputs in the body. **Behaviour:** none changes (1.3). Tests: **`utl:.../external-api-health.tst.sh`**, `orc:.../spl-uplink-probe.tst.sh`, `orc:.../reliability-checks-cron.tst.sh`, `orc:.../spawn-agents/tests/test-spawn-hub-dns.sh`, the 11 guard suites of 1.5, `shellcheck -S warning -x` and `sigpipe-lint.sh` on the 2 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
-| 02 `refactor(r13-02-orc-channel-agent-ids)` | one fact, one copy (developer guide 2.2.4) | `spl-channel-agent-add-op.func.sh:67-76` and `spl-channel-agent-remove-op.func.sh:39-48` carry the same 10-line AGENT_BOX + AGENTS check and first-seen dedupe; remove-op is the add-op's documented mirror (1.4) | `orc:src/bash/run/spl-channel-agent-add-op.func.sh:41,44-45,67-76,86`<br>`orc:src/bash/run/spl-channel-agent-remove-op.func.sh:30-32,39-48,62-63`<br>`orc:src/bash/tests/channel-agent-remove-op.tst.sh:13,136` | copies of the box and agent id check + dedupe 2 -> 1 (hosted once as `_spl_channel_agent_ids` in the add-op file) | 1.4's shape (head2 diff in 1.4). **Red control:** head2's `channel-agent-remove-op.tst.sh` on base: rc 1, 22 pass, 7 fail lines (`FAILED: 6`; both standalone checks pass on base), then GREEN on head2 (`0/29/0`). Mutations `m2a` (no dedupe: 3 + add-op 1), `m2b` (no lazy source: 2), `m2c` (accept `box-wui`: 3 + add-op 1), `m2d` (own box check back: 1) (1.5); outputs in the body. **Behaviour:** none changes (1.4). Tests: **`orc:.../channel-agent-remove-op.tst.sh`**, `orc:.../channel-agent-add-op.tst.sh`, `orc:.../dispatch-subscribe.tst.sh`, `orc:.../dispatch-tick.tst.sh`, `orc:.../tests-hermetic.tst.sh`, `orc:.../dispatch-inbound-pg.tst.sh`, the 11 guard suites of 1.5, `shellcheck -S warning -x` and `sigpipe-lint.sh` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
+| 03 `refactor(r13-03-orc-channel-agent-ids)` | one fact, one copy (developer guide 2.2.4) | `spl-channel-agent-add-op.func.sh:67-76` and `spl-channel-agent-remove-op.func.sh:39-48` carry the same 10-line AGENT_BOX + AGENTS check and first-seen dedupe; remove-op is the add-op's documented mirror (1.4) | `orc:src/bash/run/spl-channel-agent-add-op.func.sh:41,44-45,67-76,86`<br>`orc:src/bash/run/spl-channel-agent-remove-op.func.sh:30-32,39-48,62-63`<br>`orc:src/bash/tests/channel-agent-remove-op.tst.sh:13,136` | copies of the box and agent id check + dedupe 2 -> 1 (hosted once as `_spl_channel_agent_ids` in the add-op file) | 1.4's shape (head2 diff in 1.4). **Red control:** head2's `channel-agent-remove-op.tst.sh` on base: rc 1, 22 pass, 7 fail lines (`FAILED: 6`; both standalone checks pass on base), then GREEN on head2 (`0/29/0`). Mutations `m2a` (no dedupe: 3 + add-op 1), `m2b` (no lazy source: 2), `m2c` (accept `box-wui`: 3 + add-op 1), `m2d` (own box check back: 1) (1.5); outputs in the body. **Behaviour:** none changes (1.4). Tests: **`orc:.../channel-agent-remove-op.tst.sh`**, `orc:.../channel-agent-add-op.tst.sh`, `orc:.../dispatch-subscribe.tst.sh`, `orc:.../dispatch-tick.tst.sh`, `orc:.../tests-hermetic.tst.sh`, `orc:.../dispatch-inbound-pg.tst.sh`, the 11 guard suites of 1.5, `shellcheck -S warning -x` and `sigpipe-lint.sh` on the 3 files, `cd csi-spl-iac && ./run -a do_check_pre_push`. | either | claude | simple_coding | 1 |
 
 `orc:` = `csi-spl-orc/`, `utl:` = `csi-spl-utl/`, `iac:` = `csi-spl-iac/`.
 
@@ -672,8 +676,8 @@ exit code, env var, path or file a caller sees ->
 
 ### 2.1 Batches (R1, R16)
 
-- **Batch 1: rows 01 and 02**, at once: disjoint file sets (row 01: the 2 `utl:` files;
-  row 02: the 3 `orc:` files).
+- **Batch 1: rows 01 and 03**, at once: disjoint file sets (row 01: the 2 `utl:` files;
+  row 03: the 3 `orc:` files).
 - Neither row edits `orc:src/bash/run/spl-uplink-probe.func.sh`,
   `orc:src/bash/tests/spl-uplink-probe.tst.sh`, `orc:src/bash/run/spl-channel-agent-add.func.sh`,
   `orc:src/bash/tests/channel-agent-add-op.tst.sh`, `spool-env.inc.sh`,
@@ -688,7 +692,7 @@ Paths checked (5 edited + 4 read-or-run siblings = 9):
 `orc:src/bash/run/spl-uplink-probe.func.sh`, `orc:src/bash/tests/spl-uplink-probe.tst.sh`,
 `orc:src/bash/run/spl-channel-agent-add-op.func.sh`,
 `orc:src/bash/run/spl-channel-agent-remove-op.func.sh`,
-`orc:src/bash/tests/channel-agent-remove-op.tst.sh` (edited by row 02),
+`orc:src/bash/tests/channel-agent-remove-op.tst.sh` (edited by row 03),
 `orc:src/bash/tests/channel-agent-add-op.tst.sh`, plus `spl-channel-agent-add-op`'s
 callers' tests (`dispatch-subscribe`, `dispatch-tick`).
 
@@ -740,7 +744,7 @@ callers' tests (`dispatch-subscribe`, `dispatch-tick`).
   `ext_api_ms`, `ext_api_trim` and the 2 inline ISO formats;
   `utl:src/bash/tests/external-api-health.tst.sh` adds case `13` (one copy) to the
   header (`:16`) and before the footer (`:204`).
-- **r13-02:** applies 1.4's head2 diff: `orc:src/bash/run/spl-channel-agent-add-op.func.sh`
+- **r13-03:** applies 1.4's head2 diff: `orc:src/bash/run/spl-channel-agent-add-op.func.sh`
   hosts `_spl_channel_agent_ids` and calls it; `orc:src/bash/run/spl-channel-agent-remove-op.func.sh`
   lazy-sources the add-op file and calls it, and counts with `for _ in $4`;
   `orc:src/bash/tests/channel-agent-remove-op.tst.sh` adds section `5` to the header
@@ -772,21 +776,28 @@ Each brief carries its plan row verbatim (R4), `Spec: csi-spl-doc/specs/011-spoo
 | row | placement slug | subject | review branch | batch |
 |---|---|---|---|---|
 | r13-01 | `c002-r13-01-utl-ext-api-uplink-helpers` | `refactor(r13-01-utl-ext-api-uplink-helpers, SPL-<row issue>): ...` | `review/r13-01` | 1 |
-| r13-02 | `c002-r13-02-orc-channel-agent-ids` | `refactor(r13-02-orc-channel-agent-ids, SPL-<row issue>): ...` | `review/r13-02` (old-cycle head there: below) | 1 |
+| r13-03 | `c002-r13-03-orc-channel-agent-ids` | `refactor(r13-03-orc-channel-agent-ids, SPL-<row issue>): ...` | `review/r13-03` (id free: below) | 1 |
 
-Before placing either: R4's slug check reads since W
-(`git log origin/master --since="2026-11-27T20:38:00+02:00" --oneline --grep='r13-01-'`
-must be empty). **One collision for the holder to decide:** `review/r13-02` already
-exists on origin from the old cycle (`6cc7f2cbb`, 2026-10-16, 1.1), and the W-scoped
-prune keeps it
-(`ROUND=13 PRUNE_SINCE="2026-11-27T20:38:00+02:00" DRY_RUN=1 ./run -a do_git_prune_round_branches`
-at 2026-11-28T00:15:35Z: `KEEP review/r13-02 before-window ...`, `nothing deleted`). A
-row 02 push to that name is not a fast-forward of the old head. `do_spl_push_master`
-fetches `review/<rNN-NN>` only to resolve a reviewed sha that is not already local
-(`spl-push-master.func.sh:327`). Either the holder removes the old-cycle head first, or
-row 02 reviews on `review/r13-02-20261127` and lands from the same clone, where the
-reviewed sha is local. The plan deletes nothing; the second form is unproven end to end
-(no run yet).
+Before placing either: R4's slug check reads since W, for both rows at once (panel N2,
+the form of 1.1):
+`git log origin/master --since="2026-11-27T20:38:00+02:00" --oneline -E --grep='\(r13-' | wc -l`
+must print 0 (it printed 0 at 2026-11-28T01:04:26Z, `origin/master` `d49322617`).
+
+**Row ids 01 and 03 (holder ruling on the panel's W1, c-002 msg ee9cc9eb):** `review/r13-02`
+exists on origin from the old cycle (`6cc7f2cbb`, 2026-10-16, 1.1) and the W-scoped prune
+keeps it (`ROUND=13 PRUNE_SINCE="2026-11-27T20:38:00+02:00" DRY_RUN=1 ./run -a do_git_prune_round_branches`
+at 2026-11-28T00:15:35Z: `KEEP review/r13-02 before-window ...`, `nothing deleted`), so the
+id `r13-02` fails rulebook 5.3's id-free test and a row push to that name would not be a
+fast-forward. The second row is therefore **r13-03**, in its slug, subject, review branch,
+brief name and R4 grep; no remote branch is deleted. Id-free proof at
+2026-11-28T01:04:26Z:
+`git ls-remote origin 'refs/heads/review/r13-01*' 'refs/heads/review/r13-03*' 'refs/heads/*-r13-03-*' 'refs/heads/wip/*r13-03*' | wc -l`
+-> 0, and `git log origin/master --since="2026-11-27T20:38:00+02:00" --oneline -E --grep='r13-03' | wc -l`
+-> 0. The old-cycle brief `c002-r13-03-restart.md` (1.1) is a different file name from this
+row's `c002-r13-03-orc-channel-agent-ids.md`. The `wip/c-596-c002-r13-01-...` head (1.1)
+matches neither `review/r13-01*` nor this round's slugs. Rulebook 5.3's whole-id test
+(`refs/heads/review/r13-*` and friends) still prints these 2 old-cycle heads; the
+W-scoped prune keeps both, as 1.1 shows.
 
 **r13-01 brief, Files: ONLY**
 `csi-spl-utl/src/bash/run/external-api-health.func.sh` and
@@ -801,14 +812,21 @@ the 4 mutations `m1a`-`m1d` of 1.5 shown RED in the body. Gates: the row's tests
 every job of workflow 10 on the sha (R11).
 `Docs: none (internal helper consolidation; no behaviour changes)`. Kind
 `simple_coding`, vendor claude; R7 the claude waiver seat under waiver `1a7c70da` while
-agy cannot sit (re-checked at placement); never mistral.
+agy cannot sit (re-checked at placement); never mistral. `m1d` is box-dependent (panel
+N4, 1.5): it is RED only where the box's local zone is not UTC; on a UTC box the lane
+writes `m1d: n/a (box zone UTC)` with `date +%Z` instead of a RED line. The new lazy
+source line has no failure branch (panel N1), like the file's existing lazy source at
+`:42`: a missing `spl-uplink-probe.func.sh` gives `command not found` and an empty stamp.
+Unreachable in the mono-repo (both files ship in the one tree), so the row keeps the
+file's shape; the lane may add `|| { do_log "FATAL ..."; return 1; }` and then shows
+`m1a` RED again.
 
-**r13-02 brief, Files: ONLY**
+**r13-03 brief, Files: ONLY**
 `csi-spl-orc/src/bash/run/spl-channel-agent-add-op.func.sh`,
 `csi-spl-orc/src/bash/run/spl-channel-agent-remove-op.func.sh` and
 `csi-spl-orc/src/bash/tests/channel-agent-remove-op.tst.sh` (1.4's head2 diff). NOT
 `channel-agent-add-op.tst.sh`, NOT `spl-channel-agent-add.func.sh` (the member path),
-NOT `spool-env.inc.sh`, NOT any other file. Do: plan section 2 row 02 verbatim, 1.4's
+NOT `spool-env.inc.sh`, NOT any other file. Do: plan section 2 row 03 verbatim, 1.4's
 shape; red control (head2's test on its parent: rc 1, 22 pass, 7 fail lines (`FAILED: 6`; both standalone checks pass on base)) RED then GREEN in the body; the
 4 mutations `m2a`-`m2d` of 1.5 shown RED in the body. Gates: the row's tests (section 2,
 `SPOOL_TEST=1`, in the worktree), `shellcheck -S warning -x` and `sigpipe-lint.sh` on
@@ -823,12 +841,12 @@ agy cannot sit (re-checked at placement); never mistral.
 |---|---|
 | rows | 2 (both `refactor`, both `simple_coding`) |
 | vendor | claude 2 |
-| batches | batch 1: rows 01 and 02 |
+| batches | batch 1: rows 01 and 03 |
 | copies of `spl_uplink_ms` / `spl_uplink_trim` (row 01) | 2 / 2 on `d03028967` -> 1 / 1 |
 | inline copies of the `spl_uplink_iso` body outside its home (row 01) | 2 -> 0 |
-| copies of the operator channel seat box + agent id check and dedupe (row 02) | 2 -> 1 (`_spl_channel_agent_ids`) |
-| lines (`git diff --numstat` of each head) | row 01: `external-api-health.func.sh` +13 -29, `external-api-health.tst.sh` +11 -0; row 02: `spl-channel-agent-add-op.func.sh` +24 -13, `spl-channel-agent-remove-op.func.sh` +6 -15, `channel-agent-remove-op.tst.sh` +41 -0 |
-| CI parts (`ci-doc-only.sh` on each head's range) | row 01 `all`; row 02 `cnf hub iac orc` |
+| copies of the operator channel seat box + agent id check and dedupe (row 03) | 2 -> 1 (`_spl_channel_agent_ids`) |
+| lines (`git diff --numstat` of each head) | row 01: `external-api-health.func.sh` +13 -29, `external-api-health.tst.sh` +11 -0; row 03: `spl-channel-agent-add-op.func.sh` +24 -13, `spl-channel-agent-remove-op.func.sh` +6 -15, `channel-agent-remove-op.tst.sh` +41 -0 |
+| CI parts (`ci-doc-only.sh` on each head's range) | row 01 `all`; row 03 `cnf hub iac orc` |
 | measured on | `d03028967`; n=1 per command unless stated |
 
 ## 7. Left out, measured
@@ -853,6 +871,16 @@ agy cannot sit (re-checked at placement); never mistral.
   clones; the column of 1.5 run on base and each head; shellcheck 0.10.0 and
   `sigpipe-lint.sh` rc 0 on the 5 edited files; both red controls and the 8 mutations
   RED. Pushed to `review/c002-refactor-round-13-planner`.
+- v1.0 (c-851), the panel's FAIL (c-867@sat, msg 8aeb5df2, on `2d15031a0`) and the
+  holder's ruling (c-002, msg ee9cc9eb): W1 the second row is **r13-03** (slug, subject,
+  review branch, brief, R4 grep, head2's two test-comment labels; head2's test sha256
+  re-measured), section 5; N2 the R4 slug check reads `-E --grep='\(r13-'` for both rows;
+  N1 and N4 written into the r13-01 brief; N3 the candidates file re-read (196 lines,
+  no new refactor item), 1.2 (c); N5 `do_check_pre_push` on the heads stays not run by the
+  planner (1.5), each lane runs it. Rows, sites, other counts unchanged (`d03028967`).
+  Re-run on the v1.0 head2 (2026-11-28T01:1x-01:2xZ, n=1): the 17 row 03 and guard
+  suites of 1.5 equal v0.1's counts; red control rc 1, 22 / 7; `m2a` 27 / 4 + 41 / 2,
+  `m2b` 26 / 3 + 0 / 42 / 0, `m2c` 26 / 4 + 41 / 2, as 1.5.
 
 ## 9. Consensus
 
@@ -863,8 +891,8 @@ reviewer of a claude plan, is out of quota on both boxes until about
 
 | seat | vendor | role | plan sha | verdict | review line / note |
 |---|---|---|---|---|---|
-| `c-851` | claude | editor | v0.1 | draft | section 8 |
-| claude panel seat (`hand-sat-c002-refactor-round-13-claude-panel-seat`, ask `bd0f6ac8`) | claude | panel | v0.1 pending | pending | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
+| `c-851` | claude | editor | v1.0 | draft | section 8 |
+| claude panel seat (`hand-sat-c002-refactor-round-13-claude-panel-seat`, ask `bd0f6ac8`) | claude | panel | v0.1 `2d15031a0` FAIL (W1, N1-N5); v1.0 pending | pending | same-vendor panel, waiver 1a7c70da (c-001 ruling on 21e079a5) |
 
 No row lane starts before the panel signs the plan sha and its review line passes
 `do_spl_review_line_check` (rc 0), confirmed by the dispatch lease holder.

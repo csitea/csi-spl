@@ -289,6 +289,8 @@ jobs:
             for p in cnf hub iac orc wui; do
               if [[ "$line" == parts=all || " ${line#parts=} " == *" $p "* ]]; then out+="run_$p=true"$'\n'; else out+="run_$p=false"$'\n'; fi
             done
+            # A2: a dispatch with express_base maps the e2e range as a push would
+            echo "wui_base=$BASE" >>"$GITHUB_OUTPUT"
           else
             echo "ci-doc-only: $EVENT without a base: full gate"
           fi
@@ -839,8 +841,10 @@ jobs:
   # (_ppe_ci_plan in csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh), on
   # as few shards as their CI seconds need (one full-run shard's worth each,
   # under PRE_PUSH_E2E_CI_BUDGET). The range is classify's wui_base (the
-  # newest run whose every wui job was green)..this sha. Every other event
-  # (the 3-hourly full run, a dispatch, wf 11's pull request, wf 13), a push
+  # newest run whose every wui job was green)..this sha; a dispatch with
+  # express_base maps express_base..this sha as a push would (the GitHub
+  # control on a throwaway branch). Every other event (the 3-hourly full run,
+  # a bare dispatch, wf 11's pull request, wf 13), a push
   # touching a layout, app.vue, main.css, tests/e2e/lib, ci-skip.txt, the e2e
   # runner or its weights (src/node), the bundle's build inputs or this file,
   # and any plan error or timeout run the full suite on 8 shards. The jobs of
@@ -878,7 +882,9 @@ jobs:
         run: |
           set -uo pipefail
           out=""
-          if [[ "$EVENT" == push ]]; then
+          # a push, or a dispatch with express_base ("as a push would", the
+          # GitHub control on a throwaway branch); every other event: full
+          if [[ "$EVENT" == push || ( "$EVENT" == workflow_dispatch && -n "$BASE" ) ]]; then
             # shellcheck disable=SC2016 # the inner script's own $1 $2
             out=$(timeout 240 bash -c '. csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh && _ppe_ci_plan "$PWD" "$1" "$2"' _ "$BASE" "$HEAD_SHA") || out=""
           else

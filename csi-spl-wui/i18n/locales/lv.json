@@ -4747,5 +4747,61 @@
     "refused": "Nav nosūtīts uz {topic}: {reason}",
     "retry": "Mēģināt vēlreiz",
     "none": "Nav izvēlēta tēma"
+  },
+  "channel_move": {
+    "title": "Pārvietot #{name} uz citu darbvietu",
+    "target": "Mērķa darba vieta",
+    "target_pick": "Izvēlieties darba vietu",
+    "no_targets": "Jūs neesat nevienas citas darbvietas dalībnieks, uz kuru šis kanāls nevar pārvietoties.",
+    "counts": "Kas tiek pārvietots kopā ar kanālu",
+    "count_row": "{table}: {n}",
+    "members_lost": "Cilvēki, kas tur nav biedri",
+    "keep": "Pievienot {who} elementam {dst}",
+    "mentions": "Saites atstātas savās vietās",
+    "shared_files": "Faili, kas arī paliek šeit",
+    "kept": "Pēc pārcelšanās saglabātās kopijas",
+    "kept_row": "{store}: glabāts līdz {until}",
+    "next": "Nākamais solis",
+    "back": "Atpakaļ",
+    "recheck": "Pārbaudiet kustību vēlreiz",
+    "blocked_intro": "Kanāls vēl nevar pārvietoties uz {dst}. Notīriet katru rindu zemāk un pēc tam pārbaudiet vēlreiz.",
+    "leave_hours": "Atstājiet {who} stundu rindas šajā darbvietā",
+    "clears": {
+      "seat": "Piešķiriet šim aģentam galdu mērķa darbvietā vai noņemiet to no kanāla.",
+      "pin": "Piespraudiet šo ierīci mērķa darbvietā.",
+      "shared": "Kaut kas, kas paliek šeit, arī izmanto šo priekšmetu: to vispirms izlemj īpašnieks.",
+      "hours": "Pievienojiet personu mērķa darbvietai vai atstājiet viņas stundu rindas šeit.",
+      "name": "Mērķa darbvietā jau pastāv kanāls ar šādu nosaukumu, ieskaitot arhivētos.",
+      "orchestrator": "Mērķa darbvietai vispirms ir nepieciešama orķestrētāja vieta.",
+      "quota": "Kanāla faili neatbilst mērķa darbvietas failu kvotai.",
+      "other": "Notīriet šo pirms pārcelšanās."
+    },
+    "confirm_body": "Pārvietot #{name} uz {dst}: kopā ar to tiks pārvietotas arī tā tēmas, ziņojumi, faili un problēmas.",
+    "confirm_lost": "Šīs personas zaudē piekļuvi: {who}",
+    "no_undo": "Pēc rindu pārvietošanas šo darbību nevar atsaukt.",
+    "go": "Pārvietot kanālu uz {dst}",
+    "busy": "Apstiprinu pārvietošanu…",
+    "state": {
+      "waiting": "Gaidu, kad sāksies pārvietošanās. Nekas nav pakustējies.",
+      "stuck": "Gaidu, kad sāksies kustība. Nekas nav kustējies. Tā nav sākusies 15 minūtes.",
+      "running": "Pārvietošana notiek. Pirms tās beigām nekas netiek parādīts kā pabeigts.",
+      "not_moved": "Kanāls netika pārvietots. Tajā nekas nemainījās.",
+      "cleanup_failed": "Kanāls atrodas {dst}, tīrīšana netika pabeigta.",
+      "traces": "Kanāls atrodas {dst}, bet {src} joprojām satur pēdas.",
+      "moved": "Kanāls ir pārvietots."
+    },
+    "rerun": "Pārvietošana tiks mēģināta vēlreiz automātiski.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Atveriet kanālu {dst}",
+    "open_topic": "Atvērt pārvietošanas tēmu",
+    "status_gone": "Pārvietošanas statusu nevar nolasīt no šīs darbvietas. Tās tēma operatora darbvietā parāda visas izmaiņas.",
+    "error": {
+      "channel_move_owner": "Kanālu pārvieto tikai operatora darbvietas īpašnieks.",
+      "go_required": "Serveris nepieņēma apstiprinājumu. Nekas netika pārvietots.",
+      "move_refused": "Serveris atteicās sākt pārvietošanu. Nekas netika pārvietots.",
+      "unknown_tenant": "Šī darbvieta nav tāda, uz kuru var pārvietot šo kanālu.",
+      "bad_channel": "Šo kanālu nevar pārvietot.",
+      "fallback": "Serveris neatbildēja. Nekas netika pārvietots; mēģiniet vēlreiz."
+    }
   }
 }

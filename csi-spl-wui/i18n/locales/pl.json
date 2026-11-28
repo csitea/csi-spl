@@ -4747,5 +4747,61 @@
     "refused": "Nie wysłano do {topic}: {reason}",
     "retry": "Ponów",
     "none": "Nie wybrano tematu"
+  },
+  "channel_move": {
+    "title": "Przenieś #{name} do innej przestrzeni roboczej",
+    "target": "Docelowy obszar roboczy",
+    "target_pick": "Wybierz miejsce pracy",
+    "no_targets": "Nie jesteś członkiem żadnej innej przestrzeni roboczej, do której ten kanał może się przenieść.",
+    "counts": "Co przenosi się z kanałem",
+    "count_row": "{table}: {n}",
+    "members_lost": "Ludzie, którzy nie są tam członkami",
+    "keep": "Dodaj {who} do {dst}",
+    "mentions": "Linki pozostawione na swoim miejscu",
+    "shared_files": "Pliki, które również tu pozostają",
+    "kept": "Kopie zachowane po przeprowadzce",
+    "kept_row": "{store}: przechowywane do {until}",
+    "next": "Następny krok",
+    "back": "Z powrotem",
+    "recheck": "Sprawdź ruch jeszcze raz",
+    "blocked_intro": "Kanał nie może jeszcze przenieść się do {dst}. Wyczyść każdy wiersz poniżej, a następnie sprawdź ponownie.",
+    "leave_hours": "Pozostaw wiersze godzin dla {who} w tym obszarze roboczym",
+    "clears": {
+      "seat": "Przydziel agentowi biurko w docelowym miejscu pracy lub usuń go z kanału.",
+      "pin": "Przypnij tę maszynę w docelowym obszarze roboczym.",
+      "shared": "Coś, co tu pozostaje, również korzysta z tego przedmiotu: właściciel decyduje o tym pierwszy.",
+      "hours": "Dodaj osobę do docelowego obszaru roboczego lub zostaw tutaj wiersze z jej godzinami.",
+      "name": "Kanał o tej nazwie istnieje w docelowym obszarze roboczym, łącznie z archiwalnymi.",
+      "orchestrator": "Docelowa przestrzeń robocza wymaga najpierw stanowiska koordynatora.",
+      "quota": "Pliki kanału nie mieszczą się w limicie plików docelowego obszaru roboczego.",
+      "other": "Wyczyść to przed przeprowadzką."
+    },
+    "confirm_body": "Przenieś #{name} do {dst}: wraz z nim zostaną przeniesione jego tematy, wiadomości, pliki i problemy.",
+    "confirm_lost": "Te osoby tracą dostęp: {who}",
+    "no_undo": "Po przesunięciu rzędów czynności tej nie można już cofnąć.",
+    "go": "Przenieś kanał do {dst}",
+    "busy": "Potwierdzenie ruchu…",
+    "state": {
+      "waiting": "Czekam na rozpoczęcie przeprowadzki. Nic się nie ruszyło.",
+      "stuck": "Czekam na rozpoczęcie ruchu. Nic się nie ruszyło. Ruch nie rozpoczął się od 15 minut.",
+      "running": "Ruch jest w toku. Przed jego zakończeniem nic nie jest oznaczone jako wykonane.",
+      "not_moved": "Kanał nie został przeniesiony. Nic się w nim nie zmieniło.",
+      "cleanup_failed": "Kanał znajduje się w {dst}, czyszczenie nie zostało ukończone.",
+      "traces": "Kanał znajduje się w {dst}, ale {src} nadal zawiera ślady.",
+      "moved": "Kanał został przeniesiony."
+    },
+    "rerun": "Przesunięcie zostanie automatycznie ponowione.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Otwórz kanał w {dst}",
+    "open_topic": "Otwórz temat ruchu",
+    "status_gone": "Statusu ruchu nie można odczytać z tego obszaru roboczego. Temat ruchu w obszarze roboczym operatora pokazuje każdą zmianę.",
+    "error": {
+      "channel_move_owner": "Tylko właściciel obszaru roboczego operatora może przenieść kanał.",
+      "go_required": "Serwer nie zaakceptował potwierdzenia. Nic nie zostało przeniesione.",
+      "move_refused": "Serwer odmówił rozpoczęcia przenoszenia. Nic nie zostało przeniesione.",
+      "unknown_tenant": "Nie jest to obszar roboczy, do którego można przenieść ten kanał.",
+      "bad_channel": "Tego kanału nie można przenieść.",
+      "fallback": "Serwer nie odpowiedział. Nic nie zostało przeniesione. Spróbuj ponownie."
+    }
   }
 }

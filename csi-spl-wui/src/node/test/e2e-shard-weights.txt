@@ -55,6 +55,8 @@
 # mock bundle (n=1, 2026-11-26), until a refresh measures CI.
 # composer-wrap-font-change (SPL-6654) is new: 32 s, its one local run (the mock
 # serve's start included) on a generated mock bundle (n=1, 2026-11-27), until a refresh measures CI.
+# channel-workspace-move (spec 169 T19, SPL-6730) is new: 4 s, its one runner line on a
+# generated mock bundle (n=1, 2026-11-28), until a refresh measures CI.
 # Refresh: the same lines of >= 5 green runs that hold the same e2e files
 # (perf round 17 row 01, p17-01, 2026-11-18; earlier: L5 spec 133 action 6,
 # rounds 22..47, 2026-10-16).
@@ -114,6 +116,7 @@ tests/e2e/channel-order.test.mjs 19
 tests/e2e/channel-people.test.mjs 6
 tests/e2e/channel-properties-esc.test.mjs 6
 tests/e2e/channel-thread-unread.test.mjs 3
+tests/e2e/channel-workspace-move.test.mjs 4
 tests/e2e/checkout-private-workspace.test.mjs 4
 tests/e2e/chime-mute.test.mjs 15
 tests/e2e/clean-list-rows.test.mjs 2

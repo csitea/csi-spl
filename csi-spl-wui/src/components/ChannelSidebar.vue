@@ -470,6 +470,14 @@
       :name="archiveTarget.name"
       @done="onChannelArchived"
     />
+    <!-- spec 169 8.5.4 (row T19): Move to workspace, lazy like the confirms above -->
+    <LazyChannelWorkspaceMoveDialog
+      v-if="workspaceMoveTarget.channel_id"
+      v-model:open="workspaceMoveOpen"
+      :channel-id="workspaceMoveTarget.channel_id"
+      :name="workspaceMoveTarget.name"
+      :targets="workspaceMoveTarget.targets"
+    />
       </div>
       <div
         v-if="tab === 'flow' || (tabsBuilt.flow && !phone)"
@@ -1019,12 +1027,13 @@ const { buildWatch, newerLive, versionText, versionLabel, buildCommit, vsOpen, r
 const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, showProperties, openProperties, deleteOpen, deleteTarget, deletableChannel, askDeleteChannel, archiveOpen, archiveTarget, askArchiveChannel, onChannelArchived, onChannelDeleted } = useSidebarChannelAdmin(api, live, shownChannels, channelOrder)
 
 /* spec 169 8.5.1 (row T18): Move to workspace, with the targets its probe
-   answered. T19 mounts its lazy dialog on workspaceMoveTarget; until then the item is
-   off (WORKSPACE_MOVE_BUILT), so this is never reached. */
+   answered; T19's lazy dialog mounts on workspaceMoveTarget. */
 const workspaceMoveTarget = ref({ channel_id: '', name: '', targets: [] as { slug: string, name: string }[] })
+const workspaceMoveOpen = ref(false)
 function askMoveChannel(id: string, targets: { slug: string, name: string }[]) {
   const row = shownChannels.value.find((c) => c.channel_id === id)
   workspaceMoveTarget.value = { channel_id: id, name: String(row?.name || id), targets: [...targets] }
+  workspaceMoveOpen.value = true
 }
 
 </script>

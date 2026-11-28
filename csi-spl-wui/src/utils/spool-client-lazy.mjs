@@ -2711,6 +2711,9 @@ export const lazySpoolMethods = {
   getChannelBoxPins,
   setChannelBoxPins,
   channelWorkspaceMoveProbe,
+  channelWorkspaceMovePlan,
+  channelWorkspaceMoveConfirm,
+  channelMoveStatus,
 }
 
 /* spec 164 row B6 (SPL-5560): a channel's box pins (hub routes of row B2).
@@ -2764,10 +2767,55 @@ async function setChannelBoxPins(ctx, channel, boxes) {
  * the channel row's Move to workspace item (hub route of row T14). 200
  * { allowed: true, targets: [{ slug, name }] } to the operator workspace's biz
  * owner; 403 / 400 to anyone else and on a default channel. The mock offers
- * no move.
+ * no move unless the e2e wrote its fixture (T19).
  */
 async function channelWorkspaceMoveProbe(ctx, channel) {
   const { live, mock } = ctx
-  if (mock) return { allowed: false, targets: [] }
+  if (mock) return (await moveMock()).mockMoveProbe()
   return live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/workspace-move`)
+}
+
+/* spec 169 T19: the mock answers only an e2e that wrote its fixture
+   (channel-workspace-move.mjs, MOVE_MOCK_KEY); else the hub's 403 */
+const moveMock = () => import('./channel-workspace-move.mjs')
+const movePath = (channel) => `/v1/channels/${encodeURIComponent(String(channel || ''))}/workspace-move`
+
+/**
+ * Spec 169 8.5.4 (row T19): POST .../workspace-move/plan, body
+ * { dst, keep, keep_emails, leave_hours }: the plan with .blocked (T14).
+ */
+async function channelWorkspaceMovePlan(ctx, channel, body) {
+  const { live, mock } = ctx
+  if (mock) return (await moveMock()).mockMovePlan(body)
+  return live(movePath(channel) + '/plan', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Spec 169 8.5.5 (row T19): POST .../workspace-move, the confirm: the hub
+ * writes the person's GO and runs P1 (T15). 200 { move_id, topic }; 409
+ * move_blocked, 409 move_open (its detail names the open move id).
+ */
+async function channelWorkspaceMoveConfirm(ctx, channel, body) {
+  const { live, mock } = ctx
+  if (mock) return (await moveMock()).mockMoveConfirm(body)
+  return live(movePath(channel), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Spec 169 8.5.6 (row T19): GET /v1/channel-moves/{move_id}, where a move
+ * stands (T17). 404 unknown_move to anyone but the operator workspace's biz
+ * owner, and for a journal the page's workspace does not hold.
+ */
+async function channelMoveStatus(ctx, moveId) {
+  const { live, mock } = ctx
+  if (mock) return (await moveMock()).mockMoveStatus(moveId)
+  return live(`/v1/channel-moves/${encodeURIComponent(String(moveId || ''))}`)
 }

@@ -156,6 +156,9 @@ const LAZY_METHODS = [
   'getChannelBoxPins',
   'setChannelBoxPins',
   'channelWorkspaceMoveProbe',
+  'channelWorkspaceMovePlan',
+  'channelWorkspaceMoveConfirm',
+  'channelMoveStatus',
 ]
 
 function uuid() {

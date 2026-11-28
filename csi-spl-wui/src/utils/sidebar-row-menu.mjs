@@ -63,11 +63,10 @@ export function rowMenuItems(unread, opts = {}) {
 }
 
 /**
- * Spec 169 8.5.1 (row T18): Move to workspace opens T19's dialog. Until that
- * dialog lands the item, and its probe, stay off, so nothing half-built
- * reaches a person; T19 turns this on.
+ * Spec 169 8.5.1 (row T18): Move to workspace opens T19's dialog
+ * (ChannelWorkspaceMoveDialog.vue); on since that dialog landed (T19).
  */
-export const WORKSPACE_MOVE_BUILT = false
+export const WORKSPACE_MOVE_BUILT = true
 
 /**
  * Spec 169 8.5.2: the WUI cannot read the operator workspace's role, so the

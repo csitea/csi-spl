@@ -4747,5 +4747,61 @@
     "refused": "No se envió a {topic}: {reason}",
     "retry": "Reintentar",
     "none": "No se ha seleccionado ningún tema"
+  },
+  "channel_move": {
+    "title": "Mover #{name} a otro espacio de trabajo",
+    "target": "Espacio de trabajo objetivo",
+    "target_pick": "Elige un espacio de trabajo",
+    "no_targets": "No eres miembro de ningún otro espacio de trabajo al que se pueda trasladar este canal.",
+    "counts": "¿Qué va con el canal?",
+    "count_row": "{table}: {n}",
+    "members_lost": "Personas que no son miembros allí",
+    "keep": "Agregar {who} a {dst}",
+    "mentions": "Enlaces dejados en su lugar",
+    "shared_files": "Los archivos que también se quedan aquí",
+    "kept": "Copias conservadas después de la mudanza",
+    "kept_row": "{store}: conservado hasta {until}",
+    "next": "Siguiente paso",
+    "back": "Atrás",
+    "recheck": "Comprueba el movimiento de nuevo",
+    "blocked_intro": "El canal aún no puede moverse a {dst}. Borre cada línea a continuación y vuelva a comprobar.",
+    "leave_hours": "Deja las filas de horas de {who} en este espacio de trabajo.",
+    "clears": {
+      "seat": "Asígnele a ese agente un escritorio en el espacio de trabajo de destino o elimínelo del canal.",
+      "pin": "Fije esa máquina en el espacio de trabajo de destino.",
+      "shared": "Algo que se queda aquí también usa este objeto: el dueño lo decide primero.",
+      "hours": "Agregue a la persona al espacio de trabajo de destino, o deje aquí sus filas de horas.",
+      "name": "Existe un canal con ese nombre en el espacio de trabajo de destino, incluidos los archivados.",
+      "orchestrator": "El espacio de trabajo de destino necesita primero un puesto de orquestador.",
+      "quota": "Los archivos del canal no se ajustan a la cuota de archivos del espacio de trabajo de destino.",
+      "other": "Despeja esto antes de la mudanza."
+    },
+    "confirm_body": "Mover #{name} a {dst}: sus temas, mensajes, archivos y problemas se irán con él.",
+    "confirm_lost": "Estas personas pierden el acceso: {who}",
+    "no_undo": "Una vez que se han movido las filas, esta acción no se puede deshacer.",
+    "go": "Mueva el canal a {dst}",
+    "busy": "Confirmando el traslado…",
+    "state": {
+      "waiting": "Esperando a que comience la mudanza. Nada se ha movido.",
+      "stuck": "Esperando a que comience la mudanza. Nada se ha movido. No ha comenzado en 15 minutos.",
+      "running": "La operación está en curso. No se muestra nada como completado antes de que finalice.",
+      "not_moved": "El canal no se movió. No cambió nada en él.",
+      "cleanup_failed": "El canal está en {dst}, la limpieza no ha finalizado.",
+      "traces": "El canal está en {dst}, pero {src} todavía contiene rastros.",
+      "moved": "El canal se ha movido."
+    },
+    "rerun": "El movimiento se intentará de nuevo automáticamente.",
+    "proof_row": "{name}: {n}",
+    "open_channel": "Abra el canal en {dst}",
+    "open_topic": "Abrir el tema del movimiento",
+    "status_gone": "El estado del movimiento no se puede consultar desde este espacio de trabajo. Su tema en el espacio de trabajo del operador muestra cada cambio.",
+    "error": {
+      "channel_move_owner": "Solo el propietario del espacio de trabajo del operador mueve un canal.",
+      "go_required": "El servidor no aceptó la confirmación. No se movió nada.",
+      "move_refused": "El servidor se negó a iniciar la transferencia. No se movió nada.",
+      "unknown_tenant": "No puedes mover este canal a ese espacio de trabajo.",
+      "bad_channel": "Este canal no se puede mover.",
+      "fallback": "El servidor no respondió. No se movió nada; inténtelo de nuevo."
+    }
   }
 }

@@ -41,10 +41,13 @@
 #   11. the disk source finds an absolute spool with none on PATH (SPL-5164)
 #   12. the GCP source drops the one-project pins the lease loop exports, and
 #       still asks for every env of ALERT_ISSUE_GCP_ENVS (SPL-5164)
-#   13. an archived ALERT_ISSUE_DISCUSSION refuses the enqueue (SPL-5671): each
-#       refused ask is closed and re-raised on a fresh #alerts topic, the holder
-#       gets ONE note for the tick, rc 3; a live discussion: rc 0, no note; the
-#       fold never reads the fresh-topic post as an alert (SPL-6720)
+#   13. an archived ALERT_ISSUE_DISCUSSION refuses the enqueue (SPL-5671, its
+#       FATAL line read from spl-spawn-enqueue.func.sh): each lane is re-raised
+#       on a fresh #alerts topic (an #alerts alert's own live topic: no post),
+#       then the refused ask is closed; ONE note to the holder, rc 3. The post
+#       fails: no ask closed, "NOT re-raised" in the ERROR line and the note.
+#       Another refusal, or a live discussion: rc 0, no note; the fold never
+#       reads the fresh-topic post as an alert (SPL-6720)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -102,11 +105,12 @@ case "\$a" in
   do_spl_issue_update) [ -f "$T/update.fail" ] && { echo "FATAL hub down"; exit 1; }; echo ok ;;
   do_spl_issue_comment) [ -f "$T/move.after.comment" ] && echo "c-001@box-b 1" >"$SP/dispatch/lease.orch"; echo ok ;;
   do_spl_spawn_enqueue)
-    # the SPL-5671 refusal of do_spl_spawn_enqueue, word for word
-    [ -f "$T/archived.\${ASK_DISCUSSION:-none}" ] && {
-      echo "FATAL ask \${ASK_ID%%-*} not queued: its topic \$ASK_DISCUSSION was archived at 2026-11-27T13:19:00Z, so the placer would decline it (SPL-4955): re-raise the request on a live task (SPL-5671)"; exit 1; }
+    # the SPL-5671 refusal, rendered from do_spl_spawn_enqueue's own line (case 13)
+    [ -f "$T/archived.\${ASK_DISCUSSION:-none}" ] && { cat "$T/archived.\$ASK_DISCUSSION"; exit 1; }
+    [ -f "$T/refuse.other" ] && { echo "FATAL ask \${ASK_ID%%-*} not queued: the brief has no Epic: line"; exit 1; }
     echo ok ;;
   do_spl_desk_post)
+    [ -f "$T/post.fail" ] && { echo "FATAL unknown_channel"; exit 1; }
     n=\$(cat "$T/posts" 2>/dev/null || echo 0); n=\$((n + 1)); echo \$n >"$T/posts"
     echo "{\"env\":\"dev\",\"channel\":\"\$DESK_CHANNEL\",\"send\":{\"delivery\":\"hub\",\"msg_id\":\"m\$n\",\"task_id\":\"1886f34f-96c8-49e4-ac70-96c850d9113\$n\"}}" ;;
   *) echo ok ;;
@@ -354,9 +358,14 @@ out="$(tick DRY_RUN=0 ALERT_ISSUE_DISCUSSION=)"; rc=$?
 # each ask is re-raised on its own fresh #alerts topic; ONE note, rc 3
 reset; rm -f "$T/posts" "$T/send.log"; : >"$S/alerts.json"; cp "$T/disk.keep" "$S/disk.ndjson"; gcp_at 2026-11-02T11:00Z
 printf '#!/bin/sh\necho "$*" >>"%s"\n' "$T/send.log" >"$T/send"; chmod +x "$T/send"
-touch "$T/archived.$DISC"
+# the refusal text is do_spl_spawn_enqueue's own FATAL line, its variables
+# filled in: a rewording there turns this case red, never a silent WARN
+fatal="$(grep -o 'FATAL ask .*was archived at .*(SPL-5671)' "$PROJ_ROOT/src/bash/run/spl-spawn-enqueue.func.sh")"
+[[ "$(grep -c . <<<"$fatal")" == 1 ]] && pass "13. the stub refusal is rendered from spl-spawn-enqueue.func.sh's one archived FATAL line" ||
+  fail "13. archived FATAL lines in spl-spawn-enqueue.func.sh: $fatal"
+archive() { local m="${fatal//'${1:0:8}'/0a1b2c3d}"; m="${m//'$topic'/$1}"; printf '%s\n' "${m//'$at'/2026-11-27T13:19:00Z}" >"$T/archived.$1"; }
+archive "$DISC"
 out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?
-rm -f "$T/archived.$DISC"
 F1=1886f34f-96c8-49e4-ac70-96c850d91131 F2=1886f34f-96c8-49e4-ac70-96c850d91132
 [[ $rc == 3 ]] && grep -q "ERROR ALERT_ISSUE_DISCUSSION $DISC is archived" <<<"$out" &&
   pass "13. an archived discussion: the tick says so (ERROR) and returns 3" || fail "13. rc $rc (want 3): $out"
@@ -374,6 +383,29 @@ grep -q "^do_spl_ask_put .* aid=$c1\$" "$T/calls.log" && grep -q "^do_spl_spawn_
   [[ "$(grep -c "^do_spl_issue_comment .*ref=SPL-10" "$T/calls.log")" == 2 ]] &&
   pass "13. both briefs name their fresh topic, never the archived one; each issue gets a comment with its new topic" ||
   fail "13. briefs: $(grep -h '^Discussion' "$SP/dispatch/briefs"/*.md 2>/dev/null) comments $(count do_spl_issue_comment)"
+# W2: no fresh topic (the post fails): the refused asks stay open, the ERROR
+# line and the note say NOT re-raised, never re-raised
+reset; rm -f "$T/posts" "$T/send.log"; touch "$T/post.fail"
+out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?
+rm -f "$T/post.fail" "$T/archived.$DISC"
+[[ $rc == 3 && "$(count do_spl_ask_close)" == 0 && "$(count do_spl_ask_put)" == 2 && "$(count do_spl_spawn_enqueue)" == 2 ]] &&
+  grep -q "ERROR the lane for SPL-101 was NOT re-raised" <<<"$out" && grep -q "is archived, the enqueue refused lanes: NOT re-raised, no lane (raise them by hand): SPL-10[12] SPL-10[12]$" <<<"$out" &&
+  ! grep -q "re-raised on a live topic" <<<"$out$(cat "$T/send.log" 2>/dev/null)" && grep -q "NOT re-raised, no lane .*SPL-10[12] SPL-10[12]" "$T/send.log" &&
+  pass "13. the post fails: rc 3, no ask closed, the ERROR line and the ONE note say NOT re-raised" ||
+  fail "13. post fails: rc $rc close $(count do_spl_ask_close) note $(cat "$T/send.log" 2>/dev/null) $out"
+# N3: an #alerts alert whose own topic is live re-raises on that topic, no new post
+reset; rm -f "$T/posts" "$T/send.log"; : >"$S/disk.ndjson"; : >"$S/gcp.txt"; jq '.topics = [.topics[3]]' "$T/alerts.keep" >"$S/alerts.json"
+archive "$DISC"; out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?; rm -f "$T/archived.$DISC"
+O=0b9e4c1a-1111-4aaa-8bbb-000000000004
+[[ $rc == 3 && "$(count do_spl_desk_post)" == 0 && "$(count do_spl_ask_close)" == 1 ]] && grep -q "^do_spl_spawn_enqueue .* adisc=$O " "$T/calls.log" &&
+  grep -q "^do_spl_ask_put .* topic=$O .* adisc=$O " "$T/calls.log" &&
+  pass "13. an #alerts alert with a live own topic: re-raised there, no fresh post" || fail "13. own topic: rc $rc $(cat "$T/calls.log")"
+# W1: any other enqueue refusal stays the WARN: no close, no post, no note, rc 0
+reset; rm -f "$T/posts" "$T/send.log"; : >"$S/alerts.json"; cp "$T/disk.keep" "$S/disk.ndjson"; gcp_at 2026-11-02T11:00Z; touch "$T/refuse.other"
+out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?; rm -f "$T/refuse.other"
+[[ $rc == 0 && ! -e "$T/send.log" && "$(count do_spl_ask_close)" == 0 && "$(count do_spl_desk_post)" == 0 ]] &&
+  grep -q "WARN the lane for SPL-10[12] was not enqueued" <<<"$out" &&
+  pass "13. another enqueue refusal (no Epic:): the WARN, rc 0, no ask closed, no post, no note" || fail "13. other refusal: rc $rc $out"
 # the control: the same alerts on a live discussion
 reset; rm -f "$T/posts" "$T/send.log"
 out="$(tick DRY_RUN=0 ALERT_ISSUE_SEND="$T/send")"; rc=$?

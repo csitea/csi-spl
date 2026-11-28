@@ -218,7 +218,9 @@ on at least 5 5xx in one 300 s window.
 - What it costs: a 5-minute outage that keeps answering 5xx pages at its
   third minute (plus Monitoring's lag); one with a 5xx every other minute
   at its fifth. The health check (`uptime`) still pages a hub that is down.
-  A burst of more than 6 5xx in one minute no longer pages on its own.
+  5xx that fall in fewer than 3 distinct minutes of a 10-minute window no
+  longer page, however many there are: one burst of any size, or two bursts
+  in the same 10 minutes.
   `do_gcp_get_alert_incident` replays threshold conditions only, so it lists
   this one as "not replayed".
 - cnf `steps.070-gcp-monitoring.rate_5xx_minutes` / `rate_5xx_window_minutes`,

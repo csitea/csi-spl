@@ -352,6 +352,9 @@ for k in rate_5xx_minutes rate_5xx_window_minutes; do
   grep -q "condition *= var.$k >= " <<<"$vblk" && pass "$k is declared and validated" || fail "$k missing or not validated: $vblk"
 done
 grep -q '^variable "rate_5xx_per_5min"' "$TFD/02-variables.tf" && fail "rate_5xx_per_5min still declared (unused)" || pass "rate_5xx_per_5min is gone"
+# the window validation reads var.rate_5xx_minutes: a cross-variable reference needs terraform 1.9+
+grep -qE '^  required_version = ">= 1\.(9|[1-9][0-9])\.[0-9]+"' "$TFD/01-providers.tf" && pass "070 requires terraform >= 1.9 (cross-variable validation)" \
+  || fail "070 required_version is below 1.9: $(grep required_version "$TFD/01-providers.tf")"
 r5_m="$(yq -r '.env.steps["070-gcp-monitoring"].rate_5xx_minutes' "$CNF/all.env.yaml")"
 r5_w="$(yq -r '.env.steps["070-gcp-monitoring"].rate_5xx_window_minutes' "$CNF/all.env.yaml")"
 [[ "$r5_m" == 3 && "$r5_w" == 10 ]] && pass "cnf rate_5xx: $r5_m of $r5_w minutes" || fail "cnf rate_5xx '$r5_m' of '$r5_w', want 3 of 10"

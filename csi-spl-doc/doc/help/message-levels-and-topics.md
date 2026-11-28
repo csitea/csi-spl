@@ -139,6 +139,7 @@ in this browser.
   Only a topic you started yourself, in this tab, is held; a new topic from
   someone else keeps the unread edge.
 
+<a id="ws-doc-bdb75ec2-b161-4705-8589-0f0c2e4c7e9e"></a>
 ### 7.1 Selecting Topics and Multicasting
 
 You can select several topics across one or more channels of your workspace

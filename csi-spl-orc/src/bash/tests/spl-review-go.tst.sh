@@ -182,6 +182,17 @@
 #        row's rc02-b52.sh on a b52-01 brief, a name after NOT, under Never
 #        or Files you must NOT touch, an If line's PRE_PUSH_TIER=full, a
 #        DOCS-ONLY sha -> GO
+#    37. owner-go false holds and C4 (b53-01, rc01-b53.sh's probes): RED
+#        CONTROLS a keyword only under At brief time / At queue time, a
+#        verbatim-hunk Apply whose only target word is a negated `live tmux`,
+#        `DRY_RUN=0 ./run -a do_rdb_migration_next`, a keyword under Files NOT
+#        to touch / NOT your files / Not yours (...) -> rc 0; C4 skips tests
+#        under those headings and requires rc01-p19.sh / rc01-foo.sh;
+#        controls: a real DRY_RUN=0 step, the rdb claim chained to ENV=prd, a
+#        live prd target in the same or a later sentence or after e.g., a
+#        positive live tmux, prd or prod db between the negator and live
+#        tmux, Not yours to skip / Not yours: headings -> rc 1; a same-round
+#        sibling rc01-b52.sh and a bare rc01.sh -> C4 rc 0
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -1517,6 +1528,44 @@ c36 "$C36_DO" "none"; rc=$?
 (( rc == 0 && $(gos) == 1 )) && pass "36. control: a DOCS-ONLY sha (ran: none), the brief naming tests -> GO" ||
   fail "36. DOCS-ONLY rc=$rc out=$(tail -3 "$T/out")"
 SHA="$old" && "${G[@]}" -C "$T/repo" push -q -f origin "$SHA:refs/heads/review/c002-x"
+
+# --- 37. owner-go false holds and C4 headings / rc suffixes (b53-01) -----------------------------------
+# The probes are rc01-b53.sh's (bug-round-53-plan.md section 4.1): 7 red
+# probes held (or dropped a test) on 3308d118f; the 11 controls must hold.
+# r37 <og|c4> <name> <want rc> <body> [token]: one probe, run on the function
+r37() {
+  local bf="$T/c37-$2.md" out got=0
+  printf '%s\n' "$4" >"$bf"
+  # shellcheck disable=SC2016 # the script is single-quoted on purpose
+  if [[ $1 == og ]]; then
+    out="$(env SPOOL_ROOT="$S" bash -c 'source "$1" || exit 97; _spl_review_go_owner_go "$2" c-002' _ "$FUNC" "$bf" 2>&1)" || got=$?
+  else
+    out="$(env SPOOL_ROOT="$S" bash -c 'source "$1" || exit 97; _spl_review_go_c4_missing "$2" "$3"' _ "$FUNC" "$bf" "$L37" 2>&1)" || got=$?
+  fi
+  [[ $got == "$3" && $out == *"${5:-}"* ]] && pass "37. $2 ($1) -> rc $3" ||
+    fail "37. $2 ($1) rc=$got (want $3) out=$(head -c 300 <<<"$out")"
+}
+L37='review: a-537@sat agy PASS 0123456789abcdef0123456789abcdef01234567 ran: bash own.tst.sh | read: ok | log: a-537@sat:/tmp/x'
+reset
+r37 og red_at_brief_time 0 $'# Lane brief: b51-01\n## Do\n1. Fix the bug.\n## At brief time (2026-11-26)\n- b51-03 must land before the round-52 `DRY_RUN=0` item.'
+r37 og red_at_queue_time 0 $'# Lane brief: x\n## Do\n1. Fix the bug.\n## At queue time\n- Note: unrelated `DRY_RUN=0` item queued.'
+r37 og red_lane_map_clearance 0 $'# Lane brief: x\n## Do\n1. Fix the bug.\n## Lane-map clearance\n- `ENV=prd` lane c-1 is off these files.'
+r37 og red_hunk_unrelated_live 0 $'# Lane brief: r08-01\n## Do\n2. Apply the plan\'s verbatim hunks to ONLY the row\'s files. Any control that drives tmux uses a scratch socket only, never the box\'s live tmux server.'
+r37 og red_rdb_migration_next 0 $'# Lane brief: s187-s1\n## Do\n1. Claim the migration number with `cd csi-spl-orc && DRY_RUN=0 ./run -a do_rdb_migration_next`.'
+r37 og red_n1_og_not_yours 0 $'# Lane brief: x\n## Do\n1. Edit a.sh.\n## Files NOT to touch\n- `DRY_RUN=0` in b.sh\n## NOT your files\n- apply in c.sh\n## Not yours (b52)\n- `ENV=prd` in d.sh'
+r37 c4 red_n1_c4_never_headings 0 $'# Lane brief: b53-01\n## Do\n1. Run `bash own.tst.sh`.\n## Files NOT to touch\n- `bad1.tst.sh`\n## NOT your files\n- `bad2.tst.sh`\n## Not yours (sibling)\n- `bad3.tst.sh`'
+r37 c4 red_n2_c4_non_br_rc_suffix 1 $'# Lane brief: b52-02-orc-x\n## Do\n1. Run `bash own.tst.sh`, `bash rc01-p19.sh <sha>`, and `bash rc01-foo.sh <sha>`.' "rc01-p19.sh, rc01-foo.sh"
+r37 og ctrl_real_dry_run_holds 1 $'# Lane brief: x\n## Do\n1. Run `DRY_RUN=0 ./run -a do_spl_desk_up`.' "'DRY_RUN=0'"
+r37 og ctrl_rdb_plus_prd_holds 1 $'# Lane brief: x\n## Do\n1. Run `DRY_RUN=0 ./run -a do_rdb_migration_next && ENV=prd ./run -a do_tf_apply`.' "'ENV=prd'"
+r37 og ctrl_hunk_live_same_sentence_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks to the live prd database.'
+r37 og ctrl_hunk_later_sentence_live_prd_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks. Then roll them out on the live prd database.'
+r37 og ctrl_hunk_eg_live_prd_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks to e.g. the live prd database.'
+r37 og ctrl_hunk_positive_live_tmux_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks to the live tmux server.'
+r37 og ctrl_hunk_not_then_prd_live_tmux_holds 1 $'# Lane brief: x\n## Do\n1. Apply the verbatim hunks, do not wait, then run on prd in the live tmux pane.'
+r37 og ctrl_hunk_no_delay_prod_db_live_tmux_holds 1 $'# Lane brief: x\n## Do\n1. Apply the plan\'s verbatim hunks with no delay to the prod db via the live tmux.'
+r37 og ctrl_not_yours_to_skip_holds 1 $'# Lane brief: x\n## Not yours to skip: do these\n1. Run `DRY_RUN=0 ./run -a do_spl_desk_up`.'
+r37 og ctrl_not_yours_colon_holds 1 $'# Lane brief: x\n## Not yours: do these\n1. Run `DRY_RUN=0 ./run -a do_spl_desk_up`.'
+r37 c4 ctrl_same_round_sibling_rc_ok 0 $'# Lane brief: b52-02-orc-x\n## Do\n1. Run `bash own.tst.sh`. Note: row 01 uses `rc01-b52.sh` and `rc01.sh`.'
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

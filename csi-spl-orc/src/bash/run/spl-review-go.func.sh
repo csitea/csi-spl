@@ -682,10 +682,14 @@ _spl_review_go_unplaced() {
 # _spl_review_go_instr <brief>: the brief's instruction text, what the
 # owner-go scan reads (SPL-5670): without the sections whose heading opens
 # with Why, What happened, Symptom(s), Evidence, Background, History, Trace,
-# Observed or Measured (their subheadings too: they say what went wrong, not
-# what to run; not Context: a brief's Context can hold a step to run), without
-# the sections whose heading opens with Never, Don't, Do not or Out of scope
-# (SPL-5915: they forbid an action, `## Never` + "no terraform"; their
+# Observed, Measured, At brief time, At queue time or Lane-map clearance
+# (their subheadings too: they say what went wrong or what was true when the
+# brief was written, not what to run; not Context: a brief's Context can hold
+# a step to run), without the sections whose heading opens with Never, Don't,
+# Do not, Out of scope, Files (you) (must) not (to) touch, Must not touch,
+# Owned elsewhere, or is exactly Not yours / Not your files, optionally with a
+# `(...)` after it (SPL-5915, b53-01: they forbid an action, `## Never` + "no
+# terraform"; `## Not yours to skip: do these` is still scanned; their
 # subheadings too, up to the next heading at their level or higher), without
 # fenced blocks and `>` quote lines, and without a negated `apply`
 # (`does not apply`, `never apply`, and a prohibition: `no` and up to three
@@ -704,13 +708,17 @@ _spl_review_go_unplaced() {
 # ends at the next heading at the higher of the two levels or above
 # (`## R7 review (plan section 5, verbatim)` + `## 5. Panel ...` runs until
 # `## Report`).
-# Two narrow false holds are dropped too (b50-01), each per line: `apply`
-# whose object is a verbatim code hunk or patch (`Apply section 1.3's
+# Three narrow false holds are dropped too (b50-01, b53-01), each per line:
+# `apply` whose object is a verbatim code hunk or patch (`Apply section 1.3's
 # verbatim hunks to ...`: `verbatim` within 4 words after it, `hunk(s)` /
 # `patch(es)` within 6 after that) when the line names no target or infra
 # word (prd, dev, live, database, db, schema, sql, migration, step,
-# terraform, tf, tfvars, gcp, cloud, iam, billing, infra, provision, ...);
-# and the exact backticked `DRY_RUN=0` when one of three literal test
+# terraform, tf, tfvars, gcp, cloud, iam, billing, infra, provision, ...),
+# where a `live` right before `tmux` does not count when never / not / no
+# stands 0..4 plain words (none a target word, no punctuation) before it
+# (`never the box's live tmux server`); the read-only migration-number claim
+# `DRY_RUN=0 ./run -a do_rdb_migration_next` (a git ref, no prd write; a
+# chained `&& ENV=prd ...` on the line still holds); and the exact backticked `DRY_RUN=0` when one of three literal test
 # descriptions follows it, `ORDERED_BY`, install `ok_msg` or
 # install/check/remove lifecycle, then check / test / case, and neither its
 # line (its own cell, in a markdown table of 4 or more columns) nor the
@@ -720,8 +728,8 @@ _spl_review_go_unplaced() {
 _spl_review_go_instr() {
   python3 - "$1" <<'EOF_PY'
 import re, sys
-NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured)\b")
-NEVER = re.compile(r"(?i)^(never|don['\u2019]t|do not|out of scope)\b")
+NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured|at (?:queue|brief) time|lane-map clearance)\b")
+NEVER = re.compile(r"(?i)^(?:(?:never|don['\u2019]t|do not|out of scope|files\s+(?:you\s+)?(?:must\s+)?not\s+(?:to\s+)?touch|must not touch|owned elsewhere)\b|not\s+your(?:s|\s+files)\s*(?:\(|$))")
 try:
     lines = open(sys.argv[1], encoding="utf-8", errors="replace").read().split("\n")
 except OSError:
@@ -766,10 +774,14 @@ TGT = re.compile(r"(?i)\b(?:prd|prod|production|dev|live|database|db|schema|sql|
 HUNK = re.compile(r"(?i)\bapply(?=(?:[^\S\n]+[A-Za-z0-9._,'\u2019-]+){0,4}[^\S\n]+verbatim(?:[^\S\n]+[A-Za-z0-9._,'\u2019-]+){0,6}[^\S\n]+(?:hunks?|patch(?:es)?)\b)")
 CMD = re.compile(r"(?i)(?:\./run|&&|-a\s+do_|--(?:prd|prod)\b|\b(?:terraform|gcloud)\b|(?<!\.)\b(?:make|sudo|python[0-9]*|bash|sh|perl|node|psql|kubectl|docker|curl|ssh|cd)\s|\bdo_(?:provision|tf_|gcp_|spl_desk_up|spl_issue_|spl_topic_|spl_private_|spl_tenant_))")
 DRY = re.compile(r"(?<!`)`DRY_RUN=0`(?!`)(?=[^\S\n]+(?:`ORDERED_BY`|install[^\S\n]+`ok_msg`|install/check/remove[^\S\n]+lifecycle)[^\S\n]+(?i:checks?|tests?|cases?)\b)")
+NEG_LIVE_TMUX = re.compile(r"(?i)(\b(?:never|not|no)\b(?:[^\S\n]+(?!(?:prd|prod|production|dev|live|database|db|schema|sql|migrations?|steps?|terraform|tf|tfvars|gcp|cloud|iam|billing|infra|provision)\b)[\w'\u2019-]+){0,4}?)[^\S\n]+live(?=[^\S\n]+tmux\b)")
+RDB = re.compile(r"\bDRY_RUN=0(?=[^\S\n]+\./run[^\S\n]+-a[^\S\n]+do_rdb_migration_next\b)")
 ls = txt.split("\n")
 for i, l in enumerate(ls):
-    if HUNK.search(l) and not TGT.search(l):
+    if HUNK.search(l) and not TGT.search(NEG_LIVE_TMUX.sub(r"\1", l)):
         l = HUNK.sub("", l)
+    if RDB.search(l):
+        l = RDB.sub("", l)
     if DRY.search(l):
         nxt = next((ls[j] for j in range(i + 1, len(ls)) if ls[j].strip()), "")
         if l.lstrip().startswith("|") and l.count("|") >= 5 and not CMD.search(nxt):
@@ -896,7 +908,9 @@ _spl_review_go_one() {
 # <item>: <why>` in read: (check [12], rulebook C4 rounds-rulebook.md:126);
 # else the missing items, comma-separated, on stdout and rc 1. A sibling row's
 # rc<NN>-<round>.sh is skipped only when <round> is the brief's own round (the
-# `[br]NN-MM` id in its first 12 lines) and <NN> is another row (b52 panel N6).
+# `[br]NN-MM` id in its first 12 lines) and <NN> is another row (b52 panel N6);
+# any other suffix after rc<NN>- (p19, foo) is required (b53-01). The
+# narrative and never sections it skips are the same as _spl_review_go_instr's.
 _spl_review_go_c4_missing() {
   python3 - "$1" "$2" <<'EOF_PY'
 import re, sys
@@ -911,7 +925,7 @@ except OSError:
     sys.exit(0)
 own = next((m.groups() for l in lines[:12] for m in [re.search(r"\b([br]\d{2})-(\d{2})\b", l)] if m), None)
 NARR = re.compile(r"(?i)^(why|what happened|symptoms?|evidence|background|history|trace|observed|measured|at (?:queue|brief) time|lane-map clearance)\b")
-NEVER = re.compile(r"(?i)^(never|don['’]t|do not|out of scope|files you must not touch|must not touch|owned elsewhere)\b")
+NEVER = re.compile(r"(?i)^(?:(?:never|don['’]t|do not|out of scope|files\s+(?:you\s+)?(?:must\s+)?not\s+(?:to\s+)?touch|must not touch|owned elsewhere)\b|not\s+your(?:s|\s+files)\s*(?:\(|$))")
 FENCE = re.compile(r"\s*(?:" + "`" * 3 + r"|~~~)")
 out, skip, fence = [], 0, False
 for l in lines:
@@ -932,7 +946,7 @@ for l in lines:
 txt = "\n".join(out)
 req = []
 for m in re.findall(r"(?<![\w/.-])(?:[A-Za-z0-9._-]+/)*([A-Za-z0-9._-]+\.(?:tst\.sh|test\.mjs)|test-[A-Za-z0-9._-]+\.sh|rc[0-9]{2}[A-Za-z0-9._-]*\.sh)(?![\w.-])", txt):
-    rc = re.match(r"rc(\d{2})(?:-([br]\d{2}))?", m)
+    rc = re.match(r"rc(\d{2})(?:-([A-Za-z0-9._-]+))?\.sh$", m)
     if m.endswith(".inc.sh") or m in req or (rc and own and rc.group(1) != own[1] and rc.group(2) in (None, own[0])):
         continue
     req.append(m)

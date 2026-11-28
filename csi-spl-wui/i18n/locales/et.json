@@ -1105,7 +1105,17 @@
       "err_keyword": "Kirjuta sõna või fraas, kuni 200 märki.",
       "err_daily_at": "Vali kellaaeg.",
       "err_daily_tz": "Vali ajavöönd loendist.",
-      "multi_note": "See tsükkel salvestati rohkem kui ühe käivitajaga; see käivitub ka: {triggers}. Salvestamisel jääb alles ainult valitud käivitaja."
+      "multi_note": "See tsükkel salvestati rohkem kui ühe käivitajaga; see käivitub ka: {triggers}. Salvestamisel jääb alles ainult valitud käivitaja.",
+      "workdays": "Ainult tööpäevadel (esmaspäevast reedeni)",
+      "window": "Ainult vahemikus",
+      "window_from": "Alates, 24-tunnine TT:MM",
+      "window_to": "Kuni, 24-tunnine TT:MM (kaasa arvatud)",
+      "window_tz": "Piirangu ajavöönd",
+      "window_note": "Väljaspool neid päevi ja tunde tsükkel ei käivitu ega korva vahelejäänut hiljem. Riigipühi ei arvestata.",
+      "window_row_both": "tööpäeviti, {from}–{to} ({tz})",
+      "window_row_hours": "ainult {from}–{to} ({tz})",
+      "window_row_days": "ainult tööpäeviti ({tz})",
+      "err_window": "Sisesta algus- ja lõppaeg kujul TT:MM, nii et algus on samal päeval enne lõppu."
     }
   },
   "topic": {

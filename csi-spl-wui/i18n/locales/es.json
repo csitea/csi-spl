@@ -1105,7 +1105,17 @@
       "err_keyword": "Escribe una palabra o frase de 200 caracteres como máximo.",
       "err_daily_at": "Elige una hora del día.",
       "err_daily_tz": "Elige una zona horaria de la lista.",
-      "multi_note": "Este bucle se guardó con más de un disparador; también se ejecuta con: {triggers}. Al guardar solo se conserva el disparador que elijas."
+      "multi_note": "Este bucle se guardó con más de un disparador; también se ejecuta con: {triggers}. Al guardar solo se conserva el disparador que elijas.",
+      "workdays": "Solo en días laborables (de lunes a viernes)",
+      "window": "Solo entre",
+      "window_from": "Desde, formato 24 horas HH:MM",
+      "window_to": "Hasta, formato 24 horas HH:MM (incluido)",
+      "window_tz": "Zona horaria del límite",
+      "window_note": "Fuera de estos días y horas el bucle no se ejecuta y no recupera después lo que no hizo. No se tienen en cuenta los días festivos.",
+      "window_row_both": "días laborables, {from}–{to} ({tz})",
+      "window_row_hours": "solo {from}–{to} ({tz})",
+      "window_row_days": "solo días laborables ({tz})",
+      "err_window": "Introduce Desde y Hasta como HH:MM, con Desde antes que Hasta en el mismo día."
     }
   },
   "topic": {

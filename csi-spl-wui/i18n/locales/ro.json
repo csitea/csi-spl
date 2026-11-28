@@ -1105,7 +1105,17 @@
       "err_keyword": "Scrie un cuvânt sau o expresie de cel mult 200 de caractere.",
       "err_daily_at": "Alege o oră din zi.",
       "err_daily_tz": "Alege un fus orar din listă.",
-      "multi_note": "Această buclă a fost salvată cu mai multe declanșatoare; rulează și la: {triggers}. La salvare se păstrează doar declanșatorul ales."
+      "multi_note": "Această buclă a fost salvată cu mai multe declanșatoare; rulează și la: {triggers}. La salvare se păstrează doar declanșatorul ales.",
+      "workdays": "Doar în zilele lucrătoare (de luni până vineri)",
+      "window": "Doar între",
+      "window_from": "De la, format 24 de ore HH:MM",
+      "window_to": "Până la, format 24 de ore HH:MM (inclusiv)",
+      "window_tz": "Fusul orar al limitei",
+      "window_note": "În afara acestor zile și ore bucla nu rulează și nu recuperează mai târziu. Sărbătorile legale nu sunt cunoscute.",
+      "window_row_both": "zile lucrătoare, {from}–{to} ({tz})",
+      "window_row_hours": "doar {from}–{to} ({tz})",
+      "window_row_days": "doar zile lucrătoare ({tz})",
+      "err_window": "Introduceți De la și Până la ca HH:MM, cu De la înainte de Până la în aceeași zi."
     }
   },
   "topic": {

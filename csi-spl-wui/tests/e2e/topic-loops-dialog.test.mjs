@@ -22,6 +22,9 @@
 //   8  three saved loops reorder: Arrow Down on a focused grip moves its
 //      row one place and keeps the focus; a pointer drag of a grip moves a
 //      row; a new open shows the stored order (change 8, SPL-6587)
+//   9  spec 182 v0.12 (SPL-6744, msg 122b69a5): a time trigger shows "only
+//      on working days" and "only between HH:MM and HH:MM"; an overnight
+//      window is refused; a saved one is named on its row
 //   6  a 390 px window: no break (desktop only, msg 5c03fa45): full width,
 //      no page x-scroll, the radios are there
 //
@@ -271,6 +274,49 @@ try {
   await sleep(300)
   ok('5 a new open starts at its place again', (await openLoops(p, card)) && near((await rect(p, DLG)).top, 90))
   await shot(p, '1440-dialog')
+
+  /* ---- 9. the work window of a time trigger (v0.12, SPL-6744) ---------- */
+  const setField = async (sel, v) => {
+    await p.evaluate((sel) => { const e = document.querySelector(sel); e.focus(); e.select() }, sel)
+    await p.type(sel, v)
+  }
+  const shown = (sel) => p.evaluate((sel) => !!document.querySelector(sel), sel)
+  await p.click('[data-testid=topic-loops-add]')
+  await p.waitForSelector('[data-testid=topic-loops-form]')
+  await clickTrigger(p, 'blocker_posted')
+  await sleep(100)
+  ok('9 a trigger that is not a timer has no work window', !(await shown('[data-testid=topic-loops-window]')))
+  await clickTrigger(p, 'every_hour')
+  await sleep(100)
+  const w0 = await p.evaluate(() => ({
+    days: document.querySelector('[data-testid=topic-loops-workdays]')?.checked,
+    on: document.querySelector('[data-testid=topic-loops-window-on]')?.checked,
+    from: document.querySelector('[data-testid=topic-loops-window-from]')?.value,
+    to: document.querySelector('[data-testid=topic-loops-window-to]')?.disabled,
+    tz: !!document.querySelector('[data-testid=topic-loops-window-tz]'),
+  }))
+  ok('9 every hour shows the limits, both off, 08:00 to start, the times locked, no zone yet',
+    w0.days === false && w0.on === false && w0.from === '08:00' && w0.to === true && !w0.tz, w0)
+  await p.click('[data-testid=topic-loops-workdays]')
+  await p.click('[data-testid=topic-loops-window-on]')
+  await sleep(100)
+  const zone = await p.evaluate(() => document.querySelector('[data-testid=topic-loops-window-tz]')?.value ?? null)
+  ok('9 a limit shows its zone, the browser\'s to start', Boolean(zone), zone)
+  await setField('[data-testid=topic-loops-window-from]', '22:00')
+  await setField('[data-testid=topic-loops-window-to]', '06:00')
+  await p.type('[data-testid=topic-loops-prompt]', 'hourly at work')
+  await p.click('[data-testid=topic-loops-save]')
+  await sleep(300)
+  ok('9 a window over midnight is refused in the form', (await text(p, '[data-testid=topic-loops-error]')) === 'Enter From and To as HH:MM, with From before To on the same day.',
+    await text(p, '[data-testid=topic-loops-error]'))
+  await setField('[data-testid=topic-loops-window-from]', '08:00')
+  await setField('[data-testid=topic-loops-window-to]', '17:00')
+  await shot(p, '1440-window-form')
+  await p.click('[data-testid=topic-loops-save]')
+  await p.waitForSelector('[data-testid=topic-loops-row-window]', { timeout: 5000 })
+  const rowWin = await text(p, '[data-testid=topic-loops-row-window]')
+  ok('9 the saved row names its window', rowWin === `working days, 08:00–17:00 (${zone})`, rowWin)
+  await shot(p, '1440-window-list')
 
   /* ---- 6. 390 px: no break ----------------------------------------------- */
   /* the open dialog in a window narrowed to 390 px: the phone layout's card

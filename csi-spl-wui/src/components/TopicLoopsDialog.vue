@@ -95,6 +95,58 @@
             </template>
             <small v-if="k === 'after_agent_reply'" class="topic-loops__note">{{ t('feed.topic_loops.self_fire_note') }}</small>
           </div>
+          <!-- spec 182 v0.12 (HUM-10, t1 0cf1d4cf msg 122b69a5, SPL-6744): a time trigger may be limited to
+               working days and a 24-hour HH:MM window in the loop's zone; off on a new loop -->
+          <div v-if="LOOP_TIMED.includes(form.trigger)" class="topic-loops__window" data-testid="topic-loops-window">
+            <label>
+              <input v-model="form.workdays" type="checkbox" data-testid="topic-loops-workdays">
+              <span>{{ t('feed.topic_loops.workdays') }}</span>
+            </label>
+            <div class="topic-loops__trigger">
+              <label>
+                <input v-model="form.windowOn" type="checkbox" data-testid="topic-loops-window-on">
+                <span>{{ t('feed.topic_loops.window') }}</span>
+              </label>
+              <input
+                v-model.trim="form.windowFrom"
+                class="topic-loops__time"
+                type="text"
+                inputmode="numeric"
+                maxlength="5"
+                pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
+                placeholder="HH:MM"
+                :disabled="!form.windowOn"
+                :aria-label="t('feed.topic_loops.window_from')"
+                :title="t('feed.topic_loops.window_from')"
+                data-testid="topic-loops-window-from"
+              >
+              <span aria-hidden="true">–</span>
+              <input
+                v-model.trim="form.windowTo"
+                class="topic-loops__time"
+                type="text"
+                inputmode="numeric"
+                maxlength="5"
+                pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
+                placeholder="HH:MM"
+                :disabled="!form.windowOn"
+                :aria-label="t('feed.topic_loops.window_to')"
+                :title="t('feed.topic_loops.window_to')"
+                data-testid="topic-loops-window-to"
+              >
+            </div>
+            <input
+              v-if="form.workdays || form.windowOn"
+              v-model="form.dailyTz"
+              class="topic-loops__zone"
+              type="text"
+              list="topic-loops-zones"
+              :aria-label="t('feed.topic_loops.window_tz')"
+              :title="t('feed.topic_loops.window_tz')"
+              data-testid="topic-loops-window-tz"
+            >
+            <small class="topic-loops__note">{{ t('feed.topic_loops.window_note') }}</small>
+          </div>
         </fieldset>
         </div>
         <div class="topic-loops__actions">
@@ -136,6 +188,7 @@
               <p class="topic-loops__prompt" data-testid="topic-loops-row-prompt">{{ loopFirstLine(l.prompt) }}</p>
               <p class="topic-loops__meta muted">
                 <span data-testid="topic-loops-row-state">{{ stateText(l) }}</span>
+                <span v-if="loopWindowLabel(l)" data-testid="topic-loops-row-window">{{ windowText(l) }}</span>
                 <span>{{ t('feed.topic_loops.by', { who: people.label(l.set_by) }) }}</span>
               </p>
               <div class="topic-loops__row-actions">
@@ -171,8 +224,9 @@ import { moveBy } from '~/utils/rail-order'
 import { createLatest } from '~/utils/latest-only.mjs'
 import { browserTimeZone, isoClock, knownTimeZones } from '~/utils/date-iso.mjs'
 import {
-  LOOP_DAILY, LOOP_EVERY_N, LOOP_IDLE, LOOP_INTERVAL_MAX, LOOP_INTERVAL_MIN, LOOP_KEYWORD, LOOP_KEYWORD_MAX, LOOP_PROMPT_MAX, LOOP_TRIGGERS,
+  LOOP_DAILY, LOOP_EVERY_N, LOOP_IDLE, LOOP_INTERVAL_MAX, LOOP_INTERVAL_MIN, LOOP_KEYWORD, LOOP_KEYWORD_MAX, LOOP_PROMPT_MAX, LOOP_TIMED, LOOP_TRIGGERS,
   emptyLoopForm, formLoop, formOthersLoop, loopBody, loopErrorKey, loopFirstLine, loopForm, loopFormError, loopRowState, loopsFromFrame, loopTitle,
+  loopWindowLabel,
 } from '~/utils/topic-loops.mjs'
 import type { TopicLoop, TopicLoopForm } from '~/utils/topic-loops'
 
@@ -203,6 +257,12 @@ const zones = computed(() => (form.value ? knownTimeZones() : []))
 /* the title follows the picked radio and its field (v0.11, change 1) */
 const formTitle = computed(() => (form.value ? loopTitle(formLoop(form.value), t, locale.value) : ''))
 const othersText = computed(() => (form.value ? loopTitle(formOthersLoop(form.value), t, locale.value) : ''))
+
+/* v0.12: the row names the work window, e.g. "Working days, 08:00–17:00 (Europe/Helsinki)" */
+function windowText(l: TopicLoop): string {
+  const w = loopWindowLabel(l)
+  return w ? t(w[0], w[1]) : ''
+}
 
 function stateText(l: TopicLoop): string {
   const s = loopRowState(l)
@@ -350,6 +410,9 @@ onUnmounted(() => offFrame())
 .topic-loops__keyword { flex: 1 1 10em; min-width: 0; }
 .topic-loops__zone { flex: 1 1 12em; min-width: 0; }
 .topic-loops__time { flex: 0 0 auto; width: 6ch; font-variant-numeric: tabular-nums; }
+.topic-loops__window { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding: 6px 0 0 24px; border-top: 1px solid var(--color-border); }
+.topic-loops__window > label { display: inline-flex; align-items: center; gap: 6px; }
+.topic-loops__window .topic-loops__note { padding-left: 0; }
 .topic-loops__note { flex-basis: 100%; padding-left: 24px; font-size: var(--omnibox-fs); color: var(--color-muted); }
 .topic-loops__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .topic-loops__row { display: flex; gap: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 12px 8px 4px; }

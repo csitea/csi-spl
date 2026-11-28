@@ -17,8 +17,11 @@ export interface TopicLoop {
   keyword?: string // exactly with post_has_keyword
   idle_min?: number // exactly with no_reply_after_human
   daily_at?: string // hh:mm, exactly with daily_at
-  daily_tz?: string // IANA zone, with daily_at
+  daily_tz?: string // IANA zone, with daily_at or a work window
   daily_due_at?: string
+  window_from?: string // v0.12: hh:mm, the work window's first minute
+  window_to?: string // v0.12: hh:mm, its last (inclusive)
+  workdays_only?: boolean // v0.12: Monday to Friday only
 }
 
 /** POST / PUT body: each field only with its trigger. */
@@ -30,6 +33,9 @@ export interface TopicLoopBody {
   idle_min?: number
   daily_at?: string
   daily_tz?: string
+  window_from?: string
+  window_to?: string
+  workdays_only?: boolean
 }
 
 /** The dialog's form (emptyLoopForm, loopForm): one trigger (v0.11); `others` the rest of a loop stored with several. */
@@ -42,4 +48,9 @@ export interface TopicLoopForm {
   idle: number
   dailyAt: string
   dailyTz: string
+  workdays: boolean // v0.12
+  windowOn: boolean
+  windowFrom: string
+  windowTo: string
+  hadWindow: boolean
 }

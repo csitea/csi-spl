@@ -1105,7 +1105,17 @@
       "err_keyword": "Skriv ett ord eller en fras på högst 200 tecken.",
       "err_daily_at": "Välj en tid på dagen.",
       "err_daily_tz": "Välj en tidszon i listan.",
-      "multi_note": "Den här loopen sparades med mer än en utlösare; den körs också vid: {triggers}. När du sparar behålls bara den utlösare du väljer."
+      "multi_note": "Den här loopen sparades med mer än en utlösare; den körs också vid: {triggers}. När du sparar behålls bara den utlösare du väljer.",
+      "workdays": "Endast på vardagar (måndag till fredag)",
+      "window": "Endast mellan",
+      "window_from": "Från, 24-timmars HH:MM",
+      "window_to": "Till, 24-timmars HH:MM (inklusive)",
+      "window_tz": "Tidszon för begränsningen",
+      "window_note": "Utanför dessa dagar och timmar körs loopen inte, och den tar inte igen missade körningar senare. Helgdagar är inte kända.",
+      "window_row_both": "vardagar, {from}–{to} ({tz})",
+      "window_row_hours": "endast {from}–{to} ({tz})",
+      "window_row_days": "endast vardagar ({tz})",
+      "err_window": "Ange Från och Till som HH:MM, med Från före Till samma dag."
     }
   },
   "topic": {

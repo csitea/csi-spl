@@ -138,7 +138,8 @@ describe('the loop form (4.1 step 2)', () => {
 
   it('Edit starts from the loop JSON; a loop stored with several triggers opens on the first and names the rest', () => {
     const f = loopForm({ prompt: 'a\nb', triggers: ['every_n_minutes', 'x'], interval_min: 45 })
-    assert.deepEqual(f, { prompt: 'a\nb', trigger: 'every_n_minutes', others: [], interval: 45, keyword: '', idle: 30, dailyAt: '09:00', dailyTz: 'UTC' })
+    assert.deepEqual(f, { prompt: 'a\nb', trigger: 'every_n_minutes', others: [], interval: 45, keyword: '', idle: 30, dailyAt: '09:00', dailyTz: 'UTC',
+      workdays: false, windowOn: false, windowFrom: '08:00', windowTo: '17:00', hadWindow: false }) // v0.12: no work window
     const g = loopForm({ prompt: 'p', triggers: ['daily_at', 'post_has_keyword'], keyword: 'pdf', daily_at: '07:30', daily_tz: 'Europe/Helsinki' }, 'UTC')
     assert.deepEqual([g.trigger, g.others, g.keyword, g.dailyAt, g.dailyTz], ['post_has_keyword', ['daily_at'], 'pdf', '07:30', 'Europe/Helsinki'])
     assert.deepEqual(loopBody(g), { prompt: 'p', triggers: ['post_has_keyword'], keyword: 'pdf' }, 'a save keeps the one chosen')
@@ -196,7 +197,9 @@ describe('the trigger names the loop (v0.11, change 1)', () => {
     assert.match(dialog, /data-testid="topic-loops-row-title">\{\{ loopTitle\(l, t, locale\) \}\}/)
     assert.match(dialog, /data-testid="topic-loops-row-prompt">\{\{ loopFirstLine\(l\.prompt\) \}\}/)
     assert.match(dialog, /v-model="form\.trigger" type="radio" name="topic-loops-trigger"/)
-    assert.doesNotMatch(dialog, /type="checkbox"/, 'no trigger checkbox is left')
+    /* v0.12's two work-window checkboxes are not triggers */
+    const boxes = [...dialog.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((m) => m[0])
+    assert.deepEqual(boxes.map((b) => b.match(/v-model="([^"]+)"/)?.[1]), ['form.workdays', 'form.windowOn'], 'no trigger checkbox is left')
   })
 })
 

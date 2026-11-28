@@ -46,6 +46,8 @@ export const LOOP_EVERY_N = 'every_n_minutes'
 export const LOOP_KEYWORD = 'post_has_keyword'
 export const LOOP_IDLE = 'no_reply_after_human'
 export const LOOP_DAILY = 'daily_at'
+/** Spec 182 v0.12 (SPL-6744): the triggers a work window may limit. */
+export const LOOP_TIMED = Object.freeze(['every_hour', 'every_n_minutes'])
 /* n of each n minutes and of no reply for n minutes */
 export const LOOP_INTERVAL_MIN = 5
 export const LOOP_INTERVAL_MAX = 1440
@@ -62,7 +64,28 @@ const KEY = 'feed.topic_loops.'
  * browser's, 4.1 step 2).
  */
 export function emptyLoopForm(tz = 'UTC') {
-  return { prompt: '', trigger: '', others: [], interval: 30, keyword: '', idle: 30, dailyAt: '09:00', dailyTz: String(tz || 'UTC') }
+  return { prompt: '', trigger: '', others: [], interval: 30, keyword: '', idle: 30, dailyAt: '09:00', dailyTz: String(tz || 'UTC'), ...emptyWindow() }
+}
+
+/**
+ * Spec 182 v0.12 (HUM-10, t1 0cf1d4cf msg 122b69a5): the work window of the
+ * every_* triggers, off on a new loop. `hadWindow`: the loop being edited
+ * had one, so a save that turns it off sends the clear.
+ */
+function emptyWindow() {
+  return { workdays: false, windowOn: false, windowFrom: '08:00', windowTo: '17:00', hadWindow: false }
+}
+
+/** The work window of a loop JSON as form fields. */
+function windowForm(l) {
+  const on = Boolean(l.window_from)
+  return {
+    workdays: l.workdays_only === true,
+    windowOn: on,
+    windowFrom: on ? String(l.window_from) : '08:00',
+    windowTo: on ? String(l.window_to || '') : '17:00',
+    hadWindow: on || l.workdays_only === true,
+  }
 }
 
 /**
@@ -83,6 +106,7 @@ export function loopForm(loop, tz = 'UTC') {
     idle: minutes(l.idle_min),
     dailyAt: String(l.daily_at || '09:00'),
     dailyTz: String(l.daily_tz || tz || 'UTC'),
+    ...windowForm(l),
   }
 }
 
@@ -101,6 +125,21 @@ function minutesOk(v) {
 function knownTimeZone(tz) {
   const z = String(tz || '')
   return z.length <= 64 && isKnownTimeZone(z)
+}
+
+/** The form's work window is on (a time trigger with either limit checked). */
+function windowLimited(f) {
+  return LOOP_TIMED.includes(String(f?.trigger ?? '')) && Boolean(f?.workdays || f?.windowOn)
+}
+
+/** The broken rule of the work window (v0.12), '' when it holds: hh:mm bounds, from before to on one day, a known zone. */
+function windowError(f) {
+  if (!windowLimited(f)) return ''
+  const from = String(f.windowFrom ?? '')
+  const to = String(f.windowTo ?? '')
+  if (f.windowOn && (!HHMM.test(from) || !HHMM.test(to) || from >= to)) return KEY + 'err_window'
+  if (!knownTimeZone(f.dailyTz)) return KEY + 'err_daily_tz'
+  return ''
 }
 
 /** The broken rule of the trigger's own field (v0.4), '' when it holds. */
@@ -130,7 +169,7 @@ export function loopFormError(form) {
   if (prompt.length > LOOP_PROMPT_MAX) return KEY + 'err_prompt_long'
   const k = String(f.trigger ?? '')
   if (!LOOP_TRIGGERS.includes(k)) return KEY + 'err_trigger'
-  return fieldError(f, k)
+  return fieldError(f, k) || windowError(f)
 }
 
 /** POST / PUT body of 7.1.2: the one trigger, and its field when it has one. */
@@ -145,7 +184,39 @@ export function loopBody(form) {
     body.daily_at = String(f.dailyAt ?? '')
     body.daily_tz = String(f.dailyTz || 'UTC')
   }
+  windowBody(body, f, triggers)
   return body
+}
+
+/**
+ * The work window's fields (v0.12): sent only when the form limits a time
+ * trigger, or clears the window a loop had, so a loop without one sends the
+ * body it sent before.
+ */
+function windowBody(body, f, triggers) {
+  if (!triggers.some((k) => LOOP_TIMED.includes(k))) return
+  const limited = windowLimited(f)
+  if (!limited && !f.hadWindow) return
+  body.window_from = limited && f.windowOn ? String(f.windowFrom) : ''
+  body.window_to = limited && f.windowOn ? String(f.windowTo) : ''
+  body.workdays_only = limited && Boolean(f.workdays)
+  if (limited) body.daily_tz = String(f.dailyTz || 'UTC')
+}
+
+/**
+ * A loop's work window (v0.12) as [i18n key, params] for its list row, or
+ * null when it has none.
+ *
+ * @param {unknown} loop
+ * @returns {[string, Record<string, unknown>] | null}
+ */
+export function loopWindowLabel(loop) {
+  const l = loop && typeof loop === 'object' ? /** @type {Record<string, unknown>} */ (loop) : {}
+  const tz = l.daily_tz || 'UTC'
+  if (l.window_from && l.workdays_only === true) return [KEY + 'window_row_both', { from: l.window_from, to: l.window_to ?? '', tz }]
+  if (l.window_from) return [KEY + 'window_row_hours', { from: l.window_from, to: l.window_to ?? '', tz }]
+  if (l.workdays_only === true) return [KEY + 'window_row_days', { tz }]
+  return null
 }
 
 /** The form as the loop JSON its save would store, for loopTitle: the title follows each pick. */

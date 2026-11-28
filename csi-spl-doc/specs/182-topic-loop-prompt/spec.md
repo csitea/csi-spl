@@ -1,6 +1,6 @@
 # Spec 182: Topic Loop Prompt (Discussion Loops)
 
-Status: **v0.11 (the owner's dialog changes, building)** (2026-11-26); v0.10 (ready for build planning) (2026-11-25). Lane `c-301` (`claude`, backup for
+Status: **v0.12 (a work window on the time triggers, building)** (2026-11-28); v0.11 (the owner's dialog changes, building) (2026-11-26); v0.10 (ready for build planning) (2026-11-25). Lane `c-301` (`claude`, backup for
 `specs_and_docs`: no agy cli on this box). v0.1 `bc0353485`; v0.2 folds the
 owner's answers to form `2c1c3f5d` (msg `a198ae53`) and the two requirements
 in msgs `eae9e64f` and `19acb8f9`; v0.2 `d17f582cb`; v0.3 folds Q9 (msg
@@ -36,7 +36,10 @@ SPL-6593**, topic `6e8c1cdb-8358-4404-a88c-0adc6f443c71`) folds the owner's
 fourteen messages on the Discussion loops dialog (HUM-10, t1 `6e8c1cdb`,
 2026-11-26): one trigger per loop as radio buttons (it reverses Q3 B), the
 trigger names the loop, and the dialog's size, drag, buttons, prompt box,
-card order, file triggers, clock, columns and font (8.8).
+card order, file triggers, clock, columns and font (8.8); v0.12 (lane
+`c-006`, `claude`, issue **SPL-6744**, topic
+`0cf1d4cf-bfdb-4586-8527-420d5cdaf34e`) adds a working-days and
+time-of-day limit to the two time triggers (HUM-10, msg `122b69a5`; 8.9).
 Epic: **SPL-2398**. Issue: **SPL-6022** (v0.1-v0.8); **SPL-6440** (v0.9); **SPL-6474** (v0.10). Class: `feature`. Kind: `specs_and_docs`.
 Discussion: `topic:f08c0c58-9228-4e2a-af00-dbbdbd328083` (`t1`, v0.1-v0.8); `topic:cbb1897b-4d35-44df-93c3-a2bbd2b6defa` (`t1`, v0.9-v0.10).
 Builds on: [179 pause the agents of a discussion](../179-pause-agents-of-a-discussion/spec.md)
@@ -1236,6 +1239,76 @@ full screen: no new phone work, only no regression.
 Channel loops (section 9) reuse this dialog (9.2, 9.8.3); whether
 `channel_loops` mirrors change 8's `position` and change 9's two keys is the
 holder's call (plan `spec-182-channel-loops-build-plan.md` v1.1, N6).
+
+### 8.9 Changes from v0.11 (the work window, v0.12, SPL-6744)
+
+**Source.** HUM-10, t1 `#spool-hub-biz` topic `0cf1d4cf`, msg `122b69a5`,
+2026-11-28 08:2xZ: *"add in the loops configuration the possibility to define
+every 60 minutes , but only on working days between x and y time in 24 hours
+format type of setiing"*. The reading below is the dispatcher's (c-002),
+stated here as the decision.
+
+**Decided.**
+
+| # | rule |
+|---|---|
+| W1 | A loop whose trigger is `every_hour` or `every_n_minutes` may carry a **work window**: "only on working days" (Monday to Friday) and / or "only between `from` and `to`", each `hh:mm` 24-hour. Both limits are optional and independent; a new loop has neither. Any other trigger takes no window (`400 bad_loop`). |
+| W2 | The window is read in the loop's own zone, `daily_tz` (the zone rule of section 3 row DLY; `""` is UTC). The form shows the zone field once a limit is checked, the browser's zone to start. |
+| W3 | `from` is the first minute a fire may be due, `to` the last, **inclusive** (every 60 minutes from 08:00 to 17:00 fires at 08:00, 09:00, ... 17:00 when the slots fall on the hour). `from` must be before `to` on the same day: a window over midnight is **refused** with a clear error, not supported. |
+| W4 | **No fire outside the window and no catch-up.** The next due time is the next slot (`from + period`, as before) when it is inside the window, else the window's start on the next day that may fire (Friday 16:30 + 60 min, window 08:00-17:00 Mon-Fri, is Monday 08:00). A fire then counts its slots from that start. The 12-per-hour cap (5.1) is unchanged. |
+| W5 | **No limit = the behaviour before v0.12, exactly**: a loop without a window computes `next_due_at` as before, and the claim (4.2 step 5) writes it as before. Every stored loop has no window. |
+| W6 | **Known limit**: public holidays are not known; a working day is Monday to Friday in `daily_tz`. Spec 187 scheduled tasks are not in scope (the owner said "loops"). Channel loops (section 9) are not built; they take the window when they are. |
+
+**Store (rdb `0334_topic_loops_work_window.sql`).** `topic_loops` gains
+`window_from time`, `window_to time` (NULL = all day) and
+`workdays_only boolean NOT NULL DEFAULT false`, with two CHECKs added NOT
+VALID: both bounds or neither, `window_from < window_to`; and a limit only on
+a row with `every_hour` or `every_n_minutes`. `store.TopicLoop` has
+`WindowFrom`, `WindowTo`, `WorkdaysOnly`; `TopicLoopEdit` the three as
+pointers (nil keeps, `""` / `false` clears); an edit whose triggers drop both
+time triggers clears the window, the way a field leaves with its trigger.
+The due walk is one Go function, `topicLoopWindowNext` in
+`internal/store/topic_loop.go`, called by `topicLoopDue` on add, edit and the
+Memory claim. The Postgres claim keeps its one UPDATE (`next_due_at = $1 +
+period`) and then, in the same transaction, rewrites `next_due_at` only for
+the claimed rows with a window whose every_* key came due
+(`topicLoopWindowClaim`), so there is one rule for the window, in Go, and
+the claim of a loop without one is not written twice. DST: the window's
+start is built in `daily_tz` with `time.Date`, so Monday 08:00 Helsinki is
+05:00Z after the March change and 06:00Z after the October one.
+
+**API (7.1.2).** `POST` and `PUT /v1/topics/{task_id}/loops[/{loop_id}]`
+take `window_from`, `window_to` (`hh:mm` or `""`) and `workdays_only`
+(boolean); the hub refuses a bound that is not `hh:mm` and a `from` not
+before `to` (`400 bad_loop`, "a window over midnight is not supported"),
+the store the rest. Every answer carries `window_from` / `window_to` when
+the window has hours and `workdays_only: true` when it is set, each with
+`daily_tz`; a loop with no window answers no new field. `openapi.json` names
+the three on `TopicLoop` and both request bodies.
+
+**WUI.** Under the radios, when `every_hour` or `every_n_minutes` is picked:
+a checkbox "Only on working days (Monday to Friday)", a checkbox "Only
+between" with two 24-hour `HH:MM` text fields (08:00 and 17:00 to start,
+locked until checked), the zone field once either is checked, and a note
+that nothing runs or catches up outside the limit and that public holidays
+are not known. The list row names the window ("working days, 08:00-17:00
+(Europe/Helsinki)"). `loopBody` sends the three fields only when the form
+limits a time trigger, or clears the window a loop had, so the body of a
+loop without one is the body of v0.11. Locale keys
+`feed.topic_loops.{workdays, window, window_from, window_to, window_tz,
+window_note, window_row_both, window_row_hours, window_row_days,
+err_window}` in every locale file.
+
+**Tests.**
+
+| test | proves |
+|---|---|
+| `internal/store/topic_loop_window_test.go` `TestTopicLoopWindowDue` | the walk on a fake clock: Friday 16:30 -> Monday 08:00; a weekday before the window -> its start; inside -> + interval; the `to` minute is inside; past it -> next day; Saturday -> Monday; both DST weekends (Helsinki); working days with no hours; hours with no working days; no zone = UTC; no window = from + period |
+| same file, `TestTopicLoopWindowStore` (Memory and Postgres) | the eight refusals (overnight, empty, one bound, not `hh:mm`, `24:00`, a window on a non-timer, working days on `daily_at`), the stored window, Monday 08:00 as the first due, a claim at 17:00 moves to Tuesday 08:00 (no burst), an edit of `to` re-walks, dropping the time trigger clears the window |
+| `internal/hub/topic_loop_window_test.go` `TestTopicLoopWindowRoutes` | the routes take, answer and clear the window; six refusals, each `400 bad_loop` naming its reason |
+| `csi-spl-wui/tests/unit/topic-loops-window.test.mjs` | form, body, clear on edit, row label, the mock's twin rules |
+| `csi-spl-wui/tests/e2e/topic-loops-dialog.test.mjs` part 9 | in Chrome: the limits under "Every hour" only, an overnight window refused, the saved row names its window |
+| red control | `topicLoopDue` with the window ignored (`return from.Add(p)`): `TestTopicLoopWindowDue` red on 9 of 12 cases and `TestTopicLoopWindowStore` red on the first due; green restored |
 
 ## 9. Channel loops (v0.9 SPL-6440; v0.10 SPL-6474)
 

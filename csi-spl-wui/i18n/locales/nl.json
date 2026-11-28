@@ -1105,7 +1105,17 @@
       "err_keyword": "Schrijf een woord of zinsdeel van hoogstens 200 tekens.",
       "err_daily_at": "Kies een tijdstip.",
       "err_daily_tz": "Kies een tijdzone uit de lijst.",
-      "multi_note": "Deze lus is opgeslagen met meer dan één trigger; hij draait ook bij: {triggers}. Bij opslaan blijft alleen de gekozen trigger over."
+      "multi_note": "Deze lus is opgeslagen met meer dan één trigger; hij draait ook bij: {triggers}. Bij opslaan blijft alleen de gekozen trigger over.",
+      "workdays": "Alleen op werkdagen (maandag tot en met vrijdag)",
+      "window": "Alleen tussen",
+      "window_from": "Van, 24-uurs UU:MM",
+      "window_to": "Tot en met, 24-uurs UU:MM",
+      "window_tz": "Tijdzone van de beperking",
+      "window_note": "Buiten deze dagen en uren draait de lus niet, en hij haalt later niets in. Feestdagen worden niet herkend.",
+      "window_row_both": "werkdagen, {from}–{to} ({tz})",
+      "window_row_hours": "alleen {from}–{to} ({tz})",
+      "window_row_days": "alleen werkdagen ({tz})",
+      "err_window": "Vul Van en Tot in als UU:MM, met Van vóór Tot op dezelfde dag."
     }
   },
   "topic": {

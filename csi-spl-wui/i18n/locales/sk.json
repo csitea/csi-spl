@@ -1105,7 +1105,17 @@
       "err_keyword": "Napíšte slovo alebo frázu s najviac 200 znakmi.",
       "err_daily_at": "Zvoľte čas dňa.",
       "err_daily_tz": "Zvoľte časové pásmo zo zoznamu.",
-      "multi_note": "Táto slučka bola uložená s viacerými spúšťačmi; spúšťa sa aj pri: {triggers}. Uložením zostane len spúšťač, ktorý vyberiete."
+      "multi_note": "Táto slučka bola uložená s viacerými spúšťačmi; spúšťa sa aj pri: {triggers}. Uložením zostane len spúšťač, ktorý vyberiete.",
+      "workdays": "Iba v pracovné dni (od pondelka do piatku)",
+      "window": "Iba medzi",
+      "window_from": "Od, 24-hodinový formát HH:MM",
+      "window_to": "Do, 24-hodinový formát HH:MM (vrátane)",
+      "window_tz": "Časové pásmo obmedzenia",
+      "window_note": "Mimo týchto dní a hodín sa slučka nespustí a neskôr nič nedobieha. Štátne sviatky sa neberú do úvahy.",
+      "window_row_both": "pracovné dni, {from}–{to} ({tz})",
+      "window_row_hours": "iba {from}–{to} ({tz})",
+      "window_row_days": "iba pracovné dni ({tz})",
+      "err_window": "Zadajte čas Od a Do vo formáte HH:MM, pričom Od musí byť pred Do v ten istý deň."
     }
   },
   "topic": {

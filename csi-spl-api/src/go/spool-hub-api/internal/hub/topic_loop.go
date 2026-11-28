@@ -178,15 +178,23 @@ func loopJSONv04(out map[string]any, l store.TopicLoop) {
 	if l.IdleMin > 0 {
 		out["idle_min"] = l.IdleMin
 	}
+	tz := l.DailyTZ
+	if tz == "" {
+		tz = "UTC"
+	}
 	if l.DailyAt != "" {
-		tz := l.DailyTZ
-		if tz == "" {
-			tz = "UTC"
-		}
 		out["daily_at"], out["daily_tz"] = l.DailyAt, tz
 		if !l.DailyDueAt.IsZero() {
 			out["daily_due_at"] = rfc(l.DailyDueAt)
 		}
+	}
+	// v0.12: the work window, each field present only when set; its zone
+	// is daily_tz.
+	if l.WindowFrom != "" {
+		out["window_from"], out["window_to"], out["daily_tz"] = l.WindowFrom, l.WindowTo, tz
+	}
+	if l.WorkdaysOnly {
+		out["workdays_only"], out["daily_tz"] = true, tz
 	}
 }
 
@@ -268,6 +276,10 @@ type loopBody struct {
 	IdleMin     *int     `json:"idle_min"`
 	DailyAt     *string  `json:"daily_at"`
 	DailyTZ     *string  `json:"daily_tz"`
+	// v0.12 (SPL-6744): the every_* triggers' work window, in daily_tz.
+	WindowFrom   *string `json:"window_from"`
+	WindowTo     *string `json:"window_to"`
+	WorkdaysOnly *bool   `json:"workdays_only"`
 }
 
 // readLoopBody decodes the body; false has answered 400.
@@ -276,7 +288,7 @@ func readLoopBody(w http.ResponseWriter, r *http.Request) (loopBody, bool) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&b); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_loop", "body must be {\"prompt\", \"triggers\", \"interval_min\", \"keyword\", \"idle_min\", \"daily_at\", \"daily_tz\", \"state\"}")
+		writeErr(w, http.StatusBadRequest, "bad_loop", "body must be {\"prompt\", \"triggers\", \"interval_min\", \"keyword\", \"idle_min\", \"daily_at\", \"daily_tz\", \"window_from\", \"window_to\", \"workdays_only\", \"state\"}")
 		return b, false
 	}
 	// One trigger per loop (spec 182 v0.11, HUM-10 t1 6e8c1cdb msg febf1db4,
@@ -294,7 +306,32 @@ func readLoopBody(w http.ResponseWriter, r *http.Request) (loopBody, bool) {
 			return b, false
 		}
 	}
+	if msg := loopWindowErr(b); msg != "" {
+		writeErr(w, http.StatusBadRequest, "bad_loop", msg)
+		return b, false
+	}
 	return b, true
+}
+
+// loopWindowErr is why the body's work window (spec 182 v0.12) is refused,
+// "" when it is not: each bound "hh:mm" (24-hour) or "" (no window), and
+// window_from before window_to on the same day. The store checks the rest
+// (both bounds or none, only with every_hour or every_n_minutes).
+func loopWindowErr(b loopBody) string {
+	hm := func(p *string) bool {
+		if p == nil || *p == "" {
+			return true
+		}
+		_, err := time.Parse("15:04", *p)
+		return err == nil && len(*p) == 5
+	}
+	if !hm(b.WindowFrom) || !hm(b.WindowTo) {
+		return "window_from and window_to must be 24-hour times hh:mm, e.g. 08:00 and 17:00"
+	}
+	if f, t := derefStr(b.WindowFrom), derefStr(b.WindowTo); f != "" && t != "" && f >= t {
+		return "window_from must be before window_to: a window over midnight is not supported"
+	}
+	return ""
 }
 
 func (s *Server) handleTopicLoopAdd(w http.ResponseWriter, r *http.Request) {
@@ -313,6 +350,7 @@ func (s *Server) handleTopicLoopAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	l.IntervalMin, l.IdleMin = derefInt(b.IntervalMin), derefInt(b.IdleMin)
 	l.Keyword, l.DailyAt, l.DailyTZ = derefStr(b.Keyword), derefStr(b.DailyAt), derefStr(b.DailyTZ)
+	l.WindowFrom, l.WindowTo, l.WorkdaysOnly = derefStr(b.WindowFrom), derefStr(b.WindowTo), b.WorkdaysOnly != nil && *b.WorkdaysOnly
 	got, err := ls.AddTopicLoop(r.Context(), q.t.ID, l)
 	if !s.loopWriteErr(w, q, err) {
 		return
@@ -334,7 +372,8 @@ func (s *Server) handleTopicLoopEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	e := store.TopicLoopEdit{Prompt: b.Prompt, Triggers: b.Triggers, Interval: b.IntervalMin, State: b.State,
-		Keyword: b.Keyword, IdleMin: b.IdleMin, DailyAt: b.DailyAt, DailyTZ: b.DailyTZ, By: q.hum, At: s.o.Now().UTC()}
+		Keyword: b.Keyword, IdleMin: b.IdleMin, DailyAt: b.DailyAt, DailyTZ: b.DailyTZ,
+		WindowFrom: b.WindowFrom, WindowTo: b.WindowTo, WorkdaysOnly: b.WorkdaysOnly, By: q.hum, At: s.o.Now().UTC()}
 	got, err := ls.EditTopicLoop(r.Context(), q.t.ID, q.task, r.PathValue("loop_id"), e)
 	if !s.loopWriteErr(w, q, err) {
 		return

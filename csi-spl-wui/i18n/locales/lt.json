@@ -1105,7 +1105,17 @@
       "err_keyword": "Parašykite žodį ar frazę, ne ilgesnę nei 200 simbolių.",
       "err_daily_at": "Pasirinkite paros laiką.",
       "err_daily_tz": "Pasirinkite laiko juostą iš sąrašo.",
-      "multi_note": "Šis ciklas išsaugotas su daugiau nei vienu paleidikliu; jis taip pat paleidžiamas: {triggers}. Išsaugojus lieka tik jūsų pasirinktas paleidiklis."
+      "multi_note": "Šis ciklas išsaugotas su daugiau nei vienu paleidikliu; jis taip pat paleidžiamas: {triggers}. Išsaugojus lieka tik jūsų pasirinktas paleidiklis.",
+      "workdays": "Tik darbo dienomis (nuo pirmadienio iki penktadienio)",
+      "window": "Tik tarp",
+      "window_from": "Nuo, 24 val. formatu VV:MM",
+      "window_to": "Iki, 24 val. formatu VV:MM (imtinai)",
+      "window_tz": "Apribojimo laiko juosta",
+      "window_note": "Už šių dienų ir valandų ribų ciklas nevykdomas ir praleistų kartų vėliau nepasiveja. Valstybinės šventės neatpažįstamos.",
+      "window_row_both": "darbo dienomis, {from}–{to} ({tz})",
+      "window_row_hours": "tik {from}–{to} ({tz})",
+      "window_row_days": "tik darbo dienomis ({tz})",
+      "err_window": "Įveskite pradžios ir pabaigos laiką VV:MM formatu; pradžia turi būti prieš pabaigą tą pačią dieną."
     }
   },
   "topic": {

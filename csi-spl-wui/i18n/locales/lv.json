@@ -1105,7 +1105,17 @@
       "err_keyword": "Uzrakstiet vārdu vai frāzi, ne garāku par 200 rakstzīmēm.",
       "err_daily_at": "Izvēlieties diennakts laiku.",
       "err_daily_tz": "Izvēlieties laika joslu no saraksta.",
-      "multi_note": "Šis cikls tika saglabāts ar vairāk nekā vienu palaidēju; tas darbojas arī: {triggers}. Saglabājot paliek tikai jūsu izvēlētais palaidējs."
+      "multi_note": "Šis cikls tika saglabāts ar vairāk nekā vienu palaidēju; tas darbojas arī: {triggers}. Saglabājot paliek tikai jūsu izvēlētais palaidējs.",
+      "workdays": "Tikai darba dienās (no pirmdienas līdz piektdienai)",
+      "window": "Tikai starp",
+      "window_from": "No, 24 stundu formātā SS:MM",
+      "window_to": "Līdz, 24 stundu formātā SS:MM (ieskaitot)",
+      "window_tz": "Ierobežojuma laika josla",
+      "window_note": "Ārpus šīm dienām un stundām cikls netiek izpildīts un vēlāk neko neatgūst. Svētku dienas netiek ņemtas vērā.",
+      "window_row_both": "darba dienās, {from}–{to} ({tz})",
+      "window_row_hours": "tikai {from}–{to} ({tz})",
+      "window_row_days": "tikai darba dienās ({tz})",
+      "err_window": "Ievadiet sākuma un beigu laiku formātā SS:MM; sākumam jābūt pirms beigām tajā pašā dienā."
     }
   },
   "topic": {

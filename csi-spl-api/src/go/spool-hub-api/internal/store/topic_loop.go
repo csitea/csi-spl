@@ -78,9 +78,9 @@ const topicLoopUTC = "UTC"
 
 // ErrBadTopicLoop: an empty or too long prompt, no trigger, an unknown
 // trigger or state, a missing or stray interval, keyword, idle n or daily
-// time, a daily zone time.LoadLocation refuses, or a set_by not 1..64
-// characters. Before any write.
-var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..13 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, a keyword of 1..200 characters exactly with post_has_keyword, an idle n of 5..1440 minutes exactly with no_reply_after_human, a time and a known zone exactly with daily_at, state on|paused and who (1..64)")
+// time, a daily zone time.LoadLocation refuses, a bad work window (v0.12),
+// or a set_by not 1..64 characters. Before any write.
+var ErrBadTopicLoop = errors.New("store: a topic loop needs a prompt (1..4000 characters), 1..13 known triggers, an interval of 5..1440 minutes exactly with every_n_minutes, a keyword of 1..200 characters exactly with post_has_keyword, an idle n of 5..1440 minutes exactly with no_reply_after_human, a time and a known zone exactly with daily_at, a work window (window_from before window_to, both hh:mm, the same day; workdays_only) only with every_hour or every_n_minutes, state on|paused and who (1..64)")
 
 // TopicLoop is one topic_loops row.
 type TopicLoop struct {
@@ -111,6 +111,11 @@ type TopicLoop struct {
 	Due        []string  // set only by ClaimDueTopicLoops: the time keys that came due this claim
 	DueAt      time.Time // v0.5, set only by ClaimDueTopicLoops: the earliest of NextDueAt, DailyDueAt that came due, as it was BEFORE the move; zero when only the idle key came due
 	Position   int       // v0.11 (rdb 0329): its place in the topic's list, 0 first; an add goes last
+	// v0.12 (rdb 0334, SPL-6744): the work window of the every_* triggers,
+	// read in DailyTZ. Both "" and false: no limit, the behaviour before.
+	WindowFrom   string // "hh:mm", the first minute a fire may be due; "" = all day
+	WindowTo     string // "hh:mm", the last (inclusive); set exactly with WindowFrom, after it
+	WorkdaysOnly bool   // Monday to Friday only (no public holidays)
 }
 
 // Has reports a checked trigger.
@@ -138,8 +143,12 @@ type TopicLoopEdit struct {
 	IdleMin  *int    // v0.4; nil: keep
 	DailyAt  *string // v0.4; nil: keep
 	DailyTZ  *string // v0.4; nil: keep
-	By       string
-	At       time.Time
+	// v0.12; nil: keep. "" clears a window bound.
+	WindowFrom   *string
+	WindowTo     *string
+	WorkdaysOnly *bool
+	By           string
+	At           time.Time
 }
 
 // TopicLoopStore is spec 182 7.1.1, implemented by Memory and Postgres, in
@@ -329,12 +338,76 @@ func topicLoopPeriodKeys(l TopicLoop) []string {
 }
 
 // topicLoopDue is l's NextDueAt counted from from: zero when it is paused
-// or has no every_* trigger.
+// or has no every_* trigger. With a work window (v0.12) a slot outside it
+// moves to the window's next start, so no fire is due outside it and none
+// is caught up later.
 func topicLoopDue(l TopicLoop, from time.Time) time.Time {
 	if p := topicLoopPeriod(l); p > 0 && l.State == TopicLoopOn {
-		return from.Add(p)
+		return topicLoopWindowNext(l, from.Add(p))
 	}
 	return time.Time{}
+}
+
+// topicLoopIsPeriodKey reports an every_* key (the keys NextDueAt brings).
+func topicLoopIsPeriodKey(k string) bool { return k == LoopEveryHour || k == LoopEveryNMinutes }
+
+// topicLoopWindowed reports a loop with a work window (v0.12).
+func topicLoopWindowed(l TopicLoop) bool { return l.WindowFrom != "" || l.WorkdaysOnly }
+
+// topicLoopWindowNext is the first instant at or after c inside l's work
+// window in DailyTZ (spec 182 v0.12): c itself when it is inside, else
+// WindowFrom (or midnight) of the next day that may fire. WindowTo is
+// inclusive. A WindowFrom that falls in a DST gap takes Go's
+// normalisation, as daily_at does.
+func topicLoopWindowNext(l TopicLoop, c time.Time) time.Time {
+	loc, ok := topicLoopZone(l.DailyTZ)
+	if !topicLoopWindowed(l) || !ok {
+		return c
+	}
+	from, to := topicLoopHM(l.WindowFrom, 0), topicLoopHM(l.WindowTo, 24*60)
+	d := c.In(loc)
+	for i := 0; i <= 7; i++ {
+		day := time.Date(d.Year(), d.Month(), d.Day()+i, 0, 0, 0, 0, loc)
+		if wd := day.Weekday(); l.WorkdaysOnly && (wd == time.Saturday || wd == time.Sunday) {
+			continue
+		}
+		start := time.Date(day.Year(), day.Month(), day.Day(), 0, from, 0, 0, loc)
+		end := time.Date(day.Year(), day.Month(), day.Day(), 0, to, 0, 0, loc)
+		switch {
+		case i > 0:
+			return start.UTC()
+		case c.Before(start):
+			return start.UTC()
+		case !c.After(end) && (l.WindowTo != "" || c.Before(end)):
+			return c
+		}
+	}
+	return c // unreachable: a week holds five working days
+}
+
+// topicLoopHM is "hh:mm" as minutes after midnight, or def when "".
+func topicLoopHM(s string, def int) int {
+	t, err := time.Parse("15:04", s)
+	if s == "" || err != nil {
+		return def
+	}
+	return t.Hour()*60 + t.Minute()
+}
+
+// topicLoopWindowOK is v0.12's rule (rdb 0334's CHECKs): no limit, or a
+// limit on a loop with an every_* trigger whose window is both "hh:mm"
+// bounds, from before to, or none.
+func topicLoopWindowOK(l TopicLoop) bool {
+	if !topicLoopWindowed(l) && l.WindowTo == "" {
+		return true
+	}
+	if !l.Has(LoopEveryHour) && !l.Has(LoopEveryNMinutes) {
+		return false
+	}
+	if l.WindowFrom == "" && l.WindowTo == "" {
+		return true
+	}
+	return topicLoopClock(l.WindowFrom) && topicLoopClock(l.WindowTo) && l.WindowFrom < l.WindowTo
 }
 
 // topicLoopNextDaily is the first DailyAt in DailyTZ strictly after from
@@ -403,6 +476,9 @@ func normTopicLoop(l TopicLoop) (TopicLoop, error) {
 			return TopicLoop{}, ErrBadTopicLoop
 		}
 	}
+	if !topicLoopWindowOK(l) {
+		return TopicLoop{}, ErrBadTopicLoop
+	}
 	l.TaskID, l.LoopID = strings.ToLower(l.TaskID), strings.ToLower(l.LoopID)
 	return l, nil
 }
@@ -420,7 +496,8 @@ func newTopicLoop(tenant string, l TopicLoop) (TopicLoop, error) {
 	}
 	row := TopicLoop{TenantID: tenant, LoopID: l.LoopID, TaskID: task, Prompt: l.Prompt, Triggers: l.Triggers,
 		SetBy: l.SetBy, SetAt: followAt(l.SetAt), State: TopicLoopOn, IntervalMin: l.IntervalMin,
-		Keyword: l.Keyword, IdleMin: l.IdleMin, DailyAt: l.DailyAt, DailyTZ: l.DailyTZ}
+		Keyword: l.Keyword, IdleMin: l.IdleMin, DailyAt: l.DailyAt, DailyTZ: l.DailyTZ,
+		WindowFrom: l.WindowFrom, WindowTo: l.WindowTo, WorkdaysOnly: l.WorkdaysOnly}
 	if row, err = normTopicLoop(row); err != nil {
 		return TopicLoop{}, err
 	}
@@ -444,6 +521,9 @@ func applyTopicLoopEdit(old TopicLoop, e TopicLoopEdit) (TopicLoop, error) {
 				f.clear(&l)
 			}
 		}
+		if !slices.Contains(e.Triggers, LoopEveryHour) && !slices.Contains(e.Triggers, LoopEveryNMinutes) {
+			l.WindowFrom, l.WindowTo, l.WorkdaysOnly = "", "", false // v0.12: the window goes with the time triggers
+		}
 	}
 	setStr(&l.Prompt, e.Prompt)
 	setStr(&l.State, e.State)
@@ -452,8 +532,14 @@ func applyTopicLoopEdit(old TopicLoop, e TopicLoopEdit) (TopicLoop, error) {
 	setStr(&l.DailyTZ, e.DailyTZ)
 	setInt(&l.IntervalMin, e.Interval)
 	setInt(&l.IdleMin, e.IdleMin)
+	setStr(&l.WindowFrom, e.WindowFrom)
+	setStr(&l.WindowTo, e.WindowTo)
+	if e.WorkdaysOnly != nil {
+		l.WorkdaysOnly = *e.WorkdaysOnly
+	}
+	window := e.WindowFrom != nil || e.WindowTo != nil || e.WorkdaysOnly != nil
 	sends := e.Prompt != nil || e.Triggers != nil || e.Interval != nil || e.Keyword != nil ||
-		e.IdleMin != nil || e.DailyAt != nil || e.DailyTZ != nil
+		e.IdleMin != nil || e.DailyAt != nil || e.DailyTZ != nil || window
 	if sends {
 		l.SetBy, l.SetAt = e.By, at
 	}
@@ -464,7 +550,7 @@ func applyTopicLoopEdit(old TopicLoop, e TopicLoopEdit) (TopicLoop, error) {
 	if err != nil {
 		return TopicLoop{}, err
 	}
-	if e.State != nil || e.Triggers != nil || e.Interval != nil || e.IdleMin != nil || e.DailyAt != nil || e.DailyTZ != nil {
+	if e.State != nil || e.Triggers != nil || e.Interval != nil || e.IdleMin != nil || e.DailyAt != nil || e.DailyTZ != nil || window {
 		l.NextDueAt, l.DailyDueAt = topicLoopDue(l, at), topicLoopNextDaily(l, at)
 		l.IdleDueAt, l.IdlePost = time.Time{}, ""
 	}

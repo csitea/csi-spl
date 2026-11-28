@@ -1105,7 +1105,17 @@
       "err_keyword": "Write a word or phrase of at most 200 characters.",
       "err_daily_at": "Choose a time of day.",
       "err_daily_tz": "Choose a time zone from the list.",
-      "multi_note": "This loop was saved with more than one trigger; it also runs on: {triggers}. Saving keeps only the trigger you choose."
+      "multi_note": "This loop was saved with more than one trigger; it also runs on: {triggers}. Saving keeps only the trigger you choose.",
+      "workdays": "Only on working days (Monday to Friday)",
+      "window": "Only between",
+      "window_from": "From, 24-hour HH:MM",
+      "window_to": "To, 24-hour HH:MM (included)",
+      "window_tz": "Time zone of the limit",
+      "window_note": "Outside these days and hours the loop does not run, and it does not catch up later. Public holidays are not known.",
+      "window_row_both": "working days, {from}–{to} ({tz})",
+      "window_row_hours": "only {from}–{to} ({tz})",
+      "window_row_days": "working days only ({tz})",
+      "err_window": "Enter From and To as HH:MM, with From before To on the same day."
     }
   },
   "topic": {

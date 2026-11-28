@@ -1105,7 +1105,17 @@
       "err_keyword": "En fazla 200 karakterlik bir sözcük veya ifade yazın.",
       "err_daily_at": "Günün bir saatini seçin.",
       "err_daily_tz": "Listeden bir saat dilimi seçin.",
-      "multi_note": "Bu döngü birden fazla tetikleyiciyle kaydedildi; şu durumlarda da çalışır: {triggers}. Kaydetmek yalnızca seçtiğiniz tetikleyiciyi tutar."
+      "multi_note": "Bu döngü birden fazla tetikleyiciyle kaydedildi; şu durumlarda da çalışır: {triggers}. Kaydetmek yalnızca seçtiğiniz tetikleyiciyi tutar.",
+      "workdays": "Yalnızca iş günlerinde (pazartesiden cumaya)",
+      "window": "Yalnızca şu saatler arasında",
+      "window_from": "Başlangıç, 24 saat SS:DD",
+      "window_to": "Bitiş, 24 saat SS:DD (dahil)",
+      "window_tz": "Sınırlamanın saat dilimi",
+      "window_note": "Bu günlerin ve saatlerin dışında döngü çalışmaz ve kaçırdıklarını sonradan telafi etmez. Resmî tatiller bilinmez.",
+      "window_row_both": "iş günleri, {from}–{to} ({tz})",
+      "window_row_hours": "yalnızca {from}–{to} ({tz})",
+      "window_row_days": "yalnızca iş günleri ({tz})",
+      "err_window": "Başlangıç ve bitişi SS:DD olarak girin; başlangıç aynı gün bitişten önce olmalıdır."
     }
   },
   "topic": {

@@ -1105,7 +1105,17 @@
       "err_keyword": "Wpisz słowo lub frazę, najwyżej 200 znaków.",
       "err_daily_at": "Wybierz porę dnia.",
       "err_daily_tz": "Wybierz strefę czasową z listy.",
-      "multi_note": "Ta pętla została zapisana z więcej niż jednym wyzwalaczem; uruchamia się też przy: {triggers}. Zapisanie zachowa tylko wybrany wyzwalacz."
+      "multi_note": "Ta pętla została zapisana z więcej niż jednym wyzwalaczem; uruchamia się też przy: {triggers}. Zapisanie zachowa tylko wybrany wyzwalacz.",
+      "workdays": "Tylko w dni robocze (od poniedziałku do piątku)",
+      "window": "Tylko między",
+      "window_from": "Od, format 24-godzinny GG:MM",
+      "window_to": "Do, format 24-godzinny GG:MM (włącznie)",
+      "window_tz": "Strefa czasowa ograniczenia",
+      "window_note": "Poza tymi dniami i godzinami pętla się nie uruchamia i nie nadrabia później pominiętych uruchomień. Święta państwowe nie są uwzględniane.",
+      "window_row_both": "dni robocze, {from}–{to} ({tz})",
+      "window_row_hours": "tylko {from}–{to} ({tz})",
+      "window_row_days": "tylko dni robocze ({tz})",
+      "err_window": "Wpisz godziny Od i Do w formacie GG:MM, przy czym Od musi być przed Do tego samego dnia."
     }
   },
   "topic": {

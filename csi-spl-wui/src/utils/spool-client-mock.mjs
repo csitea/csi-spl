@@ -302,6 +302,9 @@ function mockLoopForm(body, old = {}) {
   return {
     prompt: pick('prompt'), trigger, others: b.triggers !== undefined ? [] : others, sent: b.triggers, interval: pick('interval_min'), keyword: pick('keyword'),
     idle: pick('idle_min'), dailyAt: pick('daily_at'), dailyTz: pick('daily_tz') || 'UTC',
+    // v0.12 (SPL-6744): the work window, '' / false clears it
+    windowOn: Boolean(pick('window_from')), windowFrom: pick('window_from') || '', windowTo: pick('window_to') || '',
+    workdays: pick('workdays_only') === true, hadWindow: false,
   }
 }
 
@@ -314,7 +317,7 @@ function mockNextDaily(hhmm) {
   return d.toISOString()
 }
 
-const MOCK_LOOP_FIELDS = ['interval_min', 'next_due_at', 'keyword', 'idle_min', 'daily_at', 'daily_tz', 'daily_due_at']
+const MOCK_LOOP_FIELDS = ['interval_min', 'next_due_at', 'keyword', 'idle_min', 'daily_at', 'daily_tz', 'daily_due_at', 'window_from', 'window_to', 'workdays_only']
 
 /** The loop JSON of 7.1.2 from a checked form and the row it replaces: each field only with its box. */
 function mockLoopRow(form, old) {
@@ -326,6 +329,8 @@ function mockLoopRow(form, old) {
   const row = { ...old, prompt: body.prompt, triggers: body.triggers }
   for (const k of MOCK_LOOP_FIELDS) delete row[k]
   for (const k of ['interval_min', 'keyword', 'idle_min', 'daily_at', 'daily_tz']) if (body[k] !== undefined) row[k] = body[k]
+  if (body.window_from) [row.window_from, row.window_to] = [body.window_from, body.window_to]
+  if (body.workdays_only === true) row.workdays_only = true
   if (body.daily_at && row.state !== 'paused') row.daily_due_at = mockNextDaily(body.daily_at)
   const every = body.interval_min || (body.triggers.includes('every_hour') ? 60 : 0)
   if (every && row.state !== 'paused') row.next_due_at = new Date(Date.now() + Math.min(every, 60) * 60000).toISOString()

@@ -1122,7 +1122,7 @@
             "type": "string"
           },
           "daily_tz": {
-            "description": "IANA zone, present exactly with daily_at",
+            "description": "IANA zone, present with daily_at, or with a work window (v0.12)",
             "type": "string"
           },
           "fires_in_hour": {
@@ -1211,6 +1211,18 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "window_from": {
+            "description": "spec 182 v0.12: hh:mm (24-hour), the work window's first minute in daily_tz; set with window_to and before it (no window over midnight); only with every_hour or every_n_minutes. \"\" clears it.",
+            "type": "string"
+          },
+          "window_to": {
+            "description": "spec 182 v0.12: hh:mm, the work window's last minute (inclusive); set exactly with window_from.",
+            "type": "string"
+          },
+          "workdays_only": {
+            "description": "spec 182 v0.12: fire the every_* triggers only Monday to Friday in daily_tz (no public holidays); only with every_hour or every_n_minutes.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -21559,7 +21571,7 @@
                     "type": "string"
                   },
                   "daily_tz": {
-                    "description": "IANA zone, present exactly with daily_at",
+                    "description": "IANA zone, present with daily_at, or with a work window (v0.12)",
                     "type": "string"
                   },
                   "idle_min": {
@@ -21606,6 +21618,18 @@
                     "maxItems": 1,
                     "minItems": 1,
                     "type": "array"
+                  },
+                  "window_from": {
+                    "description": "spec 182 v0.12: hh:mm (24-hour), the work window's first minute in daily_tz; set with window_to and before it (no window over midnight); only with every_hour or every_n_minutes. \"\" clears it.",
+                    "type": "string"
+                  },
+                  "window_to": {
+                    "description": "spec 182 v0.12: hh:mm, the work window's last minute (inclusive); set exactly with window_from.",
+                    "type": "string"
+                  },
+                  "workdays_only": {
+                    "description": "spec 182 v0.12: fire the every_* triggers only Monday to Friday in daily_tz (no public holidays); only with every_hour or every_n_minutes.",
+                    "type": "boolean"
                   }
                 },
                 "type": "object"
@@ -21842,7 +21866,7 @@
                     "type": "string"
                   },
                   "daily_tz": {
-                    "description": "IANA zone, present exactly with daily_at",
+                    "description": "IANA zone, present with daily_at, or with a work window (v0.12)",
                     "type": "string"
                   },
                   "idle_min": {
@@ -21896,6 +21920,18 @@
                     "maxItems": 1,
                     "minItems": 1,
                     "type": "array"
+                  },
+                  "window_from": {
+                    "description": "spec 182 v0.12: hh:mm (24-hour), the work window's first minute in daily_tz; set with window_to and before it (no window over midnight); only with every_hour or every_n_minutes. \"\" clears it.",
+                    "type": "string"
+                  },
+                  "window_to": {
+                    "description": "spec 182 v0.12: hh:mm, the work window's last minute (inclusive); set exactly with window_from.",
+                    "type": "string"
+                  },
+                  "workdays_only": {
+                    "description": "spec 182 v0.12: fire the every_* triggers only Monday to Friday in daily_tz (no public holidays); only with every_hour or every_n_minutes.",
+                    "type": "boolean"
                   }
                 },
                 "type": "object"

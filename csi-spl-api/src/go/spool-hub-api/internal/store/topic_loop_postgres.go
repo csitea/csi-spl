@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,13 +21,15 @@ import (
 const topicLoopCols = `tenant_id, loop_id::text, task_id::text, prompt, triggers, set_by, set_at, state,
 	hour_start, fires_in_hour, fires_total, last_fired_at, coalesce(interval_min, 0), next_due_at, awaiting, awaiting_until,
 	coalesce(keyword, ''), coalesce(idle_min, 0), idle_due_at, coalesce(idle_post::text, ''),
-	coalesce(to_char(daily_at, 'HH24:MI'), ''), daily_tz, daily_due_at, position`
+	coalesce(to_char(daily_at, 'HH24:MI'), ''), daily_tz, daily_due_at, position,
+	coalesce(to_char(window_from, 'HH24:MI'), ''), coalesce(to_char(window_to, 'HH24:MI'), ''), workdays_only`
 
 // topicLoopRowCols are the table columns topicLoopCols reads, by name: what an
 // UPDATE ... RETURNING hands on to a SELECT of topicLoopCols.
 const topicLoopRowCols = `tenant_id, loop_id, task_id, prompt, triggers, set_by, set_at, state,
 	hour_start, fires_in_hour, fires_total, last_fired_at, interval_min, next_due_at, awaiting, awaiting_until,
-	keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at, position`
+	keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at, position,
+	window_from, window_to, workdays_only`
 
 // scanTopicLoop reads one topicLoopCols row, after any lead columns.
 func scanTopicLoop(row pgx.Row, lead ...any) (TopicLoop, error) {
@@ -34,7 +37,8 @@ func scanTopicLoop(row pgx.Row, lead ...any) (TopicLoop, error) {
 	var hour, last, due, until, idle, daily *time.Time
 	if err := row.Scan(append(lead, &l.TenantID, &l.LoopID, &l.TaskID, &l.Prompt, &l.Triggers, &l.SetBy, &l.SetAt, &l.State,
 		&hour, &l.FiresInHour, &l.FiresTotal, &last, &l.IntervalMin, &due, &l.Awaiting, &until,
-		&l.Keyword, &l.IdleMin, &idle, &l.IdlePost, &l.DailyAt, &l.DailyTZ, &daily, &l.Position)...); err != nil {
+		&l.Keyword, &l.IdleMin, &idle, &l.IdlePost, &l.DailyAt, &l.DailyTZ, &daily, &l.Position,
+		&l.WindowFrom, &l.WindowTo, &l.WorkdaysOnly)...); err != nil {
 		return TopicLoop{}, err
 	}
 	l.SetAt = l.SetAt.UTC()
@@ -55,11 +59,13 @@ func nullInterval(n int) any {
 // order, NULL when unset.
 func topicLoopFieldArgs(l TopicLoop) []any {
 	return []any{nullInterval(l.IntervalMin), nullTime(l.NextDueAt), nullText(l.Keyword), nullInterval(l.IdleMin),
-		nullTime(l.IdleDueAt), nullText(l.IdlePost), nullText(l.DailyAt), l.DailyTZ, nullTime(l.DailyDueAt)}
+		nullTime(l.IdleDueAt), nullText(l.IdlePost), nullText(l.DailyAt), l.DailyTZ, nullTime(l.DailyDueAt),
+		nullText(l.WindowFrom), nullText(l.WindowTo), l.WorkdaysOnly}
 }
 
-// topicLoopFieldCols are topicLoopFieldArgs' columns.
-const topicLoopFieldCols = `interval_min, next_due_at, keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at`
+// topicLoopFieldCols are topicLoopFieldArgs' columns (v0.12: the window's three last).
+const topicLoopFieldCols = `interval_min, next_due_at, keyword, idle_min, idle_due_at, idle_post, daily_at, daily_tz, daily_due_at,
+	window_from, window_to, workdays_only`
 
 // TopicLoops implements TopicLoopStore.
 func (s *Postgres) TopicLoops(ctx context.Context, tenant, taskID string) ([]TopicLoop, error) {
@@ -102,6 +108,7 @@ func (s *Postgres) AddTopicLoop(ctx context.Context, tenant string, l TopicLoop)
 		out, err = scanTopicLoop(tx.QueryRow(ctx, `INSERT INTO topic_loops
 				(tenant_id, loop_id, task_id, prompt, triggers, set_by, set_at, state, `+topicLoopFieldCols+`, position)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid, $15::time, $16, $17,
+				$18::time, $19::time, $20,
 				(SELECT coalesce(max(position) + 1, 0) FROM topic_loops WHERE tenant_id = $1 AND task_id = $3))
 			RETURNING `+topicLoopCols,
 			append([]any{tenant, row.LoopID, row.TaskID, row.Prompt, row.Triggers, row.SetBy, row.SetAt, row.State},
@@ -138,7 +145,7 @@ func (s *Postgres) EditTopicLoop(ctx context.Context, tenant, taskID, loopID str
 		}
 		out, err = scanTopicLoop(tx.QueryRow(ctx, `UPDATE topic_loops SET prompt = $3, triggers = $4, set_by = $5, set_at = $6,
 				state = $7, hour_start = $8, fires_in_hour = $9, (`+topicLoopFieldCols+`) =
-				ROW($10, $11, $12, $13, $14, $15::uuid, $16::time, $17, $18)
+				ROW($10, $11, $12, $13, $14, $15::uuid, $16::time, $17, $18, $19::time, $20::time, $21)
 			WHERE tenant_id = $1 AND loop_id = $2 RETURNING `+topicLoopCols,
 			append([]any{tenant, l.LoopID, l.Prompt, l.Triggers, l.SetBy, l.SetAt, l.State, nullTime(l.HourStart), l.FiresInHour},
 				topicLoopFieldArgs(l)...)...))
@@ -299,7 +306,8 @@ var topicLoopClaimSQL = `WITH due AS (
 const topicLoopColsT = `t.tenant_id, t.loop_id::text, t.task_id::text, t.prompt, t.triggers, t.set_by, t.set_at, t.state,
 	t.hour_start, t.fires_in_hour, t.fires_total, t.last_fired_at, coalesce(t.interval_min, 0), t.next_due_at, t.awaiting, t.awaiting_until,
 	coalesce(t.keyword, ''), coalesce(t.idle_min, 0), t.idle_due_at, coalesce(t.idle_post::text, ''),
-	coalesce(to_char(t.daily_at, 'HH24:MI'), ''), t.daily_tz, t.daily_due_at, t.position`
+	coalesce(to_char(t.daily_at, 'HH24:MI'), ''), t.daily_tz, t.daily_due_at, t.position,
+	coalesce(to_char(t.window_from, 'HH24:MI'), ''), coalesce(to_char(t.window_to, 'HH24:MI'), ''), t.workdays_only`
 
 // ClaimDueTopicLoops implements TopicLoopStore, in the operator scope: the
 // ticker serves every workspace.
@@ -313,7 +321,7 @@ func (s *Postgres) ClaimDueTopicLoops(ctx context.Context, at time.Time, limit i
 		if err != nil {
 			return err
 		}
-		return scanRows(rows, func(rows pgx.Rows) error {
+		err = scanRows(rows, func(rows pgx.Rows) error {
 			var due []string
 			var post string
 			var dueAt *time.Time
@@ -322,12 +330,39 @@ func (s *Postgres) ClaimDueTopicLoops(ctx context.Context, at time.Time, limit i
 			out = append(out, l)
 			return err
 		})
+		if err != nil {
+			return err
+		}
+		return topicLoopWindowClaim(ctx, tx, out, at)
 	})
 	if err != nil {
 		return nil, err
 	}
 	sortTopicLoopsDue(out)
 	return out, nil
+}
+
+// topicLoopWindowClaim moves, in the claim's transaction, the next_due_at
+// of each claimed loop with a work window (v0.12) whose every_* came due
+// from the claim's at + period to the window's next slot (topicLoopDue,
+// the one rule Memory runs too). A loop with no window is not written
+// again, so the claim of today's loops is unchanged.
+func topicLoopWindowClaim(ctx context.Context, tx pgx.Tx, out []TopicLoop, at time.Time) error {
+	for i, l := range out {
+		if !topicLoopWindowed(l) || !slices.ContainsFunc(l.Due, topicLoopIsPeriodKey) {
+			continue
+		}
+		want := topicLoopDue(l, followAt(at))
+		if want.Equal(l.NextDueAt) {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `UPDATE topic_loops SET next_due_at = $3 WHERE tenant_id = $1 AND loop_id = $2`,
+			l.TenantID, l.LoopID, nullTime(want)); err != nil {
+			return err
+		}
+		out[i].NextDueAt = want
+	}
+	return nil
 }
 
 // ArmTopicLoopIdle implements TopicLoopStore: one UPDATE of the topic's on

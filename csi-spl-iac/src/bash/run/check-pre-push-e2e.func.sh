@@ -483,3 +483,118 @@ _pp_part_wui_e2e() {
     fi
   ' _ "$tree" "$files"
 }
+
+# ---------------------------------------------------------------------------
+# THE CI ENTRY POINT (SPL-6385, ci-volume-2026-11-24.md section 3 A2): on a wf
+# 10 PUSH the wui-e2e job runs only the files this same map selects, on as few
+# shards as they need; the full run keeps every file on 8 shards. The pre-push
+# part above is unchanged: nothing above calls these functions.
+#   _ppe_ci_base <jobs.tsv>            the wui part's base sha (job classify)
+#   _ppe_ci_plan <tree> <base> <head>  the matrix (job wui-e2e-plan)
+# FAILS SAFE to the full suite: no base, a base that is not an ancestor, a
+# merge in the range, a git error, a changed file every e2e file reads
+# (_ppe_ci_kind full: the shell, tests/e2e/lib, ci-skip.txt, the runner and
+# its weights, the bundle's build inputs, the workflow, this file), no mapped
+# file, a selection that fails or selects nothing, or one that needs all 8
+# shards anyway.
+# ---------------------------------------------------------------------------
+_PPE_CI_SHARDS=8
+
+# _ppe_ci_base <jobs.tsv> - the head sha of the newest run whose every `wui:`
+# job concluded success: the rule of ci-doc-only.sh --select for the wui part,
+# on the same rows (`<run> TAB <sha> TAB <job> TAB <conclusion>`, newest run
+# first). Nothing when no run qualifies (the plan is then the full suite).
+_ppe_ci_base() {
+  awk -F'\t' '
+    $3 ~ /^wui:/ { if (!($1 in sha)) { sha[$1] = $2; order[++n] = $1 } if ($4 != "success") bad[$1] = 1 }
+    END { for (i = 1; i <= n; i++) if (!(order[i] in bad)) { print sha[order[i]]; exit } }' "$1" 2>/dev/null
+}
+
+# _ppe_ci_kind <path> - how a changed path enters the plan: `full` (every file
+# runs), `map` (the selection reads it) or `none` (no e2e file reads it: the
+# other parts, the unit tests, the live proofs, docs outside the blog, the
+# i18n gates' baselines and language-review reports). A locale catalogue is
+# `none` too: its text rides with the component that renders it, which maps;
+# a push of catalogues alone maps nothing and so runs the full suite.
+_ppe_ci_kind() {
+  case "$1" in
+    csi-spl-wui/i18n/locales/*.json|csi-spl-wui/i18n/lang-review/*|csi-spl-wui/i18n/i18n-*.json) echo none ;;
+    .github/*|csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh|csi-spl-doc/blog/*) echo full ;;
+    csi-spl-orc/src/bash/scripts/wui-e2e-*|csi-spl-orc/src/bash/scripts/gate-fail-fast.sh) echo full ;;
+    csi-spl-orc/src/bash/scripts/ci-disk-guard.sh|csi-spl-orc/src/bash/scripts/render*.sh) echo full ;;
+    csi-spl-wui/tests/e2e/lib/*|csi-spl-wui/tests/e2e/ci-skip.txt) echo full ;;
+    csi-spl-wui/tests/e2e/*.proof.mjs|csi-spl-wui/tests/unit/*|csi-spl-wui/tests/bench/*) echo none ;;
+    csi-spl-wui/README.md|csi-spl-wui/src/docker/*) echo none ;;
+    csi-spl-wui/tests/e2e/*) echo map ;;
+    csi-spl-wui/src/layouts/*|csi-spl-wui/src/app.vue|csi-spl-wui/src/error.vue|csi-spl-wui/src/assets/css/main.css) echo full ;;
+    csi-spl-wui/src/node/*|csi-spl-wui/src/python/*|csi-spl-wui/src/*.d.ts) echo full ;;
+    csi-spl-wui/src/*.vue|csi-spl-wui/src/*.ts|csi-spl-wui/src/*.js|csi-spl-wui/src/*.mjs|csi-spl-wui/src/*.tsx|csi-spl-wui/src/*.css) echo map ;;
+    csi-spl-wui/*) echo full ;;
+    *) echo none ;;
+  esac
+}
+
+# _ppe_ci_full <reason> - the full-suite plan: n=8, shards 1..8, no file list
+# (the runner then discovers every file, as before A2). The reason to stderr.
+_ppe_ci_full() {
+  echo "wui-e2e plan: the full suite on $_PPE_CI_SHARDS shards: $1" >&2
+  printf 'n=%s\nshards=[%s]\nfiles=\n' "$_PPE_CI_SHARDS" "$(seq -s, 1 "$_PPE_CI_SHARDS")"
+}
+
+# _ppe_ci_changed <tree> <base> <head> - the changed paths of kind map, one per
+# line; rc 1, the reason on stdout, when the range or one of its paths needs
+# the full suite.
+_ppe_ci_changed() {
+  local tree="$1" base="$2" head="$3" merges changed f map=""
+  [[ -n "$base" && ! "$base" =~ ^0+$ ]] || { echo "no green wui gate to diff from"; return 1; }
+  git -C "$tree" merge-base --is-ancestor "$base" "$head" 2>/dev/null \
+    || { echo "base ${base:0:12} is not an ancestor of ${head:0:12} (or unreadable)"; return 1; }
+  merges="$(git -C "$tree" rev-list --min-parents=2 "$base..$head" 2>/dev/null)" || { echo "git rev-list failed"; return 1; }
+  [[ -z "$merges" ]] || { echo "a merge commit in ${base:0:12}..${head:0:12}"; return 1; }
+  changed="$(git -C "$tree" diff --no-renames --name-only "$base" "$head" 2>/dev/null)" || { echo "git diff failed"; return 1; }
+  [[ -n "$changed" ]] || { echo "an empty diff ${base:0:12}..${head:0:12}"; return 1; }
+  while IFS= read -r f; do
+    case "$(_ppe_ci_kind "$f")" in
+      full) echo "$f is a path every e2e file may read (_ppe_ci_kind)"; return 1 ;;
+      map) map+="$f"$'\n' ;;
+    esac
+  done <<<"$changed"
+  [[ -n "$map" ]] || { echo "no changed file maps to an e2e file"; return 1; }
+  printf '%s' "$map"
+}
+
+# _ppe_ci_total <tree> - the CI seconds of every file the full run runs (the
+# weights _ppe_cap reads; the median for a file with none).
+_ppe_ci_total() {
+  _ppe_candidates "$1/csi-spl-wui" | awk '{ print $1 "\t0\t0\t0" }' |
+    PRE_PUSH_E2E_MAX=1000000 PRE_PUSH_E2E_BUDGET=1000000000 _ppe_cap "$1/csi-spl-wui" |
+    awk '{ s += $3 } END { print s + 0 }'
+}
+
+# _ppe_ci_plan <tree> <base> <head> - the wui-e2e matrix for <base>..<head> on
+# the checkout <tree> (at <head>): three lines for GITHUB_OUTPUT, n=<shards>,
+# shards=[1..n], files=<tests/e2e/... space-separated> (empty: the full suite).
+# The selection is _ppe_select's, under PRE_PUSH_E2E_CI_BUDGET CI seconds
+# (default: 2 full-run shards' worth), no count cap; a file it CUTs waits for
+# the next full run and is named on stderr. n = the selected seconds over one
+# full-run shard's, rounded up, at most the file count; 8 is the full suite.
+_ppe_ci_plan() {
+  local tree="$1" base="$2" head="$3" map sel files cut total per sum n k
+  map="$(_ppe_ci_changed "$tree" "$base" "$head")" || { _ppe_ci_full "$map"; return 0; }
+  total="$(_ppe_ci_total "$tree")"
+  per=$(( (total + _PPE_CI_SHARDS - 1) / _PPE_CI_SHARDS ))
+  (( per > 0 )) || { _ppe_ci_full "no e2e file to weigh"; return 0; }
+  sel="$(PRE_PUSH_E2E_MAX=1000000 PRE_PUSH_E2E_BUDGET="${PRE_PUSH_E2E_CI_BUDGET:-$((2 * per))}" _ppe_select "$tree" "$map")" \
+    || { _ppe_ci_full "the selection failed"; return 0; }
+  files="$(grep -v '^CUT ' <<<"$sel" | cut -d' ' -f1 | grep . | paste -sd' ' -)"
+  [[ -n "$files" ]] || { _ppe_ci_full "the map selects no e2e file"; return 0; }
+  sum="$(grep -v '^CUT ' <<<"$sel" | awk '{ s += $3 } END { print s + 0 }')"
+  k=$(wc -w <<<"$files"); n=$(( (sum + per - 1) / per ))
+  (( n >= 1 )) || n=1
+  (( n <= k )) || n=$k
+  (( n < _PPE_CI_SHARDS )) || { _ppe_ci_full "the mapped files fill $_PPE_CI_SHARDS shards"; return 0; }
+  cut="$(grep -c '^CUT ' <<<"$sel")"
+  echo "wui-e2e plan: ${base:0:12}..${head:0:12}: $k mapped file(s), $sum of $total CI s, on $n of $_PPE_CI_SHARDS shard(s); $cut more past the budget wait for the full run" >&2
+  grep '^CUT ' <<<"$sel" | sed 's/^/wui-e2e plan: /' >&2
+  printf 'n=%s\nshards=[%s]\nfiles=%s\n' "$n" "$(seq -s, 1 "$n")" "$files"
+}

@@ -143,3 +143,4 @@ spl_bsp_show() {
   up="$(sed -n 's/^CriticalPowerAction=//p' "${SLEEP_POLICY_ROOT:-}/etc/UPower/UPower.conf" 2>/dev/null | tail -n1)"
   echo "upower CriticalPowerAction=${up:-?} (fires on a low battery, on AC too when the battery drains)"
 }
+# CONTROL plant (SPL-6385 A3): one action comment, on a throwaway branch only

@@ -94,7 +94,14 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   mapping picks: in the GitHub control (run 46098598520) one `AgentBadge.vue`
   change mapped 235 files, 97 ran and 138 were cut. A cut file stays unrun
   for up to about 3 h (the scheduled run, cron `43 */3`) plus that run's own
-  time, or longer when the scheduled run is skipped or red. A `workflow_dispatch` with `express_base` maps
+  time, or longer when the scheduled run is red. The scheduled run reuses an
+  earlier green gate on its head (`ci-doc-only.sh --reuse`, A1b) only when
+  that gate had the full `wui: browser e2e` jobs; a mapped run never counts,
+  so the scheduled run then runs the full suite. A green mapped run still
+  counts as the next push's base (`_ppe_ci_base`): the files it cut are left
+  to the scheduled full run, not carried into the next push's range, which
+  keeps each mapped range to its own change.
+  A `workflow_dispatch` with `express_base` maps
   `express_base..sha` the same way (the GitHub control on a throwaway
   branch: plant one component change on top of the branch head and pass the
   head as `express_base`). The full suite on 8 shards runs on the scheduled

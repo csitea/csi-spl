@@ -169,7 +169,7 @@ printf '%s\n' "60	1234567890abcdef1234567890abcdef12345678	hub: suite	success" >
 # runs all. A partial green gate (parts skipped) proves nothing and is passed.
 reuse() { (cd "$R" && bash "$CLS" --reuse "$1" "$2" 2>/dev/null) | paste -sd' ' -; }
 full() {  # <run> <sha> <conclusion of hub: suite> - one all-parts run
-  printf '%s\n' "$1	$2	classify: parts	success" "$1	$2	hub: suite	$3" "$1	$2	wui: e2e 1/3	success" \
+  printf '%s\n' "$1	$2	classify: parts	success" "$1	$2	hub: suite	$3" "$1	$2	wui: browser e2e (mock, generated) 1/8	success" \
     "$1	$2	iac: suite	success" "$1	$2	orc: hermetic 1/2	success" "$1	$2	cnf: validator	success" \
     "$1	$2	distribution-hygiene sweep	success" "$1	$2	gate health	skipped"
 }
@@ -195,6 +195,15 @@ full 73 "$s3" success >"$T/r2.tsv"
 full 79 "$s4" success | sed 's/hygiene sweep	success/hygiene sweep	failure/' >"$T/r5.tsv"
 [[ "$(reuse "$s4" "$T/r5.tsv")" == "$ALL" ]] && pass "reuse: green parts but a red always-on job is no green gate" \
   || fail "reuse: red hygiene: want '$ALL', got '$(reuse "$s4" "$T/r5.tsv")'"
+# W1 (c-904 R7 on A2): a mapped push run (its e2e jobs named "wui: mapped
+# browser e2e", the budget cut files left out) ran every part green but is
+# no full e2e: the scheduled run on that head must still run every part.
+printf '%s\n' "80	$s4	classify: parts	success" "80	$s4	hub: suite	success" "80	$s4	wui: unit	success" \
+  "80	$s4	wui: e2e plan	success" "80	$s4	wui: mapped browser e2e (mock, generated) 1/2	success" \
+  "80	$s4	wui: mapped browser e2e (mock, generated) 2/2	success" "80	$s4	iac: suite	success" \
+  "80	$s4	orc: hermetic 1/2	success" "80	$s4	cnf: validator	success" "80	$s4	distribution-hygiene sweep	success" >"$T/r7.tsv"
+[[ "$(reuse "$s4" "$T/r7.tsv")" == "$ALL" ]] && pass "reuse: a mapped push run (no full browser e2e) is no full gate: every part runs" \
+  || fail "reuse: a mapped run counted as full: want '$ALL', got '$(reuse "$s4" "$T/r7.tsv")'"
 partial 78 "$s4" >"$T/r6.tsv"
 [[ "$(reuse "$s4" "$T/r6.tsv")" == "$ALL" && "$(reuse "$s4" "$T/none.tsv")" == "$ALL" ]] \
   && pass "reuse: only a partial gate, or no list -> every part runs" || fail "reuse: partial or no list skipped a part"

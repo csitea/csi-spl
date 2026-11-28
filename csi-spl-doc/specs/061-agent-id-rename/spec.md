@@ -151,6 +151,7 @@ the reaper for an agent dead for more than `SPOOL_ID_REAP_H` (default 6):
 | `registry.tsv` rows (one per spawn or restart) | every row of the id appended to `registry.retired.tsv` with `retired-utc`, then removed from `registry.tsv` |
 | identity record `agents/<id>.json` | `agents/retired/<id>.<spawned-utc>.json`; `index.json` re-hashed |
 | hub lane row (0096) | closed by `do_spl_lane_put` state `done` |
+| hub channel seats (`channel_subscriptions`, a member's invite) | marked `origin = 'removed'` on every workspace desk of this box (step 4b of `agent-id-retire.sh`, SPL-6714; below). A reused id starts with no channel invites |
 | hub DM and channel history | stays. Rows keep `from = c-004`. The generation is the spawned-utc. The hub's agent seat row records `seated_at`, and the WUI shows a divider "new holder since <ts>" in a DM with a reused id (lane L10, after today) |
 | tmux window | already closed by `/exit-clean`. A window still open blocks reuse (3.5 rule 4), so `tmux-close-window.sh --agent <id> --retire` closes every window whose name leads with the id before it retires (SPL-2459: a-520 had an old shell window too, and needed two runs); a `--defer` leaves one whose pane still runs an agent CLI, and the retire then refuses |
 
@@ -170,6 +171,25 @@ same holds for an `/exit-clean` done with `--topic`: a done closes a row, it
 never mints one, so an id with no row (a review-only lane whose task names no
 discussion) is exit 6 with or without a topic, never the hub's `bad_frame`
 (SPL-5344).
+
+The channel seats (SPL-6714). A seat a member gave the id (`origin =
+'invite'`) used to outlive it: on 2026-11-27, 34 to 36 of 50 invite rows on
+one box named ids the box no longer announced, and the next holder of a
+reused id inherited every channel the old one was invited to. The only remove
+door, `DELETE /v1/channels/{c}/agents/{box}/{id}`, needs a member session. So
+the retire runs `cd csi-spl-orc && DROP_AGENT_ID=<id> DRY_RUN=0 ./run -a
+do_spl_agent_invites_drop` as the desk user. On every desk
+`<state>/<env>/desk/<workspace>/<box>` it runs `spool agent-invites-drop
+--agent <id>`, signed by that desk's own key; the hub (lane op
+`agent_invites_drop`) marks the id's seats on the ASKING box removed in that
+workspace, archived channels included, and refuses a frame that names another
+box (403 `forbidden`). A later announce does not bring a seat back; a member's
+new invite does. History, `agent_seats` and the same id's seats on other boxes
+stay; the humans-only mark (SPL-2423) is not set, it records what a person
+did. A desk that fails is one WARN line and the retire goes on
+(`RETIRE_INVITES=0` skips the step). Checks: `TestDropAgentInvites` (memory
+and Postgres), `TestBoxAgentInvitesDrop`, `TestAgentInvitesDropCLI`,
+`spl-agent-invites-drop.tst.sh`, `test-agent-id-retire-invites.sh`.
 
 A message that arrives for a retired id inside the quarantine bounces to the
 sender as a `reject` ("c-004 retired at <ts>"). It does NOT queue.

@@ -38,6 +38,10 @@
 #                  069 8.3), read as that user (sudo -n) when another user
 #                  retires: from its own $HOME it saw no desk and the seat
 #                  stayed announced (g-940, prd, 2026-10-14..20)
+#   invites     -> every hub desk of this box asks the hub, signed by its own
+#                  key, to mark the id's channel seats on this box removed
+#                  (do_spl_agent_invites_drop; SPL-6714): a reused id starts
+#                  with no channel invites. History and agent_seats stay
 #   worktree    -> the lane's linked worktree (record's "worktree", else the
 #                  registry rundir) and its branch: LISTED in the box's
 #                  workdir table ($SPOOL_ROOT/workdirs.tsv, workdir-register.sh),
@@ -86,6 +90,8 @@
 # RETIRE_DESKS=0|1 (default 1; 0 under SPOOL_TEST=1 unless DESK_STATE_ROOT is
 # set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's; the root defaults
 # to the desk user's, spool_desk_state; SPOOL_BOX_HOME names that home instead),
+# RETIRE_INVITES=0|1 (default 1; 0 under SPOOL_TEST=1 unless RETIRE_INVITES_ORC,
+# the orc dir whose ./run is called, is set), RETIRE_INVITES_TIMEOUT (180 s),
 # RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_SCRATCH=0|1, RETIRE_SERVERS=0|1, RETIRE_VARTMP=0|1, RETIRE_TMPWT=0|1
 # (default 1; 0 under SPOOL_TEST=1), LANE_TEST_SERVER_* (lane-test-server-reap.sh's),
@@ -306,6 +312,29 @@ if [ "$seated" -gt 0 ]; then
     "${DROP[@]}" --apply | grep '^DO drop' || echo "agent-id-retire: WARN the desk seats of ${ID} were not dropped" >&2
   else
     grep '^PLAN drop' <<<"$plan"
+  fi
+fi
+
+# ---- 4b. the channel seats on the hub (SPL-6714) ------------------------------
+# A member's invite (channel_subscriptions origin 'invite') outlived the id,
+# and ids are reused: the next holder inherited every channel. Every desk of
+# this box asks the hub, signed by its own key, to mark the id's seats on THIS
+# box removed (do_spl_agent_invites_drop, lane_op agent_invites_drop). As the
+# desk user (its keys sign); a failure is a WARN, the retire goes on.
+invites="${RETIRE_INVITES:-}"
+[ -n "$invites" ] || { invites=1; [ "${SPOOL_TEST:-}" = 1 ] && [ -z "${RETIRE_INVITES_ORC:-}" ] && invites=0; }
+if [ "$invites" = 1 ]; then
+  inv_orc="${RETIRE_INVITES_ORC:-$(cd "$_here/../../../../.." && pwd)}"
+  INV=(env DROP_AGENT_ID="$ID" DESK_BOX="$BOX" DESK_STATE_ROOT="$DESK_CLOUD" DESK_ENVS="${DESK_ENVS:-dev prd}"
+    ${DESK_TENANT:+DESK_TENANT="$DESK_TENANT"} DRY_RUN=0 ./run -a do_spl_agent_invites_drop)
+  if [ "$(id -un)" != "$DESK_USER" ] && [ -z "${RETIRE_INVITES_ORC:-}" ]; then
+    INV=(sudo -n -u "$DESK_USER" env HOME="$(_spool_home_of "$DESK_USER")" "${INV[@]}")
+  fi
+  step invites "${ID}@${BOX}: channel seats -> removed on every desk of ${BOX} ($(printf '%q ' "${INV[@]}"| sed 's/ $//'))"
+  if [ "$APPLY" = 1 ]; then
+    inv_rc=0; inv_out="$(cd "$inv_orc" && timeout "${RETIRE_INVITES_TIMEOUT:-180}" "${INV[@]}" 2>&1 </dev/null)" || inv_rc=$?
+    grep -oE '(DO|WARN) invites .*' <<<"$inv_out" | sed 's/\x1b\[[0-9;]*m//g' || true
+    [ "$inv_rc" = 0 ] || echo "agent-id-retire: WARN the channel seats of ${ID} were not all dropped (do_spl_agent_invites_drop rc ${inv_rc}); as the desk owner, from ${inv_orc}: $(printf '%q ' "${INV[@]}")" >&2
   fi
 fi
 

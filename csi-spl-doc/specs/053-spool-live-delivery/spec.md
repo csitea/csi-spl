@@ -149,8 +149,8 @@ Both halves now refuse:
 - **Hub:** a move notice goes only to a (box, agent) pair that the box announces now (`Store.Roster`). If the roster cannot be read, no notice is sent.
 - **Box:** a channel frame that lists `m.To` among its agents, where `m.To` is not hosted here, writes no copy for it. A DM still makes the mailbox it is addressed to.
 
-Out of scope, split off: removing a retired id's invite rows on every workspace when the id is retired. That is its own lane (ask 2f880751). The stale prd rows were pruned once by the orchestrator.
+Out of scope here, built in its own lane (ask 2f880751, SPL-6714): a retire now removes the id's invite rows. `agent-id-retire.sh` asks the hub from every workspace desk of its box, signed by the desk's key (`spool agent-invites-drop`, lane op `agent_invites_drop`), and the hub marks that box's rows of the id `origin = 'removed'`. A box cannot name another box. The rule and its checks: spec 061 section 3.6. The stale prd rows from before it were pruned once by the orchestrator.
 
 Checks: `TestMoveHoldersKeepsOnlyAnnouncedAgents` (`internal/hub/move_holders_internal_test.go`) and `TestChannelFrameToUnhostedAgentMakesNoMailbox` (`internal/hubclient/recv_unseated_test.go`). Both are red on the code before the fix.
 
-<!-- version: 0.5.0 · updated: 2026-11-27 · last-edit: 2026-11-27T18:30:00Z -->
+<!-- version: 0.5.1 · updated: 2026-11-28 · last-edit: 2026-11-28T01:20:00Z -->

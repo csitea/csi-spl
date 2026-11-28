@@ -113,6 +113,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onBoxChannelPinsLane(ctx, x, f)
 		return
 	}
+	if isAgentInvitesDropLaneOp(f.LaneOp) { // SPL-6714: a retire drops the id's channel seats on its own box
+		s.onAgentInvitesDropLane(ctx, x, f)
+		return
+	}
 	id := f.MsgID
 	if !uuidRe.MatchString(id) {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a lane frame needs msg_id (a UUID) to pair the reply")

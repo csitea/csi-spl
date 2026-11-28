@@ -25,6 +25,8 @@ export function normalizeTenantSettings(body) {
     topicArchivePolicy: TOPIC_ARCHIVE_POLICY_OPTIONS.includes(b.topic_archive_policy) ? b.topic_archive_policy : 'everyone',
     /* rdb 0109: a guideline. Absent, junk or a sum other than 100 is the default. */
     agentSplit: agentSplitOf(b.agent_split),
+    /* spec 184 row W1: the workspace's model per vendor and kind (an empty cell reads as the cnf) */
+    agentModels: agentModelsOf(b.agent_models),
   }
 }
 
@@ -100,7 +102,7 @@ export function moveItem(list, i, delta) {
 /** The i18n key for a failed tenant-settings call's hub token. */
 export function tenantSettingsErrorKey(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
-  const known = ['forbidden', 'bad_setting', 'bad_split', 'bad_responder', 'channel_public', 'unknown_channel', 'shared_account', 'bad_name', 'bad_locale', 'last_admin', 'last_owner', 'self']
+  const known = ['forbidden', 'bad_setting', 'bad_split', 'bad_model', 'bad_responder', 'channel_public', 'unknown_channel', 'shared_account', 'bad_name', 'bad_locale', 'last_admin', 'last_owner', 'self']
   return 'tenant_settings.error.' + (known.includes(token) ? token : 'generic')
 }
 
@@ -258,4 +260,73 @@ export function channelBoxPinsErrorKey(err) {
 export function channelBoxesLoadErrorKey(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
   return 'channels.properties.boxes_error.' + (token === 'unknown_channel' ? token : 'load')
+}
+
+/* spec 184 row W1 (SPL-6725): the default model per vendor and task kind,
+   the workspace override of cnf env.box.agent_model (owner HUM-10 msg
+   0d33aa83, Q1 bo, Q2 bo). The hub (rdb 0309, contract 7.1.5) checks the
+   same syntax and answers 400 bad_model. */
+
+/** The model syntax of spec 184 7.1.2: no space, no quote. */
+export const AGENT_MODEL_RX = /^[A-Za-z0-9._:/-]{1,80}$/
+
+/** The kinds a model cell is set for: '*' (every kind, the vendor default) first, then the split kinds. */
+export const AGENT_MODEL_KINDS = Object.freeze(['*', ...SPLIT_TASK_KINDS])
+
+/** '' (the CLI default) or a model the hub would take; the text is trimmed first. */
+export function agentModelValid(s) {
+  const v = String(s ?? '').trim()
+  return v === '' || AGENT_MODEL_RX.test(v)
+}
+
+/** GET /v1/tenant/settings agent_models ([{vendor, kind, model}]) → { <vendor>: { <kind>: model } }; junk rows are dropped. */
+export function agentModelsOf(list) {
+  const out = Object.fromEntries(AGENT_SPLIT_KINDS.map((v) => [v, {}]))
+  for (const r of Array.isArray(list) ? list : []) {
+    if (!r || typeof r !== 'object' || !AGENT_SPLIT_KINDS.includes(r.vendor) || !AGENT_MODEL_KINDS.includes(r.kind)) continue
+    if (typeof r.model === 'string' && AGENT_MODEL_RX.test(r.model)) out[r.vendor][r.kind] = r.model
+  }
+  return out
+}
+
+/**
+ * The agent_models of a PATCH: each cell that differs from what the hub
+ * holds, '' dropping it (it then reads as the cnf). null when nothing
+ * changed. A cell outside the syntax throws (token bad_model), so nothing
+ * is sent.
+ */
+export function agentModelsPatchOf(stored, edited) {
+  const out = {}
+  for (const v of AGENT_SPLIT_KINDS) {
+    for (const k of AGENT_MODEL_KINDS) {
+      const was = stored?.[v]?.[k] ?? ''
+      const now = String(edited?.[v]?.[k] ?? '').trim()
+      if (now === was) continue
+      if (!agentModelValid(now)) {
+        const e = new Error(`bad model ${v}/${k}`)
+        e.token = 'bad_model'
+        throw e
+      }
+      ;(out[v] ||= {})[k] = now
+    }
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/**
+ * GET /v1/tenant/agent-model-readings → per vendor the newest reading of any
+ * box ({ box, cliVersion, models, readAt }). A display only (N1): the
+ * launcher checks the model live at spawn.
+ */
+export function agentModelReadingsOf(body) {
+  const rows = body && typeof body === 'object' && Array.isArray(body.readings) ? body.readings : []
+  const out = {}
+  for (const r of rows) {
+    if (!r || typeof r !== 'object' || !AGENT_SPLIT_KINDS.includes(r.vendor) || !str(r.read_at)) continue
+    const cur = out[r.vendor]
+    if (cur && Date.parse(cur.readAt) >= Date.parse(r.read_at)) continue
+    const models = (Array.isArray(r.models) ? r.models : []).filter((m) => typeof m === 'string' && AGENT_MODEL_RX.test(m))
+    out[r.vendor] = { box: str(r.box), cliVersion: str(r.cli_version), models: [...new Set(models)], readAt: r.read_at }
+  }
+  return out
 }

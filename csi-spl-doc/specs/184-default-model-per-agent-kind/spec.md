@@ -427,6 +427,29 @@ msg `8f132278`):
 - **Readings**: `GET /v1/tenant/agent-model-readings` needs
   `tenant.settings`, like the settings GET; sorted by box, then vendor.
 
+As built by row W1 (lane `c-287`, SPL-6725), the WUI side:
+
+- **Where**: Workspace settings -> Vendor split, a third card under the
+  split per kind, `csi-spl-wui/src/components/AgentModels.vue` (mounted by
+  `src/pages/tenant-settings/split.vue` for `tenant.settings` only). One row
+  per kind: **Every kind** (`*`) first, then the seven split kinds; one
+  text cell per vendor.
+- **Choices (N1)**: each cell's `<datalist>` holds its vendor's newest
+  reading of any box (`agentModelReadingsOf`, `src/utils/tenant-settings.mjs`);
+  one line per vendor names that reading's box, time (UTC) and CLI version,
+  or says no box has read it yet. A typed model is taken too.
+- **Syntax**: `AGENT_MODEL_RX` (`^[A-Za-z0-9._:/-]{1,80}$`, 7.1.2). A cell
+  outside it is marked, the rule is named and Save stays off; the PATCH body
+  builder (`agentModelsPatchOf`) throws `bad_model` before anything is sent.
+- **Empty**: an empty kind cell shows its vendor's Every kind model as its
+  placeholder, else "CLI default"; saving an emptied cell sends `""`, which
+  drops it (it then reads as the cnf `env.box.agent_model`).
+- **Save** sends only the changed cells:
+  `PATCH /v1/tenant/settings {"agent_models": {...}}`.
+- Not built: the optional model column on the Agents page.
+- Tests: `csi-spl-wui/tests/unit/agent-models.test.mjs`,
+  `csi-spl-wui/tests/e2e/agent-models.test.mjs` (`PROVE_RED=space-save`).
+
 #### 7.1.6 Live list (row A1; Q3 `liv`)
 
 `spool_agent_models VENDOR` prints the models the installed CLI offers,
@@ -501,6 +524,12 @@ token's box), its body and answer codes, the tenant settings shapes of
 `agent_models`, and the readings GET's permission. Section 6 gains the
 proposed row H2 (the `spool` verb that sends the PUT), which closes the
 contract gap A1 raised (c-884 msg `0b5a2bc7`).
+
+### 9.5 Row W1 as built
+
+Row W1 (lane `c-287`, SPL-6725): 7.1.5 gains "As built by row W1" (the
+Split page's model table, its choices, the syntax check, Save). The
+status line is left to row D1.
 
 ### 9.4 Changes from v0.5
 

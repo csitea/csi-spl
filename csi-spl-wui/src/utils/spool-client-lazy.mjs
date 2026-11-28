@@ -544,6 +544,16 @@ async function getAgentSplit(ctx) {
   return live('/v1/agent-split')
 }
 
+/** GET /v1/tenant/agent-model-readings (spec 184 row W1, tenant.settings): each box's latest live model list per vendor. */
+async function getAgentModelReadings(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) {
+    mockRecord403('tenant.settings', '/v1/tenant/agent-model-readings')
+    return (await tenantMock()).modelReadings()
+  }
+  return live('/v1/tenant/agent-model-readings')
+}
+
 /** PATCH /v1/agent-split { kinds: { <kind>: { weights, backup } | null } } → every kind again. */
 async function patchAgentSplit(ctx, kinds = {}) {
   const { live, mock, tenantMock } = ctx
@@ -2585,6 +2595,7 @@ export const lazySpoolMethods = {
   getTenantSettings,
   patchTenantSettings,
   getAgentSplit,
+  getAgentModelReadings,
   patchAgentSplit,
   getTakeoverLadder,
   putTakeoverLadder,

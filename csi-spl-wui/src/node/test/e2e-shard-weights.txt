@@ -15,6 +15,8 @@
 # A file whose test changed inside the window takes the runs whose head
 # contains that change only: invited-inactive-member (8de44d393, 4 -> 8 s)
 # from 44274958796 (n=1; the held-out run also took 8 s).
+# agent-models (spec 184 row W1, SPL-6725) is new: 16 s, its one runner line on a
+# generated mock bundle (n=1, 2026-11-28), until a refresh measures CI.
 # hours-week-strip (spec 107 T083, SPL-6647) is new: 19 s, its one runner line on a
 # generated mock bundle (n=1, 2026-11-27), until a refresh measures CI.
 # composer-multi-file-drop (SPL-6595) is new: 28 s, its one runner line on a generated
@@ -62,6 +64,7 @@ tests/e2e/add-to-note.test.mjs 138
 tests/e2e/agent-at-box.test.mjs 16
 tests/e2e/agent-id-mention.test.mjs 8
 tests/e2e/agent-keys.test.mjs 12
+tests/e2e/agent-models.test.mjs 16
 tests/e2e/agent-senders.test.mjs 21
 tests/e2e/ai-marker.test.mjs 24
 tests/e2e/archive-close-pane.test.mjs 5

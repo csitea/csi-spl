@@ -38,6 +38,7 @@ const LAZY_METHODS = [
   'getTenantSettings',
   'patchTenantSettings',
   'getAgentSplit',
+  'getAgentModelReadings',
   'patchAgentSplit',
   'getTakeoverLadder',
   'putTakeoverLadder',

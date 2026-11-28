@@ -1,13 +1,15 @@
 <!-- Tenant settings -> Vendor split (owner t1 e837eeab): how new agent work
      is shared across Claude, Grok, Antigravity, Qwen, Mistral (spec 110) and
      Codex (OpenAI Codex CLI, spec 161; SPL-5454).
-     First the split per task kind (spec 115 HUB-1, AgentSplitKinds), then
+     First the split per task kind (spec 115 HUB-1, AgentSplitKinds), the
+     default model per vendor and kind (spec 184 row W1, AgentModels), then
      the flat split below, the row for a kind the picker does not know.
      The six whole
      numbers sum to 100. They are a guideline, not a quota: nothing in the
      hub refuses a spawn that drifts. tenant.settings. -->
 <template>
   <AgentSplitKinds v-if="allowed" />
+  <AgentModels v-if="allowed" />
   <SettingsSection id="tenant-split" :title="t('tenant_settings.split_title')" data-test="tenant-settings-split">
     <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
     <p v-else-if="loading" class="muted">{{ t('common.loading') }}</p>
@@ -52,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import AgentModels from '~/components/AgentModels.vue'
 import AgentSplitKinds from '~/components/AgentSplitKinds.vue'
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'

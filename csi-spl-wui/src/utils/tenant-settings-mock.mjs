@@ -3,7 +3,7 @@
  * module so spool-client loads it only in a mock build (dynamic import): the
  * initial chunk stays inside the 027 budget.
  */
-import { AGENT_SPLIT_KINDS, DEFAULT_SPLIT_KINDS, issuePrefixOf, SPLIT_TASK_KINDS, splitKindRule, splitMainOf, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from './tenant-settings.mjs'
+import { AGENT_MODEL_KINDS, AGENT_MODEL_RX, AGENT_SPLIT_KINDS, DEFAULT_SPLIT_KINDS, issuePrefixOf, SPLIT_TASK_KINDS, splitKindRule, splitMainOf, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from './tenant-settings.mjs'
 import { marketingShareLinks } from './marketing-share-links.mjs'
 import { HOURS_DEFAULTS, HOURS_KEY_GRACE, HOURS_KEY_IDLE, HOURS_KEY_PERIOD, HOURS_KEY_TZ, hoursSettingValid } from './hours-settings.mjs'
 
@@ -80,6 +80,44 @@ function mockSplitKinds() {
       }
       return splitKinds()
     },
+  }
+}
+
+/**
+ * spec 184 row W1 (rdb 0309): the workspace's model cells in GET / PATCH
+ * /v1/tenant/settings agent_models, and the boxes' readings of
+ * GET /v1/tenant/agent-model-readings. Like the hub, an unknown vendor or
+ * kind or a model outside the syntax is 400 bad_model and nothing of the
+ * PATCH is written; '' or null drops a cell.
+ */
+function mockAgentModels() {
+  const cells = {}
+  const readings = [
+    { box: 'box-a', vendor: 'claude', cli_version: '2.1.323', models: ['fable', 'opus', 'sonnet'], read_at: '2026-11-27T17:30:00Z' },
+    { box: 'box-a', vendor: 'grok', cli_version: '1.0.89', models: ['grok-4.7', 'grok-4.7-build-fast', 'grok-4.6', 'grok-4.5'], read_at: '2026-11-27T17:31:00Z' },
+    { box: 'box-b', vendor: 'grok', cli_version: '1.0.92', models: ['grok-4.7', 'grok-4.6'], read_at: '2026-11-27T18:02:00Z' },
+  ]
+  return {
+    agentModels: () => Object.keys(cells).sort().map((key) => {
+      const [vendor, kind] = key.split('|')
+      return { vendor, kind, model: cells[key], updated_by: 'HUM-1' }
+    }).sort((a, b) => AGENT_SPLIT_KINDS.indexOf(a.vendor) - AGENT_SPLIT_KINDS.indexOf(b.vendor) || AGENT_MODEL_KINDS.indexOf(a.kind) - AGENT_MODEL_KINDS.indexOf(b.kind)),
+    patchAgentModels(raw) {
+      const next = []
+      for (const [vendor, kinds] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
+        if (!AGENT_SPLIT_KINDS.includes(vendor) || !kinds || typeof kinds !== 'object') throw mockErr(400, 'bad_model')
+        for (const [kind, model] of Object.entries(kinds)) {
+          if (!AGENT_MODEL_KINDS.includes(kind)) throw mockErr(400, 'bad_model')
+          if (model !== null && model !== '' && (typeof model !== 'string' || !AGENT_MODEL_RX.test(model))) throw mockErr(400, 'bad_model')
+          next.push([`${vendor}|${kind}`, model])
+        }
+      }
+      for (const [key, model] of next) {
+        if (model) cells[key] = model
+        else delete cells[key]
+      }
+    },
+    modelReadings: () => ({ readings: readings.map((r) => ({ ...r, models: r.models.slice() })) }),
   }
 }
 
@@ -504,14 +542,17 @@ function mockChannelBoxPins() {
 
 export function createMockTenant() {
   const boxPins = mockChannelBoxPins()
+  const models = mockAgentModels()
   const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0, codex: 0 } }
   const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
   const kv = {}
-  const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, max_responders: 20, settings: { ...KV_DEFAULTS, ...kv } })
+  const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, agent_models: models.agentModels(), max_responders: 20, settings: { ...KV_DEFAULTS, ...kv } })
   return {
     settings,
     ...mockSplitKinds(),
+    modelReadings: models.modelReadings,
     patch(p) {
+      if (p.agent_models !== undefined) models.patchAgentModels(p.agent_models)
       if (p.display_name !== undefined) {
         const n = String(p.display_name).trim()
         if (n.length > 200 || /[\r\n]/.test(n)) throw mockErr(400, 'bad_setting')

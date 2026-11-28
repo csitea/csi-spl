@@ -66,7 +66,8 @@
         global
         :placeholder="placeholder"
         :busy="busy"
-        :send-blocked="!omnibox.target && !noteLine"
+        :send-blocked="!omnibox.target && !noteLine && !multicastN"
+        :multicast="multicastN"
         :dock-target="dockTarget"
         :bottom="atBottom"
         :operators="search.operators"
@@ -102,6 +103,8 @@
       </p>
     </div>
     </Teleport>
+    <!-- spec 186 4.9: the Omnibox's multicast shows its copies in the Multicast dialog -->
+    <LazyMulticastDialog v-if="multicastOpen" />
     <div class="top-bar__end app-corner" data-test="app-corner">
       <!-- owner, t1 be316fdc: the clock sits right of the version; here only
            on a screen that draws no version (useClockHost) -->
@@ -154,6 +157,7 @@ import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { sectionSearchLine, sectionSearchType } from '~/utils/section-search.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useTopicSelectStore } from '~/stores/topicSelect'
 
 const { t } = useI18n({ useScope: 'global' })
 const clockHost = useClockHost()
@@ -224,7 +228,30 @@ function onDocKey(ev: KeyboardEvent) {
 const placeholder = computed(() => omnibox.target ? omnibox.target.placeholder() : t('search.placeholder_no_target'))
 /* SPL-1003: the page's answer to "where does the next post go" (the dock's hint) */
 const dockTarget = computed(() => (omnibox.target && omnibox.target.dock ? omnibox.target.dock() : null))
-const busy = computed(() => Boolean(omnibox.target && omnibox.target.busy && omnibox.target.busy()))
+/*
+ * Spec 186 4.9 (owner HUM-10, t1 ec411af3, msg f0a3b378): with 2+ topics
+ * ticked in a topic list, open topic or not, the Omnibox's send multicasts
+ * the text to exactly them; 0 or 1 ticked sends as before. The flow and its
+ * dialog load on the first such send (027: not in the first paint).
+ */
+const topicSelect = useTopicSelectStore()
+const multicastOn = Boolean((api as { canMulticastCheck?: () => boolean }).canMulticastCheck?.())
+const multicastN = computed(() => (multicastOn && topicSelect.count >= 2 ? topicSelect.count : 0))
+const multicastOpen = ref(false)
+async function sendMulticast(text: string, files: File[]) {
+  if (topicSelect.busy) return
+  const { useMulticastSend } = await import('~/composables/useMulticastSend')
+  const mc = useMulticastSend()
+  topicSelect.busy = true
+  multicastOpen.value = true
+  try {
+    if (await mc.sendNow([...topicSelect.picks], text, files)) topicSelect.clear()
+  } finally {
+    topicSelect.busy = false
+    multicastOpen.value = false
+  }
+}
+const busy = computed(() => (multicastN.value ? topicSelect.busy : Boolean(omnibox.target && omnibox.target.busy && omnibox.target.busy())))
 
 /* CLE-3433. This handler used to be `await target.send(...)` with no catch.
    Vue does not await an emit's listener, so a rejection here became an
@@ -245,6 +272,8 @@ function msgIdOf(err: unknown) {
 
 async function onSend(text: string, parent?: string, files?: File[], channelId?: string) {
   if (omniboxMode(text) === 'note') return sendNote(text)
+  /* an `in: <title>` names its one topic: that stays a normal send */
+  if (multicastN.value && !parent) return sendMulticast(text, files || [])
   const target = omnibox.target
   if (!target) return
   const sent = files || []

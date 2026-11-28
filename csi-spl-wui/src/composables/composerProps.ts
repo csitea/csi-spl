@@ -14,4 +14,6 @@ export interface ComposerProps {
   operators?: SearchOperator[]
   dockTarget?: DockTarget
   bottom?: boolean
+  /** spec 186 4.9: topics ticked when 2+ (the send multicasts to them), else 0 */
+  multicast?: number
 }

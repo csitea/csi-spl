@@ -328,8 +328,9 @@
           data-testid="send"
           @mousedown.prevent
           :aria-disabled="cannotSend ? 'true' : 'false'"
-          :aria-label="busy ? t('composer.sending') : t(sendKey)"
-        ><UiIcon name="go" :size="20" /><span class="composer-go__tip" data-test="go-tip" aria-hidden="true">{{ busy ? t('composer.sending') : t(sendKey) }}</span></button>
+          :aria-label="busy ? t('composer.sending') : t(sendKey, sendParams)"
+          :data-multicast="mcN || undefined"
+        ><UiIcon name="go" :size="20" /><span class="composer-go__tip" data-test="go-tip" aria-hidden="true">{{ busy ? t('composer.sending') : t(sendKey, sendParams) }}</span></button>
       </div>
     </div>
   </form>
@@ -393,6 +394,8 @@ const props = withDefaults(defineProps<{
    * tip and the send error open UPWARD, the grip drags the top edge.
    */
   bottom?: boolean
+  /** spec 186 4.9: topics ticked when 2+ (TopBar multicasts the send to them), else 0 */
+  multicast?: number
 }>(), { dock: true })
 const emit = defineEmits<{
   send: [text: string, parentTaskId?: string, files?: File[], channelId?: string]
@@ -448,7 +451,7 @@ const {
   opIdx, caretAt, opClosed, opCandidates, opPickerOpen, pickOp, onOperatorKey, syncOp,
   inQuery, inIdx, pickedIn, topicCatalogue, inCandidates, inPickerOpen, pickIn, onInKey, syncIn, atCaret,
 } = useComposerPickers({ text, inputEl, searchMode, props, mentionOpen: () => pickerOpen.value, opListEl, inListEl })
-const { modeText, modeGlyph, modeAttr, sendKey, chip, chipText, chipFull, chipMode, openChip } = useComposerTarget({
+const { modeText, modeGlyph, modeAttr, sendKey, sendParams, mcN, chip, chipText, chipFull, chipMode, openChip } = useComposerTarget({
   text, inputEl, docked, searchMode, topicCatalogue, t, props,
 })
 const { collapseGlobalBox, onOmniboxFocus, onOmniboxBlur, startResize, chipW, multilineLayout } = useComposerSize({

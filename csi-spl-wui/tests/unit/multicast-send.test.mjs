@@ -295,6 +295,35 @@ describe('useMulticastSend: the dialog\'s check, send and results', () => {
     assert.equal(pageSends.length, 0)
   })
 
+  it('spec 186 4.9 sendNow (the Omnibox, 2+ ticked): no compose step; one check with the text, then one copy per selected topic; all acked: closes, finished', async () => {
+    const closed = mc.sendNow(sel, 'to all three', [{ name: 'f.txt' }])
+    assert.equal(mc.open.value, true)
+    assert.equal(mc.via.value, 'omnibox')
+    assert.equal(await closed, true)
+    assert.equal(uploads.length, 1)
+    assert.equal(checks.length, 1)
+    assert.equal(checks[0].body, 'to all three')
+    assert.deepEqual(checks[0].task_ids, ['a', 'b', 'c'])
+    assert.equal(sends.length, 1)
+    assert.equal(sends[0].text, 'to all three')
+    assert.deepEqual(sends[0].copies.map((c) => c.task_id), ['a', 'b', 'c'])
+    assert.equal(mc.open.value, false)
+  })
+
+  it('spec 186 4.9 sendNow: a refused check sends nothing and leaves the dialog in compose with the text', async () => {
+    mc.api.setRefuse({ b: 'topic_archived' })
+    const closed = mc.sendNow(sel, 'keep me', [])
+    await tick()
+    await tick()
+    assert.equal(sends.length, 0)
+    assert.equal(mc.open.value, true)
+    assert.equal(mc.phase.value, 'compose')
+    assert.equal(mc.body.value, 'keep me')
+    assert.equal(mc.lines.value.find((l) => l.task_id === 'b').error, 'topic_archived')
+    mc.close()
+    assert.equal(await closed, false, 'closed unsent: the selection stays')
+  })
+
   it('the mock check: an empty selection is multicast_none; a DM topic is multicast_no_topic', () => {
     assert.equal(mockMulticastCheck(state, { req_id: 'q', task_ids: [] }, {}).error, 'multicast_none')
     const r = mockMulticastCheck(state, { req_id: 'q', task_ids: ['a', 'dm'] }, {})
@@ -329,7 +358,18 @@ describe('the client and the dialog', () => {
   it('the bar registers Multicast through the select phase\'s action list', () => {
     const bar = read('src/components/TopicSelectBar.vue')
     assert.match(bar, /useMulticastAction\(\)/)
-    assert.match(bar, /<LazyMulticastDialog v-if="multicast\.open\.value" \/>/)
+    assert.match(bar, /<LazyMulticastDialog v-if="multicast\.open\.value && multicast\.via\.value === 'bar'" \/>/)
     assert.match(read('src/composables/useMulticastSend.ts'), /registerAction\(\{ id: 'multicast', icon: 'go', labelKey: 'multicast\.action'/)
+  })
+
+  it('spec 186 4.9: TopBar routes the Omnibox send to sendNow with 2+ ticked, an in: topic excepted; the GO words say n topics', () => {
+    const top = read('src/components/TopBar.vue')
+    assert.match(top, /topicSelect\.count >= 2 \? topicSelect\.count : 0/)
+    assert.match(top, /if \(multicastN\.value && !parent\) return sendMulticast\(text, files \|\| \[\]\)/)
+    assert.match(top, /mc\.sendNow\(\[\.\.\.topicSelect\.picks\], text, files\)\) topicSelect\.clear\(\)/)
+    assert.match(top, /:multicast="multicastN"/)
+    assert.doesNotMatch(top, /^import .*useMulticastSend/m, 'the flow loads on the first multicast (027)')
+    assert.match(read('src/composables/useComposerTarget.ts'), /mcN\.value \? 'multicast\.send' : composerSendKey/)
+    assert.match(read('src/components/MessageComposer.vue'), /t\(sendKey, sendParams\)/)
   })
 })

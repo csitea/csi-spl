@@ -136,7 +136,7 @@ describe('the composer looks different per mode (HUM-24)', () => {
     /* owner, t1 3d6d945d 19:42Z: "remove this arrow" - no reply mark left of the box */
     assert.doesNotMatch(c, /composer-reply-mark/)
     assert.match(c, /:data-mode="modeAttr"/)
-    assert.match(c, /t\(sendKey\)/)
+    assert.match(c, /t\(sendKey, sendParams\)/)
     /* owner, t1 76b356b2: "double bordering ... Remove the lilac one" */
     assert.doesNotMatch(c, /border-inline-start: 3px solid var\(--composer-mode\)/)
     assert.doesNotMatch(c, /\.omnibox-field \{\n\s+border-color: color-mix\(in srgb, var\(--composer-mode\)/)

@@ -64,7 +64,7 @@
         <span v-if="store.result.failed.length">{{ ' ' + t('issues_bulk.result_failed', { count: store.result.failed.length, keys: store.result.failed.join(', ') }) }}</span>
       </p>
     </div>
-    <LazyMulticastDialog v-if="multicast.open.value" />
+    <LazyMulticastDialog v-if="multicast.open.value && multicast.via.value === 'bar'" />
   </header>
 </template>
 
@@ -92,7 +92,7 @@ onMounted(() => document.addEventListener('keydown', onKey))
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKey)
   /* the bar goes (a workspace switch) with the dialog open: close it, so the action settles and busy clears */
-  if (multicast.open.value) multicast.close()
+  if (multicast.open.value && multicast.via.value === 'bar') multicast.close()
 })
 </script>
 

@@ -582,6 +582,42 @@ landed; M10 also needs 182's L2, section 6).
    counted in the monthly quota; a fire whose targets exceed the remaining
    quota fails whole at step 2's check (R2 QTA).
 
+### 4.9 The Omnibox's send with 2+ ticked (the second path)
+
+Owner HUM-10, t1 #spool-hub-ui topic `ec411af3` (msg `f0a3b378`, also
+filed as `4649db44`): "if there a re selected topics ( more than 1 ) in
+the channel topics listing regardless of wheather or not a topic is open ,
+typing a text on the omnibox and hitting the play button should work as a
+multicast to all of hte selected topics". Issue **SPL-6741**.
+
+1. **When.** The selection (7.1.6) holds 2 or more topics and the client
+   can send `multicast_check` (`canMulticastCheck`). An open topic does
+   not matter. With 0 or 1 ticked the Omnibox sends as before (a reply to
+   the open topic, else a new topic in the page's channel).
+2. **Not multicast**, as before: a `/search` line, a `/note` line (spec
+   155 2.5) and a line whose `in: <title>` names one topic (it names its
+   target).
+3. **Before the send.** The GO button's label and tooltip read "Send to n
+   topics" (`multicast.send`), the target chip "n topics"
+   (`multicast.count`, its tooltip `multicast.send`; the phone dock has
+   no chip, its GO says it); the 7.1.4 keys, already in every locale.
+4. **Send.** GO and the send key (Settings -> Behaviour "Text fields")
+   hand the text and files to the Multicast flow
+   (`useMulticastSend().sendNow`, loaded on the first such send): the same
+   upload, one `multicast_check` with the text, then one copy per selected
+   topic with one `mc_id` (4.3). No compose step; the Multicast dialog
+   opens on the copies (4.4), mounted by TopBar (`via: 'omnibox'`), so it
+   shows on a page with no selection bar too.
+5. **Results.** Every copy acked: the dialog closes and the selection
+   clears. A check that refuses sends nothing: the dialog stays in compose
+   with the text in its own composer and the refused targets named, as
+   4.1 step 2 item 2. While the send runs the selection bar's actions are
+   off (`busy`).
+6. **Tests.** `csi-spl-wui/tests/e2e/multicast-omnibox.test.mjs` (2+
+   ticked with and without an open topic: one copy in each ticked topic,
+   none elsewhere; 1 ticked: the normal send), `tests/unit/multicast-send.test.mjs`
+   (`sendNow`).
+
 ## 5. Reused, and the gaps
 
 Reused as is: the composer (inside the Multicast dialog) and its file
@@ -911,6 +947,7 @@ the shared part; the priority action, its route and its tests are 153's.
 | v0.4 | `cbbc11996` | the v0.3 review (c-240, msg `9598398d`); R2 and R3 to the owner (form `a07226d8`) |
 | v0.5 | `31b583afe` | R2 QTA, R3 ATT (msg `ee9b2558`); the v0.4 review's N1, N2 |
 | v0.6 | this commit | S1: select, then Multicast (msgs `5fdfff6c`, `656b2576`, `4b3833e7`; addendum `ae2caeb2`) |
+| v0.7 | SPL-6741 | 4.9: the Omnibox's send multicasts to the selection when 2+ are ticked (msg `f0a3b378`) |
 
 ### 10.1 Changes in v0.6
 

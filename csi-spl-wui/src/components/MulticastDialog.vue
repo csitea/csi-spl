@@ -35,7 +35,7 @@
       <template v-if="phase === 'compose'">
         <p class="mc__note" data-test="multicast-send-label">{{ t('multicast.send', { n: count }) }}</p>
         <div class="mc__composer" data-test="multicast-composer" @input="onInput">
-          <MessageComposer :dock="false" :busy="!canSend" :placeholder="t('multicast.send', { n: count })" @send="onSend" @ready="box = $event" />
+          <MessageComposer :dock="false" :busy="!canSend" :placeholder="t('multicast.send', { n: count })" @send="onSend" @ready="onReady" />
         </div>
       </template>
       <template v-else>
@@ -54,7 +54,7 @@ import { useMulticastSend, type McLine } from '~/composables/useMulticastSend'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 
 const { t } = useI18n({ useScope: 'global' })
-const { open, lines, phase, count, canSend, checkError, checkDetail, sentText, setBody, remove, send, retry, close } = useMulticastSend()
+const { open, lines, phase, count, canSend, checkError, checkDetail, sentText, body, setBody, remove, send, retry, close } = useMulticastSend()
 /* owner HUM-10, t1 c9b86153: the prompt sits at the targets' newest end, read live from
    Settings -> Behaviour "Message order" (newest first = on top). Keyed parts: the DOM, so
    the tab order, follows, and a flip moves the composer without remounting it */
@@ -62,6 +62,11 @@ const { newestLast } = useViewPrefs()
 const parts = computed(() => (newestLast.value ? ['targets', 'prompt'] : ['prompt', 'targets']))
 /* the dialog composer's own box: a send the final check refused puts the text back */
 const box = ref<{ setText: (s: string) => void } | null>(null)
+/* the composer mounts in compose: the text a refused Omnibox send carried (sendNow) is put in it */
+function onReady(b: { setText: (s: string) => void }) {
+  box.value = b
+  if (body.value) b.setText(body.value)
+}
 
 const groups = computed(() => {
   const by = new Map<string, McLine[]>()

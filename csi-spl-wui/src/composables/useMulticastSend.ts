@@ -45,6 +45,8 @@ const tokenOf = (e: unknown) => String((e as { token?: string })?.token || (e as
 function mcState() {
   const lines = ref<McLine[]>([])
   const open = ref(false)
+  /* who opened it: the selection bar's Multicast, or the Omnibox's send with 2+ ticked (each mounts the dialog) */
+  const via = ref<'bar' | 'omnibox'>('bar')
   /* compose: the check gates Send; sending: copies out or waiting for the network; failed: some refused, Retry */
   const phase = ref<'compose' | 'sending' | 'failed'>('compose')
   const checking = ref(false)
@@ -58,7 +60,7 @@ function mcState() {
   const count = computed(() => lines.value.length)
   const canSend = computed(() => phase.value === 'compose' && !checking.value && !checkError.value
     && count.value > 0 && lines.value.every((l) => l.ok === true))
-  return { lines, open, phase, checking, checkError, checkDetail, lastReq, body, sentText, count, canSend }
+  return { lines, open, via, phase, checking, checkError, checkDetail, lastReq, body, sentText, count, canSend }
 }
 type McState = ReturnType<typeof mcState>
 
@@ -138,6 +140,10 @@ function useMcSend(s: McState, deps: McDeps, o: { newId: () => string, check: (f
    */
   async function send(text: string, files?: unknown[]) {
     if (!s.canSend.value) return
+    await sendChecked(text, files)
+  }
+  /** the Send steps after the gate; the Omnibox's send (sendNow) runs them with no compose step */
+  async function sendChecked(text: string, files?: unknown[]) {
     s.phase.value = 'sending'
     s.sentText.value = text
     s.body.value = text
@@ -164,7 +170,7 @@ function useMcSend(s: McState, deps: McDeps, o: { newId: () => string, check: (f
     s.lines.value = s.lines.value.map((l) => (l.state === 'failed' ? { ...l, state: 'sending', error: '' } : l))
     await dispatch(again)
   }
-  return { send, retry, reset }
+  return { send, sendChecked, retry, reset }
 }
 
 /** The Multicast flow on its own deps (the tests inject a stub hub and store). */
@@ -181,8 +187,8 @@ export function createMulticast(deps: McDeps) {
     d?.(ok)
   }
   const sending = useMcSend(s, deps, { newId, check, finish })
-  /** Multicast pressed: the dialog opens on the selection; resolves true when every copy is acked, false when closed */
-  function start(selection: TopicPick[]): Promise<boolean> {
+  /** the dialog opens on the selection, nothing checked yet; resolves true when every copy is acked, false when closed */
+  function openOn(selection: TopicPick[], via: 'bar' | 'omnibox'): Promise<boolean> {
     const seen = new Set<string>()
     s.lines.value = selection.filter((p) => p.task_id && !seen.has(p.task_id) && seen.add(p.task_id))
       .map((p) => ({ task_id: p.task_id, channel: p.channel, title: p.title, ok: null, error: '', msg_id: '', state: '' }))
@@ -192,9 +198,26 @@ export function createMulticast(deps: McDeps) {
     s.body.value = ''
     s.sentText.value = ''
     sending.reset()
+    s.via.value = via
     s.open.value = true
-    const closed = new Promise<boolean>((resolve) => { done = resolve })
+    return new Promise<boolean>((resolve) => { done = resolve })
+  }
+  /** Multicast pressed: the dialog opens on the selection and checks it */
+  function start(selection: TopicPick[]): Promise<boolean> {
+    const closed = openOn(selection, 'bar')
     void check()
+    return closed
+  }
+  /**
+   * The Omnibox's send with 2+ topics ticked (owner HUM-10, t1 ec411af3, msg
+   * f0a3b378): the typed text goes to exactly the selection, through the same
+   * check and copies as the dialog's Send. The dialog shows the copies; a
+   * check that refuses leaves it in compose with the text, so nothing is lost.
+   */
+  function sendNow(selection: TopicPick[], text: string, files?: unknown[]): Promise<boolean> {
+    const closed = openOn(selection, 'omnibox')
+    s.body.value = text
+    void sending.sendChecked(text, files)
     return closed
   }
   /** the composer's text changed: the check reads it after the debounce */
@@ -209,7 +232,7 @@ export function createMulticast(deps: McDeps) {
     s.lines.value = s.lines.value.filter((l) => l.task_id !== taskId)
     return check()
   }
-  return { ...s, start, setBody, remove, check, send: sending.send, retry: sending.retry, close: () => finish(false) }
+  return { ...s, start, sendNow, setBody, remove, check, send: sending.send, retry: sending.retry, close: () => finish(false) }
 }
 
 let single: ReturnType<typeof createMulticast> | null = null
